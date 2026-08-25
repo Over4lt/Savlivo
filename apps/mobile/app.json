@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Savlivo",
+    "slug": "savlivo",
+    "scheme": "savlivo",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.savlivo.app",
+      "icon": "./assets/logo.png"
+    },
+    "android": {
+      "package": "com.savlivo.app",
+      "icon": "./assets/logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      "@react-native-community/datetimepicker",
+      "expo-font"
+    ],
+    "icon": "./assets/logo.png"
+  }
+}

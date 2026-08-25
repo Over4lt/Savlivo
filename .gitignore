@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Expo
+.expo/
+.expo-shared/
+
+# Native/build output
+dist/
+build/
+coverage/
+*.log
+
+# macOS
+.DS_Store
+
+# Local backup directories
+backups/
+.savlivo-backups/
+archive/
+
+# Manual development snapshots
+*.before-*
+*.bak
+*~
+
+# Misc accidental files
+npm
+
+# Legacy/local source snapshots
+services/api/.backup-before-esm-fix/
+apps/mobile/app/index.pre-bottom-nav.tsx
+apps/mobile/app/index.tsx.broken-provider-flow-*
+apps/mobile/app/savlivo-home-build-*.tsx
+
+# Local Android debug signing key
+apps/mobile/android/app/debug.keystore

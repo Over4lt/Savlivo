@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: savlivo
+      POSTGRES_PASSWORD: savlivo
+      POSTGRES_DB: savlivo
+    ports:
+      - "5432:5432"
+    volumes:
+      - savlivo_pg:/var/lib/postgresql/data
+
+volumes:
+  savlivo_pg:
