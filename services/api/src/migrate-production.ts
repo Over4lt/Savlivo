@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { Client } from "pg";
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
@@ -6,6 +7,8 @@ const databaseUrl = process.env.DATABASE_URL?.trim();
 if (!databaseUrl) {
   throw new Error("DATABASE_URL_REQUIRED");
 }
+
+const repoRoot = resolve(process.cwd(), "../..");
 
 const files = [
   "db/schema.sql",
@@ -24,7 +27,7 @@ try {
 
   for (const file of files) {
     console.log(`Applying ${file}...`);
-    const sql = await readFile(file, "utf8");
+    const sql = await readFile(resolve(repoRoot, file), "utf8");
     await client.query(sql);
   }
 
