@@ -1,13 +1,40 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
-export async function setToken(token: string) {
-  await AsyncStorage.setItem("savlivo_token", token);
+if (!configuredApiUrl && !__DEV__) {
+  throw new Error("EXPO_PUBLIC_API_URL_REQUIRED_IN_PRODUCTION");
+}
+
+export const API_URL = configuredApiUrl || "http://localhost:3000";
+
+let sessionToken: string | null = null;
+
+export async function setToken(
+  token: string,
+  persist = true
+) {
+  sessionToken = token;
+  if (persist) {
+    await AsyncStorage.setItem("savlivo_token", token);
+  } else {
+    await AsyncStorage.removeItem("savlivo_token");
+  }
 }
 
 export async function getToken() {
-  return AsyncStorage.getItem("savlivo_token");
+  if (sessionToken) return sessionToken;
+  const persistedToken =
+    await AsyncStorage.getItem("savlivo_token");
+  if (persistedToken) {
+    sessionToken = persistedToken;
+  }
+  return persistedToken;
+}
+
+export async function clearToken() {
+  sessionToken = null;
+  await AsyncStorage.removeItem("savlivo_token");
 }
 
 export async function api<T>(

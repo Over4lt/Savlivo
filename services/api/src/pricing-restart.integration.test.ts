@@ -63,6 +63,79 @@ test.before(async () => {
   await cleanup();
 });
 
+
+
+test(
+  "fresh authoritative provider price beats older persisted price",
+  async () => {
+    await cleanup();
+
+    await persistVerifiedLivePrices([
+      makePrice(
+        1499,
+        {
+          verification: "multi-source",
+          sourceCount: 2,
+          verifiedByAgreement: true
+        }
+      )
+    ]);
+
+    const persisted =
+      await loadPersistedVerifiedPrices(
+        "DE",
+        "EUR"
+      );
+
+    const freshAuthoritative =
+      makePrice(
+        1599,
+        {
+          verification:
+            "authoritative-provider",
+          sourceCount: 1,
+          verifiedByAgreement: false
+        }
+      );
+
+    const merged =
+      mergeFreshAndPersistedPricing(
+        [freshAuthoritative],
+        persisted
+      );
+
+    const resolved = merged.find(
+      (row) =>
+        row.serviceSlug ===
+          identity.serviceSlug &&
+        row.planSlug ===
+          identity.planSlug
+    );
+
+    assert.ok(resolved);
+
+    assert.equal(
+      resolved.monthlyPriceMinor,
+      1599
+    );
+
+    assert.equal(
+      resolved.verification,
+      "authoritative-provider"
+    );
+
+    assert.equal(
+      resolved.sourceCount,
+      1
+    );
+
+    assert.equal(
+      resolved.verifiedByAgreement,
+      false
+    );
+  }
+);
+
 test.after(async () => {
   await cleanup();
   await pool.end();

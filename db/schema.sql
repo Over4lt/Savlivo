@@ -125,9 +125,41 @@ INSERT INTO services (slug, name) VALUES
   ('disney-plus', 'Disney+'),
   ('max', 'Max'),
   ('prime-video', 'Prime Video'),
+  ('amazon-prime', 'Amazon Prime'),
   ('apple-tv-plus', 'Apple TV+'),
-  ('youtube-premium', 'YouTube Premium')
-ON CONFLICT DO NOTHING;
+  ('youtube-premium', 'YouTube Premium'),
+  ('hulu', 'Hulu'),
+  ('paramount-plus', 'Paramount+'),
+  ('peacock', 'Peacock'),
+  ('crunchyroll', 'Crunchyroll'),
+
+  ('spotify', 'Spotify'),
+  ('apple-music', 'Apple Music'),
+  ('amazon-music-unlimited', 'Amazon Music Unlimited'),
+  ('tidal', 'TIDAL'),
+  ('audible', 'Audible'),
+
+  ('xbox-game-pass', 'Xbox Game Pass'),
+  ('playstation-plus', 'PlayStation Plus'),
+  ('ea-play', 'EA Play'),
+  ('ubisoft-plus', 'Ubisoft+'),
+  ('geforce-now', 'GeForce NOW'),
+
+  ('chatgpt', 'ChatGPT'),
+  ('claude', 'Claude'),
+  ('microsoft-365', 'Microsoft 365'),
+  ('adobe-creative-cloud', 'Adobe Creative Cloud'),
+  ('canva', 'Canva'),
+  ('dropbox', 'Dropbox'),
+  ('google-one', 'Google One'),
+  ('icloud-plus', 'iCloud+'),
+
+  ('strava', 'Strava'),
+  ('calm', 'Calm'),
+  ('headspace', 'Headspace')
+ON CONFLICT (slug)
+DO UPDATE SET
+  name = EXCLUDED.name;
 
 INSERT INTO billing_providers (slug, name, provider_type) VALUES
   ('direct', 'Direct billing', 'DIRECT'),
@@ -136,3 +168,47 @@ INSERT INTO billing_providers (slug, name, provider_type) VALUES
   ('amazon', 'Amazon', 'PLATFORM'),
   ('carrier', 'Carrier / TV provider', 'PARTNER')
 ON CONFLICT DO NOTHING;
+
+-- Persisted provider pricing that has passed Savlivo's
+-- verification boundary. Ordinary single-source observations
+-- must not be stored here.
+CREATE TABLE IF NOT EXISTS verified_provider_prices (
+  service_slug TEXT NOT NULL,
+  plan_slug TEXT NOT NULL,
+  plan_name TEXT NOT NULL,
+  billing_provider_slug TEXT NOT NULL,
+  country_code CHAR(2) NOT NULL,
+  currency CHAR(3) NOT NULL,
+  monthly_price_minor INTEGER NOT NULL
+    CHECK (monthly_price_minor > 0),
+  source TEXT NOT NULL,
+  source_url TEXT NOT NULL,
+  verification TEXT NOT NULL
+    CHECK (
+      verification IN (
+        'registry',
+        'multi-source',
+        'authoritative-provider'
+      )
+    ),
+  source_count INTEGER NOT NULL DEFAULT 1
+    CHECK (source_count >= 1),
+  verified_by_agreement BOOLEAN NOT NULL DEFAULT FALSE,
+  verified_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  PRIMARY KEY (
+    service_slug,
+    plan_slug,
+    billing_provider_slug,
+    country_code,
+    currency
+  )
+);
+
+CREATE INDEX IF NOT EXISTS
+  verified_provider_prices_country_idx
+ON verified_provider_prices (
+  country_code,
+  currency
+);

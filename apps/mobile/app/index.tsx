@@ -25,12 +25,69 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
-import { api, setToken } from "../src/api";
+import { api, clearToken, getToken, setToken } from "../src/api";
 import { purchasePlan } from "../src/billing";
-import { openProviderUrl } from "../src/providerRouting";
+import {
+  getSubscriptionManagementUrl,
+  openProviderUrl,
+  supportsSubscriptionAction
+} from "../src/providerRouting";
 import {
   effectiveSubscriptionStatus as resolveEffectiveSubscriptionStatus
 } from "../lib/subscription-status";
+import {
+  needsRenewalDateRefresh,
+  willSubscriptionRenewOn
+} from "../lib/subscription-renewal";
+import {
+  classifySubscriptionIntent
+} from "../lib/ai-intent";
+import {
+  getSavlivoHelp
+} from "../lib/ai-app-help";
+import {
+  compareSubscriptions,
+  parseScenarioMonths,
+  rankSubscriptionsByCost,
+  simulateSubscriptionRemoval
+} from "../lib/ai-account-reasoning";
+import {
+  resolveSubscriptionEntities
+} from "../lib/ai-entities";
+import {
+  emptyAssistantConversationContext,
+  isComparisonFollowUp,
+  isRenewalFollowUp,
+  isScenarioFollowUp,
+  rememberComparison,
+  rememberScenario,
+  rememberSubscription,
+  resolveReferencedSubscriptionId,
+  resolveScenarioMonths
+} from "../lib/ai-conversation";
+import {
+  buildSavingsGoalPlan,
+  emptyAssistantPreferences,
+  isProtectionRequest,
+  parseSavingsGoalAmount,
+  protectSubscription,
+  rankAllowedRecommendations,
+  setMonthlySavingsGoal
+} from "../lib/ai-preferences";
+import {
+  askRemoteAssistant
+} from "../lib/ai-remote";
+import {
+  transcribeSavlivoVoice
+} from "../lib/ai-voice";
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState
+} from "expo-audio";
+import * as Speech from "expo-speech";
 import { registerSavlivoPushNotifications, subscribeToSavlivoNotificationTaps } from "../src/notifications";
 
 type Subscription = {
@@ -49,6 +106,20 @@ type Subscription = {
 
 type Screen = "home" | "subscriptions" | "savings" | "autopilot" | "ai" | "settings" | "plans";
 
+type AppLanguage =
+  | "en"
+  | "no"
+  | "sv"
+  | "da"
+  | "de"
+  | "es"
+  | "fr"
+  | "it"
+  | "pt"
+  | "nl"
+  | "fi"
+  | "zh-CN";
+
 const serviceInitials: Record<string, string> = {
   netflix: "N",
   "disney-plus": "D+",
@@ -56,7 +127,48 @@ const serviceInitials: Record<string, string> = {
   "prime-video": "P",
   "amazon-prime": "P",
   "apple-tv-plus": "A",
-  "youtube-premium": "Y"
+  "youtube-premium": "Y",
+
+  hulu: "H",
+  "paramount-plus": "P+",
+  peacock: "P",
+  crunchyroll: "C",
+
+  spotify: "S",
+  "apple-music": "AM",
+  "amazon-music-unlimited": "AM",
+  tidal: "T",
+  audible: "A",
+
+  "xbox-game-pass": "X",
+  "playstation-plus": "PS",
+  "ea-play": "EA",
+  "ubisoft-plus": "U+",
+  "geforce-now": "GFN",
+
+  chatgpt: "AI",
+  claude: "C",
+  "microsoft-365": "M",
+  "adobe-creative-cloud": "CC",
+  canva: "C",
+  dropbox: "D",
+  "google-one": "G",
+  "icloud-plus": "iC",
+
+  "tencent-video": "TV",
+  iqiyi: "IQ",
+  "mango-tv": "MG",
+  youku: "YK",
+  bilibili: "B",
+  "qq-music": "QQ",
+  "netease-cloud-music": "NE",
+  "kugou-music": "KG",
+  "baidu-netdisk": "BD",
+  wps: "W",
+
+  strava: "S",
+  calm: "C",
+  headspace: "H"
 };
 
 const serviceBrandColors: Record<string, string> = {
@@ -66,18 +178,347 @@ const serviceBrandColors: Record<string, string> = {
   "prime-video": "#00A8E1",
   "amazon-prime": "#00A8E1",
   "apple-tv-plus": "#000000",
-  "youtube-premium": "#FF0000"
+  "youtube-premium": "#FF0000",
+
+  hulu: "#1CE783",
+  "paramount-plus": "#0064FF",
+  peacock: "#111827",
+  crunchyroll: "#F47521",
+
+  spotify: "#1DB954",
+  "apple-music": "#FA2D48",
+  "amazon-music-unlimited": "#00A8E1",
+  tidal: "#111111",
+  audible: "#F8991D",
+
+  "xbox-game-pass": "#107C10",
+  "playstation-plus": "#006FCD",
+  "ea-play": "#FF4747",
+  "ubisoft-plus": "#0070FF",
+  "geforce-now": "#76B900",
+
+  chatgpt: "#10A37F",
+  claude: "#D97757",
+  "microsoft-365": "#D83B01",
+  "adobe-creative-cloud": "#FF0000",
+  canva: "#00C4CC",
+  dropbox: "#0061FF",
+  "google-one": "#4285F4",
+  "icloud-plus": "#3693F3",
+
+  strava: "#FC4C02",
+  calm: "#4B6CB7",
+  headspace: "#F47D31"
 };
 
+
+
+const serviceLogoAssets: Record<string, any> = {
+  "amazon-music-unlimited": require("../assets/service-logos/amazon-music-unlimited.png"),
+  "amazon-prime": require("../assets/service-logos/amazon-prime.png"),
+  "apple-music": require("../assets/service-logos/apple-music.png"),
+  "apple-tv-plus": require("../assets/service-logos/apple-tv-plus.png"),
+  audible: require("../assets/service-logos/audible.png"),
+  calm: require("../assets/service-logos/calm.png"),
+  canva: require("../assets/service-logos/canva.png"),
+  chatgpt: require("../assets/service-logos/chatgpt.png"),
+  claude: require("../assets/service-logos/claude.png"),
+  crunchyroll: require("../assets/service-logos/crunchyroll.png"),
+  "disney-plus": require("../assets/service-logos/disney-plus.png"),
+  dropbox: require("../assets/service-logos/dropbox.png"),
+  "ea-play": require("../assets/service-logos/ea-play.png"),
+  "google-one": require("../assets/service-logos/google-one.png"),
+  headspace: require("../assets/service-logos/headspace.png"),
+  hulu: require("../assets/service-logos/hulu.png"),
+  "icloud-plus": require("../assets/service-logos/icloud-plus.png"),
+  max: require("../assets/service-logos/max.png"),
+  "microsoft-365": require("../assets/service-logos/microsoft-365.png"),
+  netflix: require("../assets/service-logos/netflix.png"),
+  "paramount-plus": require("../assets/service-logos/paramount-plus.png"),
+  peacock: require("../assets/service-logos/peacock.png"),
+  "playstation-plus": require("../assets/service-logos/playstation-plus.png"),
+  "prime-video": require("../assets/service-logos/prime-video.png"),
+  spotify: require("../assets/service-logos/spotify.png"),
+  strava: require("../assets/service-logos/strava.png"),
+  tidal: require("../assets/service-logos/tidal.png"),
+  "xbox-game-pass": require("../assets/service-logos/xbox-game-pass.png"),
+  "youtube-premium": require("../assets/service-logos/youtube-premium.png"),
+
+  "tencent-video": require("../assets/service-logos/tencent-video.png"),
+  iqiyi: require("../assets/service-logos/iqiyi.png"),
+  "mango-tv": require("../assets/service-logos/mango-tv.png"),
+  youku: require("../assets/service-logos/youku.png"),
+  bilibili: require("../assets/service-logos/bilibili.png"),
+  "qq-music": require("../assets/service-logos/qq-music.png"),
+  "netease-cloud-music": require("../assets/service-logos/netease-cloud-music.png"),
+  "kugou-music": require("../assets/service-logos/kugou-music.png"),
+  "baidu-netdisk": require("../assets/service-logos/baidu-netdisk.png"),
+  wps: require("../assets/service-logos/wps.png"),
+};
+
+const serviceLogoPresentation: Record<
+  string,
+  {
+    scale?: number;
+    backgroundColor?: string;
+    radiusFactor?: number;
+  }
+> = {
+  netflix: {
+    scale: 0.82,
+    backgroundColor: "#000000"
+  },
+
+  "disney-plus": {
+    scale: 1
+  },
+
+  "paramount-plus": {
+    scale: 1
+  },
+
+  "xbox-game-pass": {
+    scale: 0.9
+  }
+};
+
+type ServiceLogoProps = {
+  serviceSlug: string;
+  serviceName: string;
+  size?: number;
+};
+
+function ServiceLogo({
+  serviceSlug,
+  serviceName,
+  size = 44
+}: ServiceLogoProps) {
+  const initials =
+    serviceInitials[serviceSlug] ??
+    serviceName
+      .slice(0, 2)
+      .toUpperCase();
+
+  const backgroundColor =
+    serviceBrandColors[serviceSlug] ??
+    "#111827";
+
+  const logoSource =
+    serviceLogoAssets[serviceSlug];
+
+  const presentation =
+    serviceLogoPresentation[serviceSlug] ?? {};
+
+  const imageScale =
+    presentation.scale ?? 1;
+
+  const logoBackground =
+    presentation.backgroundColor ??
+    backgroundColor;
+
+  const radius =
+    Math.round(
+      size *
+        (presentation.radiusFactor ?? 0.24)
+    );
+
+  if (logoSource) {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: radius,
+          overflow: "hidden",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          backgroundColor: logoBackground
+        }}
+      >
+        <Image
+          source={logoSource}
+          style={{
+            width: size * imageScale,
+            height: size * imageScale
+          }}
+          resizeMode="contain"
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius,
+        backgroundColor,
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0
+      }}
+    >
+      <Text
+        style={{
+          color: "#FFFFFF",
+          fontSize: Math.max(
+            10,
+            Math.round(size * 0.33)
+          ),
+          fontWeight: "900"
+        }}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.65}
+      >
+        {initials}
+      </Text>
+    </View>
+  );
+}
+
+
 const serviceCatalog = [
+  // Video
   { slug: "netflix", name: "Netflix" },
   { slug: "disney-plus", name: "Disney+" },
   { slug: "max", name: "Max" },
   { slug: "prime-video", name: "Prime Video" },
   { slug: "amazon-prime", name: "Amazon Prime" },
   { slug: "apple-tv-plus", name: "Apple TV+" },
-  { slug: "youtube-premium", name: "YouTube Premium" }
+  { slug: "youtube-premium", name: "YouTube Premium" },
+  { slug: "hulu", name: "Hulu" },
+  { slug: "paramount-plus", name: "Paramount+" },
+  { slug: "peacock", name: "Peacock" },
+  { slug: "crunchyroll", name: "Crunchyroll" },
+
+  // Music & audio
+  { slug: "spotify", name: "Spotify" },
+  { slug: "apple-music", name: "Apple Music" },
+  {
+    slug: "amazon-music-unlimited",
+    name: "Amazon Music Unlimited"
+  },
+  { slug: "tidal", name: "TIDAL" },
+  { slug: "audible", name: "Audible" },
+
+  // Gaming
+  { slug: "xbox-game-pass", name: "Xbox Game Pass" },
+  { slug: "playstation-plus", name: "PlayStation Plus" },
+  { slug: "ea-play", name: "EA Play" },
+  { slug: "ubisoft-plus", name: "Ubisoft+" },
+  { slug: "geforce-now", name: "GeForce NOW" },
+
+  // AI, software & cloud
+  { slug: "chatgpt", name: "ChatGPT" },
+  { slug: "claude", name: "Claude" },
+  { slug: "microsoft-365", name: "Microsoft 365" },
+  {
+    slug: "adobe-creative-cloud",
+    name: "Adobe Creative Cloud"
+  },
+  { slug: "canva", name: "Canva" },
+  { slug: "dropbox", name: "Dropbox" },
+  { slug: "google-one", name: "Google One" },
+  { slug: "icloud-plus", name: "iCloud+" },
+
+  // Mainland China
+  { slug: "tencent-video", name: "Tencent Video / 腾讯视频" },
+  { slug: "iqiyi", name: "iQIYI / 爱奇艺" },
+  { slug: "mango-tv", name: "Mango TV / 芒果TV" },
+  { slug: "youku", name: "Youku / 优酷" },
+  { slug: "bilibili", name: "Bilibili / 哔哩哔哩" },
+  { slug: "qq-music", name: "QQ Music / QQ音乐" },
+  {
+    slug: "netease-cloud-music",
+    name: "NetEase Cloud Music / 网易云音乐"
+  },
+  { slug: "kugou-music", name: "KuGou Music / 酷狗音乐" },
+  { slug: "baidu-netdisk", name: "Baidu Netdisk / 百度网盘" },
+  { slug: "wps", name: "WPS Office" },
+
+  // Fitness & wellness
+  { slug: "strava", name: "Strava" },
+  { slug: "calm", name: "Calm" },
+  { slug: "headspace", name: "Headspace" }
 ];
+
+const serviceCategories = [
+  {
+    key: "video",
+    name: "Video",
+    slugs: [
+      "netflix",
+      "disney-plus",
+      "max",
+      "prime-video",
+      "amazon-prime",
+      "apple-tv-plus",
+      "youtube-premium",
+      "hulu",
+      "paramount-plus",
+      "peacock",
+      "crunchyroll",
+      "tencent-video",
+      "iqiyi",
+      "mango-tv",
+      "youku",
+      "bilibili"
+    ]
+  },
+  {
+    key: "music-audio",
+    name: "Music & Audio",
+    slugs: [
+      "spotify",
+      "apple-music",
+      "amazon-music-unlimited",
+      "tidal",
+      "audible",
+      "qq-music",
+      "netease-cloud-music",
+      "kugou-music"
+    ]
+  },
+  {
+    key: "gaming",
+    name: "Gaming",
+    slugs: [
+      "xbox-game-pass",
+      "playstation-plus",
+      "ea-play",
+      "ubisoft-plus",
+      "geforce-now"
+    ]
+  },
+  {
+    key: "ai-software-cloud",
+    name: "AI, Software & Cloud",
+    slugs: [
+      "chatgpt",
+      "claude",
+      "microsoft-365",
+      "adobe-creative-cloud",
+      "canva",
+      "dropbox",
+      "google-one",
+      "icloud-plus",
+      "baidu-netdisk",
+      "wps"
+    ]
+  },
+  {
+    key: "fitness-wellness",
+    name: "Fitness & Wellness",
+    slugs: [
+      "strava",
+      "calm",
+      "headspace"
+    ]
+  }
+] as const;
 
 const billingProviders = [
   { slug: "direct", name: "Direct" },
@@ -85,7 +526,299 @@ const billingProviders = [
   { slug: "google-play", name: "Google Play" },
   { slug: "amazon", name: "Amazon" },
   { slug: "carrier", name: "Carrier / TV provider" }
-];
+] as const;
+
+type BillingProviderSlug =
+  (typeof billingProviders)[number]["slug"];
+
+/*
+ * Billing routes users can realistically select for each service.
+ *
+ * This matters because Savlivo later uses the billing route to decide
+ * where Cancel / Reactivate should send the user.
+ *
+ * "carrier" is kept only for services where partner / TV / carrier
+ * billing is a realistic possibility.
+ */
+const serviceBillingProviders: Record<
+  string,
+  readonly BillingProviderSlug[]
+> = {
+  // VIDEO
+  netflix: [
+    "direct",
+    "carrier"
+  ],
+
+  "disney-plus": [
+    "direct",
+    "apple",
+    "google-play",
+    "amazon",
+    "carrier"
+  ],
+
+  max: [
+    "direct",
+    "apple",
+    "google-play",
+    "amazon",
+    "carrier"
+  ],
+
+  "prime-video": [
+    "amazon",
+    "direct"
+  ],
+
+  "amazon-prime": [
+    "amazon",
+    "direct"
+  ],
+
+  "apple-tv-plus": [
+    "apple",
+    "direct"
+  ],
+
+  "youtube-premium": [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  hulu: [
+    "direct",
+    "apple",
+    "google-play",
+    "amazon",
+    "carrier"
+  ],
+
+  "paramount-plus": [
+    "direct",
+    "apple",
+    "google-play",
+    "amazon",
+    "carrier"
+  ],
+
+  peacock: [
+    "direct",
+    "apple",
+    "google-play",
+    "carrier"
+  ],
+
+  crunchyroll: [
+    "direct",
+    "apple",
+    "google-play",
+    "amazon"
+  ],
+
+  // MUSIC & AUDIO
+  spotify: [
+    "direct",
+    "apple",
+    "google-play",
+    "carrier"
+  ],
+
+  "apple-music": [
+    "apple",
+    "direct",
+    "google-play",
+    "carrier"
+  ],
+
+  "amazon-music-unlimited": [
+    "amazon",
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  tidal: [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  audible: [
+    "amazon",
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  // GAMING
+  "xbox-game-pass": [
+    "direct",
+    "carrier"
+  ],
+
+  "playstation-plus": [
+    "direct"
+  ],
+
+  "ea-play": [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  "ubisoft-plus": [
+    "direct"
+  ],
+
+  "geforce-now": [
+    "direct"
+  ],
+
+  // AI, SOFTWARE & CLOUD
+  chatgpt: [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  claude: [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  "microsoft-365": [
+    "direct",
+    "apple",
+    "google-play",
+    "carrier"
+  ],
+
+  "adobe-creative-cloud": [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  canva: [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  dropbox: [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  "google-one": [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  "icloud-plus": [
+    "apple"
+  ],
+
+  // MAINLAND CHINA
+  "tencent-video": [
+    "direct"
+  ],
+  iqiyi: [
+    "direct"
+  ],
+  "mango-tv": [
+    "direct"
+  ],
+  youku: [
+    "direct"
+  ],
+  bilibili: [
+    "direct"
+  ],
+  "qq-music": [
+    "direct"
+  ],
+  "netease-cloud-music": [
+    "direct"
+  ],
+  "kugou-music": [
+    "direct"
+  ],
+  "baidu-netdisk": [
+    "direct"
+  ],
+  wps: [
+    "direct"
+  ],
+
+  // FITNESS & WELLNESS
+  strava: [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  calm: [
+    "direct",
+    "apple",
+    "google-play"
+  ],
+
+  headspace: [
+    "direct",
+    "apple",
+    "google-play"
+  ]
+};
+
+function billingProvidersForService(
+  serviceSlug: string
+) {
+  const allowed =
+    serviceBillingProviders[serviceSlug];
+
+  /*
+   * Safe fallback for future services:
+   * don't expose every possible billing route.
+   */
+  if (!allowed?.length) {
+    return billingProviders.filter(
+      (provider) =>
+        provider.slug === "direct"
+    );
+  }
+
+  return billingProviders.filter(
+    (provider) =>
+      allowed.includes(provider.slug)
+  );
+}
+
+function defaultBillingProviderForService(
+  serviceSlug: string
+): BillingProviderSlug {
+  const available =
+    billingProvidersForService(serviceSlug);
+
+  return available[0]?.slug ?? "direct";
+}
+
+function isBillingProviderAllowed(
+  serviceSlug: string,
+  providerSlug: string
+) {
+  return billingProvidersForService(
+    serviceSlug
+  ).some(
+    (provider) =>
+      provider.slug === providerSlug
+  );
+}
 
 const countryCurrencyData = [
   ["US", "United States", "USD"],
@@ -101,12 +834,75 @@ const countryCurrencyData = [
   ["BE", "Belgium", "EUR"],
   ["AT", "Austria", "EUR"],
   ["IE", "Ireland", "EUR"],
-  ["FI", "Finland", "EUR"]
+  ["FI", "Finland", "EUR"],
+  ["CN", "China", "CNY"]
 ] as const;
 
 const allCurrencies = Array.from(
   new Set(countryCurrencyData.map(([, , currency]) => currency))
 ).sort();
+
+const mainlandChinaServiceSlugs = new Set([
+  "tencent-video",
+  "iqiyi",
+  "mango-tv",
+  "youku",
+  "bilibili",
+  "qq-music",
+  "netease-cloud-music",
+  "kugou-music",
+  "baidu-netdisk",
+  "wps",
+  "apple-music",
+  "icloud-plus",
+  "microsoft-365"
+]);
+
+const mainlandChinaOnlyServiceSlugs = new Set([
+  "tencent-video",
+  "iqiyi",
+  "mango-tv",
+  "youku",
+  "bilibili",
+  "qq-music",
+  "netease-cloud-music",
+  "kugou-music",
+  "baidu-netdisk",
+  "wps"
+]);
+
+const usOnlyServiceSlugs = new Set([
+  "hulu",
+  "peacock"
+]);
+
+const paramountPlusMarketCodes = new Set([
+  "US",
+  "DE",
+  "FR",
+  "IT",
+  "AT",
+  "IE"
+]);
+
+function serviceAvailableInMarket(
+  serviceSlug: string,
+  countryCode: string
+) {
+  if (countryCode === "CN") {
+    return mainlandChinaServiceSlugs.has(serviceSlug);
+  }
+
+  if (usOnlyServiceSlugs.has(serviceSlug)) {
+    return countryCode === "US";
+  }
+
+  if (serviceSlug === "paramount-plus") {
+    return paramountPlusMarketCodes.has(countryCode);
+  }
+
+  return !mainlandChinaOnlyServiceSlugs.has(serviceSlug);
+}
 
 
 const fxRatesFromUsd: Record<string, number> = {
@@ -137,85 +933,11 @@ const fxRatesFromUsd: Record<string, number> = {
 };
 
 
-const verifiedRegionalFallback: Record<
-  string,
-  {
-    currency: string;
-    prices: Record<string, Record<string, number>>;
-  }
-> = {
-  US: {
-    currency: "USD",
-    prices: {
-      netflix: { direct: 1799, apple: 1799, "google-play": 1799, amazon: 1799, carrier: 1799 },
-      "disney-plus": { direct: 1599, apple: 1599, "google-play": 1599, amazon: 1599, carrier: 1599 },
-      max: { direct: 1299, apple: 1299, "google-play": 1299, amazon: 1299, carrier: 1299 },
-      "prime-video": { direct: 899, apple: 899, "google-play": 899, amazon: 899, carrier: 899 },
-      "apple-tv-plus": { direct: 999, apple: 999, "google-play": 999, amazon: 999, carrier: 999 },
-      "youtube-premium": { direct: 1599, apple: 1899, "google-play": 1399, amazon: 1599, carrier: 1599 }
-    }
-  },
-  NO: {
-    currency: "NOK",
-    prices: {
-      netflix: { direct: 14900, apple: 14900, "google-play": 14900, amazon: 14900, carrier: 14900 },
-      "disney-plus": { direct: 10900, apple: 10900, "google-play": 10900, amazon: 10900, carrier: 10900 },
-      max: { direct: 12900, apple: 12900, "google-play": 12900, amazon: 12900, carrier: 12900 },
-      "prime-video": { direct: 7900, apple: 7900, "google-play": 7900, amazon: 7900, carrier: 7900 },
-      "apple-tv-plus": { direct: 11900, apple: 11900, "google-play": 11900, amazon: 11900, carrier: 11900 },
-      "youtube-premium": { direct: 16900, apple: 20900, "google-play": 16900, amazon: 16900, carrier: 16900 }
-    }
-  }
-};
-
-const providerPricing: Record<string, Record<string, number>> = {
-  netflix: {
-    direct: 17.99,
-    apple: 17.99,
-    "google-play": 17.99,
-    amazon: 17.99,
-    carrier: 17.99
-  },
-  "disney-plus": {
-    direct: 15.99,
-    apple: 15.99,
-    "google-play": 15.99,
-    amazon: 15.99,
-    carrier: 15.99
-  },
-  max: {
-    direct: 12.99,
-    apple: 12.99,
-    "google-play": 12.99,
-    amazon: 12.99,
-    carrier: 12.99
-  },
-  "prime-video": {
-    direct: 8.99,
-    apple: 8.99,
-    "google-play": 8.99,
-    amazon: 8.99,
-    carrier: 8.99
-  },
-  "apple-tv-plus": {
-    direct: 9.99,
-    apple: 9.99,
-    "google-play": 9.99,
-    amazon: 9.99,
-    carrier: 9.99
-  },
-  "youtube-premium": {
-    direct: 15.99,
-    apple: 18.99,
-    "google-play": 13.99,
-    amazon: 15.99,
-    carrier: 15.99
-  }
-};
-
 export default function Home() {
   const [email, setEmail] = useState("demo@savlivo.local");
-  const [password, setPassword] = useState("password123");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [plan, setPlan] = useState("VIEWER");
@@ -235,8 +957,45 @@ export default function Home() {
   const providerWasOpenedRef = useRef(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [regionModalOpen, setRegionModalOpen] = useState(false);
+  const [languageModalOpen, setLanguageModalOpen] = useState(false);
   const [renewalsSheetOpen, setRenewalsSheetOpen] = useState(false);
   const [aiInput, setAiInput] = useState("");
+  const [
+    aiVoiceBusy,
+    setAiVoiceBusy
+  ] = useState(false);
+
+  const [
+    aiVoiceSending,
+    setAiVoiceSending
+  ] = useState(false);
+
+  const [
+    aiSpeakingMessageIndex,
+    setAiSpeakingMessageIndex
+  ] = useState<number | null>(null);
+
+  const aiAudioRecorder =
+    useAudioRecorder(
+      RecordingPresets.HIGH_QUALITY
+    );
+
+  const aiRecorderState =
+    useAudioRecorderState(
+      aiAudioRecorder
+    );
+  const [
+    aiConversationContext,
+    setAiConversationContext
+  ] = useState(
+    emptyAssistantConversationContext
+  );
+  const [
+    aiPreferences,
+    setAiPreferences
+  ] = useState(
+    emptyAssistantPreferences
+  );
   const [aiMessages, setAiMessages] = useState<Array<{ role: "assistant" | "user"; text: string }>>([
     { role: "assistant", text: "Hi — I can help you set up Savlivo, troubleshoot prices and renewal dates, and decide what to keep, pause or cancel." }
   ]);
@@ -252,6 +1011,16 @@ export default function Home() {
   const [selectedCountryCode, setSelectedCountryCode] = useState("US");
   const [selectedCountryName, setSelectedCountryName] = useState("United States");
   const [selectedCurrency, setSelectedCurrency] = useState("USD");
+  const [selectedLanguage, setSelectedLanguage] =
+    useState<AppLanguage>("en");
+  const [onboardingComplete, setOnboardingComplete] =
+    useState(false);
+  const [onboardingStep, setOnboardingStep] =
+    useState<"market" | "language">("market");
+  const [
+    registrationOnboarding,
+    setRegistrationOnboarding
+  ] = useState(false);
 
   function regionalOverrideKey(
     serviceSlug: string,
@@ -309,6 +1078,31 @@ export default function Home() {
 
 
   useEffect(() => {
+    AsyncStorage.getItem("savlivo_last_email")
+      .then((savedEmail) => {
+        if (savedEmail) {
+          setEmail(savedEmail);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        await refresh();
+        setScreen("home");
+        setAuthed(true);
+      } catch {
+        await clearToken();
+        setAuthed(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     if (!authed) return;
 
     const syncDeviceTimezone = async () => {
@@ -346,12 +1140,16 @@ export default function Home() {
           savedCountryCode,
           savedCountryName,
           savedCurrency,
+          savedLanguage,
+          savedOnboardingComplete,
           savedRegionalOverrides
         ] = await Promise.all([
             AsyncStorage.getItem("savlivo_theme"),
             AsyncStorage.getItem("savlivo_country_code"),
             AsyncStorage.getItem("savlivo_country_name"),
             AsyncStorage.getItem("savlivo_currency"),
+            AsyncStorage.getItem("savlivo_language"),
+            AsyncStorage.getItem("savlivo_onboarding_complete"),
             AsyncStorage.getItem(
               "savlivo_manual_regional_price_overrides"
             )
@@ -377,6 +1175,46 @@ export default function Home() {
 
         if (savedTheme === "dark" || savedTheme === "light") {
           setDarkMode(savedTheme === "dark");
+        }
+
+        if (
+          [
+            "en",
+            "no",
+            "sv",
+            "da",
+            "de",
+            "es",
+            "fr",
+            "it",
+            "pt",
+            "nl",
+            "fi",
+            "zh-CN"
+          ].includes(savedLanguage ?? "")
+        ) {
+          setSelectedLanguage(savedLanguage as AppLanguage);
+        }
+
+        const migratedOnboardingComplete =
+          savedOnboardingComplete === "true" ||
+          (
+            savedOnboardingComplete === null &&
+            Boolean(savedCountryCode)
+          );
+
+        setOnboardingComplete(
+          migratedOnboardingComplete
+        );
+
+        if (
+          savedOnboardingComplete === null &&
+          savedCountryCode
+        ) {
+          AsyncStorage.setItem(
+            "savlivo_onboarding_complete",
+            "true"
+          ).catch(() => {});
         }
 
         let resolvedCountryCode = savedCountryCode;
@@ -574,6 +1412,21 @@ export default function Home() {
 
   useEffect(() => {
     if (!preferencesHydrated) return;
+    Promise.all([
+      AsyncStorage.setItem("savlivo_language", selectedLanguage),
+      AsyncStorage.setItem(
+        "savlivo_onboarding_complete",
+        onboardingComplete ? "true" : "false"
+      )
+    ]).catch(() => {});
+  }, [
+    selectedLanguage,
+    onboardingComplete,
+    preferencesHydrated
+  ]);
+
+  useEffect(() => {
+    if (!preferencesHydrated) return;
 
     setPricingSnapshot(null);
     refreshRegionalPricing(
@@ -620,22 +1473,104 @@ export default function Home() {
 
   const theme = darkMode
     ? {
-        bg: "#0d0f12",
-        surface: "#171a1f",
-        surfaceSoft: "#20252b",
-        text: "#f5f7fa",
-        muted: "#a7b0bd",
-        border: "#30363e",
-        pill: "#252a30"
+        bg: "#080C0F",
+        surface: "rgba(255,255,255,0.045)",
+        surfaceSoft: "rgba(255,255,255,0.065)",
+        text: "#F7F9FB",
+        muted: "#AAB4BE",
+        border: "rgba(255,255,255,0.10)",
+        pill: "rgba(255,255,255,0.065)"
       }
     : {
-        bg: "#f4f6f8",
-        surface: "#ffffff",
-        surfaceSoft: "#eef1f4",
-        text: "#111827",
-        muted: "#667085",
-        border: "#d0d5dd",
-        pill: "#e7eaee"
+        bg: "#F7F8F7",
+        surface: "#FFFFFF",
+        surfaceSoft: "#F2F5F3",
+        text: "#0C1115",
+        muted: "#4B5B66",
+        border: "#E2E8E4",
+        pill: "#EDF1EE"
+      };
+
+  const visual = {
+    green: darkMode ? "#32E58A" : "#22D978",
+    greenSoft: darkMode ? "#385F4C" : "#EDF9F2",
+    greenMuted: darkMode ? "#86F2B9" : "#0F9958",
+    greenHero: darkMode ? "#426E58" : "#D5F4E3",
+    surfaceRaised: darkMode ? "rgba(255,255,255,0.045)" : "#FFFFFF",
+    surfaceInteractive: darkMode ? "rgba(255,255,255,0.065)" : "#F4F7F5",
+    borderSubtle: darkMode ? "rgba(255,255,255,0.09)" : "#E6ECE8",
+    borderInteractive: darkMode ? "rgba(255,255,255,0.14)" : "#D8E0DB",
+    purple: darkMode ? "#9B7BFF" : "#5577E8",
+    purpleSoft: darkMode ? "rgba(255,255,255,0.055)" : "#F2F5FF",
+    purpleBorder: darkMode ? "rgba(255,255,255,0.10)" : "#DCE3FA",
+    amber: "#F6BD42",
+    amberSoft: darkMode ? "#756A50" : "#FFF8E8"
+  };
+
+  const cardShadow = darkMode
+    ? {
+        shadowColor: "#000000",
+        shadowOffset: {
+          width: 0,
+          height: 10
+        },
+        shadowOpacity: 0.34,
+        shadowRadius: 20,
+        elevation: 6
+      }
+    : {
+        shadowColor: "#18352A",
+        shadowOffset: {
+          width: 0,
+          height: 10
+        },
+        shadowOpacity: 0.11,
+        shadowRadius: 22,
+        elevation: 5
+      };
+
+  const softShadow = darkMode
+    ? {
+        shadowColor: "#000000",
+        shadowOffset: {
+          width: 0,
+          height: 6
+        },
+        shadowOpacity: 0.24,
+        shadowRadius: 14,
+        elevation: 4
+      }
+    : {
+        shadowColor: "#18352A",
+        shadowOffset: {
+          width: 0,
+          height: 6
+        },
+        shadowOpacity: 0.08,
+        shadowRadius: 14,
+        elevation: 3
+      };
+
+  const floatingShadow = darkMode
+    ? {
+        shadowColor: "#000000",
+        shadowOffset: {
+          width: 0,
+          height: 7
+        },
+        shadowOpacity: 0.32,
+        shadowRadius: 15,
+        elevation: 6
+      }
+    : {
+        shadowColor: "#18352A",
+        shadowOffset: {
+          width: 0,
+          height: 8
+        },
+        shadowOpacity: 0.14,
+        shadowRadius: 16,
+        elevation: 5
       };
 
   useEffect(() => {
@@ -650,10 +1585,7 @@ export default function Home() {
           providerWasOpenedRef.current = false;
 
           const suggestedDate =
-            pendingProviderResult.action === "CANCEL"
-              ? pendingProviderResult.subscription.renewalDate ||
-                new Date().toISOString().slice(0, 10)
-              : new Date().toISOString().slice(0, 10);
+            new Date().toISOString().slice(0, 10);
 
           setStatusEffectiveDateInput(suggestedDate);
           setStatusConfirmOpen(true);
@@ -723,14 +1655,26 @@ export default function Home() {
           body: JSON.stringify({ email, password })
         }
       );
-      await setToken(result.token);
+      await setToken(result.token, register || rememberMe);
+      await AsyncStorage.setItem("savlivo_last_email", email.trim());
       setScreen("home");
       setAuthed(true);
+
+      if (register) {
+        setRegistrationOnboarding(false);
+      }
+
       await refresh();
 
-      if (preferencesHydrated) {
+      if (
+        preferencesHydrated &&
+        (onboardingComplete || register)
+      ) {
         setPricingSnapshot(null);
-        await refreshRegionalPricing(selectedCountryCode, true);
+        await refreshRegionalPricing(
+          selectedCountryCode,
+          true
+        );
       }
     } catch (err: any) {
       Alert.alert("Savlivo", err?.body?.error ?? err.message);
@@ -740,7 +1684,10 @@ export default function Home() {
   }
 
   async function logout() {
-    await AsyncStorage.removeItem("savlivo_token");
+    await clearToken();
+    setRememberMe(false);
+    setPassword("");
+    setShowPassword(false);
     setItems([]);
     setPlan("VIEWER");
     setScreen("home");
@@ -861,74 +1808,13 @@ export default function Home() {
     subscription: Subscription,
     action: "PAUSE" | "CANCEL" | "REACTIVATE"
   ) {
-    const billing = String(
-      subscription.billingProviderSlug ?? ""
-    ).toLowerCase();
-    const service = String(
-      subscription.serviceSlug ?? ""
-    ).toLowerCase();
-
-    const europeanRegions = new Set([
-      "AL","AD","AT","BY","BE","BA","BG","HR","CY","CZ","DK","EE",
-      "FI","FR","DE","GR","HU","IS","IE","IT","LV","LI","LT","LU",
-      "MT","MD","MC","ME","NL","MK","NO","PL","PT","RO","SM","RS",
-      "SK","SI","ES","SE","CH","UA","GB","VA"
-    ]);
-
-    // Prime Video membership is managed in Prime Video itself,
-    // even when the account identity is an Amazon account.
-    if (service === "prime-video") {
-      return europeanRegions.has(selectedCountryCode)
-        ? "https://www.primevideo.com/region/eu/settings/your-account"
-        : "https://www.primevideo.com/settings/your-account";
-    }
-
-    // The actual billing route wins for platform-billed subscriptions.
-    if (billing === "apple") {
-      return "https://apps.apple.com/account/subscriptions";
-    }
-
-    if (billing === "google-play" || billing === "google") {
-      return "https://play.google.com/store/account/subscriptions";
-    }
-
-    if (billing === "amazon") {
-      return "https://www.amazon.com/gp/video/settings/channels";
-    }
-
-    // Carrier / TV-provider accounts are provider-specific.
-    // Do not send the user to a guessed generic page.
-    if (
-      billing === "carrier" ||
-      billing === "tv-provider" ||
-      billing === "carrier-tv"
-    ) {
-      return null;
-    }
-
-    if (service === "netflix") {
-      return action === "CANCEL"
-        ? "https://www.netflix.com/cancelplan"
-        : "https://www.netflix.com/account";
-    }
-
-    if (service === "disney-plus") {
-      return "https://www.disneyplus.com/account";
-    }
-
-    if (service === "max") {
-      return "https://auth.max.com/account";
-    }
-
-    if (service === "apple-tv-plus") {
-      return "https://apps.apple.com/account/subscriptions";
-    }
-
-    if (service === "youtube-premium") {
-      return "https://www.youtube.com/paid_memberships";
-    }
-
-    return null;
+    return getSubscriptionManagementUrl({
+      serviceSlug: subscription.serviceSlug,
+      billingProviderSlug:
+        subscription.billingProviderSlug,
+      action,
+      countryCode: selectedCountryCode
+    });
   }
 
   async function openManagementFallback(
@@ -1060,10 +1946,7 @@ export default function Home() {
         );
 
         const suggestedDate =
-          action === "CANCEL"
-            ? subscription.renewalDate ||
-              new Date().toISOString().slice(0, 10)
-            : new Date().toISOString().slice(0, 10);
+          new Date().toISOString().slice(0, 10);
 
         setStatusEffectiveDateInput(
           suggestedDate
@@ -1097,10 +1980,7 @@ export default function Home() {
             );
 
             const suggestedDate =
-              action === "CANCEL"
-                ? subscription.renewalDate ||
-                  new Date().toISOString().slice(0, 10)
-                : new Date().toISOString().slice(0, 10);
+              new Date().toISOString().slice(0, 10);
 
             setStatusEffectiveDateInput(
               suggestedDate
@@ -1144,23 +2024,16 @@ export default function Home() {
     .filter((item) => effectiveSubscriptionStatus(item) === "ACTIVE")
     .map((item) => selectedCountryCatalogMonthlyMinor(item));
 
-  const totalMonthlyRegionalMinor =
-    activeRegionalPrices.length > 0 &&
-    activeRegionalPrices.every((value) => value != null)
-      ? activeRegionalPrices.reduce(
-          (sum, value) => sum + (value ?? 0),
-          0
-        )
-      : null;
 
-  const potentialAdditionalSavingsMinor = items
-    .filter(
-      (item) => effectiveSubscriptionStatus(item) === "ACTIVE"
-    )
-    .reduce((sum, item) => {
-      const monthly = billedMonthlyMinor(item);
-      return sum + (monthly ?? 0) * 3;
-    }, 0);
+  const totalMonthlyRegionalMinor =
+    activeRegionalPrices.length === 0
+      ? 0
+      : activeRegionalPrices.every((value) => value != null)
+        ? activeRegionalPrices.reduce(
+            (sum, value) => sum + (value ?? 0),
+            0
+          )
+        : null;
 
   function statusIsSavingNow(item: Subscription) {
     if (effectiveSubscriptionStatus(item) === "ACTIVE") return false;
@@ -1176,15 +2049,24 @@ export default function Home() {
     return effectiveAt <= Date.now();
   }
 
-  const currentMonthlySavingsRegionalMinor = items
+  const savingNowRegionalPrices = items
     .filter(statusIsSavingNow)
-    .reduce((sum, item) => {
-      const monthly = billedMonthlyMinor(item);
-      return sum + (monthly ?? 0);
-    }, 0);
+    .map((item) => selectedCountryCatalogMonthlyMinor(item));
+
+  const currentMonthlySavingsRegionalMinor =
+    savingNowRegionalPrices.length === 0
+      ? 0
+      : savingNowRegionalPrices.every((value) => value != null)
+        ? savingNowRegionalPrices.reduce(
+            (sum, value) => sum + (value ?? 0),
+            0
+          )
+        : null;
 
   const currentYearlySavingsRegionalMinor =
-    currentMonthlySavingsRegionalMinor * 12;
+    currentMonthlySavingsRegionalMinor != null
+      ? currentMonthlySavingsRegionalMinor * 12
+      : null;
 
   const savedSoFarRegionalMinor = items.reduce(
     (sum, item) =>
@@ -1198,7 +2080,7 @@ export default function Home() {
     0
   );
 
-  const potentialYearlySavingsRegionalMinor = items
+  const annualizedReviewableSpendRegionalMinor = items
     .filter(
       (item) => effectiveSubscriptionStatus(item) === "ACTIVE"
     )
@@ -1220,14 +2102,10 @@ export default function Home() {
   const currentAnnualSpendRegionalMinor =
     currentMonthlySpendRegionalMinor * 12;
 
-  const savingsTabPotentialThreeMonthRegionalMinor = items
-    .filter(
-      (item) => effectiveSubscriptionStatus(item) === "ACTIVE"
-    )
-    .reduce((sum, item) => {
-      const monthly = billedMonthlyMinor(item);
-      return sum + (monthly ?? 0) * 3;
-    }, 0);
+  const savingsTabPotentialThreeMonthRegionalMinor =
+    totalMonthlyRegionalMinor != null
+      ? totalMonthlyRegionalMinor * 3
+      : null;
 
   const activeItems = items.filter(
     (item) => effectiveSubscriptionStatus(item) === "ACTIVE"
@@ -1250,7 +2128,12 @@ export default function Home() {
       (item) =>
         effectiveSubscriptionStatus(item) === "ACTIVE" &&
         Boolean(item.renewalDate) &&
-        normalizeDateOnly(item.renewalDate) >= todayDateOnly
+        normalizeDateOnly(item.renewalDate) >= todayDateOnly &&
+        willSubscriptionRenewOn({
+          status: item.status,
+          statusEffectiveDate: item.statusEffectiveDate,
+          renewalDate: item.renewalDate
+        })
     )
     .sort((a, b) =>
       normalizeDateOnly(a.renewalDate).localeCompare(
@@ -1269,7 +2152,12 @@ export default function Home() {
       (item) =>
         effectiveSubscriptionStatus(item) === "ACTIVE" &&
         Boolean(item.renewalDate) &&
-        normalizeDateOnly(item.renewalDate) >= todayDateOnly
+        normalizeDateOnly(item.renewalDate) >= todayDateOnly &&
+        willSubscriptionRenewOn({
+          status: item.status,
+          statusEffectiveDate: item.statusEffectiveDate,
+          renewalDate: item.renewalDate
+        })
     )
     .sort((a, b) =>
       normalizeDateOnly(a.renewalDate).localeCompare(
@@ -1302,7 +2190,18 @@ export default function Home() {
   const dataHealthIssue = items
     .map((item) => {
       const missing: string[] = [];
-      if (!item.renewalDate) missing.push("renewal date");
+      if (!item.renewalDate) {
+        missing.push("renewal date");
+      } else if (
+        needsRenewalDateRefresh({
+          status: item.status,
+          statusEffectiveDate: item.statusEffectiveDate,
+          renewalDate: item.renewalDate,
+          todayDateOnly
+        })
+      ) {
+        missing.push("updated renewal date");
+      }
       if (!item.billingProviderSlug) missing.push("billing route");
       if (!item.monthlyPriceMinor || item.monthlyPriceMinor <= 0) missing.push("price");
       if (!item.status) missing.push("status");
@@ -1368,6 +2267,369 @@ export default function Home() {
     fixData?: boolean;
   }>;
 
+  if (
+    !authed &&
+    preferencesHydrated &&
+    registrationOnboarding
+  ) {
+    const localLanguagesByMarket: Partial<
+      Record<
+        string,
+        Array<{
+          code: AppLanguage;
+          label: string;
+          detail: string;
+        }>
+      >
+    > = {
+      NO: [{ code: "no", label: "Norsk", detail: "Norwegian" }],
+      SE: [{ code: "sv", label: "Svenska", detail: "Swedish" }],
+      DK: [{ code: "da", label: "Dansk", detail: "Danish" }],
+      DE: [{ code: "de", label: "Deutsch", detail: "German" }],
+      AT: [{ code: "de", label: "Deutsch", detail: "German" }],
+      ES: [{ code: "es", label: "Español", detail: "Spanish" }],
+      FR: [{ code: "fr", label: "Français", detail: "French" }],
+      IT: [{ code: "it", label: "Italiano", detail: "Italian" }],
+      PT: [{ code: "pt", label: "Português", detail: "Portuguese" }],
+      NL: [{ code: "nl", label: "Nederlands", detail: "Dutch" }],
+      BE: [
+        { code: "nl", label: "Nederlands", detail: "Dutch" },
+        { code: "fr", label: "Français", detail: "French" }
+      ],
+      FI: [{ code: "fi", label: "Suomi", detail: "Finnish" }],
+      CN: [
+        {
+          code: "zh-CN",
+          label: "简体中文",
+          detail: "Simplified Chinese"
+        }
+      ]
+    };
+
+    const languageOptions: Array<{
+      code: AppLanguage;
+      label: string;
+      detail: string;
+    }> = [
+      {
+        code: "en",
+        label: "English",
+        detail: "English"
+      },
+      ...(localLanguagesByMarket[selectedCountryCode] ?? [])
+    ];
+
+    if (onboardingStep === "language") {
+      return (
+        <SafeAreaView
+          style={[
+            styles.screen,
+            { backgroundColor: theme.bg }
+          ]}
+        >
+          <StatusBar
+            style={darkMode ? "light" : "dark"}
+            backgroundColor={theme.bg}
+          />
+
+          <View style={styles.authCard}>
+            <Text
+              style={[
+                styles.brand,
+                { color: theme.text }
+              ]}
+            >
+              Savlivo
+            </Text>
+
+            <Text
+              style={[
+                styles.sectionTitle,
+                {
+                  color: theme.text,
+                  textAlign: "center",
+                  marginBottom: 8
+                }
+              ]}
+            >
+              Choose your language
+            </Text>
+
+            <Text
+              style={[
+                styles.formHint,
+                {
+                  color: theme.muted,
+                  textAlign: "center",
+                  marginBottom: 20
+                }
+              ]}
+            >
+              You can change this later in Settings.
+            </Text>
+
+            {languageOptions.map((option) => {
+              const selected =
+                selectedLanguage === option.code;
+
+              return (
+                <Pressable
+                  key={option.code}
+                  style={[
+                    styles.secondary,
+                    {
+                      backgroundColor: selected
+                        ? visual.greenSoft
+                        : darkMode
+                          ? "#11171C"
+                          : "#FFFFFF",
+                      borderColor: selected
+                        ? visual.greenMuted
+                        : theme.border,
+                      marginBottom: 10
+                    }
+                  ]}
+                  onPress={() =>
+                    setSelectedLanguage(option.code)
+                  }
+                >
+                  <View
+                    style={{
+                      flex: 1,
+                      alignItems: "flex-start"
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.secondaryText,
+                        {
+                          color: selected
+                            ? visual.greenMuted
+                            : theme.text
+                        }
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.formHint,
+                        {
+                          color: theme.muted,
+                          marginTop: 2
+                        }
+                      ]}
+                    >
+                      {option.detail}
+                    </Text>
+                  </View>
+
+                  {selected ? (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={22}
+                      color={visual.greenMuted}
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+
+            <Pressable
+              style={[
+                styles.primary,
+                { marginTop: 12 }
+              ]}
+              onPress={async () => {
+                setOnboardingComplete(true);
+                await loginOrRegister(true);
+              }}
+              disabled={loading}
+            >
+              <Text style={styles.primaryText}>
+                Create my account
+              </Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
+    return (
+      <SafeAreaView
+        style={[
+          styles.screen,
+          { backgroundColor: theme.bg }
+        ]}
+      >
+        <StatusBar
+          style={darkMode ? "light" : "dark"}
+          backgroundColor={theme.bg}
+        />
+
+        <View
+          style={[
+            styles.authCard,
+            {
+              maxHeight: "92%",
+              width: "92%"
+            }
+          ]}
+        >
+          <Text
+            style={[
+              styles.brand,
+              { color: theme.text }
+            ]}
+          >
+            Savlivo
+          </Text>
+
+          <Text
+            style={[
+              styles.sectionTitle,
+              {
+                color: theme.text,
+                textAlign: "center",
+                marginBottom: 8
+              }
+            ]}
+          >
+            Choose your subscription market
+          </Text>
+
+          <Text
+            style={[
+              styles.formHint,
+              {
+                color: theme.muted,
+                textAlign: "center",
+                marginBottom: 16
+              }
+            ]}
+          >
+            This controls which services, plans and local prices Savlivo shows you.
+          </Text>
+
+          <ScrollView
+            style={{
+              width: "100%",
+              maxHeight: 390
+            }}
+            contentContainerStyle={{
+              paddingBottom: 6
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            {countryCurrencyData.map(
+              ([code, name, currency]) => {
+                const selected =
+                  selectedCountryCode === code;
+
+                return (
+                  <Pressable
+                    key={code}
+                    style={[
+                      styles.secondary,
+                      {
+                        backgroundColor: selected
+                          ? visual.greenSoft
+                          : darkMode
+                            ? "#11171C"
+                            : "#FFFFFF",
+                        borderColor: selected
+                          ? visual.greenMuted
+                          : theme.border,
+                        marginBottom: 10
+                      }
+                    ]}
+                    onPress={() =>
+                      selectCountry(
+                        code,
+                        name,
+                        currency
+                      )
+                    }
+                  >
+                    <View
+                      style={{
+                        flex: 1,
+                        alignItems: "flex-start"
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.secondaryText,
+                          {
+                            color: selected
+                              ? visual.greenMuted
+                              : theme.text
+                          }
+                        ]}
+                      >
+                        {name}
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.formHint,
+                          {
+                            color: theme.muted,
+                            marginTop: 2
+                          }
+                        ]}
+                      >
+                        {code} · {currency}
+                      </Text>
+                    </View>
+
+                    {selected ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={22}
+                        color={visual.greenMuted}
+                      />
+                    ) : null}
+                  </Pressable>
+                );
+              }
+            )}
+          </ScrollView>
+
+          <Pressable
+            style={[
+              styles.primary,
+              { marginTop: 12 }
+            ]}
+            onPress={() => {
+              const availableLanguages: AppLanguage[] = [
+                "en",
+                ...(
+                  localLanguagesByMarket[selectedCountryCode] ?? []
+                ).map((option) => option.code)
+              ];
+
+              if (
+                !availableLanguages.includes(selectedLanguage)
+              ) {
+                setSelectedLanguage("en");
+              }
+
+              setOnboardingStep("language");
+            }}
+          >
+            <Text style={styles.primaryText}>
+              Continue
+            </Text>
+          </Pressable>
+
+
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!authed) {
     return (
       <SafeAreaView style={[styles.screen, { backgroundColor: theme.bg }]}>
@@ -1380,7 +2642,9 @@ export default function Home() {
             style={[
               styles.input,
               {
-                backgroundColor: theme.surface,
+                backgroundColor: darkMode
+                  ? "#11171C"
+                  : "#FFFFFF",
                 borderColor: theme.border,
                 color: theme.text
               }
@@ -1392,21 +2656,85 @@ export default function Home() {
             placeholder="Email"
           />
 
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.surface,
-                borderColor: theme.border,
-                color: theme.text
+          <View style={styles.passwordInputWrap}>
+            <TextInput
+              style={[
+                styles.input,
+                styles.passwordInput,
+                {
+                  backgroundColor: darkMode
+                    ? "#11171C"
+                    : "#FFFFFF",
+                  borderColor: theme.border,
+                  color: theme.text
+                }
+              ]}
+              placeholderTextColor={theme.muted}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              placeholder="Password"
+            />
+            <Pressable
+              style={styles.passwordVisibilityButton}
+              onPress={() =>
+                setShowPassword((value) => !value)
               }
-            ]}
-            placeholderTextColor={theme.muted}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder="Password"
-          />
+              accessibilityRole="button"
+              accessibilityLabel={
+                showPassword
+                  ? "Hide password"
+                  : "Show password"
+              }
+            >
+              <Ionicons
+                name={
+                  showPassword
+                    ? "eye-off-outline"
+                    : "eye-outline"
+                }
+                size={22}
+                color={theme.muted}
+              />
+            </Pressable>
+          </View>
+          <Pressable
+            style={styles.rememberMeRow}
+            onPress={() => setRememberMe((value) => !value)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: rememberMe }}
+          >
+            <View
+              style={[
+                styles.rememberMeBox,
+                {
+                  borderColor: rememberMe
+                    ? visual.green
+                    : theme.border,
+                  backgroundColor: rememberMe
+                    ? visual.green
+                    : "transparent"
+                }
+              ]}
+            >
+              {rememberMe ? (
+                <Ionicons
+                  name="checkmark"
+                  size={15}
+                  color="#FFFFFF"
+                />
+              ) : null}
+            </View>
+            <Text
+              style={[
+                styles.rememberMeText,
+                { color: theme.text }
+              ]}
+            >
+              Remember me
+            </Text>
+          </Pressable>
+
 
           <Pressable
             style={styles.primary}
@@ -1420,11 +2748,16 @@ export default function Home() {
             style={[
               styles.secondary,
               {
-                backgroundColor: theme.surface,
+                backgroundColor: darkMode
+                  ? "#11171C"
+                  : "#FFFFFF",
                 borderColor: theme.border
               }
             ]}
-            onPress={() => loginOrRegister(true)}
+            onPress={() => {
+              setOnboardingStep("market");
+              setRegistrationOnboarding(true);
+            }}
             disabled={loading}
           >
             <Text style={[styles.secondaryText, { color: theme.text }]}>
@@ -1681,34 +3014,900 @@ export default function Home() {
     setAiGuidedAction(null);
   }
 
-  function askSavlivo() {
-    const question = aiInput.trim();
+  function detectSpeechLanguage(
+    value: string
+  ) {
+    const text =
+      value.toLowerCase();
+
+    if (
+      /[æøå]/.test(text) ||
+      /\b(ikke|jeg|deg|kan|hva|hvordan|abonnement|fornyer|sparing)\b/.test(text)
+    ) {
+      return "nb-NO";
+    }
+
+    if (
+      /[äöüß]/.test(text) ||
+      /\b(ich|du|nicht|was|wie|kann|abonnement|erklären|macht)\b/.test(text)
+    ) {
+      return "de-DE";
+    }
+
+    if (
+      /[áéíóúñ¿¡]/.test(text) ||
+      /\b(que|qué|como|cómo|puedes|suscripción|ahorro)\b/.test(text)
+    ) {
+      return "es-ES";
+    }
+
+    if (
+      /[àâçéèêëîïôûùüÿœ]/.test(text) ||
+      /\b(je|vous|pas|comment|abonnement|économie)\b/.test(text)
+    ) {
+      return "fr-FR";
+    }
+
+    if (
+      /\b(io|non|come|puoi|abbonamento|risparmio)\b/.test(text)
+    ) {
+      return "it-IT";
+    }
+
+    if (
+      /\b(não|como|você|assinatura|poupança)\b/.test(text)
+    ) {
+      return "pt-PT";
+    }
+
+    return "en-US";
+  }
+
+  async function logAvailableSpeechVoices() {
+    try {
+      const voices =
+        await Speech.getAvailableVoicesAsync();
+
+      console.log(
+        "SAVLIVO SPEECH VOICES",
+        voices.map((voice) => ({
+          identifier: voice.identifier,
+          name: voice.name,
+          language: voice.language,
+          quality: voice.quality
+        }))
+      );
+    } catch (err) {
+      console.error(
+        "speech voice listing failed",
+        err
+      );
+    }
+  }
+
+  async function stopAiSpeech() {
+    try {
+      await Speech.stop();
+    } finally {
+      setAiSpeakingMessageIndex(null);
+    }
+  }
+
+  async function speakAiMessage(
+    text: string,
+    index: number
+  ) {
+    void logAvailableSpeechVoices();
+    try {
+      await Speech.stop();
+
+      setAiSpeakingMessageIndex(
+        index
+      );
+
+      Speech.speak(
+        text,
+        {
+          language:
+            detectSpeechLanguage(
+              text
+            ),
+          rate: 0.95,
+          pitch: 1.0,
+          onDone: () => {
+            setAiSpeakingMessageIndex(
+              null
+            );
+          },
+          onStopped: () => {
+            setAiSpeakingMessageIndex(
+              null
+            );
+          },
+          onError: () => {
+            setAiSpeakingMessageIndex(
+              null
+            );
+          }
+        }
+      );
+    } catch (err) {
+      console.error(
+        "Savlivo speech failed",
+        err
+      );
+
+      setAiSpeakingMessageIndex(
+        null
+      );
+
+      Alert.alert(
+        "Could not play reply",
+        "Please try again."
+      );
+    }
+  }
+
+  async function startAiVoiceRecording() {
+    try {
+      const permission =
+        await AudioModule
+          .requestRecordingPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert(
+          "Microphone access",
+          "Savlivo needs microphone permission so you can dictate a message."
+        );
+        return;
+      }
+
+      Keyboard.dismiss();
+
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true
+      });
+
+      await aiAudioRecorder
+        .prepareToRecordAsync();
+
+      aiAudioRecorder.record();
+    } catch (err: any) {
+      console.error(
+        "voice recording start failed",
+        err
+      );
+
+      Alert.alert(
+        "Could not start microphone",
+        err?.message ??
+          "Please try again."
+      );
+    }
+  }
+
+  async function stopAiVoiceRecording() {
+    if (
+      !aiRecorderState.isRecording
+    ) {
+      return;
+    }
+
+    setAiVoiceBusy(true);
+
+    try {
+      await aiAudioRecorder.stop();
+
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: false
+      });
+
+      const uri =
+        aiAudioRecorder.uri;
+
+      if (!uri) {
+        throw new Error(
+          "VOICE_RECORDING_MISSING"
+        );
+      }
+
+      const transcript =
+        await transcribeSavlivoVoice(
+          uri
+        );
+
+      if (!transcript) {
+        throw new Error(
+          "EMPTY_TRANSCRIPTION"
+        );
+      }
+
+      setAiInput(transcript);
+
+      setAiVoiceSending(true);
+
+      await askSavlivo(
+        transcript
+      );
+    } catch (err: any) {
+      console.error(
+        "voice transcription failed",
+        err
+      );
+
+      Alert.alert(
+        "Could not understand recording",
+        err?.body?.error ??
+          err?.message ??
+          "Please try again."
+      );
+    } finally {
+      setAiVoiceSending(false);
+      setAiVoiceBusy(false);
+    }
+  }
+
+  async function askSavlivo(
+    questionOverride?: unknown
+  ) {
+    const question =
+      (
+        typeof questionOverride === "string"
+          ? questionOverride
+          : aiInput
+      ).trim();
+
     if (!question) return;
 
     const q = question.toLowerCase();
+    const subscriptionIntent =
+      classifySubscriptionIntent(question);
+
     setAiGuidedAction(null);
 
     let answer =
-      "I can help with setup, prices, billing routes, renewal dates, savings and subscription decisions.";
+      "I can help with your subscriptions, spending, savings, renewals, app features and subscription decisions.";
 
-    if (q.includes("spend") || q.includes("wrong") || q.includes("price")) {
-      answer =
-        "Check each subscription's selected plan, monthly price, billing route and status. Savlivo uses those fields for spend and savings. If one looks wrong, open Subscriptions and edit that service.";
-    } else if (q.includes("connect") || q.includes("setup") || q.includes("set up")) {
-      answer =
-        "Open Subscriptions, add or edit each service, choose the correct billing route, select the local plan price and set a confirmed renewal date. Then check Settings for the correct country and currency.";
-    } else if (
-      q.includes("pause") ||
-      q.includes("cancel") ||
-      q.includes("reactivate") ||
-      q.includes("renew")
+    const reasoningItems = items.map((item) => {
+      const issues: string[] = [];
+
+      if (!item.renewalDate) {
+        issues.push("renewal date");
+      } else if (
+        needsRenewalDateRefresh({
+          status: item.status,
+          statusEffectiveDate: item.statusEffectiveDate,
+          renewalDate: item.renewalDate,
+          todayDateOnly
+        })
+      ) {
+        issues.push("updated renewal date");
+      }
+
+      if (!item.billingProviderSlug) {
+        issues.push("billing route");
+      }
+
+      if (
+        typeof item.monthlyPriceMinor !== "number" ||
+        item.monthlyPriceMinor <= 0
+      ) {
+        issues.push("price");
+      }
+
+      if (!item.status) {
+        issues.push("status");
+      }
+
+      return {
+        id: item.id,
+        serviceName: item.serviceName,
+        status: effectiveSubscriptionStatus(item),
+        monthlyMinor: billedMonthlyMinor(item),
+        renewalDate: item.renewalDate,
+        dataIssues: issues
+      };
+    });
+
+    const explicitScenarioMonths =
+      parseScenarioMonths(question);
+
+    const scenarioMonths =
+      resolveScenarioMonths(
+        explicitScenarioMonths,
+        aiConversationContext
+      );
+
+    const resolvedEntities =
+      resolveSubscriptionEntities(
+        question,
+        items
+      );
+
+    const explicitlyNamedSubscriptions =
+      resolvedEntities.map(
+        (result) => result.item
+      );
+
+    const referencedSubscriptionId =
+      resolveReferencedSubscriptionId(
+        question,
+        aiConversationContext
+      );
+
+    const contextualSubscription =
+      referencedSubscriptionId
+        ? items.find(
+            (item) =>
+              item.id ===
+              referencedSubscriptionId
+          )
+        : undefined;
+
+    const namedReasoningSubscription =
+      explicitlyNamedSubscriptions[0] ??
+      contextualSubscription ??
+      aiFindSubscription(question);
+
+    const requestedSavingsGoalMinor =
+      parseSavingsGoalAmount(question);
+
+    const protectionRequest =
+      isProtectionRequest(question);
+
+    const wantsSavingsGoalPlan =
+      q.includes("what should i change") ||
+      q.includes("what should i cut") ||
+      q.includes("what can i cut") ||
+      q.includes("reach my goal") ||
+      q.includes("hit my goal") ||
+      q.includes("savings plan") ||
+      q.includes("build me a plan") ||
+      q.includes("make me a plan");
+
+    const scenarioFollowUp =
+      aiConversationContext.lastTopic ===
+        "scenario" &&
+      isScenarioFollowUp(question);
+
+    const wantsScenario =
+      scenarioMonths != null &&
+      (
+        q.includes("what if") ||
+        q.includes("would i save") ||
+        q.includes("would i spend") ||
+        q.includes("if i pause") ||
+        q.includes("if i cancel") ||
+        q.includes("pause") ||
+        q.includes("cancel") ||
+        scenarioFollowUp
+      );
+
+    const wantsRanking =
+      q.includes("most expensive") ||
+      q.includes("highest cost") ||
+      q.includes("cost the most") ||
+      q.includes("top subscription") ||
+      q.includes("biggest subscription");
+
+    const wantsRecommendationExplanation =
+      q.includes("review first") ||
+      q.includes("recommend") ||
+      q.includes("why") &&
+        (
+          q.includes("review") ||
+          q.includes("autopilot")
+        );
+
+    const wantsComparison =
+      q.includes("compare") ||
+      q.includes("which costs more") ||
+      q.includes("more expensive") ||
+      q.includes("which is cheaper") ||
+      (
+        aiConversationContext.lastTopic ===
+          "comparison" &&
+        isComparisonFollowUp(question)
+      );
+
+    const wantsDataHealth =
+      q.includes("data health") ||
+      q.includes("missing information") ||
+      q.includes("needs information") ||
+      q.includes("wrong data") ||
+      q.includes("stale");
+
+    if (
+      protectionRequest
     ) {
-      const requestedAction: "PAUSE" | "CANCEL" | "REACTIVATE" =
-        q.includes("cancel")
-          ? "CANCEL"
-          : q.includes("reactivate") || q.includes("renew")
-            ? "REACTIVATE"
-            : "PAUSE";
+      const protectedTarget =
+        explicitlyNamedSubscriptions[0] ??
+        contextualSubscription ??
+        aiFindSubscription(question);
+
+      if (protectedTarget) {
+        setAiPreferences(
+          (current) =>
+            protectSubscription(
+              current,
+              protectedTarget.id
+            )
+        );
+
+        setAiConversationContext(
+          (current) =>
+            rememberSubscription(
+              current,
+              protectedTarget.id,
+              "recommendation"
+            )
+        );
+
+        answer =
+          `Got it. I'll treat ${protectedTarget.serviceName} as protected when I suggest savings opportunities. I won't include it in cost-cutting recommendations unless you change that preference.`;
+      } else {
+        answer =
+          "I can protect a subscription from savings recommendations. Tell me which service you want me to keep, for example “never recommend cancelling Spotify”.";
+      }
+    } else if (
+      requestedSavingsGoalMinor != null
+    ) {
+      const nextPreferences =
+        setMonthlySavingsGoal(
+          aiPreferences,
+          requestedSavingsGoalMinor
+        );
+
+      setAiPreferences(
+        nextPreferences
+      );
+
+      const goalPlan =
+        buildSavingsGoalPlan(
+          reasoningItems,
+          nextPreferences
+        );
+
+      if (
+        goalPlan &&
+        goalPlan.selected.length
+      ) {
+        const selectedCopy =
+          goalPlan.selected
+            .map(
+              (item) =>
+                `${item.serviceName} (${formatFinancialAggregate(
+                  item.monthlyMinor ?? 0
+                )}/month)`
+            )
+            .join(", ");
+
+        answer =
+          `Your savings target is ${formatFinancialAggregate(
+            requestedSavingsGoalMinor
+          )} per month. Based only on current subscription costs and your protected services, reviewing ${selectedCopy} would represent about ${formatFinancialAggregate(
+            goalPlan.monthlyReductionMinor
+          )} per month of modeled reduction. ${
+            goalPlan.reachesGoal
+              ? "That is enough to reach the target."
+              : "That does not fully reach the target with the eligible subscriptions I can currently see."
+          } This is a cost-based plan, not a recommendation that you must cancel those services.`;
+      } else {
+        answer =
+          `I've set your savings target to ${formatFinancialAggregate(
+            requestedSavingsGoalMinor
+          )} per month. I don't currently have enough eligible active subscription cost data to build a useful plan yet.`;
+      }
+    } else if (
+      wantsSavingsGoalPlan
+    ) {
+      const goalPlan =
+        buildSavingsGoalPlan(
+          reasoningItems,
+          aiPreferences
+        );
+
+      if (
+        aiPreferences.monthlySavingsGoalMinor == null
+      ) {
+        answer =
+          "Tell me your monthly savings target first, for example “I want to save kr 500 a month”. Then I can build a plan around it.";
+      } else if (
+        !goalPlan ||
+        !goalPlan.selected.length
+      ) {
+        answer =
+          "I have your savings goal, but I don't currently see eligible active subscriptions with enough usable pricing data to build a plan.";
+      } else {
+        const selectedCopy =
+          goalPlan.selected
+            .map(
+              (item) =>
+                `${item.serviceName} (${formatFinancialAggregate(
+                  item.monthlyMinor ?? 0
+                )}/month)`
+            )
+            .join(", ");
+
+        answer =
+          `To work toward your ${formatFinancialAggregate(
+            goalPlan.targetMinor
+          )}/month target, the smallest cost-first set I can identify is ${selectedCopy}. Together they represent about ${formatFinancialAggregate(
+            goalPlan.monthlyReductionMinor
+          )} per month. ${
+            goalPlan.reachesGoal
+              ? "That reaches the target."
+              : "That still falls short of the target."
+          } Protected subscriptions are excluded.`;
+      }
+    } else if (
+      subscriptionIntent.kind === "NAVIGATION"
+    ) {
+      setScreen(subscriptionIntent.screen);
+
+      const destinationNames: Record<string, string> = {
+        home: "Home",
+        subscriptions: "Subscriptions",
+        savings: "Savings",
+        autopilot: "Autopilot",
+        ai: "Savlivo Assistant",
+        settings: "Settings",
+        plans: "Plans"
+      };
+
+      answer =
+        `I've opened ${
+          destinationNames[subscriptionIntent.screen] ??
+          subscriptionIntent.screen
+        }.`;
+    } else if (
+      subscriptionIntent.kind === "APP_HELP"
+    ) {
+      answer = getSavlivoHelp(
+        question,
+        subscriptionIntent.topic
+      );
+    } else if (
+      wantsScenario &&
+      namedReasoningSubscription &&
+      scenarioMonths != null
+    ) {
+      const reasoningTarget =
+        reasoningItems.find(
+          (candidate) =>
+            candidate.id ===
+            namedReasoningSubscription.id
+        );
+
+      const scenario =
+        reasoningTarget
+          ? simulateSubscriptionRemoval(
+              reasoningTarget,
+              currentMonthlySpendRegionalMinor,
+              scenarioMonths
+            )
+          : null;
+
+      if (scenario) {
+        setAiConversationContext(
+          (current) =>
+            rememberScenario(
+              current,
+              scenario.subscription.id,
+              scenario.months
+            )
+        );
+
+        answer =
+          `If ${scenario.subscription.serviceName} stopped billing now and stayed off for ${scenario.months} ${
+            scenario.months === 1 ? "month" : "months"
+          }, the modeled reduction would be ${formatFinancialAggregate(
+            scenario.savingsMinor
+          )}. Your monthly spend would fall from ${formatFinancialAggregate(
+            scenario.currentMonthlySpendMinor
+          )} to about ${formatFinancialAggregate(
+            scenario.projectedMonthlySpendMinor
+          )}. This is a scenario, not recorded savings; the actual result depends on the provider's effective date.`;
+      } else {
+        answer =
+          `${namedReasoningSubscription.serviceName} is not currently an active subscription with a usable monthly price, so I can't model new savings from removing it.`;
+      }
+    } else if (
+      wantsComparison
+    ) {
+      let mentioned =
+        explicitlyNamedSubscriptions;
+
+      if (
+        mentioned.length < 2 &&
+        aiConversationContext
+          .comparedSubscriptionIds
+          .length >= 2
+      ) {
+        mentioned =
+          aiConversationContext
+            .comparedSubscriptionIds
+            .map(
+              (id) =>
+                items.find(
+                  (item) =>
+                    item.id === id
+                )
+            )
+            .filter(
+              (
+                item
+              ): item is Subscription =>
+                Boolean(item)
+            );
+      }
+
+      if (mentioned.length >= 2) {
+        const first =
+          reasoningItems.find(
+            (candidate) =>
+              candidate.id === mentioned[0].id
+          );
+
+        const second =
+          reasoningItems.find(
+            (candidate) =>
+              candidate.id === mentioned[1].id
+          );
+
+        const comparison =
+          first && second
+            ? compareSubscriptions(
+                first,
+                second
+              )
+            : null;
+
+        if (comparison) {
+          setAiConversationContext(
+            (current) =>
+              rememberComparison(
+                current,
+                [
+                  comparison.first.id,
+                  comparison.second.id
+                ]
+              )
+          );
+          const firstPrice =
+            comparison.first.monthlyMinor ?? 0;
+
+          const secondPrice =
+            comparison.second.monthlyMinor ?? 0;
+
+          if (
+            comparison.differenceMinor === 0
+          ) {
+            answer =
+              `${comparison.first.serviceName} and ${comparison.second.serviceName} currently cost the same at ${formatFinancialAggregate(
+                firstPrice
+              )} per month.`;
+          } else {
+            const higher =
+              comparison.differenceMinor > 0
+                ? comparison.first
+                : comparison.second;
+
+            const lower =
+              comparison.differenceMinor > 0
+                ? comparison.second
+                : comparison.first;
+
+            answer =
+              `${comparison.first.serviceName} is ${formatFinancialAggregate(
+                firstPrice
+              )} per month and ${comparison.second.serviceName} is ${formatFinancialAggregate(
+                secondPrice
+              )}. ${higher.serviceName} costs ${formatFinancialAggregate(
+                Math.abs(
+                  comparison.differenceMinor
+                )
+              )} more per month than ${lower.serviceName}.`;
+          }
+        } else {
+          answer =
+            "I found those subscriptions, but one of them does not have a usable monthly price yet.";
+        }
+      } else {
+        answer =
+          "Tell me the two subscriptions you want to compare, for example “compare Netflix and Max”.";
+      }
+    } else if (
+      wantsRanking
+    ) {
+      const ranked =
+        rankSubscriptionsByCost(
+          reasoningItems
+        ).slice(0, 3);
+
+      if (!ranked.length) {
+        answer =
+          "You do not currently have active subscriptions with usable monthly prices to rank.";
+      } else {
+        answer =
+          `Your highest-cost active ${
+            ranked.length === 1
+              ? "subscription is"
+              : "subscriptions are"
+          } ${ranked
+            .map(
+              (item, index) =>
+                `${index + 1}. ${item.serviceName} (${formatFinancialAggregate(
+                  item.monthlyMinor ?? 0
+                )}/month)`
+            )
+            .join(", ")}.`;
+      }
+    } else if (
+      wantsRecommendationExplanation
+    ) {
+      const ranked =
+        rankAllowedRecommendations(
+          reasoningItems,
+          aiPreferences
+        );
+
+      const explicitlyRequestedTarget =
+        namedReasoningSubscription
+          ? reasoningItems.find(
+              (candidate) =>
+                candidate.id ===
+                namedReasoningSubscription.id
+            )
+          : undefined;
+
+      const target =
+        explicitlyRequestedTarget ??
+        ranked[0];
+
+      if (target) {
+        setAiConversationContext(
+          (current) =>
+            rememberSubscription(
+              current,
+              target.id,
+              "recommendation"
+            )
+        );
+
+        const targetIsProtected =
+          aiPreferences
+            .protectedSubscriptionIds
+            .includes(target.id);
+
+        answer =
+          targetIsProtected
+            ? `${target.serviceName} is currently protected from Savlivo's savings recommendations. Its recorded monthly cost is ${formatFinancialAggregate(
+                target.monthlyMinor ?? 0
+              )}, but I won't suggest cutting it unless you change that preference.`
+            : `${target.serviceName} is worth reviewing because it is currently ${formatFinancialAggregate(
+            target.monthlyMinor ?? 0
+          )} per month${
+            ranked[0]?.id === target.id
+              ? " and is your highest-cost active subscription"
+              : ""
+          }. That is a cost-based review signal, not a claim that you should cancel it. Savlivo does not currently know how much you use the service.`;
+      } else {
+        answer =
+          "I don't currently have enough active subscription pricing data to make a useful review recommendation.";
+      }
+    } else if (
+      wantsDataHealth
+    ) {
+      const unhealthy =
+        reasoningItems.filter(
+          (item) =>
+            (item.dataIssues?.length ?? 0) > 0
+        );
+
+      if (!unhealthy.length) {
+        answer =
+          "Your subscription data looks healthy: I don't currently see missing prices, billing routes, statuses or renewal-date issues.";
+      } else {
+        answer =
+          `I found ${unhealthy.length} ${
+            unhealthy.length === 1
+              ? "subscription"
+              : "subscriptions"
+          } that could use attention: ${unhealthy
+            .slice(0, 4)
+            .map(
+              (item) =>
+                `${item.serviceName} (${item.dataIssues?.join(
+                  ", "
+                )})`
+            )
+            .join("; ")}. Fixing these fields will make spend, renewal reminders and recommendations more reliable.`;
+      }
+    } else if (
+      subscriptionIntent.kind === "SPENDING_INFO"
+    ) {
+      answer =
+        `Your effectively active subscriptions currently cost ${formatFinancialAggregate(
+          currentMonthlySpendRegionalMinor
+        )} per month, or ${formatFinancialAggregate(
+          currentAnnualSpendRegionalMinor
+        )} annualized at their current monthly prices.`;
+    } else if (
+      subscriptionIntent.kind === "SAVINGS_INFO"
+    ) {
+      answer =
+        `You are currently saving ${formatFinancialAggregate(
+          currentMonthlySavingsRegionalMinor
+        )} per month. Savlivo has recorded ${formatFinancialAggregate(
+          savedSoFarRegionalMinor
+        )} of accumulated savings so far.`;
+    } else if (
+      q.includes("connect") ||
+      q.includes("setup") ||
+      q.includes("set up")
+    ) {
+      answer =
+        "Open Subscriptions, add or edit each service, choose the correct billing route, select the actual monthly price and set a confirmed renewal date. Then check Settings for the correct country and currency.";
+    } else if (
+      isRenewalFollowUp(question) &&
+      (
+        contextualSubscription ||
+        namedReasoningSubscription
+      )
+    ) {
+      const renewalTargetId =
+        contextualSubscription?.id ??
+        namedReasoningSubscription?.id;
+
+      const renewalTarget =
+        renewalTargetId
+          ? items.find(
+              (item) =>
+                item.id === renewalTargetId
+            )
+          : undefined;
+
+      if (renewalTarget) {
+        setAiConversationContext(
+          (current) =>
+            rememberSubscription(
+              current,
+              renewalTarget.id,
+              "renewal"
+            )
+        );
+
+        if (renewalTarget.renewalDate) {
+          const willRenew =
+            willSubscriptionRenewOn({
+              status:
+                renewalTarget.status,
+              statusEffectiveDate:
+                renewalTarget.statusEffectiveDate,
+              renewalDate:
+                renewalTarget.renewalDate
+            });
+
+          answer = willRenew
+            ? `${renewalTarget.serviceName} is currently expected to renew on ${formatRenewalDateDisplay(
+                renewalTarget.renewalDate
+              )}.`
+            : `${renewalTarget.serviceName} has ${formatRenewalDateDisplay(
+                renewalTarget.renewalDate
+              )} recorded, but its current status/effective date means Savlivo does not expect it to renew then.`;
+        } else {
+          answer =
+            `${renewalTarget.serviceName} does not have a confirmed renewal date recorded yet.`;
+        }
+      }
+    } else if (
+      subscriptionIntent.kind === "ACTION"
+    ) {
+      const requestedAction =
+        subscriptionIntent.action;
 
       const namedSubscription = aiFindSubscription(question);
 
@@ -1743,11 +3942,21 @@ export default function Home() {
         ) {
           answer = `${target.serviceName} is already active.`;
         } else {
-          const renewalCopy = target.renewalDate
+          const targetWillRenew =
+            Boolean(target.renewalDate) &&
+            willSubscriptionRenewOn({
+              status: target.status,
+              statusEffectiveDate: target.statusEffectiveDate,
+              renewalDate: target.renewalDate
+            });
+
+          const renewalCopy = targetWillRenew
             ? ` Its next confirmed renewal is ${formatRenewalDateDisplay(
                 target.renewalDate
               )}.`
-            : " No confirmed renewal date is set yet.";
+            : target.renewalDate
+              ? " No further renewal is expected based on its current status."
+              : " No confirmed renewal date is set yet.";
 
           answer =
             `I can guide you through ${
@@ -1765,12 +3974,161 @@ export default function Home() {
         answer =
           "I could not find a matching subscription for that action. Tell me the service name, for example “pause Netflix” or “reactivate Max”.";
       }
-    } else if (q.includes("renew")) {
-      answer = upcomingRenewals.length
-        ? `Your next confirmed renewal is ${upcomingRenewals[0].serviceName} on ${formatRenewalDateDisplay(upcomingRenewals[0].renewalDate)}.`
-        : "No confirmed renewal dates are set yet. Add them in Edit Subscription so Savlivo can time reminders and recommendations.";
-    } else if (q.includes("save")) {
-      answer = `Your current monthly savings are ${formatFinancialAggregate(currentMonthlySavingsRegionalMinor)}, with ${formatFinancialAggregate(potentialYearlySavingsRegionalMinor)} of potential yearly savings based on the current active setup.`;
+    } else if (
+      subscriptionIntent.kind === "RENEWAL_INFO"
+    ) {
+      const namedRenewalSubscription =
+        aiFindSubscription(question);
+
+      if (namedRenewalSubscription) {
+        const renewalDate =
+          namedRenewalSubscription.renewalDate;
+
+        if (!renewalDate) {
+          answer = `${namedRenewalSubscription.serviceName} has no confirmed renewal date set yet.`;
+        } else if (
+          needsRenewalDateRefresh({
+            status: namedRenewalSubscription.status,
+            statusEffectiveDate:
+              namedRenewalSubscription.statusEffectiveDate,
+            renewalDate,
+            todayDateOnly
+          })
+        ) {
+          answer = `${namedRenewalSubscription.serviceName}'s confirmed renewal date of ${formatRenewalDateDisplay(renewalDate)} has passed and needs to be updated.`;
+        } else if (
+          willSubscriptionRenewOn({
+            status: namedRenewalSubscription.status,
+            statusEffectiveDate:
+              namedRenewalSubscription.statusEffectiveDate,
+            renewalDate
+          })
+        ) {
+          answer = `${namedRenewalSubscription.serviceName}'s next confirmed renewal is ${formatRenewalDateDisplay(renewalDate)}.`;
+        } else {
+          answer = `${namedRenewalSubscription.serviceName} is not expected to renew again based on its current status.`;
+        }
+      } else {
+        answer = upcomingRenewals.length
+          ? `Your next confirmed renewal is ${upcomingRenewals[0].serviceName} on ${formatRenewalDateDisplay(upcomingRenewals[0].renewalDate)}.`
+          : "No upcoming confirmed renewals are currently expected. Add or update renewal dates in Edit Subscription if needed.";
+      }
+    }
+
+    const localFallbackAnswer =
+      "I can help with your subscriptions, spending, savings, renewals, app features and subscription decisions.";
+
+    const shouldUseRemoteAssistant =
+      answer === localFallbackAnswer;
+
+    if (shouldUseRemoteAssistant) {
+      try {
+        const remote =
+          await askRemoteAssistant(
+            question,
+            aiMessages.slice(-10),
+            {
+              countryCode:
+                selectedCountryCode,
+              countryName:
+                selectedCountryName,
+              currency:
+                selectedCurrency,
+              currentMonthlySpendMinor:
+                currentMonthlySpendRegionalMinor,
+              currentAnnualSpendMinor:
+                currentAnnualSpendRegionalMinor,
+              currentMonthlySavingsMinor:
+                currentMonthlySavingsRegionalMinor,
+              savedSoFarMinor:
+                savedSoFarRegionalMinor
+            }
+          );
+
+        if (
+          remote.intent === "NAVIGATION" &&
+          remote.navigationTarget
+        ) {
+          setScreen(
+            remote.navigationTarget as Screen
+          );
+        }
+
+        if (
+          remote.intent === "ACTION" &&
+          remote.action &&
+          remote.serviceNames.length
+        ) {
+          const serviceQuestion =
+            remote.serviceNames.join(" ");
+
+          const resolved =
+            resolveSubscriptionEntities(
+              serviceQuestion,
+              items
+            );
+
+          const target =
+            resolved[0]?.item
+              ? items.find(
+                  (item) =>
+                    item.id ===
+                    resolved[0].item.id
+                )
+              : undefined;
+
+          if (target) {
+            const status =
+              effectiveSubscriptionStatus(
+                target
+              );
+
+            if (
+              remote.action === "PAUSE" &&
+              status === "PAUSED"
+            ) {
+              answer =
+                `${target.serviceName} is already paused.`;
+            } else if (
+              remote.action === "REACTIVATE" &&
+              status === "ACTIVE"
+            ) {
+              answer =
+                `${target.serviceName} is already active.`;
+            } else {
+              beginAiGuidedAction(
+                target,
+                remote.action
+              );
+
+              answer =
+                `I understood that you want to ${
+                  remote.action === "PAUSE"
+                    ? "pause"
+                    : remote.action === "CANCEL"
+                      ? "cancel"
+                      : "reactivate"
+                } ${target.serviceName}. Use the guided action below to continue safely.`;
+            }
+          } else {
+            answer = remote.answer;
+          }
+        } else {
+          answer = remote.answer;
+        }
+      } catch (err: any) {
+        console.error(
+          "remote Savlivo assistant failed",
+          err
+        );
+
+        answer =
+          `Remote AI unavailable: ${
+            err?.body?.error ??
+            err?.message ??
+            "unknown error"
+          }`;
+      }
     }
 
     setAiMessages((current) => [
@@ -1794,24 +4152,28 @@ export default function Home() {
     const itemsNav: {
       key: Screen;
       label: string;
+      accessibilityLabel: string;
       icon: keyof typeof Ionicons.glyphMap;
       activeIcon: keyof typeof Ionicons.glyphMap;
     }[] = [
       {
         key: "home",
         label: "Home",
+        accessibilityLabel: "Home",
         icon: "home-outline",
         activeIcon: "home"
       },
       {
         key: "subscriptions",
-        label: "Subscriptions",
+        label: "Subs",
+        accessibilityLabel: "Subscriptions",
         icon: "card-outline",
         activeIcon: "card"
       },
       {
         key: "savings",
         label: "Savings",
+        accessibilityLabel: "Savings",
         icon: "trending-up-outline",
         activeIcon: "trending-up"
       },
@@ -1819,27 +4181,37 @@ export default function Home() {
         ? [
             {
               key: "autopilot" as Screen,
-              label: "Autopilot",
+              label: "Auto",
+              accessibilityLabel: "Autopilot",
               icon: "sparkles-outline" as keyof typeof Ionicons.glyphMap,
               activeIcon: "sparkles" as keyof typeof Ionicons.glyphMap
             },
             {
               key: "ai" as Screen,
               label: "AI",
+              accessibilityLabel: "AI assistant",
               icon: "chatbubble-ellipses-outline" as keyof typeof Ionicons.glyphMap,
               activeIcon: "chatbubble-ellipses" as keyof typeof Ionicons.glyphMap
             }
           ]
-        : [])
+        : []),
+      {
+        key: "settings",
+        label: "Settings",
+        accessibilityLabel: "Settings",
+        icon: "settings-outline",
+        activeIcon: "settings"
+      }
     ];
 
     return (
       <View
         style={[
-          styles.navRow,
+          styles.modernNavRow,
+          cardShadow,
           {
-            backgroundColor: theme.surface,
-            borderColor: theme.border
+            backgroundColor: visual.surfaceRaised,
+            borderColor: visual.borderSubtle
           }
         ]}
       >
@@ -1850,31 +4222,39 @@ export default function Home() {
             <Pressable
               key={nav.key}
               accessibilityRole="button"
-              accessibilityLabel={nav.label}
-              style={styles.navItem}
+              accessibilityLabel={nav.accessibilityLabel}
+              style={styles.modernNavItem}
               onPress={() => setScreen(nav.key)}
             >
               <View
                 style={[
-                  styles.navIconWrap,
+                  styles.modernNavIconWrap,
                   active && {
-                    backgroundColor: darkMode ? "#343B45" : "#EEF0F3"
+                    backgroundColor: visual.greenSoft
                   }
                 ]}
               >
                 <Ionicons
                   name={active ? nav.activeIcon : nav.icon}
-                  size={22}
-                  color={active ? theme.text : theme.muted}
+                  size={20}
+                  color={
+                    active
+                      ? visual.green
+                      : theme.muted
+                  }
                 />
               </View>
 
               <Text
                 numberOfLines={1}
                 style={[
-                  styles.navText,
-                  { color: active ? theme.text : theme.muted },
-                  active && styles.navTextActive
+                  styles.modernNavText,
+                  {
+                    color: active
+                      ? visual.green
+                      : theme.muted
+                  },
+                  active && styles.modernNavTextActive
                 ]}
               >
                 {nav.label}
@@ -1882,45 +4262,8 @@ export default function Home() {
             </Pressable>
           );
         })}
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Settings"
-          style={styles.navItem}
-          onPress={() => setScreen("settings")}
-        >
-          <View
-            style={[
-              styles.navIconWrap,
-              screen === "settings" && {
-                backgroundColor: darkMode ? "#343B45" : "#EEF0F3"
-              }
-            ]}
-          >
-            <Ionicons
-              name={screen === "settings" ? "settings" : "settings-outline"}
-              size={22}
-              color={screen === "settings" ? theme.text : theme.muted}
-            />
-          </View>
-
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.navText,
-              { color: screen === "settings" ? theme.text : theme.muted },
-              screen === "settings" && styles.navTextActive
-            ]}
-          >
-            Settings
-          </Text>
-        </Pressable>
       </View>
     );
-  }
-
-  function priceForSelection(serviceSlug: string, billingProviderSlug: string) {
-    return providerPricing[serviceSlug]?.[billingProviderSlug];
   }
 
   async function refreshRegionalPricing(
@@ -2102,6 +4445,18 @@ export default function Home() {
 
     // Never FX-convert the user's saved bill to manufacture
     // a local price.
+    const expectedCurrency = selectedCountryCurrency();
+
+    if (
+      expectedCurrency &&
+      item.currency === expectedCurrency &&
+      typeof item.monthlyPriceMinor === "number" &&
+      Number.isFinite(item.monthlyPriceMinor) &&
+      item.monthlyPriceMinor > 0
+    ) {
+      return item.monthlyPriceMinor;
+    }
+
     return null;
   }
 
@@ -2136,6 +4491,39 @@ export default function Home() {
 
     if (!currency) {
       return "Mixed currencies";
+    }
+
+    return formatRegionalMinor(
+      minor,
+      currency
+    );
+  }
+
+  function savedSoFarCurrency() {
+    const currencies = new Set(
+      items
+        .filter(
+          (item) =>
+            typeof item.savedSoFarMinor === "number" &&
+            Number.isFinite(item.savedSoFarMinor) &&
+            item.savedSoFarMinor > 0 &&
+            Boolean(item.currency)
+        )
+        .map((item) => String(item.currency))
+    );
+
+    return currencies.size === 1
+      ? [...currencies][0]
+      : currencies.size === 0
+        ? selectedCountryCurrency()
+        : null;
+  }
+
+  function formatSavedSoFarAggregate(minor: number) {
+    const currency = savedSoFarCurrency();
+
+    if (!currency) {
+      return "Multiple currencies";
     }
 
     return formatRegionalMinor(
@@ -2232,13 +4620,20 @@ export default function Home() {
         )
       : "";
 
-    setSubscriptionPlanInput(nextPlan);
+    if (preferred) {
+      setSubscriptionPlanInput(nextPlan);
+    }
 
     if (
       !preferred ||
       typeof preferred.monthlyPriceMinor !== "number"
     ) {
-      setMonthlyPriceInput("");
+      /*
+       * No verified catalog price exists for this selection.
+       * Leave the fields available for manual entry.
+       *
+       * Do not invent or FX-convert a price.
+       */
       return;
     }
 
@@ -2496,7 +4891,14 @@ export default function Home() {
 
     setServiceSlugInput(service.slug);
     setServiceSelectionLocked(true);
-    setBillingProviderInput("direct");
+    const defaultBillingProvider =
+      defaultBillingProviderForService(
+        service.slug
+      );
+
+    setBillingProviderInput(
+      defaultBillingProvider
+    );
     setSubscriptionPlanInput("");
     setMonthlyPriceInput("");
     setRenewalDateInput("");
@@ -2504,7 +4906,7 @@ export default function Home() {
 
     syncPlanAndPrice(
       service.slug,
-      "direct"
+      defaultBillingProvider
     );
 
     setServicePickerOpen(false);
@@ -2565,7 +4967,10 @@ export default function Home() {
   async function saveServiceForm() {
     const monthly = Number(monthlyPriceInput);
     if (!Number.isFinite(monthly) || monthly <= 0) {
-      Alert.alert("Savlivo", "Enter a valid monthly price.");
+      Alert.alert(
+        "Monthly price required",
+        "Savlivo does not have a verified price for every service and billing route yet. Enter the amount you actually pay each month."
+      );
       return;
     }
 
@@ -2722,149 +5127,183 @@ export default function Home() {
           )}`
         : null;
 
-    const statusColor = statusColors(displayedStatus);
+    const statusColor =
+      statusColors(displayedStatus);
+
+    const routeExactLocal =
+      regionalDisplayPrice(
+        item.serviceSlug,
+        item.billingProviderSlug,
+        item.planName
+      );
+
+    const directExactLocal =
+      item.billingProviderSlug !== "direct"
+        ? regionalDisplayPrice(
+            item.serviceSlug,
+            "direct",
+            item.planName
+          )
+        : null;
+
+    const routeRange =
+      regionalDisplayRange(
+        item.serviceSlug,
+        item.billingProviderSlug
+      );
+
+    const directRange =
+      item.billingProviderSlug !== "direct"
+        ? regionalDisplayRange(
+            item.serviceSlug,
+            "direct"
+          )
+        : null;
+
+    const displayedPrice =
+      item.monthlyPriceMinor
+        ? formatStoredSubscriptionPrice(item)
+        : routeExactLocal ??
+          directExactLocal ??
+          routeRange ??
+          directRange ??
+          "Price unavailable";
+
+    const renewalCopy =
+      scheduledStatusLabel ??
+      (
+        item.renewalDate
+          ? `Renewal ${formatRenewalDateDisplay(
+              item.renewalDate
+            )}`
+          : "Renewal date not set"
+      );
 
     return (
-      <View style={[styles.card, { backgroundColor: theme.surface }]}>
-        <View style={styles.cardTop}>
-          <View
-            style={[
-              styles.logoBubble,
-              { backgroundColor: serviceBrandColors[item.serviceSlug] ?? "#111827" }
-            ]}
-          >
-            <Text style={styles.logoText}>
-              {serviceInitials[item.serviceSlug] ?? item.serviceName.slice(0, 1)}
-            </Text>
-          </View>
+      <View
+        style={[
+          styles.modernSubscriptionCard,
+          softShadow,
+          {
+            backgroundColor: visual.surfaceRaised,
+            borderColor: visual.borderSubtle
+          }
+        ]}
+      >
+        <View style={styles.modernSubscriptionTop}>
+          <ServiceLogo
+            serviceSlug={item.serviceSlug}
+            serviceName={item.serviceName}
+            size={44}
+          />
 
-          <View style={styles.cardInfo}>
-            <Text style={[styles.service, { color: theme.text }]}>
+          <View style={styles.modernSubscriptionInfo}>
+            <Text
+              style={[
+                styles.modernSubscriptionName,
+                { color: theme.text }
+              ]}
+              numberOfLines={1}
+            >
               {item.serviceName}
             </Text>
-            <Text style={[styles.provider, { color: theme.muted }]}>
-              Managed by {item.billingProviderSlug}
-              {item.planName ? ` · ${item.planName}` : ""}
+
+            <Text
+              style={[
+                styles.modernSubscriptionProvider,
+                { color: theme.muted }
+              ]}
+              numberOfLines={1}
+            >
+              {item.billingProviderSlug}
+              {item.planName
+                ? ` · ${item.planName}`
+                : ""}
             </Text>
-            <View style={[styles.statusPill, { backgroundColor: statusColor.bg }]}>
-              <View
-                style={[
-                  styles.statusDot,
-                  { backgroundColor: statusColor.text }
-                ]}
-              />
-              <Text style={[styles.statusPillText, { color: statusColor.text }]}>
-                {statusLabel(displayedStatus)}
-              </Text>
-            </View>
           </View>
 
-          <View style={styles.priceBlock}>
-            {(() => {
-              // Prefer a verified price for the subscription's actual
-              // billing route. If none exists, use the verified DIRECT
-              // provider catalog price for display only.
-              //
-              // This must not change the user's stored billed price or
-              // financial/savings calculations.
-              const routeExactLocal = regionalDisplayPrice(
-                item.serviceSlug,
-                item.billingProviderSlug,
-                item.planName
-              );
+          <View style={styles.modernSubscriptionPriceBlock}>
+            <Text
+              style={[
+                styles.modernSubscriptionPrice,
+                { color: theme.text }
+              ]}
+              numberOfLines={1}
+            >
+              {displayedPrice}
+            </Text>
 
-              const directExactLocal =
-                item.billingProviderSlug !== "direct"
-                  ? regionalDisplayPrice(
-                      item.serviceSlug,
-                      "direct",
-                      item.planName
-                    )
-                  : null;
+            <Text
+              style={[
+                styles.modernSubscriptionPerMonth,
+                { color: theme.muted }
+              ]}
+            >
+              / month
+            </Text>
+          </View>
+        </View>
 
-              const exactLocal =
-                routeExactLocal ?? directExactLocal;
+        <View style={styles.modernSubscriptionMetaRow}>
+          <View
+            style={[
+              styles.modernStatusPill,
+              { backgroundColor: statusColor.bg }
+            ]}
+          >
+            <View
+              style={[
+                styles.modernStatusDot,
+                { backgroundColor: statusColor.text }
+              ]}
+            />
 
-              const usesDirectCatalogFallback =
-                !routeExactLocal &&
-                !!directExactLocal &&
-                item.billingProviderSlug !== "direct";
+            <Text
+              style={[
+                styles.modernStatusText,
+                { color: statusColor.text }
+              ]}
+            >
+              {statusLabel(displayedStatus)}
+            </Text>
+          </View>
 
-              const routeRange = regionalDisplayRange(
-                item.serviceSlug,
-                item.billingProviderSlug
-              );
+          <View style={styles.modernRenewalMeta}>
+            <Ionicons
+              name={
+                scheduledStatusLabel
+                  ? "time-outline"
+                  : "calendar-outline"
+              }
+              size={14}
+              color={theme.muted}
+            />
 
-              const directRange =
-                item.billingProviderSlug !== "direct"
-                  ? regionalDisplayRange(
-                      item.serviceSlug,
-                      "direct"
-                    )
-                  : null;
-
-              const localRange =
-                routeRange ?? directRange;
-
-              const usesDirectRangeFallback =
-                !routeRange &&
-                !!directRange &&
-                item.billingProviderSlug !== "direct";
-
-              const billedPrice = item.monthlyPriceMinor
-                ? formatStoredSubscriptionPrice(item)
-                : null;
-
-              return (
-                <>
-                  <Text style={[styles.price, { color: theme.text }]}>
-                    {billedPrice ??
-                      exactLocal ??
-                      localRange ??
-                      "Price unavailable"}
-                  </Text>
-
-                  <Text
-                    style={[
-                      styles.catalogPrice,
-                      { color: theme.muted }
-                    ]}
-                  >
-                    {exactLocal
-                      ? usesDirectCatalogFallback
-                        ? `Automatic direct price · ${exactLocal}`
-                        : `Automatic verified price · ${exactLocal}`
-                      : localRange
-                        ? usesDirectRangeFallback
-                          ? `Automatic direct range · ${localRange}`
-                          : `Automatic verified range · ${localRange}`
-                        : billedPrice
-                          ? "Manual/saved price · No automatic price available"
-                          : "No verified price available"}
-                  </Text>
-                </>
-              );
-            })()}
-
-            <View>
-              <Text
-                style={[
-                  styles.catalogPrice,
-                  { color: theme.muted }
-                ]}
-              >
-                Correct local price
-              </Text>
-            </View>
+            <Text
+              style={[
+                styles.modernRenewalText,
+                { color: theme.muted }
+              ]}
+              numberOfLines={1}
+            >
+              {renewalCopy}
+            </Text>
           </View>
         </View>
 
         {displayedStatus !== "ACTIVE" ? (
-          <View style={{ marginTop: 10, marginBottom: 4 }}>
+          <View
+            style={[
+              styles.modernSavedRow,
+              {
+                backgroundColor: visual.greenSoft
+              }
+            ]}
+          >
             <Text
               style={[
-                styles.catalogPrice,
-                { color: theme.muted }
+                styles.modernSavedLabel,
+                { color: visual.greenMuted }
               ]}
             >
               Saved so far
@@ -2872,8 +5311,8 @@ export default function Home() {
 
             <Text
               style={[
-                styles.service,
-                { color: theme.text }
+                styles.modernSavedValue,
+                { color: visual.green }
               ]}
             >
               {formatFinancialAggregate(
@@ -2886,38 +5325,77 @@ export default function Home() {
           </View>
         ) : null}
 
-        {scheduledStatusLabel ? (
-          <Text
-            style={[
-              styles.catalogPrice,
-              {
-                color: theme.muted,
-                marginTop: 8,
-                marginBottom: 4
-              }
-            ]}
-          >
-            {scheduledStatusLabel}
-          </Text>
-        ) : null}
-
-        <View style={styles.actions}>
+        <View style={styles.modernSubscriptionActions}>
           {displayedStatus === "ACTIVE" ? (
             <>
-              <Pressable
-                style={[styles.action, { backgroundColor: theme.surfaceSoft }]}
-                onPress={() => openActionSheet(item, "PAUSE")}
-              >
-                <Text style={[styles.actionText, { color: theme.text }]}>
-                  Pause
-                </Text>
-              </Pressable>
+              {supportsSubscriptionAction(
+                item.serviceSlug,
+                item.billingProviderSlug,
+                "PAUSE"
+              ) ? (
+                <Pressable
+                  style={[
+                    styles.modernActionButton,
+                    {
+                      backgroundColor: darkMode
+                        ? "rgba(255,255,255,0.045)"
+                        : theme.surface,
+                      borderColor: darkMode
+                        ? "rgba(255,255,255,0.12)"
+                        : theme.border
+                    }
+                  ]}
+                  onPress={() =>
+                    openActionSheet(item, "PAUSE")
+                  }
+                >
+                  <Ionicons
+                    name="pause-outline"
+                    size={15}
+                    color={theme.text}
+                  />
+                  <Text
+                    style={[
+                      styles.modernActionText,
+                      {
+                        color: theme.text
+                      }
+                    ]}
+                  >
+                    Pause
+                  </Text>
+                </Pressable>
+              ) : null}
 
               <Pressable
-                style={[styles.action, { backgroundColor: theme.surfaceSoft }]}
-                onPress={() => openActionSheet(item, "CANCEL")}
+                style={[
+                  styles.modernActionButton,
+                  {
+                    backgroundColor: darkMode
+                      ? "rgba(255,255,255,0.045)"
+                      : theme.surface,
+                    borderColor: darkMode
+                      ? "rgba(255,255,255,0.12)"
+                      : theme.border
+                  }
+                ]}
+                onPress={() =>
+                  openActionSheet(item, "CANCEL")
+                }
               >
-                <Text style={[styles.actionText, { color: theme.text }]}>
+                <Ionicons
+                  name="close-outline"
+                  size={16}
+                  color={theme.text}
+                />
+                <Text
+                  style={[
+                    styles.modernActionText,
+                    {
+                      color: theme.text
+                    }
+                  ]}
+                >
                   Cancel
                 </Text>
               </Pressable>
@@ -2927,19 +5405,58 @@ export default function Home() {
           {displayedStatus === "PAUSED" ? (
             <>
               <Pressable
-                style={[styles.action, { backgroundColor: theme.surfaceSoft }]}
-                onPress={() => openActionSheet(item, "REACTIVATE")}
+                style={[
+                  styles.modernActionButton,
+                  {
+                    backgroundColor: visual.greenSoft,
+                    borderColor: darkMode
+                      ? "#19583D"
+                      : "#CBEBD9"
+                  }
+                ]}
+                onPress={() =>
+                  openActionSheet(item, "REACTIVATE")
+                }
               >
-                <Text style={[styles.actionText, { color: theme.text }]}>
+                <Ionicons
+                  name="play-outline"
+                  size={15}
+                  color={visual.greenMuted}
+                />
+                <Text
+                  style={[
+                    styles.modernActionText,
+                    { color: visual.greenMuted }
+                  ]}
+                >
                   Reactivate
                 </Text>
               </Pressable>
 
               <Pressable
-                style={[styles.action, { backgroundColor: theme.surfaceSoft }]}
-                onPress={() => openActionSheet(item, "CANCEL")}
+                style={[
+                  styles.modernActionButton,
+                  {
+                    backgroundColor: darkMode
+                      ? "rgba(255,255,255,0.045)"
+                      : theme.surface,
+                    borderColor: darkMode
+                      ? "rgba(255,255,255,0.12)"
+                      : theme.border
+                  }
+                ]}
+                onPress={() =>
+                  openActionSheet(item, "CANCEL")
+                }
               >
-                <Text style={[styles.actionText, { color: theme.text }]}>
+                <Text
+                  style={[
+                    styles.modernActionText,
+                    {
+                      color: theme.text
+                    }
+                  ]}
+                >
                   Cancel
                 </Text>
               </Pressable>
@@ -2948,27 +5465,56 @@ export default function Home() {
 
           {displayedStatus === "CANCELLED" ? (
             <Pressable
-              style={[styles.action, { backgroundColor: theme.surfaceSoft }]}
-              onPress={() => openActionSheet(item, "REACTIVATE")}
+              style={[
+                styles.modernActionButton,
+                {
+                  backgroundColor: visual.greenSoft,
+                  borderColor: darkMode
+                    ? "#19583D"
+                    : "#CBEBD9"
+                }
+              ]}
+              onPress={() =>
+                openActionSheet(item, "REACTIVATE")
+              }
             >
-              <Text style={[styles.actionText, { color: theme.text }]}>
+              <Ionicons
+                name="refresh-outline"
+                size={15}
+                color={visual.greenMuted}
+              />
+              <Text
+                style={[
+                  styles.modernActionText,
+                  { color: visual.greenMuted }
+                ]}
+              >
                 Reactivate
               </Text>
             </Pressable>
           ) : null}
-        </View>
 
-        <Pressable
-          style={[
-            styles.editServiceButton,
-            { borderColor: theme.border }
-          ]}
-          onPress={() => openEditService(item)}
-        >
-          <Text style={[styles.editServiceText, { color: theme.muted }]}>
-            Edit subscription
-          </Text>
-        </Pressable>
+          <Pressable
+            accessibilityLabel={`Edit ${item.serviceName}`}
+            style={[
+              styles.modernEditButton,
+              softShadow,
+              {
+                backgroundColor: darkMode
+                  ? "#11171C"
+                  : "#FFFFFF",
+                borderColor: visual.borderSubtle
+              }
+            ]}
+            onPress={() => openEditService(item)}
+          >
+            <Ionicons
+              name="pencil-outline"
+              size={16}
+              color={theme.muted}
+            />
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -2993,7 +5539,22 @@ export default function Home() {
             </Text>
           </View>
 
-          <Pressable style={[styles.planOption, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={() => upgrade("manual")}>
+          <Pressable
+            style={[
+              styles.planOption,
+              {
+                backgroundColor:
+                  plan === "MANUAL"
+                    ? visual.greenHero
+                    : theme.surface,
+                borderColor:
+                  plan === "MANUAL"
+                    ? visual.greenMuted
+                    : theme.border
+              }
+            ]}
+            onPress={() => upgrade("manual")}
+          >
             <Text style={[styles.planName, { color: theme.text }]}>Manual</Text>
             <Text style={[styles.planPrice, { color: theme.text }]}>$19/year</Text>
             <Text style={[styles.planCopy, { color: theme.muted }]}>
@@ -3006,8 +5567,14 @@ export default function Home() {
               styles.planOption,
               styles.planOptionFeatured,
               {
-                backgroundColor: darkMode ? "#242A31" : theme.surface,
-                borderColor: darkMode ? "#4B5563" : "#111827"
+                backgroundColor:
+                  plan === "PREMIUM"
+                    ? visual.greenHero
+                    : theme.surface,
+                borderColor:
+                  plan === "PREMIUM"
+                    ? visual.greenMuted
+                    : theme.border
               }
             ]}
             onPress={() => upgrade("premium")}
@@ -3015,7 +5582,7 @@ export default function Home() {
             <Text
               style={[
                 styles.planName,
-                { color: darkMode ? "#F3F4F6" : theme.text }
+                { color: theme.text }
               ]}
             >
               Premium
@@ -3023,7 +5590,7 @@ export default function Home() {
             <Text
               style={[
                 styles.planPrice,
-                { color: darkMode ? "#F3F4F6" : theme.text }
+                { color: theme.text }
               ]}
             >
               {formatMoneyFromUsdMinor(3900, { maximumFractionDigits: 0 })}/year
@@ -3031,7 +5598,9 @@ export default function Home() {
             <Text
               style={[
                 styles.planCopy,
-                { color: darkMode ? "#C6CDD7" : theme.muted }
+                { color: plan === "PREMIUM" && darkMode
+                    ? "#D7E9DF"
+                    : theme.muted }
               ]}
             >
               Decision engine + AI assistant: monthly optimization plans, renewal timing alerts, what-if savings, Autopilot recommendations, setup help and troubleshooting.
@@ -3055,27 +5624,48 @@ export default function Home() {
         ]}
       >
         <View style={styles.top}>
-          <View style={styles.brandLockup}>
+          <View style={styles.modernBrandLockup}>
             <Image
               source={require("../assets/logo.png")}
-              style={styles.headerLogo}
+              style={styles.modernHeaderLogo}
               resizeMode="cover"
             />
 
-            <View style={styles.brandTextBlock}>
-              <Text style={[styles.brand, { color: theme.text }]}>
-                Savlivo
-              </Text>
+            <Text
+              style={[
+                styles.modernBrandName,
+                { color: theme.text }
+              ]}
+            >
+              Savlivo
+            </Text>
 
-              <View style={styles.headerPlanRow}>
-                <Text style={[styles.headerPlanText, { color: theme.muted }]}>
-                  {plan}
-                </Text>
-                <Text style={[styles.headerBuildText, { color: theme.muted }]}>
-                  · 1.6.0
-                </Text>
-              </View>
-            </View>
+            <Pressable
+              style={[
+                styles.modernPlanBadge,
+                {
+                  backgroundColor:
+                    plan === "PREMIUM"
+                      ? visual.greenSoft
+                      : visual.surfaceInteractive
+                }
+              ]}
+              onPress={() => setScreen("plans")}
+            >
+              <Text
+                style={[
+                  styles.modernPlanBadgeText,
+                  {
+                    color:
+                      plan === "PREMIUM"
+                        ? visual.green
+                        : theme.muted
+                  }
+                ]}
+              >
+                {plan}
+              </Text>
+            </Pressable>
           </View>
           <View style={styles.topActions}>
             <Pressable
@@ -3099,10 +5689,389 @@ export default function Home() {
         <Nav />
       </View>
 
+      <KeyboardAvoidingView
+        style={styles.mainKeyboardViewport}
+        behavior={
+          screen === "ai"
+            ? Platform.OS === "ios"
+              ? "padding"
+              : "height"
+            : undefined
+        }
+        keyboardVerticalOffset={0}
+      >
+      {screen === "ai" ? (
+        <View style={styles.aiStandaloneViewport}>
+          <View
+            style={styles.aiKeyboardAvoider}
+          >
+            <View style={styles.modernAiHeading}>
+              <View
+                style={[
+                  styles.modernAiHeadingIcon,
+                  {
+                    backgroundColor: visual.greenSoft
+                  }
+                ]}
+              >
+                <Ionicons
+                  name="sparkles"
+                  size={20}
+                  color={visual.green}
+                />
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.modernScreenEyebrow,
+                    { color: visual.green }
+                  ]}
+                >
+                  SAVLIVO ASSISTANT
+                </Text>
+
+                <Text
+                  style={[
+                    styles.modernAiTitle,
+                    { color: theme.text }
+                  ]}
+                >
+                  What can I help with?
+                </Text>
+
+                <Text
+                  style={[
+                    styles.modernAiSubtitle,
+                    { color: theme.muted }
+                  ]}
+                >
+                  Ask about spending, renewals or subscription
+                  actions.
+                </Text>
+              </View>
+            </View>
+
+            {aiMessages.length <= 1 ? (
+              <View style={styles.modernAiSuggestions}>
+                {[
+                  "What renews next?",
+                  "How much am I saving?",
+                  "What should I review?"
+                ].map((suggestion) => (
+                  <Pressable
+                    key={suggestion}
+                    style={[
+                      styles.modernAiSuggestionChip,
+                      {
+                        backgroundColor:
+                          visual.surfaceRaised,
+                        borderColor:
+                          visual.borderSubtle
+                      }
+                    ]}
+                    onPress={() =>
+                      setAiInput(suggestion)
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.modernAiSuggestionText,
+                        { color: theme.muted }
+                      ]}
+                    >
+                      {suggestion}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            <View
+              style={[
+                styles.aiChatCard,
+                styles.modernAiChatCard,
+                cardShadow,
+                {
+                  backgroundColor:
+                    visual.surfaceRaised,
+                  borderColor:
+                    visual.borderSubtle
+                }
+              ]}
+            >
+              <ScrollView
+                ref={aiScrollRef}
+                style={styles.aiChatLog}
+                contentContainerStyle={styles.aiChatLogContent}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+                onContentSizeChange={() =>
+                  keepLatestAiMessageVisible(false)
+                }
+                onLayout={() =>
+                  keepLatestAiMessageVisible(false)
+                }
+              >
+                {aiMessages.map((message, index) => (
+                  <View
+                    key={`${message.role}-${index}`}
+                    style={[
+                      styles.aiMessage,
+                      message.role === "user"
+                        ? styles.aiMessageUser
+                        : styles.aiMessageAssistant,
+                      {
+                        backgroundColor:
+                          message.role === "user"
+                            ? visual.greenSoft
+                            : visual.surfaceInteractive,
+                        borderColor:
+                          message.role === "user"
+                            ? darkMode
+                              ? "#19583D"
+                              : "#BCEBD2"
+                            : visual.borderSubtle
+                      }
+                    ]}
+                  >
+                    <Text style={[styles.aiMessageText, { color: theme.text }]}>
+                      {message.text}
+                    </Text>
+
+                    {message.role === "assistant" ? (
+                      <Pressable
+                        accessibilityLabel={
+                          aiSpeakingMessageIndex === index
+                            ? "Stop spoken reply"
+                            : "Listen to reply"
+                        }
+                        style={styles.aiListenButton}
+                        onPress={() => {
+                          if (
+                            aiSpeakingMessageIndex === index
+                          ) {
+                            void stopAiSpeech();
+                          } else {
+                            void speakAiMessage(
+                              message.text,
+                              index
+                            );
+                          }
+                        }}
+                      >
+                        <Ionicons
+                          name={
+                            aiSpeakingMessageIndex === index
+                              ? "stop-circle-outline"
+                              : "volume-high-outline"
+                          }
+                          size={15}
+                          color={theme.muted}
+                        />
+
+                        <Text
+                          style={[
+                            styles.aiListenButtonText,
+                            { color: theme.muted }
+                          ]}
+                        >
+                          {aiSpeakingMessageIndex === index
+                            ? "Stop"
+                            : "Listen"}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ))}
+
+                {aiGuidedAction ? (
+                  <View
+                    style={[
+                      styles.aiGuideCard,
+                      {
+                        backgroundColor: theme.surfaceSoft,
+                        borderColor: theme.border
+                      }
+                    ]}
+                  >
+                    <Text style={[styles.aiGuideEyebrow, { color: theme.muted }]}>
+                      GUIDED ACTION
+                    </Text>
+                    <Text style={[styles.aiGuideTitle, { color: theme.text }]}>
+                      {aiGuidedAction.action === "CANCEL"
+                        ? "Cancel"
+                        : aiGuidedAction.action === "PAUSE"
+                          ? "Pause"
+                          : "Reactivate"}{" "}
+                      {aiGuidedAction.subscription.serviceName}
+                    </Text>
+                    <Text style={[styles.aiGuideCopy, { color: theme.muted }]}>
+                      {aiGuidedAction.stepText}
+                    </Text>
+
+                    <Pressable
+                      style={styles.aiGuideButton}
+                      onPress={openAiGuidedAction}
+                    >
+                      <Text style={styles.aiAssistantButtonText}>
+                        Open provider and continue
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </ScrollView>
+
+              {(aiRecorderState.isRecording || aiVoiceBusy) ? (
+                <View style={styles.aiVoiceStatusRow}>
+                  {aiRecorderState.isRecording ? (
+                    <>
+                      <View
+                        style={[
+                          styles.aiVoiceStatusDot,
+                          { backgroundColor: "#E5484D" }
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.aiVoiceStatusText,
+                          { color: theme.text }
+                        ]}
+                      >
+                        Listening… Tap stop when you're done
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <ActivityIndicator
+                        size="small"
+                        color={theme.muted}
+                      />
+                      <Text
+                        style={[
+                          styles.aiVoiceStatusText,
+                          { color: theme.muted }
+                        ]}
+                      >
+                        {aiVoiceSending
+                          ? "Sending…"
+                          : "Transcribing…"}
+                      </Text>
+                    </>
+                  )}
+                </View>
+              ) : null}
+
+              <View style={styles.aiComposer}>
+                <TextInput
+                  ref={aiInputRef}
+                  style={[
+                    styles.aiComposerInput,
+                    {
+                      backgroundColor:
+                        visual.surfaceInteractive,
+                      borderColor:
+                        visual.borderSubtle,
+                      color: theme.text
+                    }
+                  ]}
+                  placeholder="Try “pause YouTube”, “cancel Prime” or ask for help..."
+                  placeholderTextColor={theme.muted}
+                  value={aiInput}
+                  onChangeText={setAiInput}
+                  onSubmitEditing={askSavlivo}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      keepLatestAiMessageVisible(false);
+                    }, 180);
+                  }}
+                  returnKeyType="send"
+                />
+                <Pressable
+                  accessibilityLabel={
+                    aiRecorderState.isRecording
+                      ? "Stop voice recording"
+                      : "Start voice recording"
+                  }
+                  style={[
+                    styles.aiVoiceButton,
+                    aiRecorderState.isRecording &&
+                      styles.aiVoiceButtonRecording,
+                    {
+                      backgroundColor:
+                        aiRecorderState.isRecording
+                          ? "#FDECEC"
+                          : visual.surfaceInteractive,
+                      borderColor:
+                        aiRecorderState.isRecording
+                          ? "#E5484D"
+                          : visual.borderSubtle
+                    }
+                  ]}
+                  disabled={aiVoiceBusy}
+                  onPress={
+                    aiRecorderState.isRecording
+                      ? stopAiVoiceRecording
+                      : startAiVoiceRecording
+                  }
+                >
+                  {aiVoiceBusy ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={theme.text}
+                    />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name={
+                          aiRecorderState.isRecording
+                            ? "stop"
+                            : "mic-outline"
+                        }
+                        size={18}
+                        color={
+                          aiRecorderState.isRecording
+                            ? "#C9363E"
+                            : theme.text
+                        }
+                      />
+
+                      <Text
+                        style={[
+                          styles.aiVoiceButtonLabel,
+                          {
+                            color:
+                              aiRecorderState.isRecording
+                                ? "#C9363E"
+                                : theme.text
+                          }
+                        ]}
+                      >
+                        {aiRecorderState.isRecording
+                          ? "Stop"
+                          : "Talk"}
+                      </Text>
+                    </>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  style={styles.aiSendButton}
+                  onPress={askSavlivo}
+                >
+                  <Text style={styles.aiAssistantButtonText}>Send</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      ) : (
       <ScrollView
         style={styles.mainScroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {screen === "home" ? (
           <>
@@ -3134,25 +6103,155 @@ export default function Home() {
 
             <Pressable
               style={[
-                styles.compactSpendCard,
+                styles.compactSavingsCard,
+                softShadow,
                 {
-                  backgroundColor: darkMode ? "#20242A" : "#FFFFFF",
-                  borderColor: theme.border
+                  backgroundColor: visual.greenHero,
+                  borderColor: darkMode ? "#175B3D" : visual.borderSubtle
+                }
+              ]}
+              onPress={() => setScreen("savings")}
+            >
+              <View style={styles.compactSavingsHeader}>
+                <View
+                  style={[
+                    styles.compactSavingsIcon,
+                    { backgroundColor: darkMode ? "#15563A" : "#D2F5E1" }
+                  ]}
+                >
+                  <Ionicons
+                    name="trending-down-outline"
+                    size={20}
+                    color={visual.green}
+                  />
+                </View>
+
+                <View style={styles.compactSavingsHeadingText}>
+                  <Text
+                    style={[
+                      styles.compactSavingsEyebrow,
+                      { color: visual.greenMuted }
+                    ]}
+                  >
+                    YOU'RE SAVING
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.compactSavingsValue,
+                      { color: theme.text }
+                    ]}
+                  >
+                    {formatRegionalAggregate(currentMonthlySavingsRegionalMinor)}
+                    <Text
+                      style={[
+                        styles.compactSavingsPeriod,
+                        { color: theme.muted }
+                      ]}
+                    >
+                      {" "}/ month
+                    </Text>
+                  </Text>
+                </View>
+
+                <Text
+                  style={[
+                    styles.compactChevronLarge,
+                    { color: visual.greenMuted }
+                  ]}
+                >
+                  ›
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.compactSavingsDivider,
+                  {
+                    backgroundColor: darkMode
+                      ? "#1B6244"
+                      : "#BDEED2"
+                  }
+                ]}
+              />
+
+              <View style={styles.compactSavingsFooter}>
+                <Text
+                  style={[
+                    styles.compactSavingsFooterLabel,
+                    { color: theme.muted }
+                  ]}
+                >
+                  Annual savings
+                </Text>
+
+                <Text
+                  style={[
+                    styles.compactSavingsFooterValue,
+                    { color: visual.greenMuted }
+                  ]}
+                >
+                  {formatRegionalAggregate(currentYearlySavingsRegionalMinor)}
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.compactSpendCard,
+                cardShadow,
+                {
+                  backgroundColor: darkMode
+                    ? "rgba(255,255,255,0.045)"
+                    : visual.surfaceRaised,
+                  borderColor: darkMode
+                    ? "rgba(255,255,255,0.09)"
+                    : visual.borderSubtle
                 }
               ]}
               onPress={() => setScreen("subscriptions")}
             >
               <View style={styles.compactCardTopRow}>
-                <Text style={[styles.compactMetricLabel, { color: theme.muted }]}>
-                  Current monthly spend
-                </Text>
-                <Text style={[styles.compactChevron, { color: theme.muted }]}>›</Text>
+                <View
+                  style={[
+                    styles.compactMetricIconTile,
+                    { backgroundColor: visual.greenSoft }
+                  ]}
+                >
+                  <Ionicons
+                    name="wallet-outline"
+                    size={17}
+                    color={visual.greenMuted}
+                  />
+                </View>
+
+                <View
+                  style={[
+                    styles.compactMetricChevronButton,
+                    {
+                      backgroundColor: visual.surfaceInteractive
+                    }
+                  ]}
+                >
+                  <Ionicons
+                    name="chevron-forward"
+                    size={15}
+                    color={theme.muted}
+                  />
+                </View>
               </View>
 
+              <Text
+                style={[
+                  styles.compactMetricLabel,
+                  { color: theme.muted }
+                ]}
+              >
+                Current monthly spend
+              </Text>
+
               <Text style={[styles.compactSpendValue, { color: theme.text }]}>
-                {totalMonthlyRegionalMinor != null
-                  ? formatRegionalAggregate(totalMonthlyRegionalMinor)
-                  : formatFinancialAggregate(currentMonthlySpendRegionalMinor)}
+                {formatRegionalAggregate(totalMonthlyRegionalMinor)}
               </Text>
 
               <Text style={[styles.compactMetricHint, { color: theme.muted }]}>
@@ -3160,70 +6259,75 @@ export default function Home() {
               </Text>
             </Pressable>
 
+            <View style={styles.compactAtGlanceHeader}>
+              <Text
+                style={[
+                  styles.compactSectionLabel,
+                  { color: theme.muted }
+                ]}
+              >
+                AT A GLANCE
+              </Text>
+            </View>
+
             <View style={styles.compactMetricGrid}>
               <Pressable
                 style={[
                   styles.compactMetricCard,
+                  softShadow,
                   {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border
-                  }
-                ]}
-                onPress={() => setScreen("savings")}
-              >
-                <View style={styles.compactCardTopRow}>
-                  <Text style={[styles.compactMetricLabel, { color: theme.muted }]}>
-                    Savings / month
-                  </Text>
-                  <Text style={[styles.compactChevron, { color: theme.muted }]}>›</Text>
-                </View>
-
-                <Text style={[styles.compactMetricValue, { color: theme.text }]}>
-                  {formatFinancialAggregate(currentMonthlySavingsRegionalMinor)}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.compactMetricCard,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border
-                  }
-                ]}
-                onPress={() => setScreen("savings")}
-              >
-                <View style={styles.compactCardTopRow}>
-                  <Text style={[styles.compactMetricLabel, { color: theme.muted }]}>
-                    Savings / year
-                  </Text>
-                  <Text style={[styles.compactChevron, { color: theme.muted }]}>›</Text>
-                </View>
-
-                <Text style={[styles.compactMetricValue, { color: theme.text }]}>
-                  {formatFinancialAggregate(currentYearlySavingsRegionalMinor)}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.compactMetricCard,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border
+                    backgroundColor: visual.surfaceRaised,
+                    borderColor: visual.borderSubtle
                   }
                 ]}
                 onPress={() => setRenewalsSheetOpen(true)}
               >
                 <View style={styles.compactCardTopRow}>
-                  <Text style={[styles.compactMetricLabel, { color: theme.muted }]}>
-                    Next renewal
-                  </Text>
-                  <Text style={[styles.compactChevron, { color: theme.muted }]}>›</Text>
+                  <View
+                    style={[
+                      styles.compactMetricIconTile,
+                      {
+                        backgroundColor: visual.greenSoft
+                      }
+                    ]}
+                  >
+                    <Ionicons
+                      name="calendar-outline"
+                      size={17}
+                      color={visual.greenMuted}
+                    />
+                  </View>
+
+                  <View
+                    style={[
+                      styles.compactMetricChevronButton,
+                      {
+                        backgroundColor: visual.surfaceInteractive
+                      }
+                    ]}
+                  >
+                    <Ionicons
+                      name="chevron-forward"
+                      size={15}
+                      color={theme.muted}
+                    />
+                  </View>
                 </View>
 
                 <Text
-                  style={[styles.compactMetricValueSmall, { color: theme.text }]}
+                  style={[
+                    styles.compactMetricLabel,
+                    { color: theme.muted }
+                  ]}
+                >
+                  Next renewal
+                </Text>
+
+                <Text
+                  style={[
+                    styles.compactMetricValueSmall,
+                    { color: theme.text }
+                  ]}
                   numberOfLines={2}
                 >
                   {nextRenewalDisplay}
@@ -3233,22 +6337,66 @@ export default function Home() {
               <Pressable
                 style={[
                   styles.compactMetricCard,
+                  softShadow,
                   {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border
+                    backgroundColor: visual.surfaceRaised,
+                    borderColor: visual.borderSubtle
                   }
                 ]}
                 onPress={() => setScreen("savings")}
               >
                 <View style={styles.compactCardTopRow}>
-                  <Text style={[styles.compactMetricLabel, { color: theme.muted }]}>
-                    Annual spend
-                  </Text>
-                  <Text style={[styles.compactChevron, { color: theme.muted }]}>›</Text>
+                  <View
+                    style={[
+                      styles.compactMetricIconTile,
+                      {
+                        backgroundColor: visual.greenSoft
+                      }
+                    ]}
+                  >
+                    <Ionicons
+                      name="wallet-outline"
+                      size={17}
+                      color={visual.greenMuted}
+                    />
+                  </View>
+
+                  <View
+                    style={[
+                      styles.compactMetricChevronButton,
+                      {
+                        backgroundColor: visual.surfaceInteractive
+                      }
+                    ]}
+                  >
+                    <Ionicons
+                      name="chevron-forward"
+                      size={15}
+                      color={theme.muted}
+                    />
+                  </View>
                 </View>
 
-                <Text style={[styles.compactMetricValue, { color: theme.text }]}>
-                  {formatFinancialAggregate(currentAnnualSpendRegionalMinor)}
+                <Text
+                  style={[
+                    styles.compactMetricLabel,
+                    { color: theme.muted }
+                  ]}
+                >
+                  Annual spend
+                </Text>
+
+                <Text
+                  style={[
+                    styles.compactMetricValue,
+                    { color: theme.text }
+                  ]}
+                >
+                  {formatRegionalAggregate(
+                    totalMonthlyRegionalMinor != null
+                      ? totalMonthlyRegionalMinor * 12
+                      : null
+                  )}
                 </Text>
               </Pressable>
             </View>
@@ -3264,15 +6412,36 @@ export default function Home() {
                 <Pressable
                   style={[
                     styles.compactActionCard,
+                    softShadow,
                     {
-                      backgroundColor: theme.surface,
-                      borderColor: theme.border
+                      backgroundColor: darkMode
+                        ? visual.surfaceRaised
+                        : visual.greenHero,
+                      borderColor: darkMode
+                        ? visual.borderSubtle
+                        : visual.borderSubtle
                     }
                   ]}
                   onPress={() => setScreen("autopilot")}
                 >
-                  <View style={styles.compactActionIcon}>
-                    <Ionicons name="sparkles-outline" size={20} color={theme.text} />
+                  <View
+                    style={[
+                      styles.compactActionIcon,
+                      {
+                        backgroundColor: darkMode
+                          ? visual.greenSoft
+                          : "#FFFFFF",
+                        borderColor: darkMode
+                          ? "#19583D"
+                          : visual.borderSubtle
+                      }
+                    ]}
+                  >
+                    <Ionicons
+                      name="sparkles"
+                      size={19}
+                      color={visual.greenMuted}
+                    />
                   </View>
 
                   <View style={styles.compactActionText}>
@@ -3291,9 +6460,22 @@ export default function Home() {
                     </Text>
                   </View>
 
-                  <Text style={[styles.compactChevronLarge, { color: theme.muted }]}>
-                    ›
-                  </Text>
+                  <View
+                    style={[
+                      styles.compactMetricChevronButton,
+                      {
+                        backgroundColor: darkMode
+                          ? visual.surfaceInteractive
+                          : "#FFFFFF"
+                      }
+                    ]}
+                  >
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={visual.greenMuted}
+                    />
+                  </View>
                 </Pressable>
               </>
             ) : null}
@@ -3362,7 +6544,7 @@ export default function Home() {
               style={[
                 styles.compactAiShortcut,
                 {
-                  borderColor: theme.border
+                  borderColor: visual.borderSubtle
                 }
               ]}
               onPress={() => setScreen("ai")}
@@ -3393,13 +6575,18 @@ export default function Home() {
               style={[
                 styles.addServiceButton,
                 {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border
+                  backgroundColor: visual.greenHero,
+                  borderColor: visual.greenMuted
                 }
               ]}
               onPress={openAddService}
             >
-              <Text style={[styles.addServiceText, { color: theme.text }]}>
+              <Text
+                style={[
+                  styles.addServiceText,
+                  { color: theme.text }
+                ]}
+              >
                 + Add service
               </Text>
             </Pressable>
@@ -3411,355 +6598,801 @@ export default function Home() {
 
         {screen === "savings" ? (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            <View style={styles.modernScreenHeading}>
+              <Text
+                style={[
+                  styles.modernScreenEyebrow,
+                  { color: theme.muted }
+                ]}
+              >
+                YOUR PROGRESS
+              </Text>
+
+              <Text
+                style={[
+                  styles.modernScreenTitle,
+                  { color: theme.text }
+                ]}
+              >
                 Savings
               </Text>
-            </View>
 
-            <View
-              style={[
-                styles.savingsHero,
-                {
-                  backgroundColor: darkMode ? "#20242A" : "#FFFFFF",
-                  borderColor: darkMode ? "#30363E" : theme.border
-                }
-              ]}
-            >
               <Text
                 style={[
-                  styles.savingsHeroLabel,
-                  { color: darkMode ? "#D5DBE3" : theme.muted }
+                  styles.modernScreenSubtitle,
+                  { color: theme.muted }
                 ]}
               >
-                Saved so far
-              </Text>
-              <Text
-                style={[
-                  styles.savingsHeroValue,
-                  { color: darkMode ? "#FFFFFF" : theme.text }
-                ]}
-              >
-                {formatFinancialAggregate(savedSoFarRegionalMinor)}
-              </Text>
-              <Text
-                style={[
-                  styles.savingsHeroNote,
-                  { color: darkMode ? "#C4CBD4" : theme.muted }
-                ]}
-              >
-                accumulated savings while subscriptions were paused or cancelled
-              </Text>
-            </View>
-
-            <View style={[styles.metricCard, { backgroundColor: theme.surface }]}>
-              <Text style={[styles.metricLabel, { color: theme.muted }]}>
-                Saving now / month
-              </Text>
-              <Text style={[styles.metricValue, { color: theme.text }]}>
-                {formatFinancialAggregate(currentMonthlySavingsRegionalMinor)}
-              </Text>
-            </View>
-
-            <View style={[styles.metricCard, { backgroundColor: theme.surface }]}>
-              <Text style={[styles.metricLabel, { color: theme.muted }]}>
-                Saving now / year
-              </Text>
-              <Text style={[styles.metricValue, { color: theme.text }]}>
-                {formatFinancialAggregate(currentYearlySavingsRegionalMinor)}
-              </Text>
-            </View>
-
-            <View style={[styles.metricCard, { backgroundColor: theme.surface }]}>
-              <Text style={[styles.metricLabel, { color: theme.muted }]}>
-                Current monthly spend
-              </Text>
-              <Text style={[styles.metricValue, { color: theme.text }]}>
-                {formatFinancialAggregate(currentMonthlySpendRegionalMinor)}
-              </Text>
-            </View>
-
-            <View style={[styles.metricCard, { backgroundColor: theme.surface }]}>
-              <Text style={[styles.metricLabel, { color: theme.muted }]}>
-                Current annual spend
-              </Text>
-              <Text style={[styles.metricValue, { color: theme.text }]}>
-                {formatFinancialAggregate(currentAnnualSpendRegionalMinor)}
+                See what you are saving now and where your
+                next review could make the biggest difference.
               </Text>
             </View>
 
             <View
               style={[
-                styles.metricCardAccent,
+                styles.modernSavingsHero,
+                cardShadow,
                 {
-                  backgroundColor: darkMode ? "#293140" : "#EEF3FA"
+                  backgroundColor: visual.greenHero,
+                  borderColor: darkMode
+                    ? "#19583D"
+                    : visual.borderSubtle
                 }
               ]}
             >
-              <Text style={[styles.metricLabel, { color: theme.muted }]}>
-                Reviewable spend / 3 months
-              </Text>
-              <Text style={[styles.metricValue, { color: theme.text }]}>
-                {formatFinancialAggregate(savingsTabPotentialThreeMonthRegionalMinor)}
-              </Text>
-              <Text style={[styles.muted, { color: theme.muted }]}>
-                Total spend across your active subscriptions over 3 months.
-              </Text>
-            </View>
+              <View style={styles.modernSavingsHeroTop}>
+                <View
+                  style={[
+                    styles.modernSavingsHeroIcon,
+                    {
+                      backgroundColor: darkMode
+                        ? "#145236"
+                        : "#D5F5E3"
+                    }
+                  ]}
+                >
+                  <Ionicons
+                    name="trending-up"
+                    size={22}
+                    color={visual.green}
+                  />
+                </View>
 
-            <View style={[styles.recommendationsCard, { backgroundColor: theme.surface }]}>
-              <Text style={[styles.recommendationsTitle, { color: theme.text }]}>
-                Subscriptions to review
-              </Text>
-
-              {recommendationCandidates.length === 0 ? (
-                <Text style={[styles.muted, { color: theme.muted }]}>
-                  You have no active services to optimize right now.
+                <Text
+                  style={[
+                    styles.modernSavingsHeroLabel,
+                    { color: visual.greenMuted }
+                  ]}
+                >
+                  SAVED SO FAR
                 </Text>
-              ) : (
-                recommendationCandidates.map((item) => (
-                  <View
-                    key={`rec-${item.id}`}
+              </View>
+
+              <Text
+                style={[
+                  styles.modernSavingsHeroValue,
+                  { color: theme.text }
+                ]}
+              >
+                {formatSavedSoFarAggregate(
+                  savedSoFarRegionalMinor
+                )}
+              </Text>
+
+              <Text
+                style={[
+                  styles.modernSavingsHeroNote,
+                  { color: theme.muted }
+                ]}
+              >
+                Accumulated while subscriptions were paused
+                or cancelled.
+              </Text>
+
+              <View
+                style={[
+                  styles.modernSavingsHeroDivider,
+                  {
+                    backgroundColor: darkMode
+                      ? "#235C43"
+                      : "#BCEBD2"
+                  }
+                ]}
+              />
+
+              <View style={styles.modernSavingsHeroFooter}>
+                <View style={styles.modernSavingsHeroStat}>
+                  <Text
                     style={[
-                      styles.recommendationRow,
-                      { borderColor: theme.border }
+                      styles.modernSavingsStatLabel,
+                      { color: theme.muted }
                     ]}
                   >
-                    <View style={styles.recommendationInfo}>
-                      <Text style={[styles.recommendationName, { color: theme.text }]}>
-                        Review {item.serviceName}
-                      </Text>
-                      <Text style={[styles.muted, { color: theme.muted }]}>
-                        3-month spend:{" "}
-                        {formatFinancialAggregate(
-                          (billedMonthlyMinor(item) ?? 0) * 3
-                        )}
-                      </Text>
-                    </View>
-                    <Pressable
+                    Saving now
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.modernSavingsStatValue,
+                      { color: visual.green }
+                    ]}
+                  >
+                    {formatRegionalAggregate(
+                      currentMonthlySavingsRegionalMinor
+                    )}
+                    <Text
                       style={[
-                        styles.recommendationButton,
-                        { backgroundColor: theme.surfaceSoft }
+                        styles.modernSavingsStatPeriod,
+                        { color: theme.muted }
                       ]}
-                      onPress={() => openActionSheet(item, "PAUSE")}
                     >
-                      <Text style={[styles.actionText, { color: theme.text }]}>
-                        Review
-                      </Text>
-                    </Pressable>
-                  </View>
-                ))
-              )}
+                      {" "}/ mo
+                    </Text>
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.modernSavingsVerticalDivider,
+                    {
+                      backgroundColor: darkMode
+                        ? "#235C43"
+                        : "#BCEBD2"
+                    }
+                  ]}
+                />
+
+                <View style={styles.modernSavingsHeroStat}>
+                  <Text
+                    style={[
+                      styles.modernSavingsStatLabel,
+                      { color: theme.muted }
+                    ]}
+                  >
+                    Annual pace
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.modernSavingsStatValue,
+                      { color: theme.text }
+                    ]}
+                  >
+                    {formatRegionalAggregate(
+                      currentYearlySavingsRegionalMinor
+                    )}
+                  </Text>
+                </View>
+              </View>
             </View>
+
+            <Text
+              style={[
+                styles.modernSectionEyebrow,
+                { color: theme.muted }
+              ]}
+            >
+              CURRENT POSITION
+            </Text>
+
+            <View style={styles.modernSavingsGrid}>
+              <View
+                style={[
+                  styles.modernSavingsMetric,
+                  {
+                    backgroundColor: visual.surfaceRaised,
+                    borderColor: visual.borderSubtle
+                  }
+                ]}
+              >
+                <View
+                  style={[
+                    styles.modernMetricIcon,
+                    {
+                      backgroundColor:
+                        visual.greenSoft
+                    }
+                  ]}
+                >
+                  <Ionicons
+                    name="card-outline"
+                    size={18}
+                    color={visual.greenMuted}
+                  />
+                </View>
+
+                <Text
+                  style={[
+                    styles.modernSavingsMetricLabel,
+                    { color: theme.muted }
+                  ]}
+                >
+                  Monthly spend
+                </Text>
+
+                <Text
+                  style={[
+                    styles.modernSavingsMetricValue,
+                    { color: theme.text }
+                  ]}
+                >
+                  {formatRegionalAggregate(
+                    totalMonthlyRegionalMinor
+                  )}
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.modernSavingsMetric,
+                  {
+                    backgroundColor: visual.surfaceRaised,
+                    borderColor: visual.borderSubtle
+                  }
+                ]}
+              >
+                <View
+                  style={[
+                    styles.modernMetricIcon,
+                    {
+                      backgroundColor:
+                        visual.greenSoft
+                    }
+                  ]}
+                >
+                  <Ionicons
+                    name="calendar-outline"
+                    size={18}
+                    color={visual.greenMuted}
+                  />
+                </View>
+
+                <Text
+                  style={[
+                    styles.modernSavingsMetricLabel,
+                    { color: theme.muted }
+                  ]}
+                >
+                  Annual spend
+                </Text>
+
+                <Text
+                  style={[
+                    styles.modernSavingsMetricValue,
+                    { color: theme.text }
+                  ]}
+                >
+                  {formatRegionalAggregate(
+                    totalMonthlyRegionalMinor != null
+                      ? totalMonthlyRegionalMinor * 12
+                      : null
+                  )}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.modernReviewableCard,
+                softShadow,
+                {
+                  backgroundColor: visual.surfaceRaised,
+                  borderColor: visual.borderSubtle
+                }
+              ]}
+            >
+              <View
+                style={[
+                  styles.modernReviewableIcon,
+                  {
+                    backgroundColor: visual.greenSoft
+                  }
+                ]}
+              >
+                <Ionicons
+                  name="search-outline"
+                  size={20}
+                  color={visual.greenMuted}
+                />
+              </View>
+
+              <View style={styles.modernReviewableContent}>
+                <Text
+                  style={[
+                    styles.modernReviewableLabel,
+                    { color: theme.muted }
+                  ]}
+                >
+                  REVIEWABLE SPEND · 3 MONTHS
+                </Text>
+
+                <Text
+                  style={[
+                    styles.modernReviewableValue,
+                    { color: theme.text }
+                  ]}
+                >
+                  {formatRegionalAggregate(
+                    savingsTabPotentialThreeMonthRegionalMinor
+                  )}
+                </Text>
+
+                <Text
+                  style={[
+                    styles.modernReviewableNote,
+                    { color: theme.muted }
+                  ]}
+                >
+                  Active subscription spend worth reviewing,
+                  not guaranteed savings.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.modernRecommendationsHeader}>
+              <View>
+                <Text
+                  style={[
+                    styles.modernSectionEyebrow,
+                    { color: theme.muted }
+                  ]}
+                >
+                  WHERE TO LOOK NEXT
+                </Text>
+
+                <Text
+                  style={[
+                    styles.modernRecommendationsTitle,
+                    { color: theme.text }
+                  ]}
+                >
+                  Subscriptions to review
+                </Text>
+              </View>
+
+              {recommendationCandidates.length > 0 ? (
+                <View
+                  style={[
+                    styles.modernRecommendationCount,
+                    {
+                      backgroundColor:
+                        visual.greenSoft
+                    }
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.modernRecommendationCountText,
+                      { color: theme.muted }
+                    ]}
+                  >
+                    {recommendationCandidates.length}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            {recommendationCandidates.length === 0 ? (
+              <View
+                style={[
+                  styles.modernEmptyCard,
+                  {
+                    backgroundColor: visual.surfaceRaised,
+                    borderColor: visual.borderSubtle
+                  }
+                ]}
+              >
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={22}
+                  color={visual.green}
+                />
+
+                <Text
+                  style={[
+                    styles.modernEmptyText,
+                    { color: theme.muted }
+                  ]}
+                >
+                  You have no active services to review
+                  right now.
+                </Text>
+              </View>
+            ) : (
+              recommendationCandidates.map((item, index) => (
+                <Pressable
+                  key={`rec-${item.id}`}
+                  style={[
+                    styles.modernRecommendationCard,
+                    {
+                      backgroundColor:
+                        visual.surfaceRaised,
+                      borderColor:
+                        visual.borderSubtle
+                    }
+                  ]}
+                  onPress={() =>
+                    openActionSheet(item, "PAUSE")
+                  }
+                >
+                  <View
+                    style={[
+                      styles.modernRecommendationRank,
+                      {
+                        backgroundColor:
+                          index === 0
+                            ? visual.greenSoft
+                            : visual.surfaceInteractive
+                      }
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.modernRecommendationRankText,
+                        {
+                          color:
+                            index === 0
+                              ? visual.green
+                              : theme.muted
+                        }
+                      ]}
+                    >
+                      {index + 1}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={styles.modernRecommendationInfo}
+                  >
+                    <Text
+                      style={[
+                        styles.modernRecommendationName,
+                        { color: theme.text }
+                      ]}
+                      numberOfLines={1}
+                    >
+                      Review {item.serviceName}
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.modernRecommendationCopy,
+                        { color: theme.muted }
+                      ]}
+                    >
+                      3-month spend:{" "}
+                      {formatFinancialAggregate(
+                        (billedMonthlyMinor(item) ?? 0) * 3
+                      )}
+                    </Text>
+                  </View>
+
+                  <Ionicons
+                    name="chevron-forward"
+                    size={18}
+                    color={visual.greenMuted}
+                  />
+                </Pressable>
+              ))
+            )}
           </>
         ) : null}
 
         {screen === "autopilot" ? (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            <View style={styles.modernScreenHeading}>
+              <Text
+                style={[
+                  styles.modernScreenEyebrow,
+                  { color: visual.green }
+                ]}
+              >
+                PREMIUM
+              </Text>
+
+              <Text
+                style={[
+                  styles.modernScreenTitle,
+                  { color: theme.text }
+                ]}
+              >
                 Autopilot
               </Text>
+
+              <Text
+                style={[
+                  styles.modernScreenSubtitle,
+                  { color: theme.muted }
+                ]}
+              >
+                A focused monthly action plan based on your
+                current subscriptions.
+              </Text>
             </View>
 
             <View
               style={[
-                styles.autopilotCard,
+                styles.modernAutopilotHero,
+                cardShadow,
                 {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border
+                  backgroundColor: visual.surfaceRaised,
+                  borderColor: visual.borderSubtle
                 }
               ]}
             >
-              <Text style={[styles.autopilotEyebrow, { color: theme.muted }]}>
-                PREMIUM DECISION ENGINE
-              </Text>
-              <Text style={[styles.autopilotTitle, { color: theme.text }]}>
-                Your monthly action plan
-              </Text>
-              <Text style={[styles.autopilotIntro, { color: theme.muted }]}>
-                Savlivo uses your active prices, statuses and renewal dates to prioritize subscriptions worth reviewing.
-              </Text>
+              <View style={styles.modernAutopilotHeroTop}>
+                <View
+                  style={[
+                    styles.modernAutopilotIcon,
+                    {
+                      backgroundColor: visual.greenSoft
+                    }
+                  ]}
+                >
+                  <Ionicons
+                    name="sparkles"
+                    size={22}
+                    color={visual.green}
+                  />
+                </View>
 
-              <View style={styles.autopilotSteps}>
-                {premiumKeep.length ? (
-                  <View
+                <View style={{ flex: 1 }}>
+                  <Text
                     style={[
-                      styles.autopilotStep,
-                      { backgroundColor: theme.surfaceSoft, borderColor: theme.border }
+                      styles.modernAutopilotEyebrow,
+                      { color: visual.green }
                     ]}
                   >
-                    <View style={styles.autopilotActionPill}>
-                      <Text style={styles.autopilotActionText}>KEEP</Text>
-                    </View>
-                    <Text style={[styles.autopilotStepTitle, { color: theme.text, flex: 1 }]}>
-                      {premiumKeep.map(({ item }) => item.serviceName).join(" + ")}
-                    </Text>
-                  </View>
-                ) : null}
+                    MONTHLY ACTION PLAN
+                  </Text>
 
-                {premiumPause ? (
-                  <View
+                  <Text
                     style={[
-                      styles.autopilotStep,
-                      { backgroundColor: theme.surfaceSoft, borderColor: theme.border }
+                      styles.modernAutopilotTitle,
+                      { color: theme.text }
                     ]}
                   >
-                    <View style={styles.autopilotActionPill}>
-                      <Text style={styles.autopilotActionText}>REVIEW</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.autopilotStepTitle, { color: theme.text }]}>
-                        {premiumPause.item.serviceName}
-                      </Text>
-                      <Text style={[styles.autopilotStepCopy, { color: theme.muted }]}>
-                        3-month spend: {formatFinancialAggregate(premiumPause.monthly * 3)}
-                      </Text>
-                    </View>
-                  </View>
-                ) : null}
+                    Focus on what matters
+                  </Text>
+                </View>
               </View>
-            </View>
-          </>
-        ) : null}
 
-        {screen === "ai" ? (
-          <KeyboardAvoidingView
-            style={[
-              styles.aiKeyboardAvoider,
-              {
-                paddingBottom:
-                  Platform.OS === "ios"
-                    ? Math.max(0, aiKeyboardHeight - 18)
-                    : 0
-              }
-            ]}
-            behavior={Platform.OS === "ios" ? "position" : "height"}
-            keyboardVerticalOffset={0}
-          >
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                Savlivo AI
+              <Text
+                style={[
+                  styles.modernAutopilotIntro,
+                  { color: theme.muted }
+                ]}
+              >
+                Savlivo uses your active prices, statuses and
+                renewal dates to prioritize what is worth
+                reviewing. You stay in control of every change.
               </Text>
             </View>
 
-            <View
+            <Text
               style={[
-                styles.aiChatCard,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border
-                }
+                styles.modernSectionEyebrow,
+                { color: theme.muted }
               ]}
             >
-              <ScrollView
-                ref={aiScrollRef}
-                style={styles.aiChatLog}
-                contentContainerStyle={styles.aiChatLogContent}
-                nestedScrollEnabled
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="interactive"
-                onContentSizeChange={() =>
-                  keepLatestAiMessageVisible(false)
-                }
-                onLayout={() =>
-                  keepLatestAiMessageVisible(false)
+              THIS MONTH
+            </Text>
+
+            {premiumPause ? (
+              <Pressable
+                style={[
+                  styles.modernPrimaryActionCard,
+                  softShadow,
+                  {
+                    backgroundColor: visual.greenHero,
+                    borderColor: darkMode
+                      ? "#19583D"
+                      : visual.borderSubtle
+                  }
+                ]}
+                onPress={() =>
+                  openActionSheet(
+                    premiumPause.item,
+                    "PAUSE"
+                  )
                 }
               >
-                {aiMessages.map((message, index) => (
+                <View style={styles.modernActionRankColumn}>
                   <View
-                    key={`${message.role}-${index}`}
                     style={[
-                      styles.aiMessage,
-                      message.role === "user"
-                        ? styles.aiMessageUser
-                        : styles.aiMessageAssistant,
+                      styles.modernPrimaryActionRank,
                       {
-                        backgroundColor:
-                          message.role === "user"
-                            ? darkMode
-                              ? "#303842"
-                              : "#E5EBF2"
-                            : theme.surfaceSoft,
-                        borderColor: theme.border
+                        backgroundColor: visual.green
                       }
                     ]}
                   >
-                    <Text style={[styles.aiMessageText, { color: theme.text }]}>
-                      {message.text}
+                    <Text
+                      style={styles.modernPrimaryActionRankText}
+                    >
+                      1
                     </Text>
                   </View>
-                ))}
-              </ScrollView>
-
-              {aiGuidedAction ? (
-                <View
-                  style={[
-                    styles.aiGuideCard,
-                    {
-                      backgroundColor: theme.surfaceSoft,
-                      borderColor: theme.border
-                    }
-                  ]}
-                >
-                  <Text style={[styles.aiGuideEyebrow, { color: theme.muted }]}>
-                    GUIDED ACTION
-                  </Text>
-                  <Text style={[styles.aiGuideTitle, { color: theme.text }]}>
-                    {aiGuidedAction.action === "CANCEL"
-                      ? "Cancel"
-                      : aiGuidedAction.action === "PAUSE"
-                        ? "Pause"
-                        : "Reactivate"}{" "}
-                    {aiGuidedAction.subscription.serviceName}
-                  </Text>
-                  <Text style={[styles.aiGuideCopy, { color: theme.muted }]}>
-                    {aiGuidedAction.stepText}
-                  </Text>
-
-                  <Pressable
-                    style={styles.aiGuideButton}
-                    onPress={openAiGuidedAction}
-                  >
-                    <Text style={styles.aiAssistantButtonText}>
-                      Open provider and continue
-                    </Text>
-                  </Pressable>
                 </View>
-              ) : null}
 
-              <View style={styles.aiComposer}>
-                <TextInput
-                  ref={aiInputRef}
+                <View style={styles.modernPrimaryActionInfo}>
+                  <Text
+                    style={[
+                      styles.modernPrimaryActionEyebrow,
+                      { color: visual.greenMuted }
+                    ]}
+                  >
+                    REVIEW FIRST
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.modernPrimaryActionTitle,
+                      { color: theme.text }
+                    ]}
+                  >
+                    {premiumPause.item.serviceName}
+                  </Text>
+
+                  <Text
+                    style={[
+                      styles.modernPrimaryActionCopy,
+                      { color: theme.muted }
+                    ]}
+                  >
+                    3-month spend:{" "}
+                    {formatFinancialAggregate(
+                      premiumPause.monthly * 3
+                    )}
+                  </Text>
+                </View>
+
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={visual.green}
+                />
+              </Pressable>
+            ) : (
+              <View
+                style={[
+                  styles.modernEmptyCard,
+                  {
+                    backgroundColor: visual.greenSoft,
+                    borderColor: darkMode
+                      ? "#19583D"
+                      : visual.borderSubtle
+                  }
+                ]}
+              >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={23}
+                  color={visual.green}
+                />
+
+                <Text
                   style={[
-                    styles.aiComposerInput,
+                    styles.modernEmptyText,
+                    { color: theme.text }
+                  ]}
+                >
+                  Nothing urgent to review right now.
+                </Text>
+              </View>
+            )}
+
+            {premiumKeep.length ? (
+              <>
+                <Text
+                  style={[
+                    styles.modernSectionEyebrow,
                     {
-                      backgroundColor: theme.surfaceSoft,
-                      borderColor: theme.border,
-                      color: theme.text
+                      color: theme.muted,
+                      marginTop: 22
                     }
                   ]}
-                  placeholder="Try “pause YouTube”, “cancel Prime” or ask for help..."
-                  placeholderTextColor={theme.muted}
-                  value={aiInput}
-                  onChangeText={setAiInput}
-                  onSubmitEditing={askSavlivo}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      keepLatestAiMessageVisible(false);
-                    }, 180);
-                  }}
-                  returnKeyType="send"
-                />
-                <Pressable
-                  style={styles.aiSendButton}
-                  onPress={askSavlivo}
                 >
-                  <Text style={styles.aiAssistantButtonText}>Send</Text>
-                </Pressable>
-              </View>
+                  GOOD TO KEEP
+                </Text>
+
+                {premiumKeep.map(({ item }) => (
+                  <View
+                    key={`keep-${item.id}`}
+                    style={[
+                      styles.modernKeepCard,
+                      {
+                        backgroundColor:
+                          visual.surfaceRaised,
+                        borderColor:
+                          visual.borderSubtle
+                      }
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.modernKeepIcon,
+                        {
+                          backgroundColor:
+                            visual.surfaceInteractive
+                        }
+                      ]}
+                    >
+                      <Ionicons
+                        name="checkmark"
+                        size={17}
+                        color={visual.green}
+                      />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.modernKeepName,
+                          { color: theme.text }
+                        ]}
+                      >
+                        {item.serviceName}
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.modernKeepCopy,
+                          { color: theme.muted }
+                        ]}
+                      >
+                        Lower-cost active subscription
+                      </Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.modernKeepPill,
+                        {
+                          backgroundColor:
+                            visual.surfaceInteractive
+                        }
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.modernKeepPillText,
+                          { color: theme.muted }
+                        ]}
+                      >
+                        KEEP
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </>
+            ) : null}
+
+            <View
+              style={[
+                styles.modernControlCard,
+                {
+                  backgroundColor: visual.surfaceRaised,
+                  borderColor: visual.borderSubtle
+                }
+              ]}
+            >
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={19}
+                color={theme.muted}
+              />
+
+              <Text
+                style={[
+                  styles.modernControlCopy,
+                  { color: theme.muted }
+                ]}
+              >
+                Savlivo will ask before any subscription
+                change is made.
+              </Text>
             </View>
-          </KeyboardAvoidingView>
+          </>
         ) : null}
 
         {screen === "settings" ? (
@@ -3773,6 +7406,7 @@ export default function Home() {
             {[
               {
                 title: "Account & plan",
+                icon: "person-outline" as const,
                 rows: [
                   ["Email", email, ""],
                   ["Savlivo plan", plan, "Manage"]
@@ -3780,18 +7414,35 @@ export default function Home() {
               },
               {
                 title: "Preferences",
+                icon: "options-outline" as const,
                 rows: [
                   ["Appearance", darkMode ? "Dark" : "Light", "Change"],
                   [
-                    "Currency & region",
+                    "Language",
+                    ({
+                    en: "English",
+                    no: "Norsk",
+                    sv: "Svenska",
+                    da: "Dansk",
+                    de: "Deutsch",
+                    es: "Español",
+                    fr: "Français",
+                    it: "Italiano",
+                    pt: "Português",
+                    nl: "Nederlands",
+                    fi: "Suomi",
+                    "zh-CN": "简体中文"
+                  } as Record<AppLanguage, string>)[selectedLanguage],
+                    "Change"
+                  ],
+                  [
+                    "Subscription market",
                     `${selectedCurrency} · ${selectedCountryName}${
                       pricingSnapshot?.updatedAt
-                        ? ` · checked ${new Date(
+                        ? ` · Prices checked ${new Date(
                             pricingSnapshot.updatedAt
-                          ).toLocaleDateString()} · ${pricingSnapshot.source}`
-                        : verifiedRegionalFallback[selectedCountryCode]
-                          ? " · verified fallback"
-                          : " · awaiting verified feed"
+                          ).toLocaleDateString()}`
+                        : " · Pricing update pending"
                     }`,
                     "Change"
                   ]
@@ -3799,6 +7450,7 @@ export default function Home() {
               },
               {
                 title: "Notifications",
+                icon: "notifications-outline" as const,
                 rows: [
                   ["Renewal reminders", "Alert before a subscription renews", "On"],
                   ["Savings opportunities", "Surface potential savings", "On"]
@@ -3806,6 +7458,7 @@ export default function Home() {
               },
               {
                 title: "Premium & Autopilot",
+                icon: "sparkles-outline" as const,
                 rows: [
                   ["Ask before changes", "Require approval before automated actions", "On"],
                   ["Never pause", "Choose protected services later", "Configure"]
@@ -3813,6 +7466,7 @@ export default function Home() {
               },
               {
                 title: "Privacy & data",
+                icon: "shield-checkmark-outline" as const,
                 rows: [
                   ["Export data", "Subscriptions and savings history", "Later"],
                   ["Delete account", "Remove your Savlivo account and data", "Later"]
@@ -3823,20 +7477,55 @@ export default function Home() {
                 key={group.title}
                 style={[
                   styles.settingsGroup,
+                  softShadow,
                   {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.border
+                    backgroundColor: visual.surfaceRaised,
+                    borderColor: visual.borderSubtle
                   }
                 ]}
               >
-                <Text style={[styles.settingsGroupTitle, { color: theme.text }]}>
-                  {group.title}
-                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 4
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.settingsGroupTitle,
+                      { color: theme.text }
+                    ]}
+                  >
+                    {group.title}
+                  </Text>
+
+                  <View
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 11,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: visual.greenSoft
+                    }}
+                  >
+                    <Ionicons
+                      name={group.icon}
+                      size={18}
+                      color={visual.greenMuted}
+                    />
+                  </View>
+                </View>
 
                 {group.rows.map(([title, value, action]) => (
                   <View
                     key={title}
-                    style={[styles.settingsRow, { borderColor: theme.border }]}
+                    style={[
+                      styles.settingsRow,
+                      { borderColor: visual.borderSubtle }
+                    ]}
                   >
                     <View style={styles.settingsRowInfo}>
                       <Text style={[styles.settingsRowTitle, { color: theme.text }]}>
@@ -3851,6 +7540,7 @@ export default function Home() {
                       <Pressable
                         style={[
                           styles.settingsAction,
+                          softShadow,
                           {
                             backgroundColor:
                               title === "Delete account"
@@ -3858,10 +7548,8 @@ export default function Home() {
                                   ? "#3A1F21"
                                   : "#FDECEC"
                                 : action === "On"
-                                  ? darkMode
-                                    ? "#173226"
-                                    : "#E8F5EE"
-                                  : theme.surfaceSoft
+                                  ? visual.greenSoft
+                                  : visual.surfaceInteractive
                           }
                         ]}
                         onPress={() => {
@@ -3869,7 +7557,10 @@ export default function Home() {
                           if (title === "Appearance") {
                             setDarkMode((value) => !value);
                           }
-                          if (title === "Currency & region") {
+                          if (title === "Language") {
+                            setLanguageModalOpen(true);
+                          }
+                          if (title === "Subscription market") {
                             setCountrySearch("");
                             setRegionModalOpen(true);
                           }
@@ -3885,9 +7576,7 @@ export default function Home() {
                                     ? "#FF8A80"
                                     : "#B42318"
                                   : action === "On"
-                                    ? darkMode
-                                      ? "#8DDEAE"
-                                      : "#1E6B45"
+                                    ? visual.greenMuted
                                     : theme.text
                             }
                           ]}
@@ -3905,8 +7594,8 @@ export default function Home() {
               style={[
                 styles.settingsLogout,
                 {
-                  backgroundColor: darkMode ? "#242A31" : theme.surface,
-                  borderColor: theme.border
+                  backgroundColor: visual.surfaceInteractive,
+                  borderColor: visual.borderSubtle
                 }
               ]}
               onPress={logout}
@@ -3923,6 +7612,8 @@ export default function Home() {
           </>
         ) : null}
       </ScrollView>
+      )}
+      </KeyboardAvoidingView>
 
       {successMessage ? (
         <View pointerEvents="none" style={styles.successFloatingWrap}>
@@ -3930,15 +7621,15 @@ export default function Home() {
             style={[
               styles.successBanner,
               {
-                backgroundColor: darkMode ? "#173226" : "#E8F5EE",
-                borderColor: darkMode ? "#29543E" : "#CBE7D6"
+                backgroundColor: darkMode ? "#173226" : visual.greenSoft,
+                borderColor: darkMode ? "#29543E" : visual.borderSubtle
               }
             ]}
           >
             <Text
               style={[
                 styles.successBannerText,
-                { color: darkMode ? "#E9F7EF" : "#1E6B45" }
+                { color: darkMode ? "#E9F7EF" : visual.greenMuted }
               ]}
             >
               ✓ {successMessage}
@@ -3946,6 +7637,136 @@ export default function Home() {
           </View>
         </View>
       ) : null}
+
+      <Modal
+        transparent
+        visible={languageModalOpen}
+        animationType="fade"
+        onRequestClose={() =>
+          setLanguageModalOpen(false)
+        }
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.regionSheet,
+              {
+                backgroundColor: darkMode
+                  ? "#11171C"
+                  : "#FFFFFF",
+                borderColor: visual.borderSubtle
+              }
+            ]}
+          >
+            <View style={styles.regionHeader}>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.actionSheetTitle,
+                    { color: theme.text }
+                  ]}
+                >
+                  Language
+                </Text>
+                <Text
+                  style={[
+                    styles.formHint,
+                    { color: theme.muted }
+                  ]}
+                >
+                  Choose the language you want Savlivo to use.
+                </Text>
+              </View>
+
+              <Pressable
+                style={[
+                  styles.regionClose,
+                  {
+                    backgroundColor: visual.greenSoft
+                  }
+                ]}
+                onPress={() =>
+                  setLanguageModalOpen(false)
+                }
+              >
+                <Text
+                  style={[
+                    styles.actionText,
+                    { color: visual.greenMuted }
+                  ]}
+                >
+                  Done
+                </Text>
+              </Pressable>
+            </View>
+
+            {([
+              ["en", "English"],
+              ["no", "Norsk"],
+              ["sv", "Svenska"],
+              ["da", "Dansk"],
+              ["de", "Deutsch"],
+              ["es", "Español"],
+              ["fr", "Français"],
+              ["it", "Italiano"],
+              ["pt", "Português"],
+              ["nl", "Nederlands"],
+              ["fi", "Suomi"],
+              ["zh-CN", "简体中文"]
+            ] as Array<[AppLanguage, string]>).map(
+              ([code, label]) => {
+                const selected =
+                  selectedLanguage === code;
+
+                return (
+                  <Pressable
+                    key={code}
+                    style={[
+                      styles.countryRow,
+                      {
+                        backgroundColor: selected
+                          ? darkMode
+                            ? "#3B4654"
+                            : "#DDE7F2"
+                          : theme.surface,
+                        borderColor: selected
+                          ? darkMode
+                            ? "#8FB7E5"
+                            : "#667D96"
+                          : theme.border,
+                        borderWidth: selected ? 2 : 1,
+                        marginBottom: 10
+                      }
+                    ]}
+                    onPress={() =>
+                      setSelectedLanguage(code)
+                    }
+                  >
+                    <View style={styles.countryInfo}>
+                      <Text
+                        style={[
+                          styles.settingsRowTitle,
+                          { color: theme.text }
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </View>
+
+                    {selected ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={22}
+                        color={visual.green}
+                      />
+                    ) : null}
+                  </Pressable>
+                );
+              }
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         transparent
@@ -3963,28 +7784,30 @@ export default function Home() {
               style={[
                 styles.regionSheet,
                 {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border
+                  backgroundColor: darkMode
+                    ? "#11171C"
+                    : "#FFFFFF",
+                  borderColor: visual.borderSubtle
                 }
               ]}
             >
             <View style={styles.regionHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.actionSheetTitle, { color: theme.text }]}>
-                  Currency & region
+                  Subscription market
                 </Text>
                 <Text style={[styles.formHint, { color: theme.muted }]}>
-                  Choose your country. Savlivo defaults to the local currency automatically.
+                  Choose the market for your subscriptions. Savlivo uses its local services, plans and currency.
                 </Text>
               </View>
               <Pressable
                 style={[
                   styles.regionClose,
-                  { backgroundColor: theme.surfaceSoft }
+                  { backgroundColor: visual.greenSoft }
                 ]}
                 onPress={() => setRegionModalOpen(false)}
               >
-                <Text style={[styles.actionText, { color: theme.text }]}>Done</Text>
+                <Text style={[styles.actionText, { color: visual.greenMuted }]}>Done</Text>
               </Pressable>
             </View>
 
@@ -3992,8 +7815,8 @@ export default function Home() {
               style={[
                 styles.input,
                 {
-                  backgroundColor: theme.surfaceSoft,
-                  borderColor: theme.border,
+                  backgroundColor: visual.surfaceInteractive,
+                  borderColor: visual.borderInteractive,
                   color: theme.text
                 }
               ]}
@@ -4010,7 +7833,14 @@ export default function Home() {
             </Text>
 
             <ScrollView
-              style={styles.countryList}
+              style={[
+                styles.countryList,
+                {
+                  backgroundColor: darkMode
+                    ? "#11171C"
+                    : "#FFFFFF"
+                }
+              ]}
               contentContainerStyle={styles.countryListContent}
               keyboardShouldPersistTaps="handled"
             >
@@ -4057,46 +7887,6 @@ export default function Home() {
               })}
             </ScrollView>
 
-            <Text style={[styles.fieldLabel, { color: theme.muted }]}>
-              Currency override
-            </Text>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.currencyRow}
-            >
-              {allCurrencies.map((currency) => {
-                const selected = currency === selectedCurrency;
-
-                return (
-                  <Pressable
-                    key={currency}
-                    style={[
-                      styles.currencyChip,
-                      {
-                        backgroundColor: selected
-                          ? darkMode
-                            ? "#3B4654"
-                            : "#DDE7F2"
-                          : theme.surfaceSoft,
-                        borderColor: selected
-                          ? darkMode
-                            ? "#8FB7E5"
-                            : "#667D96"
-                          : theme.border,
-                        borderWidth: selected ? 2 : 1
-                      }
-                    ]}
-                    onPress={() => setSelectedCurrency(currency)}
-                  >
-                    <Text style={[styles.choiceChipText, { color: theme.text }]}>
-                      {currency}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -4105,117 +7895,178 @@ export default function Home() {
       <Modal
         transparent
         visible={servicePickerOpen}
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setServicePickerOpen(false)}
       >
         <View style={styles.modalBackdrop}>
           <View
             style={[
-              styles.actionSheet,
+              styles.servicePickerSheet,
               {
-                backgroundColor: theme.surface,
+                backgroundColor: darkMode
+                  ? "#11171C"
+                  : "#FFFFFF",
                 borderColor: theme.border
               }
             ]}
           >
-            <Text style={[styles.actionSheetTitle, { color: theme.text }]}>
-              Choose service
-            </Text>
-
-            <Text style={[styles.actionSheetBody, { color: theme.muted }]}>
-              Select the subscription service you want to add.
-            </Text>
-
-            <View style={{ gap: 10 }}>
-              {serviceCatalog
-                .filter(
-                  (service) =>
-                    !items.some(
-                      (item) =>
-                        item.serviceSlug === service.slug
-                    )
-                )
-                .map((service) => (
-                <Pressable
-                  key={service.slug}
+            <View style={styles.servicePickerHeader}>
+              <View style={{ flex: 1 }}>
+                <Text
                   style={[
-                    styles.choiceChip,
+                    styles.actionSheetTitle,
+                    { color: theme.text }
+                  ]}
+                >
+                  Choose service
+                </Text>
+
+                <Text
+                  style={[
+                    styles.actionSheetBody,
                     {
-                      width: "100%",
-                      minHeight: 58,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "flex-start",
-                      backgroundColor: theme.surfaceSoft,
-                      borderColor: theme.border,
-                      paddingHorizontal: 14
+                      color: theme.muted,
+                      marginTop: 4
                     }
                   ]}
-                  onPress={() =>
-                    beginAddService(service.slug)
-                  }
                 >
-                  <View
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginRight: 12,
-                      backgroundColor:
-                        serviceBrandColors[service.slug] ??
-                        theme.surface
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: "#FFFFFF",
-                        fontSize: 16,
-                        fontWeight: "800"
-                      }}
-                    >
-                      {serviceInitials[service.slug] ??
-                        service.name.slice(0, 1)}
-                    </Text>
-                  </View>
+                  Select the subscription service you want to add.
+                </Text>
+              </View>
 
-                  <Text
-                    style={[
-                      styles.choiceChipText,
-                      {
-                        color: theme.text,
-                        fontSize: 16,
-                        flex: 1
-                      }
-                    ]}
-                  >
-                    {service.name}
-                  </Text>
-
-                  <Ionicons
-                    name="chevron-forward"
-                    size={20}
-                    color={theme.muted}
-                  />
-                </Pressable>
-              ))}
+              <Pressable
+                accessibilityLabel="Close service picker"
+                style={[
+                  styles.servicePickerClose,
+                  {
+                    backgroundColor: theme.surfaceSoft,
+                    borderColor: theme.border
+                  }
+                ]}
+                onPress={() => setServicePickerOpen(false)}
+              >
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={theme.text}
+                />
+              </Pressable>
             </View>
 
-            <Pressable
+            <ScrollView
               style={[
-                styles.sheetButton,
+                styles.servicePickerScroll,
                 {
-                  borderColor: theme.border,
-                  marginTop: 16
+                  backgroundColor: darkMode
+                    ? "#11171C"
+                    : "#FFFFFF"
                 }
               ]}
-              onPress={() => setServicePickerOpen(false)}
+              contentContainerStyle={
+                styles.servicePickerScrollContent
+              }
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={[styles.sheetButtonText, { color: theme.text }]}>
-                Cancel
-              </Text>
-            </Pressable>
+              {serviceCategories.map((category) => {
+                const availableServices = serviceCatalog
+                  .filter(
+                    (service) =>
+                      serviceAvailableInMarket(
+                        service.slug,
+                        selectedCountryCode
+                      ) &&
+                      category.slugs.includes(
+                        service.slug as never
+                      ) &&
+                      !items.some(
+                        (item) =>
+                          item.serviceSlug === service.slug
+                      )
+                  )
+                  .sort((a, b) =>
+                    a.name.localeCompare(b.name)
+                  );
+
+                if (!availableServices.length) {
+                  return null;
+                }
+
+                return (
+                  <View
+                    key={category.key}
+                    style={styles.servicePickerCategory}
+                  >
+                    <Text
+                      style={[
+                        styles.servicePickerCategoryTitle,
+                        { color: visual.greenMuted }
+                      ]}
+                    >
+                      {category.name.toUpperCase()}
+                    </Text>
+
+                    <View
+                      style={[
+                        styles.servicePickerCategoryCard,
+                        {
+                          backgroundColor: theme.surfaceSoft,
+                          borderColor: theme.border
+                        }
+                      ]}
+                    >
+                      {availableServices.map(
+                        (service, index) => (
+                          <Pressable
+                            key={service.slug}
+                            style={[
+                              styles.servicePickerRow,
+                              index <
+                                availableServices.length - 1
+                                ? {
+                                    borderBottomWidth: 1,
+                                    borderBottomColor:
+                                      theme.border
+                                  }
+                                : null
+                            ]}
+                            onPress={() =>
+                              beginAddService(service.slug)
+                            }
+                          >
+                            <View
+                              style={{
+                                marginRight: 12
+                              }}
+                            >
+                              <ServiceLogo
+                                serviceSlug={service.slug}
+                                serviceName={service.name}
+                                size={38}
+                              />
+                            </View>
+
+                            <Text
+                              style={[
+                                styles.servicePickerName,
+                                { color: theme.text }
+                              ]}
+                            >
+                              {service.name}
+                            </Text>
+
+                            <Ionicons
+                              name="chevron-forward"
+                              size={18}
+                              color={visual.greenMuted}
+                            />
+                          </Pressable>
+                        )
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -4228,31 +8079,42 @@ export default function Home() {
       >
         <View style={styles.modalBackdrop}>
           <KeyboardAvoidingView
-            style={{ flex: 1, width: "100%" }}
+            style={{ flex: 1, width: "100%", justifyContent: "flex-end" }}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             keyboardVerticalOffset={0}
           >
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={[
+            <View
+              style={[
                 styles.serviceFormSheet,
                 {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                  paddingBottom: 40
+                  backgroundColor: darkMode
+                    ? "#11171C"
+                    : "#FFFFFF",
+                  borderColor: theme.border
                 }
               ]}
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode={
-                Platform.OS === "ios"
-                  ? "interactive"
-                  : "on-drag"
-              }
-              automaticallyAdjustKeyboardInsets={
-                Platform.OS === "ios"
-              }
-              showsVerticalScrollIndicator
             >
+              <ScrollView
+                style={[
+                  styles.serviceFormScroll,
+                  {
+                    backgroundColor: darkMode
+                      ? "#11171C"
+                      : "#FFFFFF"
+                  }
+                ]}
+                contentContainerStyle={styles.serviceFormScrollContent}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode={
+                  Platform.OS === "ios"
+                    ? "interactive"
+                    : "on-drag"
+                }
+                automaticallyAdjustKeyboardInsets={
+                  Platform.OS === "ios"
+                }
+                showsVerticalScrollIndicator
+              >
             <Text style={[styles.actionSheetTitle, { color: theme.text }]}>
               {editingSubscriptionId ? "Edit subscription" : "Add service"}
             </Text>
@@ -4270,7 +8132,13 @@ export default function Home() {
                     (service) =>
                       service.slug === serviceSlugInput
                   )
-                : serviceCatalog
+                : serviceCatalog.filter(
+                    (service) =>
+                      serviceAvailableInMarket(
+                        service.slug,
+                        selectedCountryCode
+                      )
+                  )
               ).map((service) => (
                 <Pressable
                   key={service.slug}
@@ -4294,10 +8162,35 @@ export default function Home() {
                     }
                   ]}
                   onPress={() => {
-                    setServiceSlugInput(service.slug);
-                    syncPlanAndPrice(
-                      service.slug,
+                    const nextServiceSlug =
+                      service.slug;
+
+                    const nextBillingProvider =
+                      isBillingProviderAllowed(
+                        nextServiceSlug,
+                        billingProviderInput
+                      )
+                        ? billingProviderInput
+                        : defaultBillingProviderForService(
+                            nextServiceSlug
+                          );
+
+                    setServiceSlugInput(
+                      nextServiceSlug
+                    );
+
+                    if (
+                      nextBillingProvider !==
                       billingProviderInput
+                    ) {
+                      setBillingProviderInput(
+                        nextBillingProvider
+                      );
+                    }
+
+                    syncPlanAndPrice(
+                      nextServiceSlug,
+                      nextBillingProvider
                     );
                   }}
                 >
@@ -4312,7 +8205,9 @@ export default function Home() {
               Billing route
             </Text>
             <View style={styles.choiceWrap}>
-              {billingProviders.map((provider) => (
+              {billingProvidersForService(
+                serviceSlugInput
+              ).map((provider) => (
                 <Pressable
                   key={provider.slug}
                   style={[
@@ -4419,7 +8314,9 @@ export default function Home() {
                           {
                             color:
                               planOption.verification === "registry" ||
-                              planOption.verification === "multi-source"
+                              planOption.verification === "multi-source" ||
+                              planOption.verification ===
+                                "authoritative-provider"
                                 ? darkMode
                                   ? "#A7D7B8"
                                   : "#357A4F"
@@ -4428,9 +8325,11 @@ export default function Home() {
                         ]}
                       >
                         {planOption.verification === "registry" ||
-                        planOption.verification === "multi-source"
+                        planOption.verification === "multi-source" ||
+                        planOption.verification ===
+                          "authoritative-provider"
                           ? "✓ Verified"
-                          : "Official source"}
+                          : "Estimated current price"}
                       </Text>
                     </Pressable>
                   );
@@ -4441,6 +8340,21 @@ export default function Home() {
                 No verified regional plan pricing is available yet.
               </Text>
             )}
+
+            {selectedCountryCode === "CN" &&
+            regionalPlanOptions(
+              serviceSlugInput,
+              billingProviderInput
+            ).some(
+              (planOption: any) =>
+                planOption.verification === "single-source"
+            ) ? (
+              <Text style={[styles.formHint, { color: theme.muted }]}>
+                Estimated prices can vary by platform, promotion, and
+                account. Check your actual subscription and edit the
+                price manually below if needed.
+              </Text>
+            ) : null}
 
             {(() => {
               const targetId =
@@ -4676,7 +8590,10 @@ export default function Home() {
 
 
 
-            <View style={styles.actionSheetButtons}>
+              </ScrollView>
+
+            <View style={styles.serviceFormFooter}>
+              <View style={styles.actionSheetButtons}>
               <Pressable
                 style={[styles.sheetButton, { borderColor: theme.border }]}
                 onPress={() => {
@@ -4741,7 +8658,8 @@ export default function Home() {
                 </Text>
               </Pressable>
             ) : null}
-            </ScrollView>
+            </View>
+            </View>
           </KeyboardAvoidingView>
         </View>
       </Modal>
@@ -4757,7 +8675,9 @@ export default function Home() {
             style={[
               styles.actionSheet,
               {
-                backgroundColor: theme.surface,
+                backgroundColor: darkMode
+                  ? "#11171C"
+                  : "#FFFFFF",
                 borderColor: theme.border
               }
             ]}
@@ -4777,8 +8697,8 @@ export default function Home() {
               style={[
                 styles.input,
                 {
-                  backgroundColor: theme.surfaceSoft,
-                  borderColor: theme.border,
+                  backgroundColor: visual.surfaceInteractive,
+                  borderColor: visual.borderInteractive,
                   color: theme.text
                 }
               ]}
@@ -4790,38 +8710,84 @@ export default function Home() {
             />
 
             <View style={styles.statusChoiceWrap}>
-              <Pressable
-                style={[styles.statusChoiceButton, { borderColor: theme.border }]}
-                onPress={() => confirmProviderStatus("PAUSED")}
-              >
-                <Text style={[styles.sheetButtonText, { color: theme.text }]}>
-                  Paused
-                </Text>
-              </Pressable>
+              {pendingProviderResult?.action === "PAUSE" ? (
+                <Pressable
+                  style={[
+                    styles.statusChoiceButton,
+                    { borderColor: theme.border }
+                  ]}
+                  onPress={() =>
+                    confirmProviderStatus("PAUSED")
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.sheetButtonText,
+                      { color: theme.text }
+                    ]}
+                  >
+                    Yes, it was paused
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {pendingProviderResult?.action === "CANCEL" ? (
+                <Pressable
+                  style={[
+                    styles.statusChoiceButton,
+                    { borderColor: theme.border }
+                  ]}
+                  onPress={() =>
+                    confirmProviderStatus("CANCELLED")
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.sheetButtonText,
+                      { color: theme.text }
+                    ]}
+                  >
+                    Yes, it was cancelled
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {pendingProviderResult?.action === "REACTIVATE" ? (
+                <Pressable
+                  style={[
+                    styles.statusChoiceButton,
+                    { borderColor: theme.border }
+                  ]}
+                  onPress={() =>
+                    confirmProviderStatus("ACTIVE")
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.sheetButtonText,
+                      { color: theme.text }
+                    ]}
+                  >
+                    Yes, it is active
+                  </Text>
+                </Pressable>
+              ) : null}
 
               <Pressable
-                style={[styles.statusChoiceButton, { borderColor: theme.border }]}
-                onPress={() => confirmProviderStatus("CANCELLED")}
+                style={[
+                  styles.statusChoiceButton,
+                  { borderColor: theme.border }
+                ]}
+                onPress={() =>
+                  confirmProviderStatus("UNCHANGED")
+                }
               >
-                <Text style={[styles.sheetButtonText, { color: theme.text }]}>
-                  Cancelled
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.statusChoiceButton, { borderColor: theme.border }]}
-                onPress={() => confirmProviderStatus("ACTIVE")}
-              >
-                <Text style={[styles.sheetButtonText, { color: theme.text }]}>
-                  Renewed / active
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.statusChoiceButton, { borderColor: theme.border }]}
-                onPress={() => confirmProviderStatus("UNCHANGED")}
-              >
-                <Text style={[styles.sheetButtonText, { color: theme.muted }]}>
+                <Text
+                  style={[
+                    styles.sheetButtonText,
+                    { color: theme.muted }
+                  ]}
+                >
                   No change
                 </Text>
               </Pressable>
@@ -4842,7 +8808,9 @@ export default function Home() {
               styles.actionSheet,
               styles.renewalSheet,
               {
-                backgroundColor: theme.surface,
+                backgroundColor: darkMode
+                  ? "#11171C"
+                  : "#FFFFFF",
                 borderColor: theme.border
               }
             ]}
@@ -4940,7 +8908,9 @@ export default function Home() {
             style={[
               styles.actionSheet,
               {
-                backgroundColor: theme.surface,
+                backgroundColor: darkMode
+                  ? "#11171C"
+                  : "#FFFFFF",
                 borderColor: theme.border
               }
             ]}
@@ -5001,9 +8971,22 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 36,
-    gap: 14
+    paddingTop: 16,
+    paddingBottom: 48,
+    gap: 12
+  },
+
+  aiPageContent: {
+    flexGrow: 1,
+    paddingBottom: 0
+  },
+
+  aiStandaloneViewport: {
+    flex: 1,
+    minHeight: 0,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 0
   },
 
   authCard: {
@@ -5023,14 +9006,84 @@ const styles = StyleSheet.create({
     marginTop: 2
   },
 
+  modernBrandLockup: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    minWidth: 0
+  },
+
+  modernHeaderLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    marginLeft: 6,
+    marginRight: 3
+  } as import("react-native").ImageStyle,
+
+  modernBrandName: {
+    fontSize: 24,
+    fontWeight: "900",
+    letterSpacing: -0.7
+  },
+
+  modernPlanBadge: {
+    marginLeft: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999
+  },
+
+  modernPlanBadgeText: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.6
+  },
+
+  modernNavRow: {
+    minHeight: 58,
+    borderRadius: 17,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    marginTop: 8
+  },
+
+  modernNavItem: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  modernNavIconWrap: {
+    width: 34,
+    height: 29,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  modernNavText: {
+    fontSize: 9,
+    fontWeight: "700",
+    marginTop: 3
+  },
+
+  modernNavTextActive: {
+    fontWeight: "900"
+  },
+
   stickyHeader: {
     marginHorizontal: -16,
     paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 12,
+    paddingTop: 3,
+    paddingBottom: 9,
     borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 50,
-    elevation: 8
+    elevation: 4
   },
 
   brandLockup: {
@@ -5070,8 +9123,14 @@ const styles = StyleSheet.create({
     fontWeight: "600"
   },
 
+  mainKeyboardViewport: {
+    flex: 1,
+    minHeight: 0
+  },
+
   mainScroll: {
-    flex: 1
+    flex: 1,
+    minHeight: 0
   },
 
   compactHomeHeading: {
@@ -5145,10 +9204,69 @@ const styles = StyleSheet.create({
   },
 
   compactSpendValue: {
-    fontSize: 34,
+    fontSize: 27,
     fontWeight: "900",
     letterSpacing: -1,
     marginTop: 5
+  },
+
+  compactSavingsCard: {
+    borderWidth: 1,
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 19,
+    marginBottom: 26
+  },
+  compactSavingsHeader: {
+    flexDirection: "row",
+    alignItems: "center"
+  },
+  compactSavingsIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14
+  },
+  compactSavingsHeadingText: {
+    flex: 1
+  },
+  compactSavingsEyebrow: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1.4,
+    marginBottom: 5
+  },
+  compactSavingsValue: {
+    fontSize: 34,
+    fontWeight: "800",
+    letterSpacing: -0.6
+  },
+  compactSavingsPeriod: {
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0
+  },
+  compactSavingsDivider: {
+    height: 1,
+    marginVertical: 16
+  },
+  compactSavingsFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+  compactSavingsFooterLabel: {
+    fontSize: 14,
+    fontWeight: "600"
+  },
+  compactSavingsFooterValue: {
+    fontSize: 15,
+    fontWeight: "800"
+  },
+  compactAtGlanceHeader: {
+    marginBottom: 12
   },
 
   compactMetricGrid: {
@@ -5161,11 +9279,36 @@ const styles = StyleSheet.create({
 
   compactMetricCard: {
     width: "48.5%",
-    minHeight: 100,
-    borderRadius: 17,
+    minHeight: 128,
+    borderRadius: 19,
     borderWidth: 1,
-    padding: 13,
+    padding: 14,
     justifyContent: "space-between"
+  },
+
+  compactSpendIconTile: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  compactMetricIconTile: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  compactMetricChevronButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center"
   },
 
   compactMetricValue: {
@@ -5209,21 +9352,23 @@ const styles = StyleSheet.create({
   },
 
   compactActionCard: {
-    minHeight: 80,
-    borderRadius: 18,
+    minHeight: 88,
+    borderRadius: 20,
     borderWidth: 1,
-    padding: 14,
+    paddingHorizontal: 15,
+    paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center"
   },
 
   compactActionIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 11
+    marginRight: 12
   },
 
   compactActionText: {
@@ -5373,12 +9518,47 @@ const styles = StyleSheet.create({
   input: {
     minHeight: 50,
     borderWidth: 1,
-    borderColor: "#d0d5dd",
-    backgroundColor: "#fff",
+    borderColor: "#D8E0DB",
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
     paddingHorizontal: 14
   },
 
+  passwordInputWrap: {
+    position: "relative"
+  },
+  passwordInput: {
+    paddingRight: 50
+  },
+  passwordVisibilityButton: {
+    position: "absolute",
+    right: 4,
+    top: 0,
+    bottom: 0,
+    width: 44,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  rememberMeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: 2,
+    marginBottom: 14
+  },
+  rememberMeBox: {
+    width: 22,
+    height: 22,
+    borderWidth: 1.5,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10
+  },
+  rememberMeText: {
+    fontSize: 15,
+    fontWeight: "600"
+  },
   primary: {
     width: "100%",
     minHeight: 50,
@@ -5399,7 +9579,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#d0d5dd",
+    borderColor: "#D8E0DB",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16
@@ -5410,7 +9591,7 @@ const styles = StyleSheet.create({
   },
 
   navRow: {
-    
+
     marginTop: 6,width: "100%",
     minHeight: 72,
     flexDirection: "row",
@@ -5480,17 +9661,17 @@ const styles = StyleSheet.create({
 
   planStatus: {
     width: "100%",
-    backgroundColor: "#eef8f1",
+    backgroundColor: "#EDF9F2",
     borderWidth: 1,
-    borderColor: "#d7eadc",
-    borderRadius: 18,
+    borderColor: "#E6ECE8",
+    borderRadius: 20,
     padding: 16,
     gap: 12
   },
 
   planStatusViewer: {
-    backgroundColor: "#fff",
-    borderColor: "#e1e5ea"
+    backgroundColor: "#FFFFFF",
+    borderColor: "#E6ECE8"
   },
 
   planStatusTitle: {
@@ -5503,12 +9684,12 @@ const styles = StyleSheet.create({
     width: "100%",
     minHeight: 46,
     borderWidth: 1,
-    borderColor: "#d0d5dd",
+    borderColor: "#D8E0DB",
     borderRadius: 12,
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff"
+    backgroundColor: "#FFFFFF"
   },
 
   changePlanText: {
@@ -5531,6 +9712,162 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: "800"
+  },
+
+  modernSubscriptionCard: {
+    width: "100%",
+    borderWidth: 1,
+    borderRadius: 19,
+    padding: 15,
+    marginBottom: 9
+  },
+
+  modernSubscriptionTop: {
+    flexDirection: "row",
+    alignItems: "center"
+  },
+
+  modernSubscriptionLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+    flexShrink: 0
+  },
+
+  modernSubscriptionLogoText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "900"
+  },
+
+  modernSubscriptionInfo: {
+    flex: 1,
+    minWidth: 0
+  },
+
+  modernSubscriptionName: {
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: -0.25
+  },
+
+  modernSubscriptionProvider: {
+    fontSize: 12,
+    marginTop: 3
+  },
+
+  modernSubscriptionPriceBlock: {
+    alignItems: "flex-end",
+    marginLeft: 10,
+    maxWidth: "40%"
+  },
+
+  modernSubscriptionPrice: {
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: -0.3
+  },
+
+  modernSubscriptionPerMonth: {
+    fontSize: 10,
+    marginTop: 2
+  },
+
+  modernSubscriptionMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 13
+  },
+
+  modernStatusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999
+  },
+
+  modernStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5
+  },
+
+  modernStatusText: {
+    fontSize: 10,
+    fontWeight: "900"
+  },
+
+  modernRenewalMeta: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 11
+  },
+
+  modernRenewalText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 11,
+    marginLeft: 5
+  },
+
+  modernSavedRow: {
+    minHeight: 34,
+    borderRadius: 11,
+    marginTop: 12,
+    paddingHorizontal: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between"
+  },
+
+  modernSavedLabel: {
+    fontSize: 11,
+    fontWeight: "700"
+  },
+
+  modernSavedValue: {
+    fontSize: 13,
+    fontWeight: "900"
+  },
+
+  modernSubscriptionActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 13,
+    gap: 8
+  },
+
+  modernActionButton: {
+    minHeight: 36,
+    borderRadius: 11,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5
+  },
+
+  modernActionText: {
+    fontSize: 11,
+    fontWeight: "800"
+  },
+
+  modernEditButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: "auto"
   },
 
   card: {
@@ -5611,8 +9948,7 @@ const styles = StyleSheet.create({
 
   aiKeyboardAvoider: {
     flex: 1,
-    minHeight: 0,
-    justifyContent: "flex-end"
+    minHeight: 0
   },
 
   aiGuideCard: {
@@ -5652,25 +9988,24 @@ const styles = StyleSheet.create({
 
   aiChatCard: {
     flex: 1,
-    minHeight: 260,
-    maxHeight: 560,
+    minHeight: 0,
     borderWidth: 1,
     borderRadius: 22,
     padding: 12,
-    marginBottom: 4
+    marginBottom: 0
   },
 
   aiChatLog: {
     flex: 1,
-    minHeight: 120
+    minHeight: 0
   },
 
   aiChatLogContent: {
     flexGrow: 1,
     justifyContent: "flex-end",
-    gap: 9,
-    paddingTop: 8,
-    paddingBottom: 10
+    gap: 10,
+    paddingTop: 12,
+    paddingBottom: 14
   },
 
   aiMessage: {
@@ -5700,7 +10035,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     alignItems: "center",
     paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 8 : 0
+    paddingBottom: 0
   },
 
   aiComposerInput: {
@@ -5710,6 +10045,62 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     fontSize: 13
+  },
+
+  aiListenButton: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 8,
+    paddingVertical: 3,
+    paddingRight: 8
+  },
+
+  aiListenButtonText: {
+    fontSize: 11,
+    fontWeight: "800"
+  },
+
+  aiVoiceStatusRow: {
+    minHeight: 28,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    paddingHorizontal: 3,
+    marginTop: 6
+  },
+
+  aiVoiceStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999
+  },
+
+  aiVoiceStatusText: {
+    fontSize: 12,
+    fontWeight: "700"
+  },
+
+  aiVoiceButton: {
+    minWidth: 58,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  aiVoiceButtonRecording: {
+    minWidth: 64
+  },
+
+  aiVoiceButtonLabel: {
+    fontSize: 10,
+    fontWeight: "900"
   },
 
   aiSendButton: {
@@ -6014,8 +10405,8 @@ const styles = StyleSheet.create({
 
   metricCardAccent: {
     width: "100%",
-    backgroundColor: "#eef8f1",
-    borderRadius: 18,
+    backgroundColor: "#EDF9F2",
+    borderRadius: 20,
     padding: 18,
     gap: 6
   },
@@ -6192,6 +10583,463 @@ const styles = StyleSheet.create({
     fontWeight: "800"
   },
 
+  modernScreenHeading: {
+    marginBottom: 20
+  },
+
+  modernScreenEyebrow: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+    marginBottom: 6
+  },
+
+  modernScreenTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    letterSpacing: -0.9
+  },
+
+  modernScreenSubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 7,
+    maxWidth: 330
+  },
+
+  modernSectionEyebrow: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+    marginBottom: 10
+  },
+
+  modernSavingsHero: {
+    borderWidth: 1,
+    borderRadius: 24,
+    padding: 19,
+    marginBottom: 24
+  },
+
+  modernSavingsHeroTop: {
+    flexDirection: "row",
+    alignItems: "center"
+  },
+
+  modernSavingsHeroIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10
+  },
+
+  modernSavingsHeroLabel: {
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.3
+  },
+
+  modernSavingsHeroValue: {
+    fontSize: 38,
+    fontWeight: "900",
+    letterSpacing: -1.2,
+    marginTop: 16
+  },
+
+  modernSavingsHeroNote: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 5
+  },
+
+  modernSavingsHeroDivider: {
+    height: 1,
+    marginVertical: 17
+  },
+
+  modernSavingsHeroFooter: {
+    flexDirection: "row",
+    alignItems: "center"
+  },
+
+  modernSavingsHeroStat: {
+    flex: 1
+  },
+
+  modernSavingsStatLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    marginBottom: 5
+  },
+
+  modernSavingsStatValue: {
+    fontSize: 17,
+    fontWeight: "900"
+  },
+
+  modernSavingsStatPeriod: {
+    fontSize: 10,
+    fontWeight: "600"
+  },
+
+  modernSavingsVerticalDivider: {
+    width: 1,
+    height: 34,
+    marginHorizontal: 15
+  },
+
+  modernSavingsGrid: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12
+  },
+
+  modernSavingsMetric: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    minHeight: 124
+  },
+
+  modernMetricIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 15
+  },
+
+  modernSavingsMetricLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    marginBottom: 5
+  },
+
+  modernSavingsMetricValue: {
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: -0.4
+  },
+
+  modernReviewableCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 15,
+    flexDirection: "row",
+    marginBottom: 27
+  },
+
+  modernReviewableIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12
+  },
+
+  modernReviewableContent: {
+    flex: 1
+  },
+
+  modernReviewableLabel: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1
+  },
+
+  modernReviewableValue: {
+    fontSize: 21,
+    fontWeight: "900",
+    marginTop: 4
+  },
+
+  modernReviewableNote: {
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 4
+  },
+
+  modernRecommendationsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10
+  },
+
+  modernRecommendationsTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: -0.4
+  },
+
+  modernRecommendationCount: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  modernRecommendationCountText: {
+    fontSize: 11,
+    fontWeight: "900"
+  },
+
+  modernRecommendationCard: {
+    minHeight: 68,
+    borderWidth: 1,
+    borderRadius: 17,
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 9
+  },
+
+  modernRecommendationRank: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 11
+  },
+
+  modernRecommendationRankText: {
+    fontSize: 12,
+    fontWeight: "900"
+  },
+
+  modernRecommendationInfo: {
+    flex: 1,
+    minWidth: 0
+  },
+
+  modernRecommendationName: {
+    fontSize: 14,
+    fontWeight: "900"
+  },
+
+  modernRecommendationCopy: {
+    fontSize: 10,
+    marginTop: 4
+  },
+
+  modernEmptyCard: {
+    borderWidth: 1,
+    borderRadius: 17,
+    minHeight: 66,
+    paddingHorizontal: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
+
+  modernEmptyText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "600"
+  },
+
+  modernAutopilotHero: {
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 24
+  },
+
+  modernAutopilotHeroTop: {
+    flexDirection: "row",
+    alignItems: "center"
+  },
+
+  modernAutopilotIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 13
+  },
+
+  modernAutopilotEyebrow: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+    marginBottom: 3
+  },
+
+  modernAutopilotTitle: {
+    fontSize: 19,
+    fontWeight: "900"
+  },
+
+  modernAutopilotIntro: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 15
+  },
+
+  modernPrimaryActionCard: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 15,
+    flexDirection: "row",
+    alignItems: "center"
+  },
+
+  modernActionRankColumn: {
+    marginRight: 12
+  },
+
+  modernPrimaryActionRank: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  modernPrimaryActionRankText: {
+    color: "#07110C",
+    fontSize: 13,
+    fontWeight: "900"
+  },
+
+  modernPrimaryActionInfo: {
+    flex: 1,
+    minWidth: 0
+  },
+
+  modernPrimaryActionEyebrow: {
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1
+  },
+
+  modernPrimaryActionTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    marginTop: 3
+  },
+
+  modernPrimaryActionCopy: {
+    fontSize: 11,
+    marginTop: 4
+  },
+
+  modernKeepCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    minHeight: 62,
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8
+  },
+
+  modernKeepIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10
+  },
+
+  modernKeepName: {
+    fontSize: 13,
+    fontWeight: "900"
+  },
+
+  modernKeepCopy: {
+    fontSize: 10,
+    marginTop: 3
+  },
+
+  modernKeepPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999
+  },
+
+  modernKeepPillText: {
+    fontSize: 8,
+    fontWeight: "900",
+    letterSpacing: 0.7
+  },
+
+  modernControlCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 22
+  },
+
+  modernControlCopy: {
+    flex: 1,
+    fontSize: 10,
+    lineHeight: 15,
+    marginLeft: 9
+  },
+
+  modernAiHeading: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 16
+  },
+
+  modernAiHeadingIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12
+  },
+
+  modernAiTitle: {
+    fontSize: 23,
+    fontWeight: "900",
+    letterSpacing: -0.6
+  },
+
+  modernAiSubtitle: {
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4
+  },
+
+  modernAiSuggestions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+    marginBottom: 12
+  },
+
+  modernAiSuggestionChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 8
+  },
+
+  modernAiSuggestionText: {
+    fontSize: 10,
+    fontWeight: "700"
+  },
+
+  modernAiChatCard: {
+    borderRadius: 22
+  },
+
   savingsHero: {
     width: "100%",
     borderRadius: 22,
@@ -6260,64 +11108,71 @@ const styles = StyleSheet.create({
 
   settingsGroup: {
     width: "100%",
-    borderRadius: 18,
+    borderRadius: 22,
     borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 4
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 6,
+    marginBottom: 2
   },
 
   settingsGroupTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "900",
-    marginBottom: 8
+    letterSpacing: -0.2,
+    marginBottom: 9
   },
 
   settingsRow: {
-    minHeight: 62,
+    minHeight: 66,
     borderTopWidth: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 12
+    gap: 14,
+    paddingVertical: 13
   },
 
   settingsRowInfo: {
     flex: 1,
-    minWidth: 0
+    minWidth: 0,
+    paddingRight: 4
   },
 
   settingsRowTitle: {
     fontSize: 14,
-    fontWeight: "800"
+    fontWeight: "800",
+    letterSpacing: -0.1
   },
 
   settingsRowValue: {
     fontSize: 12,
     lineHeight: 18,
-    marginTop: 2
+    marginTop: 3
   },
 
   settingsAction: {
-    minHeight: 38,
+    minHeight: 36,
     borderRadius: 999,
-    paddingHorizontal: 11,
+    paddingHorizontal: 12,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    flexShrink: 0
   },
 
   settingsActionText: {
-    fontSize: 12,
-    fontWeight: "800"
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.1
   },
 
   settingsLogout: {
     width: "100%",
-    minHeight: 48,
-    borderRadius: 14,
+    minHeight: 50,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
+    marginTop: 4
   },
 
   settingsCard: {
@@ -6381,10 +11236,10 @@ const styles = StyleSheet.create({
 
   planOption: {
     width: "100%",
-    backgroundColor: "#fff",
-    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#d0d5dd",
+    borderColor: "#E6ECE8",
     padding: 18,
     gap: 8
   },
@@ -6540,9 +11395,24 @@ const styles = StyleSheet.create({
     width: "100%",
     borderRadius: 24,
     borderWidth: 1,
+    maxHeight: "88%",
+    overflow: "hidden"
+  },
+
+  serviceFormScroll: {
+    flexShrink: 1
+  },
+
+  serviceFormScrollContent: {
     padding: 20,
-    gap: 10,
-    maxHeight: "92%"
+    paddingBottom: 16,
+    gap: 10
+  },
+
+  serviceFormFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20
   },
 
   formHint: {
@@ -6590,6 +11460,87 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 20,
     gap: 12
+  },
+
+  servicePickerSheet: {
+    width: "100%",
+    height: "88%",
+    borderRadius: 24,
+    borderWidth: 1,
+    overflow: "hidden"
+  },
+
+  servicePickerHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16
+  },
+
+  servicePickerClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  servicePickerScroll: {
+    flex: 1
+  },
+
+  servicePickerScrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    gap: 22
+  },
+
+  servicePickerCategory: {
+    gap: 8
+  },
+
+  servicePickerCategoryTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    paddingHorizontal: 2
+  },
+
+  servicePickerCategoryCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: "hidden"
+  },
+
+  servicePickerRow: {
+    minHeight: 62,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14
+  },
+
+  servicePickerLogo: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12
+  },
+
+  servicePickerLogoText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900"
+  },
+
+  servicePickerName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700"
   },
 
   actionSheetTitle: {

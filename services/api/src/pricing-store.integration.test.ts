@@ -117,6 +117,65 @@ test(
 );
 
 test(
+  "persists authoritative provider price",
+  async () => {
+    const result = await persistVerifiedLivePrices([
+      price({
+        monthlyPriceMinor: 1499,
+        verification: "authoritative-provider",
+        sourceCount: 1,
+        verifiedByAgreement: false
+      })
+    ]);
+
+    assert.equal(result.persisted, 1);
+
+    const stored = await pool.query(
+      `SELECT
+         monthly_price_minor,
+         verification,
+         source_count,
+         verified_by_agreement
+       FROM verified_provider_prices
+       WHERE service_slug = $1
+         AND plan_slug = $2
+         AND billing_provider_slug = $3
+         AND country_code = $4
+         AND currency = $5`,
+      [
+        key.serviceSlug,
+        key.planSlug,
+        key.billingProviderSlug,
+        key.countryCode,
+        key.currency
+      ]
+    );
+
+    assert.equal(stored.rows.length, 1);
+
+    assert.equal(
+      stored.rows[0].monthly_price_minor,
+      1499
+    );
+
+    assert.equal(
+      stored.rows[0].verification,
+      "authoritative-provider"
+    );
+
+    assert.equal(
+      stored.rows[0].source_count,
+      1
+    );
+
+    assert.equal(
+      stored.rows[0].verified_by_agreement,
+      false
+    );
+  }
+);
+
+test(
   "does not persist single-source price",
   async () => {
     const result = await persistVerifiedLivePrices([

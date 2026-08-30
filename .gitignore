@@ -40,3 +40,10 @@ apps/mobile/app/savlivo-home-build-*.tsx
 
 # Local Android debug signing key
 apps/mobile/android/app/debug.keystore
+
+# TestFlight cleanup artifacts
+apps/mobile/ios/Savlivo/Images.xcassets/SplashScreenBackground.colorset/Contents 2.json
+apps/mobile/src/providerRouting.ts.failed-in-app-browser
+services/api/src/pricing-adapters.test.ts.failed-max-us-experiment-*
+services/api/src/pricing-adapters.ts.failed-max-us-experiment-*
+apps/mobile/assets/service-logos-invalid/

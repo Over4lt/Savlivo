@@ -7,10 +7,16 @@ export async function persistVerifiedLivePrices(
   const verified = items.filter(
     (item) =>
       item.priceType === "exact" &&
-      item.verification === "multi-source" &&
-      item.verifiedByAgreement === true &&
-      typeof item.sourceCount === "number" &&
-      item.sourceCount >= 2 &&
+      (
+        item.verification ===
+          "authoritative-provider" ||
+        (
+          item.verification === "multi-source" &&
+          item.verifiedByAgreement === true &&
+          typeof item.sourceCount === "number" &&
+          item.sourceCount >= 2
+        )
+      ) &&
       item.monthlyPriceMinor > 0
   );
 

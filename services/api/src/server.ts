@@ -32,6 +32,11 @@ import {
 } from "./pricing.js";
 import { dispatchDueNotifications, registerPushToken, setNotificationPreferences } from "./notifications.js";
 import { reconcileSavingsEvents } from "./savings.js";
+import { askAssistant } from "./assistant.js";
+import {
+  receiveAudioUpload,
+  transcribeAudio
+} from "./assistant-voice.js";
 
 function send(res: http.ServerResponse, status: number, body: unknown) {
   res.writeHead(status, {
@@ -211,23 +216,303 @@ const server = http.createServer(async (req, res) => {
     }
 
 
+    if (
+      req.method === "POST" &&
+      url.pathname === "/v1/assistant/transcribe"
+    ) {
+      try {
+        const upload =
+          await receiveAudioUpload(
+            req
+          );
+
+        const result =
+          await transcribeAudio(
+            upload
+          );
+
+        if (!result.text) {
+          return send(
+            res,
+            422,
+            {
+              error:
+                "EMPTY_TRANSCRIPTION"
+            }
+          );
+        }
+
+        return send(
+          res,
+          200,
+          result
+        );
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "VOICE_ERROR";
+
+        console.error(
+          "assistant transcription failed",
+          err
+        );
+
+        if (
+          message ===
+          "GROQ_API_KEY_MISSING"
+        ) {
+          return send(
+            res,
+            503,
+            {
+              error:
+                "ASSISTANT_NOT_CONFIGURED"
+            }
+          );
+        }
+
+        if (
+          message ===
+          "AUDIO_FILE_TOO_LARGE"
+        ) {
+          return send(
+            res,
+            413,
+            {
+              error: message
+            }
+          );
+        }
+
+        return send(
+          res,
+          502,
+          {
+            error:
+              "TRANSCRIPTION_UNAVAILABLE"
+          }
+        );
+      }
+    }
+
+    if (
+      req.method === "POST" &&
+      url.pathname === "/v1/assistant/chat"
+    ) {
+      const body =
+        await readJson(req);
+
+      const message =
+        typeof body.message === "string"
+          ? body.message.trim()
+          : "";
+
+      if (!message) {
+        return send(res, 400, {
+          error: "INVALID_ASSISTANT_MESSAGE"
+        });
+      }
+
+      try {
+        const subscriptions =
+          await listSubscriptions(
+            auth.id
+          );
+
+        const plan =
+          await getEntitlement(
+            auth.id
+          );
+
+        const result =
+          await askAssistant({
+            message,
+
+            history:
+              Array.isArray(body.history)
+                ? body.history
+                : [],
+
+            languageHint:
+              typeof body.languageHint ===
+              "string"
+                ? body.languageHint
+                : undefined,
+
+            context: {
+              plan,
+
+              countryCode:
+                typeof body.context?.countryCode ===
+                "string"
+                  ? body.context.countryCode
+                  : undefined,
+
+              countryName:
+                typeof body.context?.countryName ===
+                "string"
+                  ? body.context.countryName
+                  : undefined,
+
+              currency:
+                typeof body.context?.currency ===
+                "string"
+                  ? body.context.currency
+                  : undefined,
+
+              currentMonthlySpendMinor:
+                Number.isFinite(
+                  body.context
+                    ?.currentMonthlySpendMinor
+                )
+                  ? Number(
+                      body.context
+                        .currentMonthlySpendMinor
+                    )
+                  : undefined,
+
+              currentAnnualSpendMinor:
+                Number.isFinite(
+                  body.context
+                    ?.currentAnnualSpendMinor
+                )
+                  ? Number(
+                      body.context
+                        .currentAnnualSpendMinor
+                    )
+                  : undefined,
+
+              currentMonthlySavingsMinor:
+                Number.isFinite(
+                  body.context
+                    ?.currentMonthlySavingsMinor
+                )
+                  ? Number(
+                      body.context
+                        .currentMonthlySavingsMinor
+                    )
+                  : undefined,
+
+              savedSoFarMinor:
+                Number.isFinite(
+                  body.context
+                    ?.savedSoFarMinor
+                )
+                  ? Number(
+                      body.context
+                        .savedSoFarMinor
+                    )
+                  : undefined,
+
+              subscriptions:
+                subscriptions.map(
+                  (item: any) => ({
+                    id: item.id,
+                    serviceName:
+                      item.serviceName,
+                    serviceSlug:
+                      item.serviceSlug,
+                    billingProviderSlug:
+                      item.billingProviderSlug,
+                    status:
+                      item.status,
+                    statusEffectiveDate:
+                      item.statusEffectiveDate,
+                    monthlyPriceMinor:
+                      item.monthlyPriceMinor,
+                    currency:
+                      item.currency,
+                    renewalDate:
+                      item.renewalDate,
+                    planName:
+                      item.planName
+                  })
+                )
+            }
+          });
+
+        return send(
+          res,
+          200,
+          result
+        );
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "ASSISTANT_ERROR";
+
+        if (
+          message ===
+          "GROQ_API_KEY_MISSING"
+        ) {
+          return send(res, 503, {
+            error:
+              "ASSISTANT_NOT_CONFIGURED"
+          });
+        }
+
+        console.error(
+          "assistant request failed",
+          err
+        );
+
+        return send(res, 502, {
+          error:
+            "ASSISTANT_UNAVAILABLE"
+        });
+      }
+    }
+
     if (req.method === "GET" && url.pathname === "/v1/subscriptions") {
       return send(res, 200, { items: await listSubscriptions(auth.id) });
     }
 
     if (req.method === "POST" && url.pathname === "/v1/subscriptions") {
       const body = await readJson(req);
-      const created = await addSubscription({
-        userId: auth.id,
-        serviceSlug: String(body.serviceSlug ?? ""),
-        billingProviderSlug: String(body.billingProviderSlug ?? ""),
-        monthlyPriceMinor:
-          body.monthlyPriceMinor == null ? undefined : Number(body.monthlyPriceMinor),
-        currency: body.currency ? String(body.currency) : undefined,
-        renewalDate: body.renewalDate ? String(body.renewalDate) : undefined,
-        planName: body.planName ? String(body.planName) : undefined
-      });
-      return send(res, 201, created);
+
+      try {
+        const created = await addSubscription({
+          userId: auth.id,
+          serviceSlug: String(body.serviceSlug ?? ""),
+          billingProviderSlug: String(body.billingProviderSlug ?? ""),
+          monthlyPriceMinor:
+            body.monthlyPriceMinor == null
+              ? undefined
+              : Number(body.monthlyPriceMinor),
+          currency:
+            body.currency
+              ? String(body.currency)
+              : undefined,
+          renewalDate:
+            body.renewalDate
+              ? String(body.renewalDate)
+              : undefined,
+          planName:
+            body.planName
+              ? String(body.planName)
+              : undefined
+        });
+
+        return send(res, 201, created);
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "UNKNOWN_ERROR";
+
+        if (
+          message ===
+          "UNKNOWN_SERVICE_OR_BILLING_PROVIDER"
+        ) {
+          return send(res, 400, {
+            error: message
+          });
+        }
+
+        throw err;
+      }
     }
 
     const subscriptionMatch = url.pathname.match(/^\/v1\/subscriptions\/([^/]+)$/);

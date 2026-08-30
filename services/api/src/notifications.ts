@@ -56,7 +56,14 @@ export async function queueRenewalReminders() {
         SELECT s.id
         FROM subscriptions s
         WHERE s.renewal_date IS NULL
-           OR s.status <> 'ACTIVE'
+           OR NOT (
+             s.status = 'ACTIVE'
+             OR (
+               s.status IN ('PAUSED', 'CANCELLED')
+               AND s.status_effective_date IS NOT NULL
+               AND s.status_effective_date > s.renewal_date
+             )
+           )
            OR s.renewal_date < CURRENT_DATE
            OR s.renewal_date >= CURRENT_DATE + 30
       )
@@ -74,7 +81,14 @@ export async function queueRenewalReminders() {
       AND j.kind = 'RENEWAL_REMINDER'
       AND j.sent_at IS NULL
       AND (
-        s.status <> 'ACTIVE'
+        NOT (
+          s.status = 'ACTIVE'
+          OR (
+            s.status IN ('PAUSED', 'CANCELLED')
+            AND s.status_effective_date IS NOT NULL
+            AND s.status_effective_date > s.renewal_date
+          )
+        )
         OR s.renewal_date IS NULL
         OR COALESCE(p.renewal_reminders, true) = false
         OR (
@@ -150,7 +164,14 @@ export async function queueRenewalReminders() {
      AND e.enabled = true
     LEFT JOIN notification_preferences p
       ON p.user_id = u.id
-    WHERE s.status = 'ACTIVE'
+    WHERE (
+        s.status = 'ACTIVE'
+        OR (
+          s.status IN ('PAUSED', 'CANCELLED')
+          AND s.status_effective_date IS NOT NULL
+          AND s.status_effective_date > s.renewal_date
+        )
+      )
       AND s.renewal_date IS NOT NULL
       AND COALESCE(p.renewal_reminders, true) = true
       AND s.renewal_date >= CURRENT_DATE
@@ -205,7 +226,14 @@ export async function queueRenewalReminders() {
       ON svc.id = s.service_id
     LEFT JOIN notification_preferences p
       ON p.user_id = u.id
-    WHERE s.status = 'ACTIVE'
+    WHERE (
+        s.status = 'ACTIVE'
+        OR (
+          s.status IN ('PAUSED', 'CANCELLED')
+          AND s.status_effective_date IS NOT NULL
+          AND s.status_effective_date > s.renewal_date
+        )
+      )
       AND s.renewal_date IS NOT NULL
       AND COALESCE(p.renewal_reminders, true) = true
       AND COALESCE(p.email_enabled, true) = true
@@ -248,7 +276,14 @@ async function dueJobs(): Promise<DueNotification[]> {
     WHERE j.sent_at IS NULL
       AND j.failed_at IS NULL
       AND j.scheduled_for <= now()
-      AND s.status = 'ACTIVE'
+      AND (
+        s.status = 'ACTIVE'
+        OR (
+          s.status IN ('PAUSED', 'CANCELLED')
+          AND s.status_effective_date IS NOT NULL
+          AND s.status_effective_date > s.renewal_date
+        )
+      )
       AND s.renewal_date IS NOT NULL
       AND COALESCE(
         p.renewal_reminders,

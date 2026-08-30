@@ -1,7 +1,20 @@
 import crypto from "node:crypto";
 import type { IncomingMessage } from "node:http";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "dev-only-change-me";
+const jwtSecretFromEnv =
+  process.env.JWT_SECRET?.trim();
+
+if (
+  process.env.NODE_ENV === "production" &&
+  !jwtSecretFromEnv
+) {
+  throw new Error(
+    "JWT_SECRET_REQUIRED_IN_PRODUCTION"
+  );
+}
+
+const JWT_SECRET =
+  jwtSecretFromEnv || "dev-only-change-me";
 
 function b64url(input: Buffer | string) {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);

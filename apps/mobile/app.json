@@ -13,13 +13,26 @@
     },
     "android": {
       "package": "com.savlivo.app",
-      "icon": "./assets/logo.png"
+      "icon": "./assets/logo.png",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "plugins": [
       "expo-router",
       "@react-native-community/datetimepicker",
-      "expo-font"
+      "expo-font",
+      "expo-audio",
+      "expo-asset"
     ],
-    "icon": "./assets/logo.png"
+    "icon": "./assets/logo.png",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "64dfe0f7-e0e6-48c2-96d7-bdb74f341af7"
+      }
+    },
+    "owner": "overalt"
   }
 }

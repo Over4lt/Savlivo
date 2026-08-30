@@ -374,3 +374,144 @@ test(
 test.after(async () => {
   await pool.end();
 });
+
+test(
+  "future cancellation after renewal still queues reminder",
+  async () => {
+    const renewalDate =
+      await databaseDatePlus(10);
+
+    const cancellationDate =
+      await databaseDatePlus(20);
+
+    const fixture =
+      await createFixture(renewalDate);
+
+    try {
+      await pool.query(
+        `UPDATE subscriptions
+         SET status = 'CANCELLED',
+             status_effective_date = $2::date
+         WHERE id = $1`,
+        [
+          fixture.subscriptionId,
+          cancellationDate
+        ]
+      );
+
+      await queueRenewalReminders();
+
+      const result = await pool.query(
+        `SELECT count(*)::integer AS count
+         FROM notification_jobs
+         WHERE subscription_id = $1
+           AND channel = 'PUSH'
+           AND sent_at IS NULL`,
+        [fixture.subscriptionId]
+      );
+
+      assert.equal(
+        result.rows[0].count,
+        1,
+        "A cancellation effective after renewal must not suppress the renewal reminder"
+      );
+    } finally {
+      await cleanupFixture(
+        fixture.userId
+      );
+    }
+  }
+);
+
+test(
+  "cancellation before renewal suppresses reminder",
+  async () => {
+    const cancellationDate =
+      await databaseDatePlus(10);
+
+    const renewalDate =
+      await databaseDatePlus(20);
+
+    const fixture =
+      await createFixture(renewalDate);
+
+    try {
+      await pool.query(
+        `UPDATE subscriptions
+         SET status = 'CANCELLED',
+             status_effective_date = $2::date
+         WHERE id = $1`,
+        [
+          fixture.subscriptionId,
+          cancellationDate
+        ]
+      );
+
+      await queueRenewalReminders();
+
+      const result = await pool.query(
+        `SELECT count(*)::integer AS count
+         FROM notification_jobs
+         WHERE subscription_id = $1
+           AND channel = 'PUSH'
+           AND sent_at IS NULL`,
+        [fixture.subscriptionId]
+      );
+
+      assert.equal(
+        result.rows[0].count,
+        0,
+        "A cancellation effective before renewal must suppress the renewal reminder"
+      );
+    } finally {
+      await cleanupFixture(
+        fixture.userId
+      );
+    }
+  }
+);
+
+test(
+  "cancellation effective on renewal date suppresses reminder",
+  async () => {
+    const renewalDate =
+      await databaseDatePlus(10);
+
+    const fixture =
+      await createFixture(renewalDate);
+
+    try {
+      await pool.query(
+        `UPDATE subscriptions
+         SET status = 'CANCELLED',
+             status_effective_date = $2::date
+         WHERE id = $1`,
+        [
+          fixture.subscriptionId,
+          renewalDate
+        ]
+      );
+
+      await queueRenewalReminders();
+
+      const result = await pool.query(
+        `SELECT count(*)::integer AS count
+         FROM notification_jobs
+         WHERE subscription_id = $1
+           AND channel = 'PUSH'
+           AND sent_at IS NULL`,
+        [fixture.subscriptionId]
+      );
+
+      assert.equal(
+        result.rows[0].count,
+        0,
+        "A cancellation effective on the renewal date must suppress the renewal reminder"
+      );
+    } finally {
+      await cleanupFixture(
+        fixture.userId
+      );
+    }
+  }
+);

@@ -79,9 +79,13 @@ export function mergeFreshAndPersistedPricing(
     const fresh = merged.get(key);
 
     const freshIsStrong =
-      fresh?.verification === "multi-source" &&
-      fresh?.verifiedByAgreement === true &&
-      (fresh?.sourceCount ?? 0) >= 2;
+      fresh?.verification ===
+        "authoritative-provider" ||
+      (
+        fresh?.verification === "multi-source" &&
+        fresh?.verifiedByAgreement === true &&
+        (fresh?.sourceCount ?? 0) >= 2
+      );
 
     if (!freshIsStrong) {
       merged.set(

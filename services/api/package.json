@@ -3,18 +3,24 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/server.ts",
-    "typecheck": "tsc --noEmit",
+    "start": "node dist/services/api/src/server.js",
     "test": "tsx --test src/pricing-adapters.test.ts src/pricing-registry.test.ts src/notification-logic.test.ts",
-    "test:integration": "tsx --test src/notifications.integration.test.ts"
+    "test:integration": "tsx --test src/notifications.integration.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "tsx": "^4.19.0",
-    "typescript": "^5.7.0",
+    "@types/busboy": "^1.5.4",
     "@types/node": "^22.0.0",
-    "@types/pg": "^8.11.10"
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
   },
   "dependencies": {
+    "busboy": "^1.6.0",
+    "groq-sdk": "^1.5.0",
+    "openai": "^7.5.0",
     "pg": "^8.13.1"
   }
 }
