@@ -28,7 +28,7 @@
         <key>CFBundleURLSchemes</key>
         <array>
           <string>savlivo</string>
-          <string>com.savlivo.app</string>
+          <string>com.thomashodne.savlivo</string>
         </array>
       </dict>
       <dict>

@@ -8,11 +8,11 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.savlivo.app",
+      "bundleIdentifier": "com.thomashodne.savlivo",
       "icon": "./assets/logo.png"
     },
     "android": {
-      "package": "com.savlivo.app",
+      "package": "com.thomashodne.savlivo",
       "icon": "./assets/logo.png",
       "permissions": [
         "android.permission.RECORD_AUDIO",
