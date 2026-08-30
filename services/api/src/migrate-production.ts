@@ -10,8 +10,9 @@ if (!databaseUrl) {
 
 const repoRoot = resolve(process.cwd(), "../..");
 
-const files = [
-  "db/schema.sql",
+const schemaFile = "db/schema.sql";
+
+const migrationFiles = [
   "db/migrations/002_auth.sql",
   "db/migrations/003_billing.sql",
   "db/migrations/004_subscription_status_history.sql",
@@ -26,13 +27,25 @@ const client = new Client({ connectionString: databaseUrl });
 try {
   await client.connect();
 
-  for (const file of files) {
+  const schemaCheck = await client.query(`
+    SELECT to_regtype('public.savlivo_plan') IS NOT NULL AS initialized
+  `);
+
+  if (!schemaCheck.rows[0]?.initialized) {
+    console.log(`Applying ${schemaFile}...`);
+    const sql = await readFile(resolve(repoRoot, schemaFile), "utf8");
+    await client.query(sql);
+  } else {
+    console.log("Base schema already initialized; skipping schema.sql.");
+  }
+
+  for (const file of migrationFiles) {
     console.log(`Applying ${file}...`);
     const sql = await readFile(resolve(repoRoot, file), "utf8");
     await client.query(sql);
   }
 
-  console.log("Production database initialized successfully.");
+  console.log("Production database migration complete.");
 } finally {
   await client.end();
 }
