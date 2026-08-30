@@ -8,7 +8,8 @@
     "start": "node dist/services/api/src/server.js",
     "test": "tsx --test src/pricing-adapters.test.ts src/pricing-registry.test.ts src/notification-logic.test.ts",
     "test:integration": "tsx --test src/notifications.integration.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "migrate:production": "tsx src/migrate-production.ts"
   },
   "devDependencies": {
     "@types/busboy": "^1.5.4",
