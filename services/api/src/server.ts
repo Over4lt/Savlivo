@@ -1,6 +1,6 @@
 import http from "node:http";
 import { URL } from "node:url";
-import { healthcheckDb } from "./db.js";
+import { ensureMainlandChinaServices, healthcheckDb } from "./db.js";
 import { createToken, getAuthUser } from "./auth.js";
 import { hashPassword, verifyPassword } from "./passwords.js";
 import {
@@ -774,6 +774,10 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(Number(process.env.PORT ?? 3000), () => {
   console.log(`Savlivo API listening on http://localhost:${process.env.PORT ?? 3000}`);
+
+  void ensureMainlandChinaServices()
+    .then(() => console.log("mainland China service catalog ensured"))
+    .catch((err) => console.error("mainland China service catalog ensure failed", err));
 
   const runBackgroundJobs = async () => {
     try {
