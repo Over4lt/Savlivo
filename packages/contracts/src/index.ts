@@ -21,6 +21,7 @@ export interface SubscriptionSummary {
   serviceSlug: string;
   serviceName: string;
   billingProviderSlug: string;
+  countryCode?: string;
   status: "ACTIVE" | "PAUSED" | "CANCELLED" | "UNKNOWN";
   monthlyPriceMinor?: number;
   currency?: string;

@@ -1,6 +1,6 @@
 import http from "node:http";
 import { URL } from "node:url";
-import { ensureMainlandChinaServices, healthcheckDb } from "./db.js";
+import { ensureMainlandChinaServices, ensureSubscriptionMarketSchema, healthcheckDb } from "./db.js";
 import { createToken, getAuthUser } from "./auth.js";
 import { hashPassword, verifyPassword } from "./passwords.js";
 import {
@@ -473,18 +473,35 @@ const server = http.createServer(async (req, res) => {
       const body = await readJson(req);
 
       try {
+        const requestCurrency = body.currency
+          ? String(body.currency).trim().toUpperCase()
+          : undefined;
+        const requestedCountryCode = body.countryCode
+          ? String(body.countryCode).trim().toUpperCase()
+          : "";
+        const inferredCountryCode = requestCurrency
+          ? ({
+              USD: "US",
+              NOK: "NO",
+              SEK: "SE",
+              DKK: "DK",
+              CNY: "CN"
+            } as Record<string, string>)[requestCurrency]
+          : undefined;
+        const countryCode = /^[A-Z]{2}$/.test(requestedCountryCode)
+          ? requestedCountryCode
+          : inferredCountryCode;
+
         const created = await addSubscription({
           userId: auth.id,
           serviceSlug: String(body.serviceSlug ?? ""),
           billingProviderSlug: String(body.billingProviderSlug ?? ""),
+          countryCode,
           monthlyPriceMinor:
             body.monthlyPriceMinor == null
               ? undefined
               : Number(body.monthlyPriceMinor),
-          currency:
-            body.currency
-              ? String(body.currency)
-              : undefined,
+          currency: requestCurrency,
           renewalDate:
             body.renewalDate
               ? String(body.renewalDate)
@@ -772,12 +789,16 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(Number(process.env.PORT ?? 3000), () => {
-  console.log(`Savlivo API listening on http://localhost:${process.env.PORT ?? 3000}`);
+ensureSubscriptionMarketSchema()
+  .then(() => {
+    console.log("subscription market schema ensured");
 
-  void ensureMainlandChinaServices()
-    .then(() => console.log("mainland China service catalog ensured"))
-    .catch((err) => console.error("mainland China service catalog ensure failed", err));
+    server.listen(Number(process.env.PORT ?? 3000), () => {
+      console.log(`Savlivo API listening on http://localhost:${process.env.PORT ?? 3000}`);
+
+      void ensureMainlandChinaServices()
+        .then(() => console.log("mainland China service catalog ensured"))
+        .catch((err) => console.error("mainland China service catalog ensure failed", err));
 
   const runBackgroundJobs = async () => {
     try {
@@ -846,4 +867,9 @@ server.listen(Number(process.env.PORT ?? 3000), () => {
   ) {
     backgroundTimer.unref();
   }
-});
+  });
+  })
+  .catch((err) => {
+    console.error("subscription market schema ensure failed", err);
+    process.exitCode = 1;
+  });

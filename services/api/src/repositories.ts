@@ -83,6 +83,7 @@ export async function listSubscriptions(userId: string) {
        svc.slug AS "serviceSlug",
        svc.name AS "serviceName",
        bp.slug AS "billingProviderSlug",
+       s.country_code AS "countryCode",
        s.status,
        s.monthly_price_minor AS "monthlyPriceMinor",
        s.currency,
@@ -149,6 +150,7 @@ export async function getSubscription(userId: string, id: string) {
        svc.slug AS "serviceSlug",
        svc.name AS "serviceName",
        bp.slug AS "billingProviderSlug",
+       s.country_code AS "countryCode",
        s.status,
        s.monthly_price_minor AS "monthlyPriceMinor",
        s.currency,
@@ -172,6 +174,7 @@ export async function addSubscription(args: {
   userId: string;
   serviceSlug: string;
   billingProviderSlug: string;
+  countryCode?: string;
   monthlyPriceMinor?: number;
   currency?: string;
   renewalDate?: string;
@@ -179,12 +182,12 @@ export async function addSubscription(args: {
 }) {
   const result = await pool.query(
     `INSERT INTO subscriptions (
-       user_id, service_id, billing_provider_id, status,
+       user_id, service_id, billing_provider_id, country_code, status,
        monthly_price_minor, currency, renewal_date, plan_name
      )
      SELECT
-       $1, svc.id, bp.id, 'ACTIVE',
-       $4, $5, $6, $7
+       $1, svc.id, bp.id, $4, 'ACTIVE',
+       $5, $6, $7, $8
      FROM services svc, billing_providers bp
      WHERE svc.slug = $2 AND bp.slug = $3
      RETURNING id`,
@@ -192,6 +195,7 @@ export async function addSubscription(args: {
       args.userId,
       args.serviceSlug,
       args.billingProviderSlug,
+      args.countryCode ?? null,
       args.monthlyPriceMinor ?? null,
       args.currency ?? "USD",
       args.renewalDate ?? null,
