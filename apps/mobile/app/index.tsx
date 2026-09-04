@@ -7822,7 +7822,7 @@ export default function Home() {
                       borderColor:
                         aiRecorderState.isRecording
                           ? "#E5484D"
-                          : visual.borderSubtle
+                          : visual.greenMuted
                     }
                   ]}
                   disabled={aiVoiceBusy}
@@ -7849,7 +7849,7 @@ export default function Home() {
                         color={
                           aiRecorderState.isRecording
                             ? "#C9363E"
-                            : theme.text
+                            : visual.green
                         }
                       />
 
@@ -7860,7 +7860,7 @@ export default function Home() {
                             color:
                               aiRecorderState.isRecording
                                 ? "#C9363E"
-                                : theme.text
+                                : visual.green
                           }
                         ]}
                       >
@@ -7873,7 +7873,14 @@ export default function Home() {
                 </Pressable>
 
                 <Pressable
-                  style={styles.aiSendButton}
+                  style={[
+                    styles.aiSendButton,
+                    {
+                      backgroundColor: visual.greenHero,
+                      borderColor: visual.greenMuted,
+                      borderWidth: 1
+                    }
+                  ]}
                   onPress={askSavlivo}
                 >
                   <Text style={styles.aiAssistantButtonText}>Send</Text>
@@ -8770,14 +8777,14 @@ export default function Home() {
                     styles.modernRecommendationCount,
                     {
                       backgroundColor:
-                        visual.greenSoft
+                        darkMode ? "#174D35" : "#D5F4E3"
                     }
                   ]}
                 >
                   <Text
                     style={[
                       styles.modernRecommendationCountText,
-                      { color: theme.muted }
+                      { color: visual.greenMuted }
                     ]}
                   >
                     {recommendationCandidates.length}
@@ -8791,7 +8798,7 @@ export default function Home() {
                 style={[
                   styles.modernEmptyCard,
                   {
-                    backgroundColor: visual.surfaceRaised,
+                    backgroundColor: visual.greenSoft,
                     borderColor: visual.borderSubtle
                   }
                 ]}
@@ -9159,14 +9166,14 @@ export default function Home() {
                         styles.modernKeepPill,
                         {
                           backgroundColor:
-                            visual.surfaceInteractive
+                            darkMode ? "#174D35" : "#D5F4E3"
                         }
                       ]}
                     >
                       <Text
                         style={[
                           styles.modernKeepPillText,
-                          { color: theme.muted }
+                          { color: visual.greenMuted }
                         ]}
                       >
                         {tr("KEEP")}
@@ -11268,14 +11275,15 @@ const styles = StyleSheet.create({
   },
 
   compactAiShortcut: {
-    minHeight: 48,
-    borderTopWidth: 1,
-    marginTop: 18,
+    minHeight: 50,
+    borderRadius: 16,
+    marginTop: 14,
     marginBottom: 10,
-    paddingTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8
+    gap: 10
   },
 
   compactAiText: {
@@ -11966,7 +11974,6 @@ const styles = StyleSheet.create({
     minHeight: 46,
     paddingHorizontal: 16,
     borderRadius: 12,
-    backgroundColor: "#111827",
     alignItems: "center",
     justifyContent: "center"
   },
