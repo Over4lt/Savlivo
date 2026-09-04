@@ -3426,6 +3426,8 @@ export default function Home() {
       );
       await setToken(result.token, register || rememberMe || biometricEnabled);
       await AsyncStorage.setItem("savlivo_last_email", email.trim());
+      setPassword("");
+      setShowPassword(false);
       setScreen("home");
       setBiometricLocked(false);
       setAuthed(true);
