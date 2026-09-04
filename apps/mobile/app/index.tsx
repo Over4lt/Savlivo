@@ -7480,7 +7480,11 @@ export default function Home() {
                   backgroundColor:
                     plan === "PREMIUM"
                       ? visual.greenSoft
-                      : visual.surfaceInteractive
+                      : visual.surfaceInteractive,
+                  borderColor:
+                    plan === "PREMIUM"
+                      ? "transparent"
+                      : visual.greenMuted
                 }
               ]}
               onPress={() => setScreen("plans")}
@@ -7581,7 +7585,7 @@ export default function Home() {
                         backgroundColor:
                           visual.surfaceRaised,
                         borderColor:
-                          visual.borderSubtle
+                          visual.greenMuted
                       }
                     ]}
                     onPress={() =>
@@ -7913,7 +7917,7 @@ export default function Home() {
                   styles.compactPlanPill,
                   {
                     backgroundColor: theme.surface,
-                    borderColor: theme.border
+                    borderColor: visual.greenMuted
                   }
                 ]}
                 onPress={() => setScreen("plans")}
@@ -8052,7 +8056,8 @@ export default function Home() {
                   style={[
                     styles.compactMetricChevronButton,
                     {
-                      backgroundColor: visual.surfaceInteractive
+                      backgroundColor: visual.surfaceInteractive,
+                      borderColor: visual.greenMuted
                     }
                   ]}
                 >
@@ -8125,7 +8130,8 @@ export default function Home() {
                     style={[
                       styles.compactMetricChevronButton,
                       {
-                        backgroundColor: visual.surfaceInteractive
+                        backgroundColor: visual.surfaceInteractive,
+                      borderColor: visual.greenMuted
                       }
                     ]}
                   >
@@ -8188,7 +8194,8 @@ export default function Home() {
                     style={[
                       styles.compactMetricChevronButton,
                       {
-                        backgroundColor: visual.surfaceInteractive
+                        backgroundColor: visual.surfaceInteractive,
+                      borderColor: visual.greenMuted
                       }
                     ]}
                   >
@@ -8287,7 +8294,8 @@ export default function Home() {
                       {
                         backgroundColor: darkMode
                           ? visual.surfaceInteractive
-                          : "#FFFFFF"
+                          : "#FFFFFF",
+                        borderColor: visual.greenMuted
                       }
                     ]}
                   >
@@ -8842,7 +8850,11 @@ export default function Home() {
                         backgroundColor:
                           index === 0
                             ? visual.greenSoft
-                            : visual.surfaceInteractive
+                            : visual.surfaceInteractive,
+                        borderColor:
+                        index === 0
+                          ? "transparent"
+                          : visual.greenMuted
                       }
                     ]}
                   >
@@ -9380,9 +9392,15 @@ export default function Home() {
                                 ? darkMode
                                   ? "#3A1F21"
                                   : "#FDECEC"
-                                : action === "On"
-                                  ? visual.greenSoft
-                                  : visual.surfaceInteractive
+                                : visual.surfaceInteractive,
+                            borderColor:
+                              title === "Delete account"
+                                ? "transparent"
+                                : action === "Off"
+                                  ? darkMode
+                                    ? "#FF8A80"
+                                    : "#B42318"
+                                  : visual.greenMuted
                           }
                         ]}
                         onPress={() => {
@@ -9411,9 +9429,7 @@ export default function Home() {
                                   ? darkMode
                                     ? "#FF8A80"
                                     : "#B42318"
-                                  : action === "On"
-                                    ? visual.greenMuted
-                                    : theme.text
+                                  : theme.text
                             }
                           ]}
                         >
@@ -10896,7 +10912,8 @@ const styles = StyleSheet.create({
     width: 72,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 999
+    borderRadius: 999,
+    borderWidth: 1
   },
 
   modernPlanBadgeText: {
@@ -11173,6 +11190,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -12670,6 +12688,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 11
@@ -13019,6 +13038,7 @@ const styles = StyleSheet.create({
   settingsAction: {
     minHeight: 36,
     borderRadius: 999,
+    borderWidth: 1,
     paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
