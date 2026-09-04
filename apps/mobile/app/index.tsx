@@ -88,6 +88,7 @@ import {
   useAudioRecorderState
 } from "expo-audio";
 import * as Speech from "expo-speech";
+import * as LocalAuthentication from "expo-local-authentication";
 import { registerSavlivoPushNotifications, subscribeToSavlivoNotificationTaps } from "../src/notifications";
 
 type Subscription = {
@@ -975,10 +976,128 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricLocked, setBiometricLocked] = useState(false);
+  const [biometricHydrated, setBiometricHydrated] = useState(false);
+  const biometricAuthenticatingRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
   const [plan, setPlan] = useState("VIEWER");
   const [items, setItems] = useState<Subscription[]>([]);
   const [screen, setScreen] = useState<Screen>("home");
   const [darkMode, setDarkMode] = useState(false);
+
+  async function refreshBiometricAvailability() {
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    const enrolled = hasHardware
+      ? await LocalAuthentication.isEnrolledAsync()
+      : false;
+
+    setBiometricAvailable(hasHardware && enrolled);
+    return hasHardware && enrolled;
+  }
+
+  async function authenticateWithBiometrics() {
+    if (biometricAuthenticatingRef.current) {
+      return false;
+    }
+
+    biometricAuthenticatingRef.current = true;
+
+    try {
+      const available = await refreshBiometricAvailability();
+      if (!available) {
+        return false;
+      }
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: tr("Unlock Savlivo"),
+        cancelLabel: tr("Use password"),
+        disableDeviceFallback: false
+      });
+
+      return result.success;
+    } finally {
+      biometricAuthenticatingRef.current = false;
+    }
+  }
+
+  async function toggleBiometricUnlock() {
+    if (biometricEnabled) {
+      await AsyncStorage.removeItem("savlivo_biometrics_enabled");
+      setBiometricEnabled(false);
+      setBiometricLocked(false);
+      return;
+    }
+
+    const authenticated = await authenticateWithBiometrics();
+    if (!authenticated) {
+      return;
+    }
+
+    const token = await getToken();
+    if (token) {
+      await setToken(token, true);
+    }
+
+    await AsyncStorage.setItem("savlivo_biometrics_enabled", "true");
+    setBiometricEnabled(true);
+    setBiometricLocked(false);
+  }
+
+  async function offerBiometricUnlockOnce() {
+    if (biometricEnabled) return;
+
+    const dismissed = await AsyncStorage.getItem(
+      "savlivo_biometrics_prompt_dismissed"
+    );
+    if (dismissed === "true") return;
+
+    const available = await refreshBiometricAvailability();
+    if (!available) return;
+
+    Alert.alert(
+      tr("Biometric unlock"),
+      tr("Use Face ID or Touch ID to unlock Savlivo?"),
+      [
+        {
+          text: tr("Not now"),
+          style: "cancel",
+          onPress: () => {
+            void AsyncStorage.setItem(
+              "savlivo_biometrics_prompt_dismissed",
+              "true"
+            );
+          }
+        },
+        {
+          text: tr("Enable"),
+          onPress: () => {
+            void (async () => {
+              const authenticated = await authenticateWithBiometrics();
+              if (!authenticated) return;
+
+              const token = await getToken();
+              if (token) {
+                await setToken(token, true);
+              }
+
+              await AsyncStorage.setItem(
+                "savlivo_biometrics_enabled",
+                "true"
+              );
+              await AsyncStorage.setItem(
+                "savlivo_biometrics_prompt_dismissed",
+                "true"
+              );
+              setBiometricEnabled(true);
+              setBiometricLocked(false);
+            })();
+          }
+        }
+      ]
+    );
+  }
   const [actionSheet, setActionSheet] = useState<null | {
     subscription: Subscription;
     action: "PAUSE" | "CANCEL" | "REACTIVATE";
@@ -1168,6 +1287,19 @@ export default function Home() {
     "Account & plan": "Konto og abonnement",
     "Preferences": "Innstillinger",
     "Notifications": "Varsler",
+    "Security": "Sikkerhet",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "Bruk biometri for å låse opp Savlivo",
+    "Biometrics unavailable on this device": "Biometri er ikke tilgjengelig på denne enheten",
+    "Biometric unlock": "Biometrisk opplåsing",
+    "Use Face ID or Touch ID to unlock Savlivo?": "Bruk Face ID eller Touch ID for å låse opp Savlivo?",
+    "Not now": "Ikke nå",
+    "Enable": "Aktiver",
+    "Off": "Av",
+    "Unlock to continue": "Lås opp for å fortsette",
+    "Unlock with Face ID / Touch ID": "Lås opp med Face ID / Touch ID",
+    "Unlock Savlivo": "Lås opp Savlivo",
+    "Use password": "Bruk passord",
     "Premium & Autopilot": "Premium og Autopilot",
     "Privacy & data": "Personvern og data",
     "Email": "E-post",
@@ -1274,6 +1406,19 @@ export default function Home() {
     "Remove service": "Fjern tjeneste"
   },
   "sv": {
+    "Security": "Säkerhet",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "Använd biometri för att låsa upp Savlivo",
+    "Biometrics unavailable on this device": "Biometri är inte tillgängligt på den här enheten",
+    "Biometric unlock": "Biometrisk upplåsning",
+    "Use Face ID or Touch ID to unlock Savlivo?": "Använd Face ID eller Touch ID för att låsa upp Savlivo?",
+    "Not now": "Inte nu",
+    "Enable": "Aktivera",
+    "Off": "Av",
+    "Unlock to continue": "Lås upp för att fortsätta",
+    "Unlock with Face ID / Touch ID": "Lås upp med Face ID / Touch ID",
+    "Unlock Savlivo": "Lås upp Savlivo",
+    "Use password": "Använd lösenord",
     "Settings": "Inställningar",
     "Account & plan": "Konto och abonnemang",
     "Preferences": "Inställningar",
@@ -1384,6 +1529,19 @@ export default function Home() {
     "Remove service": "Ta bort tjänst"
   },
   "da": {
+    "Security": "Sikkerhed",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "Brug biometri til at låse Savlivo op",
+    "Biometrics unavailable on this device": "Biometri er ikke tilgængelig på denne enhed",
+    "Biometric unlock": "Biometrisk oplåsning",
+    "Use Face ID or Touch ID to unlock Savlivo?": "Brug Face ID eller Touch ID til at låse Savlivo op?",
+    "Not now": "Ikke nu",
+    "Enable": "Aktivér",
+    "Off": "Fra",
+    "Unlock to continue": "Lås op for at fortsætte",
+    "Unlock with Face ID / Touch ID": "Lås op med Face ID / Touch ID",
+    "Unlock Savlivo": "Lås Savlivo op",
+    "Use password": "Brug adgangskode",
     "Settings": "Indstillinger",
     "Account & plan": "Konto og abonnement",
     "Preferences": "Indstillinger",
@@ -1494,6 +1652,19 @@ export default function Home() {
     "Remove service": "Fjern tjeneste"
   },
   "de": {
+    "Security": "Sicherheit",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "Biometrie zum Entsperren von Savlivo verwenden",
+    "Biometrics unavailable on this device": "Biometrie ist auf diesem Gerät nicht verfügbar",
+    "Biometric unlock": "Biometrische Entsperrung",
+    "Use Face ID or Touch ID to unlock Savlivo?": "Face ID oder Touch ID zum Entsperren von Savlivo verwenden?",
+    "Not now": "Nicht jetzt",
+    "Enable": "Aktivieren",
+    "Off": "Aus",
+    "Unlock to continue": "Zum Fortfahren entsperren",
+    "Unlock with Face ID / Touch ID": "Mit Face ID / Touch ID entsperren",
+    "Unlock Savlivo": "Savlivo entsperren",
+    "Use password": "Passwort verwenden",
     "Settings": "Einstellungen",
     "Account & plan": "Konto & Tarif",
     "Preferences": "Einstellungen",
@@ -1604,6 +1775,19 @@ export default function Home() {
     "Remove service": "Dienst entfernen"
   },
   "es": {
+    "Security": "Seguridad",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "Usa biometría para desbloquear Savlivo",
+    "Biometrics unavailable on this device": "La biometría no está disponible en este dispositivo",
+    "Biometric unlock": "Desbloqueo biométrico",
+    "Use Face ID or Touch ID to unlock Savlivo?": "¿Usar Face ID o Touch ID para desbloquear Savlivo?",
+    "Not now": "Ahora no",
+    "Enable": "Activar",
+    "Off": "Desactivado",
+    "Unlock to continue": "Desbloquea para continuar",
+    "Unlock with Face ID / Touch ID": "Desbloquear con Face ID / Touch ID",
+    "Unlock Savlivo": "Desbloquear Savlivo",
+    "Use password": "Usar contraseña",
     "Settings": "Ajustes",
     "Account & plan": "Cuenta y plan",
     "Preferences": "Preferencias",
@@ -1714,6 +1898,19 @@ export default function Home() {
     "Remove service": "Eliminar servicio"
   },
   "fr": {
+    "Security": "Sécurité",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "Utiliser la biométrie pour déverrouiller Savlivo",
+    "Biometrics unavailable on this device": "La biométrie n’est pas disponible sur cet appareil",
+    "Biometric unlock": "Déverrouillage biométrique",
+    "Use Face ID or Touch ID to unlock Savlivo?": "Utiliser Face ID ou Touch ID pour déverrouiller Savlivo ?",
+    "Not now": "Pas maintenant",
+    "Enable": "Activer",
+    "Off": "Désactivé",
+    "Unlock to continue": "Déverrouillez pour continuer",
+    "Unlock with Face ID / Touch ID": "Déverrouiller avec Face ID / Touch ID",
+    "Unlock Savlivo": "Déverrouiller Savlivo",
+    "Use password": "Utiliser le mot de passe",
     "Settings": "Réglages",
     "Account & plan": "Compte et offre",
     "Preferences": "Préférences",
@@ -1824,6 +2021,19 @@ export default function Home() {
     "Remove service": "Supprimer le service"
   },
   "it": {
+    "Security": "Sicurezza",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "Usa la biometria per sbloccare Savlivo",
+    "Biometrics unavailable on this device": "La biometria non è disponibile su questo dispositivo",
+    "Biometric unlock": "Sblocco biometrico",
+    "Use Face ID or Touch ID to unlock Savlivo?": "Usare Face ID o Touch ID per sbloccare Savlivo?",
+    "Not now": "Non ora",
+    "Enable": "Attiva",
+    "Off": "Disattivato",
+    "Unlock to continue": "Sblocca per continuare",
+    "Unlock with Face ID / Touch ID": "Sblocca con Face ID / Touch ID",
+    "Unlock Savlivo": "Sblocca Savlivo",
+    "Use password": "Usa password",
     "Settings": "Impostazioni",
     "Account & plan": "Account e piano",
     "Preferences": "Preferenze",
@@ -1934,6 +2144,19 @@ export default function Home() {
     "Remove service": "Rimuovi servizio"
   },
   "pt": {
+    "Security": "Segurança",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "Usar biometria para desbloquear o Savlivo",
+    "Biometrics unavailable on this device": "A biometria não está disponível neste dispositivo",
+    "Biometric unlock": "Desbloqueio biométrico",
+    "Use Face ID or Touch ID to unlock Savlivo?": "Usar Face ID ou Touch ID para desbloquear o Savlivo?",
+    "Not now": "Agora não",
+    "Enable": "Ativar",
+    "Off": "Desativado",
+    "Unlock to continue": "Desbloqueie para continuar",
+    "Unlock with Face ID / Touch ID": "Desbloquear com Face ID / Touch ID",
+    "Unlock Savlivo": "Desbloquear o Savlivo",
+    "Use password": "Usar palavra-passe",
     "Settings": "Definições",
     "Account & plan": "Conta e plano",
     "Preferences": "Preferências",
@@ -2044,6 +2267,19 @@ export default function Home() {
     "Remove service": "Remover serviço"
   },
   "nl": {
+    "Security": "Beveiliging",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "Gebruik biometrie om Savlivo te ontgrendelen",
+    "Biometrics unavailable on this device": "Biometrie is niet beschikbaar op dit apparaat",
+    "Biometric unlock": "Biometrische ontgrendeling",
+    "Use Face ID or Touch ID to unlock Savlivo?": "Face ID of Touch ID gebruiken om Savlivo te ontgrendelen?",
+    "Not now": "Niet nu",
+    "Enable": "Inschakelen",
+    "Off": "Uit",
+    "Unlock to continue": "Ontgrendel om door te gaan",
+    "Unlock with Face ID / Touch ID": "Ontgrendel met Face ID / Touch ID",
+    "Unlock Savlivo": "Ontgrendel Savlivo",
+    "Use password": "Gebruik wachtwoord",
     "Settings": "Instellingen",
     "Account & plan": "Account en abonnement",
     "Preferences": "Voorkeuren",
@@ -2154,6 +2390,19 @@ export default function Home() {
     "Remove service": "Dienst verwijderen"
   },
   "fi": {
+    "Security": "Suojaus",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "Käytä biometriaa Savlivon avaamiseen",
+    "Biometrics unavailable on this device": "Biometria ei ole käytettävissä tällä laitteella",
+    "Biometric unlock": "Biometrinen avaus",
+    "Use Face ID or Touch ID to unlock Savlivo?": "Käytetäänkö Face ID:tä tai Touch ID:tä Savlivon avaamiseen?",
+    "Not now": "Ei nyt",
+    "Enable": "Ota käyttöön",
+    "Off": "Pois",
+    "Unlock to continue": "Avaa jatkaaksesi",
+    "Unlock with Face ID / Touch ID": "Avaa Face ID:llä / Touch ID:llä",
+    "Unlock Savlivo": "Avaa Savlivo",
+    "Use password": "Käytä salasanaa",
     "Settings": "Asetukset",
     "Account & plan": "Tili ja tilaus",
     "Preferences": "Asetukset",
@@ -2264,6 +2513,19 @@ export default function Home() {
     "Remove service": "Poista palvelu"
   },
   "zh-CN": {
+    "Security": "安全",
+    "Face ID / Touch ID": "Face ID / Touch ID",
+    "Use biometrics to unlock Savlivo": "使用生物识别解锁 Savlivo",
+    "Biometrics unavailable on this device": "此设备无法使用生物识别",
+    "Biometric unlock": "生物识别解锁",
+    "Use Face ID or Touch ID to unlock Savlivo?": "使用 Face ID 或 Touch ID 解锁 Savlivo？",
+    "Not now": "暂不",
+    "Enable": "启用",
+    "Off": "关闭",
+    "Unlock to continue": "解锁以继续",
+    "Unlock with Face ID / Touch ID": "使用 Face ID / Touch ID 解锁",
+    "Unlock Savlivo": "解锁 Savlivo",
+    "Use password": "使用密码",
     "Settings": "设置",
     "Account & plan": "账户与方案",
     "Preferences": "偏好设置",
@@ -2528,6 +2790,24 @@ export default function Home() {
 
 
   useEffect(() => {
+    (async () => {
+      const [savedBiometricEnabled] = await Promise.all([
+        AsyncStorage.getItem("savlivo_biometrics_enabled"),
+        refreshBiometricAvailability()
+      ]);
+
+      setBiometricEnabled(savedBiometricEnabled === "true");
+    })()
+      .catch(() => {
+        setBiometricEnabled(false);
+        setBiometricAvailable(false);
+      })
+      .finally(() => {
+        setBiometricHydrated(true);
+      });
+  }, []);
+
+  useEffect(() => {
     AsyncStorage.getItem("savlivo_last_email")
       .then((savedEmail) => {
         if (savedEmail) {
@@ -2538,10 +2818,23 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!biometricHydrated) return;
+
     (async () => {
       try {
         const token = await getToken();
         if (!token) return;
+
+        if (biometricEnabled && biometricAvailable) {
+          setBiometricLocked(true);
+          const authenticated = await authenticateWithBiometrics();
+          setBiometricLocked(!authenticated);
+
+          if (!authenticated) {
+            return;
+          }
+        }
+
         await refresh();
         setScreen("home");
         setAuthed(true);
@@ -2550,7 +2843,7 @@ export default function Home() {
         setAuthed(false);
       }
     })();
-  }, []);
+  }, [biometricHydrated]);
 
   useEffect(() => {
     if (!authed) return;
@@ -3027,6 +3320,7 @@ export default function Home() {
     const subscription = AppState.addEventListener(
       "change",
       (nextState) => {
+        const previousState = appStateRef.current;
         if (
           nextState === "active" &&
           providerWasOpenedRef.current &&
@@ -3040,11 +3334,36 @@ export default function Home() {
           setStatusEffectiveDateInput(suggestedDate);
           setStatusConfirmOpen(true);
         }
+
+        if (
+          nextState === "active" &&
+          previousState === "background" &&
+          authed &&
+          biometricEnabled &&
+          biometricAvailable
+        ) {
+
+          void authenticateWithBiometrics().then((authenticated) => {
+            if (authenticated) {
+              setBiometricLocked(false);
+              return;
+            }
+            setBiometricLocked(false);
+            setAuthed(false);
+          });
+        }
+
+        appStateRef.current = nextState;
       }
     );
 
     return () => subscription.remove();
-  }, [pendingProviderResult]);
+  }, [
+    pendingProviderResult,
+    authed,
+    biometricEnabled,
+    biometricAvailable
+  ]);
 
   useEffect(() => {
     if (!authed) return;
@@ -3105,9 +3424,10 @@ export default function Home() {
           body: JSON.stringify({ email, password })
         }
       );
-      await setToken(result.token, register || rememberMe);
+      await setToken(result.token, register || rememberMe || biometricEnabled);
       await AsyncStorage.setItem("savlivo_last_email", email.trim());
       setScreen("home");
+      setBiometricLocked(false);
       setAuthed(true);
 
       if (register) {
@@ -3115,6 +3435,8 @@ export default function Home() {
       }
 
       await refresh();
+
+      void offerBiometricUnlockOnce();
 
       if (
         preferencesHydrated &&
@@ -4199,6 +4521,53 @@ export default function Home() {
           </Pressable>
 
           {loading ? <ActivityIndicator style={{ marginTop: 16 }} /> : null}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (authed && biometricLocked) {
+    return (
+      <SafeAreaView style={[styles.screen, { backgroundColor: theme.bg }]}>
+        <StatusBar
+          style={darkMode ? "light" : "dark"}
+          backgroundColor={theme.bg}
+        />
+        <View style={styles.authCard}>
+          <Ionicons
+            name="lock-closed-outline"
+            size={42}
+            color={visual.green}
+          />
+          <Text style={[styles.brand, { color: theme.text }]}>
+            Savlivo
+          </Text>
+          <Text style={[styles.tagline, { color: theme.muted }]}>
+            {tr("Unlock to continue")}
+          </Text>
+          <Pressable
+            style={styles.primary}
+            onPress={() => {
+              void authenticateWithBiometrics().then((authenticated) => {
+                setBiometricLocked(!authenticated);
+              });
+            }}
+          >
+            <Text style={styles.primaryText}>
+              {tr("Unlock with Face ID / Touch ID")}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondary}
+            onPress={() => {
+              setBiometricLocked(false);
+              setAuthed(false);
+            }}
+          >
+            <Text style={[styles.secondaryText, { color: theme.text }]}>
+              {tr("Use password")}
+            </Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -7008,7 +7377,7 @@ export default function Home() {
             onPress={() => upgrade("manual")}
           >
             <Text style={[styles.planName, { color: theme.text }]}>Manual</Text>
-            <Text style={[styles.planPrice, { color: theme.text }]}>$19/year</Text>
+            <Text style={[styles.planPrice, { color: theme.text }]}>{formatMoneyFromUsdMinor(1900, { maximumFractionDigits: 0 })}/year</Text>
             <Text style={[styles.planCopy, { color: theme.muted }]}>
               Self-service toolbox: manage subscriptions, renewal dates and savings yourself.
             </Text>
@@ -8899,6 +9268,19 @@ export default function Home() {
                 ]
               },
               {
+                title: "Security",
+                icon: "lock-closed-outline" as const,
+                rows: [
+                  [
+                    "Face ID / Touch ID",
+                    biometricAvailable
+                      ? "Use biometrics to unlock Savlivo"
+                      : "Biometrics unavailable on this device",
+                    biometricEnabled ? "On" : "Off"
+                  ]
+                ]
+              },
+              {
                 title: "Notifications",
                 icon: "notifications-outline" as const,
                 rows: [
@@ -9013,6 +9395,9 @@ export default function Home() {
                           if (title === "Subscription market") {
                             setCountrySearch("");
                             setRegionModalOpen(true);
+                          }
+                          if (title === "Face ID / Touch ID") {
+                            void toggleBiometricUnlock();
                           }
                         }}
                       >
