@@ -985,7 +985,7 @@ export default function Home() {
   const [plan, setPlan] = useState("VIEWER");
   const [items, setItems] = useState<Subscription[]>([]);
   const [screen, setScreen] = useState<Screen>("home");
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
 
   async function refreshBiometricAvailability() {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
@@ -7453,16 +7453,26 @@ export default function Home() {
               style={styles.modernHeaderLogo}
               resizeMode="cover"
             />
-
             <Text
-              style={[
-                styles.modernBrandName,
-                { color: theme.text }
-              ]}
+              style={[styles.modernBrandLine, { color: theme.text }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
             >
-              Savlivo
+              <Text style={styles.modernBrandName}>Savlivo</Text>
+              <Text style={[styles.modernBrandSlogan, { color: visual.green }]}>
+                {" — Smart money stays with you"}
+              </Text>
             </Text>
-
+          </View>
+          <View
+            style={[
+              styles.modernPlanSlot,
+              {
+                width: plan === "PREMIUM" ? "16.6667%" : "25%"
+              }
+            ]}
+          >
             <Pressable
               style={[
                 styles.modernPlanBadge,
@@ -7490,25 +7500,7 @@ export default function Home() {
               </Text>
             </Pressable>
           </View>
-          <View style={styles.topActions}>
-            <Pressable
-              accessibilityLabel={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-              style={[
-                styles.themeToggle,
-                { backgroundColor: theme.surface, borderColor: theme.border }
-              ]}
-              onPress={() => setDarkMode((value) => !value)}
-            >
-              <Text style={[styles.themeIcon, { color: theme.text }]}>
-                {darkMode ? "☀" : "☾"}
-              </Text>
-            </Pressable>
-            <Pressable style={styles.logoutButton} onPress={logout}>
-              <Text style={[styles.logoutText, { color: theme.muted }]}>Log out</Text>
-            </Pressable>
-          </View>
         </View>
-
         <Nav />
       </View>
 
@@ -9431,8 +9423,8 @@ export default function Home() {
               style={[
                 styles.settingsLogout,
                 {
-                  backgroundColor: visual.surfaceInteractive,
-                  borderColor: visual.borderSubtle
+                  backgroundColor: darkMode ? "#3A1F21" : "#FDECEC",
+                  borderColor: darkMode ? "#6B2B2F" : "#F5B7B1"
                 }
               ]}
               onPress={logout}
@@ -9440,7 +9432,7 @@ export default function Home() {
               <Text
                 style={[
                   styles.secondaryText,
-                  { color: darkMode ? "#F3F4F6" : theme.text }
+                  { color: darkMode ? "#FF8A80" : "#B42318" }
                 ]}
               >
                 {tr("Log out")}
@@ -10869,14 +10861,32 @@ const styles = StyleSheet.create({
     marginRight: 3
   } as import("react-native").ImageStyle,
 
+  modernBrandLine: {
+    flex: 1,
+    minWidth: 0
+  },
   modernBrandName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "900",
     letterSpacing: -0.7
   },
+  modernBrandSlogan: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: -0.1,
+    position: "relative",
+    top: -1
+  },
 
+  modernPlanSlot: {
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    transform: [{ translateX: -4 }, { translateY: 4 }]
+  },
   modernPlanBadge: {
-    marginLeft: 10,
+    marginLeft: 0,
+    width: 72,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999
@@ -10885,7 +10895,8 @@ const styles = StyleSheet.create({
   modernPlanBadgeText: {
     fontSize: 9,
     fontWeight: "900",
-    letterSpacing: 0.6
+    letterSpacing: 0.6,
+    textAlign: "center"
   },
 
   modernNavRow: {
