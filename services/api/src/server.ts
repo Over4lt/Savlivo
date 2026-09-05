@@ -17,6 +17,10 @@ import {
   listSavingsEvents,
   listSubscriptions,
   deleteSubscription,
+  requestAccountDeletion,
+  cancelPendingAccountDeletion,
+  findUserDeletionStatus,
+  deleteScheduledAccounts,
   updateSubscription,
   updateSubscriptionStatus,
   updateUserTimezone
@@ -43,7 +47,7 @@ function send(res: http.ServerResponse, status: number, body: unknown) {
     "content-type": "application/json",
     "access-control-allow-origin": "*",
     "access-control-allow-headers": "authorization,content-type",
-    "access-control-allow-methods": "GET,POST,PATCH,OPTIONS"
+    "access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS"
   });
   res.end(JSON.stringify(body));
 }
@@ -101,6 +105,14 @@ const server = http.createServer(async (req, res) => {
         return unauthorized(res, "INVALID_CREDENTIALS");
       }
 
+      const deletionStatus = await findUserDeletionStatus(user.id);
+      if (
+        deletionStatus?.deletion_scheduled_for &&
+        new Date(deletionStatus.deletion_scheduled_for).getTime() > Date.now()
+      ) {
+        await cancelPendingAccountDeletion(user.id);
+      }
+
       return send(res, 200, {
         user: { id: user.id, email: user.email },
         token: createToken({ id: user.id, email: user.email })
@@ -119,6 +131,17 @@ const server = http.createServer(async (req, res) => {
       auth = getAuthUser(req);
     } catch {
       return unauthorized(res);
+    }
+
+    const deletionStatus = await findUserDeletionStatus(auth.id);
+    if (
+      deletionStatus?.deletion_scheduled_for &&
+      new Date(deletionStatus.deletion_scheduled_for).getTime() > Date.now()
+    ) {
+      return send(res, 403, {
+        error: "ACCOUNT_DELETION_PENDING",
+        deletionScheduledFor: deletionStatus.deletion_scheduled_for
+      });
     }
 
     if (req.method === "POST" && url.pathname === "/v1/billing/verify") {
@@ -157,6 +180,21 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { user: auth, plan });
     }
 
+
+    if (req.method === "DELETE" && url.pathname === "/v1/me") {
+      const deletion = await requestAccountDeletion(auth.id);
+
+      if (!deletion) {
+        return send(res, 404, {
+          error: "USER_NOT_FOUND"
+        });
+      }
+
+      return send(res, 200, {
+        deletionRequested: true,
+        deletionScheduledFor: deletion.deletion_scheduled_for
+      });
+    }
 
     if (req.method === "PATCH" && url.pathname === "/v1/me") {
       const body = await readJson(req);
@@ -815,6 +853,17 @@ ensureSubscriptionMarketSchema()
     } catch (err) {
       console.error(
         "notification dispatch failed",
+        err
+      );
+    }
+    try {
+      const deleted = await deleteScheduledAccounts();
+      if (deleted > 0) {
+        console.log(`permanently deleted ${deleted} expired account(s)`);
+      }
+    } catch (err) {
+      console.error(
+        "scheduled account deletion failed",
         err
       );
     }

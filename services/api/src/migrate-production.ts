@@ -20,6 +20,7 @@ const migrationFiles = [
   "db/migrations/007_authoritative_provider_pricing.sql",
   "db/migrations/008_add_mainland_china_services.sql",
   "db/migrations/009_subscription_market.sql",
+  "db/migrations/010_account_deletion_grace_period.sql",
   "services/api/src/savlivo-migration-savings-ledger-1.7.0.sql",
   "services/api/migrations/20260824_notifications.sql",
 ];

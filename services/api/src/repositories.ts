@@ -36,6 +36,72 @@ export async function findUserByEmail(email: string) {
   return result.rows[0] ?? null;
 }
 
+export async function findUserDeletionStatus(userId: string) {
+  const result = await pool.query(
+    `SELECT deletion_requested_at, deletion_scheduled_for
+       FROM users
+      WHERE id = $1`,
+    [userId]
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function cancelPendingAccountDeletion(userId: string) {
+  const result = await pool.query(
+    `UPDATE users
+        SET deletion_requested_at = NULL,
+            deletion_scheduled_for = NULL,
+            updated_at = now()
+      WHERE id = $1
+        AND deletion_requested_at IS NOT NULL
+        AND deletion_scheduled_for > now()
+      RETURNING id`,
+    [userId]
+  );
+
+  return Boolean(result.rows[0]);
+}
+
+export async function requestAccountDeletion(userId: string) {
+  const result = await pool.query(
+    `UPDATE users
+        SET deletion_requested_at = now(),
+            deletion_scheduled_for = now() + INTERVAL '7 days',
+            updated_at = now()
+      WHERE id = $1
+        AND deletion_requested_at IS NULL
+      RETURNING id, email, deletion_requested_at, deletion_scheduled_for`,
+    [userId]
+  );
+
+  if (result.rows[0]) {
+    return result.rows[0];
+  }
+
+  const existing = await pool.query(
+    `SELECT id, email, deletion_requested_at, deletion_scheduled_for
+       FROM users
+      WHERE id = $1
+        AND deletion_requested_at IS NOT NULL
+        AND deletion_scheduled_for IS NOT NULL
+        AND deletion_scheduled_for > now()`,
+    [userId]
+  );
+
+  return existing.rows[0] ?? null;
+}
+
+export async function deleteScheduledAccounts() {
+  const result = await pool.query(
+    `DELETE FROM users
+      WHERE deletion_scheduled_for IS NOT NULL
+        AND deletion_scheduled_for <= now()
+      RETURNING id`
+  );
+
+  return result.rowCount ?? 0;
+}
+
 
 export async function updateUserTimezone(
   userId: string,

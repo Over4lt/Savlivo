@@ -15,6 +15,7 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View
@@ -977,6 +978,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [renewalRemindersEnabled, setRenewalRemindersEnabled] = useState(true);
+  const [savingsOpportunitiesEnabled, setSavingsOpportunitiesEnabled] = useState(true);
+  const [askBeforeChangesEnabled, setAskBeforeChangesEnabled] = useState(true);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLocked, setBiometricLocked] = useState(false);
   const [biometricHydrated, setBiometricHydrated] = useState(false);
@@ -2816,6 +2820,8 @@ export default function Home() {
       })
       .catch(() => {});
   }, []);
+
+
 
   useEffect(() => {
     if (!biometricHydrated) return;
@@ -9297,15 +9303,27 @@ export default function Home() {
                 title: "Notifications",
                 icon: "notifications-outline" as const,
                 rows: [
-                  ["Renewal reminders", "Alert before a subscription renews", "On"],
-                  ["Savings opportunities", "Surface potential savings", "On"]
+                  [
+                    "Renewal reminders",
+                    "Alert before a subscription renews",
+                    renewalRemindersEnabled ? "On" : "Off"
+                  ],
+                  [
+                    "Savings opportunities",
+                    "Surface potential savings",
+                    savingsOpportunitiesEnabled ? "On" : "Off"
+                  ]
                 ]
               },
               {
                 title: "Premium & Autopilot",
                 icon: "sparkles-outline" as const,
                 rows: [
-                  ["Ask before changes", "Require approval before automated actions", "On"],
+                  [
+                    "Ask before changes",
+                    "Require approval before automated actions",
+                    askBeforeChangesEnabled ? "On" : "Off"
+                  ],
                   ["Never pause", "Choose protected services later", "Configure"]
                 ]
               },
@@ -9314,7 +9332,7 @@ export default function Home() {
                 icon: "shield-checkmark-outline" as const,
                 rows: [
                   ["Export data", "Subscriptions and savings history", "Later"],
-                  ["Delete account", "Remove your Savlivo account and data", "Later"]
+                  ["Delete account", "Remove your Savlivo account and data", "Remove"]
                 ]
               }
             ].map((group) => (
@@ -9382,20 +9400,55 @@ export default function Home() {
                     </View>
 
                     {action ? (
+                      title === "Face ID / Touch ID" ||
+                      title === "Renewal reminders" ||
+                      title === "Savings opportunities" ||
+                      title === "Ask before changes" ? (
+                        <Switch
+                          value={
+                            title === "Face ID / Touch ID"
+                              ? biometricEnabled
+                              : title === "Renewal reminders"
+                                ? renewalRemindersEnabled
+                                : title === "Savings opportunities"
+                                  ? savingsOpportunitiesEnabled
+                                  : askBeforeChangesEnabled
+                          }
+                          disabled={
+                            title === "Face ID / Touch ID" &&
+                            !biometricAvailable
+                          }
+                          onValueChange={() => {
+                            if (title === "Face ID / Touch ID") {
+                              void toggleBiometricUnlock();
+                            } else if (title === "Renewal reminders") {
+                              setRenewalRemindersEnabled((value) => !value);
+                            } else if (title === "Savings opportunities") {
+                              setSavingsOpportunitiesEnabled((value) => !value);
+                            } else if (title === "Ask before changes") {
+                              setAskBeforeChangesEnabled((value) => !value);
+                            }
+                          }}
+                          trackColor={{
+                            false: darkMode ? "#5A5A5E" : "#D1D1D6",
+                            true: visual.greenMuted
+                          }}
+                          ios_backgroundColor={
+                            darkMode ? "#5A5A5E" : "#D1D1D6"
+                          }
+                        />
+                      ) : (
                       <Pressable
                         style={[
                           styles.settingsAction,
                           softShadow,
                           {
-                            backgroundColor:
-                              title === "Delete account"
-                                ? darkMode
-                                  ? "#3A1F21"
-                                  : "#FDECEC"
-                                : visual.surfaceInteractive,
+                            backgroundColor: visual.surfaceInteractive,
                             borderColor:
                               title === "Delete account"
-                                ? "transparent"
+                                ? darkMode
+                                  ? "#FF8A80"
+                                  : "#D92D20"
                                 : action === "Off"
                                   ? darkMode
                                     ? "#FF8A80"
@@ -9418,6 +9471,45 @@ export default function Home() {
                           if (title === "Face ID / Touch ID") {
                             void toggleBiometricUnlock();
                           }
+                          if (title === "Delete account") {
+                            Alert.alert(
+                              tr("Remove account?"),
+                              tr(
+                                "Your Savlivo account will be scheduled for deletion in 7 days. Sign in again within that period to cancel the deletion."
+                              ),
+                              [
+                                {
+                                  text: tr("Keep"),
+                                  style: "cancel"
+                                },
+                                {
+                                  text: tr("Remove"),
+                                  style: "destructive",
+                                  onPress: async () => {
+                                    try {
+                                      await api("/v1/me", {
+                                        method: "DELETE"
+                                      });
+                                      await clearToken();
+                                      setAuthed(false);
+                                      setBiometricEnabled(false);
+                                      setBiometricLocked(false);
+                                      setScreen("home");
+                                    } catch (err) {
+                                      const message =
+                                        err instanceof Error
+                                          ? err.message
+                                          : "UNKNOWN_ERROR";
+                                      Alert.alert(
+                                        tr("Could not remove account"),
+                                        message
+                                      );
+                                    }
+                                  }
+                                }
+                              ]
+                            );
+                          }
                         }}
                       >
                         <Text
@@ -9436,6 +9528,7 @@ export default function Home() {
                           {tr(action)}
                         </Text>
                       </Pressable>
+                      )
                     ) : null}
                   </View>
                 ))}
