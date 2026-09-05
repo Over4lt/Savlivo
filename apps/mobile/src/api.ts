@@ -2,11 +2,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
-if (!configuredApiUrl && !__DEV__) {
-  throw new Error("EXPO_PUBLIC_API_URL_REQUIRED_IN_PRODUCTION");
-}
-
-export const API_URL = configuredApiUrl || "http://localhost:3000";
+export const API_URL = __DEV__
+  ? configuredApiUrl || "http://localhost:3000"
+  : "https://savlivo-api.onrender.com";
 
 let sessionToken: string | null = null;
 
