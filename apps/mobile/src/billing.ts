@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 
 import {
+  fetchProducts,
   finishTransaction,
   initConnection,
   purchaseErrorListener,
@@ -34,6 +35,37 @@ async function ensureStoreConnection() {
     connectionPromise = null;
     throw new Error("STORE_CONNECTION_FAILED");
   }
+}
+
+export async function getAnnualPlanPrices() {
+  if (Platform.OS !== "ios") {
+    return null;
+  }
+
+  await ensureStoreConnection();
+
+  const result = await fetchProducts({
+    skus: [
+      products.manualYearly,
+      products.premiumYearly
+    ],
+    type: "subs"
+  });
+
+  const fetched = result ?? [];
+
+  const manual = fetched.find(
+    (product) => product.id === products.manualYearly
+  );
+
+  const premium = fetched.find(
+    (product) => product.id === products.premiumYearly
+  );
+
+  return {
+    manual: manual?.displayPrice ?? null,
+    premium: premium?.displayPrice ?? null
+  };
 }
 
 async function verifyAndFinishPurchase(purchase: Purchase) {

@@ -27,7 +27,7 @@ import DateTimePicker, {
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { api, clearToken, getToken, setToken } from "../src/api";
-import { purchasePlan } from "../src/billing";
+import { getAnnualPlanPrices, purchasePlan } from "../src/billing";
 import {
   getSubscriptionManagementUrl,
   openProviderUrl,
@@ -987,6 +987,16 @@ export default function Home() {
   const biometricAuthenticatingRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
   const [plan, setPlan] = useState("VIEWER");
+  const [manualAnnualPrice, setManualAnnualPrice] = useState<string | null>(null);
+  const [premiumAnnualPrice, setPremiumAnnualPrice] = useState<string | null>(null);
+  const planDisplayName =
+    plan === "VIEWER"
+      ? "Free"
+      : plan === "MANUAL"
+        ? "Manual"
+        : plan === "PREMIUM"
+          ? "Premium"
+          : plan;
   const [items, setItems] = useState<Subscription[]>([]);
   const [screen, setScreen] = useState<Screen>("home");
   const [darkMode, setDarkMode] = useState(true);
@@ -2792,6 +2802,27 @@ export default function Home() {
   ] = useState<Record<string, number>>({});
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
 
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void getAnnualPlanPrices()
+      .then((prices) => {
+        if (cancelled || !prices) {
+          return;
+        }
+
+        setManualAnnualPrice(prices.manual);
+        setPremiumAnnualPrice(prices.premium);
+      })
+      .catch(() => {
+        // StoreKit price unavailable; keep fallback display price.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -7364,10 +7395,36 @@ export default function Home() {
           <View style={[styles.planIntro, { backgroundColor: theme.surface }]}>
             <Text style={[styles.planPageTitle, { color: theme.text }]}>Choose your Savlivo plan</Text>
             <Text style={[styles.muted, { color: theme.muted }]}>
-              Manual gives you the management toolbox. Premium adds Savlivo's decision engine and AI assistant.
+              Start free to keep an overview. Manual unlocks subscription management and savings tools. Premium adds Savlivo AI and advanced insights.
             </Text>
           </View>
 
+          <View
+            style={[
+              styles.planOption,
+              {
+                backgroundColor:
+                  plan === "VIEWER"
+                    ? visual.greenHero
+                    : theme.surface,
+                borderColor:
+                  plan === "VIEWER"
+                    ? visual.greenMuted
+                    : theme.border
+              }
+            ]}
+          >
+            <Text style={[styles.planName, { color: theme.text }]}>Free</Text>
+            <Text style={[styles.planPrice, { color: theme.text }]}>Free</Text>
+            <Text style={[styles.planCopy, { color: theme.muted }]}>
+              Keep an eye on your subscriptions, recurring spending and upcoming renewals.
+            </Text>
+            {plan === "VIEWER" ? (
+              <Text style={[styles.planCopy, { color: theme.muted }]}>
+                Current plan
+              </Text>
+            ) : null}
+          </View>
           <Pressable
             style={[
               styles.planOption,
@@ -7385,7 +7442,9 @@ export default function Home() {
             onPress={() => upgrade("manual")}
           >
             <Text style={[styles.planName, { color: theme.text }]}>Manual</Text>
-            <Text style={[styles.planPrice, { color: theme.text }]}>{formatMoneyFromUsdMinor(1900, { maximumFractionDigits: 0 })}/year</Text>
+            <Text style={[styles.planPrice, { color: theme.text }]}>
+              {manualAnnualPrice ? `${manualAnnualPrice}/year` : "Loading price…"}
+            </Text>
             <Text style={[styles.planCopy, { color: theme.muted }]}>
               Self-service toolbox: manage subscriptions, renewal dates and savings yourself.
             </Text>
@@ -7422,7 +7481,7 @@ export default function Home() {
                 { color: theme.text }
               ]}
             >
-              {formatMoneyFromUsdMinor(3900, { maximumFractionDigits: 0 })}/year
+              {premiumAnnualPrice ? `${premiumAnnualPrice}/year` : "Loading price…"}
             </Text>
             <Text
               style={[
@@ -7506,7 +7565,7 @@ export default function Home() {
                   }
                 ]}
               >
-                {plan}
+                {planDisplayName}
               </Text>
             </Pressable>
           </View>
@@ -9245,7 +9304,7 @@ export default function Home() {
                 icon: "person-outline" as const,
                 rows: [
                   ["Email", email, ""],
-                  ["Savlivo plan", plan, "Manage"]
+                  ["Savlivo plan", planDisplayName, "Manage"]
                 ]
               },
               {
