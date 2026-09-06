@@ -1,7 +1,9 @@
 export type StorePlatform = "IOS" | "ANDROID";
 export type ProductId =
-  | "savlivo_manual_annual"
-  | "savlivo_premium_annual";
+  | "com.thomashodne.savlivo.manual.monthly"
+  | "com.thomashodne.savlivo.manual.yearly"
+  | "com.thomashodne.savlivo.premium.monthly"
+  | "com.thomashodne.savlivo.premium.yearly";
 
 export interface PurchaseVerificationRequest {
   platform: StorePlatform;

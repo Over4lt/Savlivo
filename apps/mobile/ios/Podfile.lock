@@ -217,6 +217,9 @@ PODS:
   - ExpoHead (6.0.24):
     - ExpoModulesCore
     - RNScreens
+  - ExpoIap (5.5.1):
+    - ExpoModulesCore
+    - openiap (= 3.4.0)
   - ExpoKeepAwake (15.0.8):
     - ExpoModulesCore
   - ExpoLinking (8.0.12):
@@ -256,6 +259,7 @@ PODS:
   - hermes-engine (0.81.5):
     - hermes-engine/Pre-built (= 0.81.5)
   - hermes-engine/Pre-built (0.81.5)
+  - openiap (3.4.0)
   - RCTDeprecation (0.81.5)
   - RCTRequired (0.81.5)
   - RCTTypeSafety (0.81.5):
@@ -2064,6 +2068,7 @@ DEPENDENCIES:
   - ExpoFileSystem (from `../../../node_modules/expo/node_modules/expo-file-system/ios`)
   - ExpoFont (from `../../../node_modules/expo-font/ios`)
   - ExpoHead (from `../../../node_modules/expo-router/ios`)
+  - ExpoIap (from `../../../node_modules/expo-iap/ios`)
   - ExpoKeepAwake (from `../../../node_modules/expo/node_modules/expo-keep-awake/ios`)
   - ExpoLinking (from `../../../node_modules/expo-linking/ios`)
   - ExpoLocalAuthentication (from `../../../node_modules/expo-local-authentication/ios`)
@@ -2144,6 +2149,10 @@ DEPENDENCIES:
   - RNScreens (from `../../../node_modules/react-native-screens`)
   - Yoga (from `../../../node_modules/react-native/ReactCommon/yoga`)
 
+SPEC REPOS:
+  trunk:
+    - openiap
+
 EXTERNAL SOURCES:
   EXApplication:
     :path: "../../../node_modules/expo-application/ios"
@@ -2177,6 +2186,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-font/ios"
   ExpoHead:
     :path: "../../../node_modules/expo-router/ios"
+  ExpoIap:
+    :path: "../../../node_modules/expo-iap/ios"
   ExpoKeepAwake:
     :path: "../../../node_modules/expo/node_modules/expo-keep-awake/ios"
   ExpoLinking:
@@ -2352,6 +2363,7 @@ SPEC CHECKSUMS:
   ExpoFileSystem: 8e87545aef1d8d31f244edbfdd0780df4e5bac2e
   ExpoFont: dfb7c572372b610da45b41e3b436321fd6a97215
   ExpoHead: 33924c5829f9a3f98a5bd432d23c0e02ef64afcc
+  ExpoIap: 5789a5426a648c8b029d9e139c40d54f3ec90923
   ExpoKeepAwake: 55f75eca6499bb9e4231ebad6f3e9cb8f99c0296
   ExpoLinking: 2ef632ad5013e3f1568fae9408d56ab9af5efc55
   ExpoLocalAuthentication: 58fadf98e9caeae82455d15e4bffc94691585c83
@@ -2361,6 +2373,7 @@ SPEC CHECKSUMS:
   EXUpdatesInterface: 5adf50cb41e079c861da6d9b4b954c3db9a50734
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
   hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
+  openiap: 253070b2afe71078a2cae63a2b8e282bdd44a059
   RCTDeprecation: 943572d4be82d480a48f4884f670135ae30bf990
   RCTRequired: 8f3cfc90cc25cf6e420ddb3e7caaaabc57df6043
   RCTTypeSafety: 16a4144ca3f959583ab019b57d5633df10b5e97c

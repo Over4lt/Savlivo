@@ -1,4 +1,5 @@
 import { pool } from "./db.js";
+
 import type { SavlivoPlan } from "../../../packages/contracts/src/index.js";
 
 export async function applyVerifiedPurchase(args: {
@@ -10,14 +11,16 @@ export async function applyVerifiedPurchase(args: {
   plan: SavlivoPlan;
 }) {
   const client = await pool.connect();
+
   try {
     await client.query("BEGIN");
 
-    await client.query(
+    const inserted = await client.query(
       `INSERT INTO purchase_events (
         user_id, platform, product_id, external_transaction_id, valid, expires_at
       ) VALUES ($1,$2,$3,$4,true,$5)
-      ON CONFLICT (platform, external_transaction_id) DO NOTHING`,
+      ON CONFLICT (platform, external_transaction_id) DO NOTHING
+      RETURNING user_id`,
       [
         args.userId,
         args.platform,
@@ -26,6 +29,23 @@ export async function applyVerifiedPurchase(args: {
         args.expiresAt ?? null
       ]
     );
+
+    if (inserted.rowCount === 0) {
+      const existing = await client.query(
+        `SELECT user_id
+         FROM purchase_events
+         WHERE platform = $1
+           AND external_transaction_id = $2
+         LIMIT 1`,
+        [args.platform, args.externalTransactionId]
+      );
+
+      const existingUserId = existing.rows[0]?.user_id;
+
+      if (!existingUserId || existingUserId !== args.userId) {
+        throw new Error("PURCHASE_ALREADY_CLAIMED");
+      }
+    }
 
     await client.query(
       `INSERT INTO entitlements (

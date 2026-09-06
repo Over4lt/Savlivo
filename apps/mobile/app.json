@@ -24,7 +24,8 @@
       "@react-native-community/datetimepicker",
       "expo-font",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      "expo-iap"
     ],
     "icon": "./assets/logo.png",
     "extra": {
