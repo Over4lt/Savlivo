@@ -1,0 +1,3960 @@
+:root {
+  --bg: #11171c;
+  --bg-soft: #182126;
+  --green: #19583d;
+  --green-dark: #18352a;
+  --green-light: #d5f4e3;
+  --green-mid: #bcebd2;
+  --blue: #8fb7e5;
+  --text: #ffffff;
+  --muted: #aebbc8;
+  --muted-dark: #667085;
+  --border: rgba(255, 255, 255, 0.1);
+  --card: rgba(255, 255, 255, 0.055);
+  --radius: 28px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 85% 5%, rgba(25, 88, 61, 0.24), transparent 29rem),
+    var(--bg);
+  color: var(--text);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Display",
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.nav {
+  width: min(1180px, calc(100% - 40px));
+  height: 92px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 20px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+}
+
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--green-dark);
+  background: var(--green-light);
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.nav-links {
+  display: flex;
+  gap: 34px;
+  color: #c9d2da;
+  font-size: 14px;
+}
+
+.nav-links a {
+  transition: color 0.2s ease;
+}
+
+.nav-links a:hover {
+  color: #fff;
+}
+
+.button {
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: var(--green-light);
+  color: var(--green-dark);
+  font-weight: 720;
+  font-size: 15px;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button-small {
+  min-height: 42px;
+  padding: 0 18px;
+  font-size: 13px;
+}
+
+.button-secondary {
+  color: #edf4f0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+}
+
+.hero {
+  width: min(1180px, calc(100% - 40px));
+  min-height: 700px;
+  margin: 35px auto 70px;
+  display: grid;
+  grid-template-columns: 1.03fr 0.97fr;
+  align-items: center;
+  gap: 80px;
+}
+
+.hero-copy {
+  max-width: 650px;
+}
+
+.eyebrow {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 13px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: #c7d4cd;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 13px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8ad7ad;
+  box-shadow: 0 0 0 5px rgba(138, 215, 173, 0.09);
+}
+
+h1 {
+  margin: 26px 0 24px;
+  font-size: clamp(64px, 7.3vw, 104px);
+  line-height: 0.91;
+  letter-spacing: -0.07em;
+  font-weight: 760;
+}
+
+h1 span {
+  color: #a9d8bd;
+}
+
+.hero-text {
+  max-width: 590px;
+  margin: 0;
+  color: #b4c0ca;
+  font-size: 19px;
+  line-height: 1.65;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 34px;
+}
+
+.hero-note {
+  margin: 20px 3px 0;
+  color: #74828e;
+  font-size: 12px;
+}
+
+.phone-stage {
+  min-height: 650px;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+}
+
+.glow-one {
+  width: 370px;
+  height: 370px;
+  background: rgba(25, 88, 61, 0.34);
+}
+
+.glow-two {
+  width: 230px;
+  height: 230px;
+  right: 20px;
+  bottom: 60px;
+  background: rgba(143, 183, 229, 0.11);
+}
+
+.phone {
+  width: min(360px, 86vw);
+  min-height: 690px;
+  position: relative;
+  z-index: 2;
+  padding: 13px 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 48px;
+  background: #10171b;
+  box-shadow:
+    0 50px 100px rgba(0, 0, 0, 0.46),
+    inset 0 0 0 6px rgba(255, 255, 255, 0.025);
+  transform: rotate(2.5deg);
+}
+
+.phone-top {
+  height: 37px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  font-size: 10px;
+  color: #cfd7dc;
+}
+
+.phone-top > :last-child {
+  text-align: right;
+}
+
+.phone-island {
+  width: 80px;
+  height: 23px;
+  justify-self: center;
+  border-radius: 999px;
+  background: #050708;
+}
+
+.app-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+}
+
+.app-kicker {
+  color: #72828e;
+  font-size: 11px;
+}
+
+.app-title {
+  margin-top: 3px;
+  font-size: 25px;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #1d2c25;
+  border: 1px solid #2c493a;
+  color: #bcebd2;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.summary-card {
+  margin-top: 22px;
+  padding: 22px;
+  border: 1px solid #2b4e3d;
+  border-radius: 24px;
+  background:
+    linear-gradient(140deg, rgba(213, 244, 227, 0.07), transparent 55%),
+    #18352a;
+}
+
+.summary-label {
+  color: #a9c2b5;
+  font-size: 11px;
+}
+
+.summary-value {
+  margin-top: 8px;
+  font-size: 37px;
+  font-weight: 730;
+  letter-spacing: -0.05em;
+}
+
+.summary-row {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(213, 244, 227, 0.12);
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #a9c2b5;
+}
+
+.summary-row strong {
+  color: #d5f4e3;
+}
+
+.section-title {
+  margin: 25px 2px 13px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #cbd5da;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.section-count {
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #71808b;
+  background: #1a2329;
+  font-size: 9px;
+}
+
+.subscription {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+}
+
+.service-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #7f171b;
+  color: #fff;
+  font-weight: 800;
+}
+
+.service-icon-blue {
+  background: #1e5682;
+}
+
+.service-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.service-copy span {
+  color: #6f7e89;
+  font-size: 9px;
+}
+
+.saving-pill {
+  margin-top: 18px;
+  padding: 12px 14px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-radius: 14px;
+  color: #bcebd2;
+  background: #15271f;
+  border: 1px solid #284b3a;
+  font-size: 10px;
+}
+
+.bottom-nav {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  height: 57px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(21, 29, 33, 0.96);
+  color: #677781;
+  font-size: 9px;
+}
+
+.bottom-nav .active {
+  color: #cce9d8;
+}
+
+.trust-strip {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 25px 30px;
+  display: flex;
+  justify-content: center;
+  gap: 27px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: #8e9ba5;
+  font-size: 13px;
+}
+
+.separator {
+  color: #345544;
+}
+
+.features,
+.how,
+.privacy,
+.cta,
+footer {
+  width: min(1180px, calc(100% - 40px));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.features {
+  padding: 140px 0 70px;
+}
+
+.section-heading {
+  max-width: 760px;
+  margin-bottom: 55px;
+}
+
+.eyebrow-label {
+  color: #8fc9a9;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h2 {
+  margin: 14px 0 18px;
+  font-size: clamp(40px, 5vw, 66px);
+  line-height: 1.02;
+  letter-spacing: -0.055em;
+}
+
+.section-heading p,
+.privacy p,
+.cta p {
+  color: #9eabb5;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.feature-card {
+  min-height: 330px;
+  padding: 30px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 100% 0, rgba(25, 88, 61, 0.12), transparent 18rem),
+    var(--card);
+}
+
+.feature-card-large {
+  min-height: 430px;
+}
+
+.feature-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: #1b3228;
+  border: 1px solid #294b3a;
+  color: #bcebd2;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.feature-card h3 {
+  margin: 75px 0 12px;
+  font-size: 26px;
+  letter-spacing: -0.035em;
+}
+
+.feature-card p {
+  max-width: 500px;
+  margin: 0;
+  color: #8e9ba5;
+  line-height: 1.65;
+}
+
+.mini-list {
+  width: min(330px, 100%);
+  margin-top: 35px;
+  padding: 3px 17px;
+  border-radius: 18px;
+  background: rgba(0, 0, 0, 0.17);
+}
+
+.mini-list div {
+  padding: 14px 0;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #7f8f99;
+  font-size: 12px;
+}
+
+.mini-list div:last-child {
+  border-bottom: 0;
+}
+
+.mini-list strong {
+  color: #e9eff2;
+}
+
+.metric {
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.metric span {
+  color: #72818c;
+  font-size: 11px;
+}
+
+.metric strong {
+  color: #bcebd2;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+}
+
+.renewal {
+  position: absolute;
+  left: 30px;
+  bottom: 30px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #87949d;
+  font-size: 11px;
+}
+
+.renewal div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.renewal strong {
+  color: #fff;
+  font-size: 13px;
+}
+
+.calendar-day {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #1a2429;
+  border: 1px solid var(--border);
+  color: #d7e0e5;
+  font-weight: 750;
+}
+
+.feature-ai {
+  background:
+    radial-gradient(circle at 85% 85%, rgba(143, 183, 229, 0.12), transparent 15rem),
+    radial-gradient(circle at 0 0, rgba(25, 88, 61, 0.17), transparent 20rem),
+    var(--card);
+}
+
+.ai-message {
+  width: fit-content;
+  max-width: 90%;
+  margin-top: 35px;
+  padding: 15px 17px;
+  border: 1px solid rgba(143, 183, 229, 0.14);
+  border-radius: 15px 15px 15px 5px;
+  color: #c7d9e9;
+  background: rgba(143, 183, 229, 0.07);
+  font-size: 12px;
+}
+
+.how {
+  padding: 120px 0;
+}
+
+.compact {
+  max-width: 700px;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.step {
+  padding: 26px;
+  border-top: 1px solid #2b4d3c;
+}
+
+.step > span {
+  color: #75aa8d;
+  font-size: 12px;
+}
+
+.step h3 {
+  margin: 50px 0 10px;
+  font-size: 19px;
+}
+
+.step p {
+  margin: 0;
+  color: #7f8d97;
+  line-height: 1.55;
+  font-size: 14px;
+}
+
+.privacy {
+  padding: 70px;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 80px;
+  align-items: end;
+  border: 1px solid var(--border);
+  border-radius: 34px;
+  background: #151e22;
+}
+
+.privacy h2 {
+  margin-bottom: 0;
+  font-size: clamp(38px, 4vw, 58px);
+}
+
+.privacy p {
+  margin: 0;
+}
+
+.cta {
+  margin-top: 120px;
+  margin-bottom: 90px;
+  padding: 100px 30px;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  border-radius: 36px;
+  background: var(--green-dark);
+  border: 1px solid #315545;
+}
+
+.cta-glow {
+  width: 500px;
+  height: 500px;
+  position: absolute;
+  top: -320px;
+  left: calc(50% - 250px);
+  border-radius: 50%;
+  background: rgba(213, 244, 227, 0.12);
+  filter: blur(30px);
+}
+
+.cta > * {
+  position: relative;
+}
+
+.cta h2 {
+  max-width: 720px;
+  margin: 16px auto;
+}
+
+.cta p {
+  max-width: 600px;
+  margin: 0 auto 30px;
+  color: #b4c9bd;
+}
+
+.button-light {
+  background: #fff;
+  color: #173429;
+}
+
+footer {
+  min-height: 120px;
+  padding: 35px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  color: #71808a;
+  font-size: 12px;
+}
+
+.footer-brand {
+  color: #fff;
+}
+
+.footer-links {
+  display: flex;
+  gap: 22px;
+}
+
+@media (max-width: 900px) {
+  .nav-links {
+    display: none;
+  }
+
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding-top: 55px;
+  }
+
+  .hero-copy {
+    text-align: center;
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    margin: 0 auto;
+  }
+
+  .hero-actions {
+    justify-content: center;
+  }
+
+  .phone-stage {
+    min-height: 750px;
+  }
+
+  .feature-grid,
+  .privacy {
+    grid-template-columns: 1fr;
+  }
+
+  .privacy {
+    gap: 25px;
+    padding: 45px;
+  }
+}
+
+@media (max-width: 650px) {
+  .nav {
+    width: min(100% - 28px, 1180px);
+  }
+
+  .nav .button {
+    display: none;
+  }
+
+  .hero,
+  .features,
+  .how,
+  .privacy,
+  .cta,
+  footer,
+  .trust-strip {
+    width: calc(100% - 28px);
+  }
+
+  .hero {
+    margin-top: 10px;
+  }
+
+  h1 {
+    font-size: 58px;
+  }
+
+  .hero-text {
+    font-size: 16px;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+  }
+
+  .phone-stage {
+    min-height: 700px;
+  }
+
+  .phone {
+    transform: none;
+  }
+
+  .trust-strip {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .separator {
+    display: none;
+  }
+
+  .features {
+    padding-top: 100px;
+  }
+
+  .feature-grid,
+  .steps {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-card {
+    min-height: 350px;
+  }
+
+  .privacy {
+    padding: 32px 25px;
+  }
+
+  .cta {
+    padding: 75px 20px;
+  }
+
+  footer {
+    flex-direction: column;
+    gap: 25px;
+    text-align: center;
+  }
+}
+
+/* Typography spacing polish */
+.section-heading h2 {
+  line-height: 1.09;
+  margin-top: 18px;
+  margin-bottom: 26px;
+}
+
+.section-heading p {
+  line-height: 1.8;
+}
+
+.feature-card h3 {
+  line-height: 1.25;
+  margin-bottom: 18px;
+}
+
+.feature-card p {
+  line-height: 1.78;
+}
+
+.compact h2 {
+  line-height: 1.1;
+}
+
+.step h3 {
+  line-height: 1.3;
+  margin-bottom: 15px;
+}
+
+.step p {
+  line-height: 1.7;
+}
+
+.privacy h2 {
+  line-height: 1.1;
+}
+
+.privacy p {
+  line-height: 1.8;
+}
+
+.cta h2 {
+  line-height: 1.08;
+  margin-top: 20px;
+  margin-bottom: 22px;
+}
+
+.cta p {
+  line-height: 1.75;
+  margin-bottom: 36px;
+}
+
+@media (max-width: 650px) {
+  h1 {
+    line-height: 0.98;
+  }
+
+  h2 {
+    line-height: 1.1;
+  }
+}
+
+/* Stronger spacing pass */
+.section-heading {
+  margin-bottom: 72px;
+}
+
+.section-heading .eyebrow-label {
+  display: inline-block;
+  margin-bottom: 12px;
+}
+
+.section-heading h2 {
+  max-width: 820px;
+  font-size: clamp(38px, 4.4vw, 60px);
+  line-height: 1.12;
+  margin: 0 0 30px;
+}
+
+.section-heading p {
+  max-width: 680px;
+  font-size: 18px;
+  line-height: 1.85;
+}
+
+.feature-card {
+  padding: 38px;
+}
+
+.feature-card h3 {
+  margin-top: 88px;
+  margin-bottom: 22px;
+  font-size: 25px;
+  line-height: 1.32;
+}
+
+.feature-card p {
+  max-width: 520px;
+  font-size: 16px;
+  line-height: 1.82;
+}
+
+.steps {
+  gap: 26px;
+}
+
+.step {
+  padding: 34px 34px 40px;
+}
+
+.step h3 {
+  margin-top: 58px;
+  margin-bottom: 18px;
+  line-height: 1.35;
+}
+
+.step p {
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.privacy {
+  gap: 100px;
+}
+
+.privacy .eyebrow-label {
+  display: inline-block;
+  margin-bottom: 16px;
+}
+
+.privacy h2 {
+  margin-top: 0;
+  line-height: 1.12;
+}
+
+.privacy p {
+  font-size: 18px;
+  line-height: 1.85;
+}
+
+.cta .eyebrow-label {
+  display: inline-block;
+  margin-bottom: 14px;
+}
+
+.cta h2 {
+  max-width: 760px;
+  margin: 0 auto 28px;
+  line-height: 1.12;
+}
+
+.cta p {
+  max-width: 620px;
+  font-size: 18px;
+  line-height: 1.8;
+  margin-bottom: 40px;
+}
+
+
+/* Letter spacing polish */
+h1 {
+  letter-spacing: -0.025em;
+}
+
+h2 {
+  letter-spacing: -0.015em;
+}
+
+h3 {
+  letter-spacing: 0.01em;
+}
+
+p {
+  letter-spacing: 0.018em;
+}
+
+.eyebrow-label,
+.nav-links,
+.button {
+  letter-spacing: 0.025em;
+}
+
+/* Savlivo brand logo */
+.brand-mark {
+  overflow: hidden;
+}
+
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Hero line alignment */
+.hero-line {
+  display: block;
+}
+
+.hero-line-subscriptions {
+  text-align: center;
+}
+
+/* Final two-line hero */
+.hero-copy h1 {
+  font-size: clamp(48px, 5.2vw, 76px);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  max-width: 900px;
+}
+
+.hero-line {
+  display: block;
+  white-space: nowrap;
+  text-align: left;
+}
+
+/* Actual Savlivo app home preview */
+.phone {
+  min-height: 760px;
+  padding: 13px 18px 84px;
+}
+
+.app-overview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 1px 10px;
+}
+
+.app-overview-label,
+.app-card-eyebrow,
+.app-section-label {
+  font-size: 9px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #74828e;
+}
+
+.app-overview-title {
+  margin-top: 3px;
+  font-size: 22px;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  color: #ffffff;
+}
+
+.app-plan-pill {
+  min-height: 32px;
+  padding: 0 11px;
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid #3f775d;
+  background: #172127;
+  color: #e0e7e3;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.app-savings-card {
+  padding: 18px;
+  margin-bottom: 24px;
+  border: 1px solid #175b3d;
+  border-radius: 22px;
+  background: #18352a;
+}
+
+.app-savings-top {
+  display: flex;
+  align-items: center;
+}
+
+.app-icon-tile {
+  width: 41px;
+  height: 41px;
+  flex: 0 0 41px;
+  display: grid;
+  place-items: center;
+  margin-right: 12px;
+  border-radius: 13px;
+  background: #15563a;
+  color: #bcebd2;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.app-savings-copy {
+  flex: 1;
+}
+
+.app-card-eyebrow {
+  margin-bottom: 4px;
+  color: #8bc7a8;
+}
+
+.app-savings-value {
+  color: #ffffff;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.app-savings-value span {
+  color: #7f9089;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.app-large-chevron {
+  margin-left: 8px;
+  color: #8bc7a8;
+  font-size: 26px;
+  font-weight: 400;
+}
+
+.app-card-divider {
+  height: 1px;
+  margin: 15px 0;
+  background: #1b6244;
+}
+
+.app-savings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #8b9993;
+  font-size: 12px;
+}
+
+.app-savings-footer strong {
+  color: #9cd3b4;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.app-spend-card {
+  padding: 16px;
+  margin-bottom: 15px;
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 19px;
+  background: rgba(255,255,255,0.045);
+}
+
+.app-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-metric-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #173629;
+  color: #99caae;
+  font-size: 15px;
+}
+
+.app-chevron-button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid #3b6f55;
+  background: #172127;
+  color: #85938d;
+  font-size: 17px;
+}
+
+.app-metric-label {
+  margin-top: 13px;
+  color: #83918c;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.app-spend-value {
+  margin-top: 4px;
+  color: #ffffff;
+  font-size: 25px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+}
+
+.app-metric-hint {
+  margin-top: 4px;
+  color: #6f7d78;
+  font-size: 9px;
+}
+
+.app-section-label {
+  margin: 5px 1px 10px;
+  font-weight: 900;
+}
+
+.app-glance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.app-glance-card {
+  min-height: 118px;
+  padding: 13px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid rgba(255,255,255,0.085);
+  border-radius: 18px;
+  background: #172026;
+}
+
+.app-glance-card .app-metric-label {
+  margin-top: 11px;
+}
+
+.app-glance-value {
+  margin-top: 4px;
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
+
+.app-glance-date {
+  font-size: 14px;
+  line-height: 1.25;
+  font-weight: 800;
+}
+
+.app-ai-shortcut {
+  min-height: 48px;
+  padding: 0 14px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #19583d;
+  border-radius: 15px;
+  background: #163126;
+  color: #a8d8bd;
+  font-size: 10px;
+}
+
+.app-ai-icon {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #1d4935;
+  font-size: 10px;
+  letter-spacing: -2px;
+}
+
+
+/* Screenshot 8911 — NEXT BEST MOVE */
+.app-next-label {
+  margin-top: 26px;
+  margin-bottom: 10px;
+}
+
+.app-next-card {
+  min-height: 72px;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 18px;
+  background: #14191c;
+}
+
+.app-next-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #376e55;
+  color: #75efb3;
+  font-size: 18px;
+}
+
+.app-next-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-next-copy strong {
+  color: #f5f7f8;
+  font-size: 14px;
+  line-height: 1.1;
+  font-weight: 850;
+  letter-spacing: -0.015em;
+}
+
+.app-next-copy span {
+  color: #98a3ab;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.app-next-chevron {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #65e9aa;
+  border-radius: 50%;
+  color: #65e9aa;
+  font-size: 20px;
+}
+
+/* Phone top navigation — based on actual Savlivo app */
+.preview-brand-row {
+  margin: 10px 0 10px;
+}
+
+.preview-brand img {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 9px;
+}
+
+.preview-brand-name {
+  margin-left: 6px;
+  font-size: 17px;
+}
+
+.preview-brand-slogan {
+  margin-left: 4px;
+  font-size: 8px;
+}
+
+.preview-premium-badge {
+  padding: 7px 10px;
+  font-size: 8px;
+}
+
+.preview-app-nav {
+  width: 100%;
+  height: 64px;
+  padding: 6px 6px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  align-items: center;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px;
+  background: #14191c;
+}
+
+.preview-nav-item {
+  height: 51px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #9ca5ad;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.preview-nav-icon {
+  width: 28px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  color: #aeb7bf;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.preview-nav-item.active {
+  color: #45ee9e;
+}
+
+.preview-nav-item.active .preview-nav-icon {
+  width: 31px;
+  height: 31px;
+  padding: 0;
+  border-radius: 10px;
+  background: #376e55;
+  color: #45ee9e;
+}
+
+.preview-app-divider {
+  height: 1px;
+  margin: 10px -15px 20px;
+  background: rgba(255,255,255,0.08);
+}
+
+/* Keep the large savings presentation */
+.app-savings-card {
+  min-height: 178px;
+}
+
+.app-savings-value {
+  font-size: 36px;
+}
+
+.bottom-nav {
+  display: none !important;
+}
+
+/* =========================================================
+   Approved homepage hero polish
+   - larger WEBSITE Savlivo branding
+   - larger angled app phone
+   - preserve actual app preview
+   ========================================================= */
+
+/* WEBSITE HEADER BRAND — not the branding inside the phone */
+header .brand,
+.site-header .brand,
+.navbar .brand {
+  gap: 12px;
+}
+
+header .brand-mark,
+.site-header .brand-mark,
+.navbar .brand-mark {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  border-radius: 14px;
+}
+
+header .brand-mark img,
+.site-header .brand-mark img,
+.navbar .brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+header .brand-name,
+.site-header .brand-name,
+.navbar .brand-name {
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.045em;
+}
+
+/* Give hero more presence */
+.hero {
+  min-height: 760px;
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 3;
+}
+
+.hero-copy h1 {
+  font-size: clamp(64px, 6.5vw, 94px);
+  line-height: 0.93;
+  letter-spacing: -0.045em;
+}
+
+/* PHONE — larger and deliberately angled */
+.phone-stage {
+  min-height: 760px;
+  overflow: visible;
+}
+
+.phone {
+  width: min(410px, 88vw);
+  min-height: 870px;
+
+  /* Keep the angled product-shot appearance */
+  transform:
+    perspective(1400px)
+    rotateY(-5deg)
+    rotateX(1deg)
+    rotateZ(3deg);
+
+  transform-origin: center center;
+
+  box-shadow:
+    0 65px 130px rgba(0, 0, 0, 0.55),
+    18px 20px 60px rgba(25, 88, 61, 0.20),
+    inset 0 0 0 6px rgba(255, 255, 255, 0.025);
+}
+
+/* Stronger glow behind the angled phone */
+.glow-one {
+  width: 460px;
+  height: 460px;
+  background: rgba(25, 88, 61, 0.42);
+  filter: blur(85px);
+}
+
+.glow-two {
+  width: 300px;
+  height: 300px;
+  right: -20px;
+  bottom: 40px;
+  background: rgba(49, 225, 145, 0.10);
+  filter: blur(80px);
+}
+
+/* Keep complete app header/menu visible inside phone */
+.preview-brand-row {
+  margin: 10px 0 11px;
+}
+
+.preview-app-nav {
+  width: 100%;
+  height: 66px;
+  padding: 6px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border-radius: 20px;
+}
+
+.preview-nav-item {
+  min-width: 0;
+  height: 52px;
+  gap: 4px;
+  font-size: 8px;
+}
+
+.preview-nav-icon {
+  width: 29px;
+  height: 29px;
+  font-size: 16px;
+}
+
+.preview-nav-item.active .preview-nav-icon {
+  width: 31px;
+  height: 31px;
+  padding: 0;
+  border-radius: 9px;
+}
+
+/* Savings is the visual hero inside the app */
+.app-savings-card {
+  min-height: 185px;
+  padding: 24px 21px 21px;
+  margin-bottom: 30px;
+  border-radius: 26px;
+}
+
+.app-savings-top {
+  min-height: 78px;
+}
+
+.app-icon-tile {
+  width: 50px;
+  height: 50px;
+  flex-basis: 50px;
+  border-radius: 15px;
+}
+
+.app-card-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+.app-savings-value {
+  font-size: 39px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.app-savings-value span {
+  font-size: 14px;
+}
+
+.app-savings-footer {
+  font-size: 14px;
+}
+
+.app-savings-footer strong {
+  font-size: 15px;
+}
+
+/* Dashboard proportions */
+.app-spend-card {
+  min-height: 145px;
+  padding: 18px;
+  border-radius: 21px;
+}
+
+.app-spend-value {
+  font-size: 30px;
+}
+
+.app-glance-card {
+  min-height: 138px;
+  padding: 15px;
+  border-radius: 20px;
+}
+
+.app-next-card {
+  min-height: 80px;
+}
+
+/* The real app uses the six-item TOP navigation */
+.bottom-nav {
+  display: none !important;
+}
+
+/* Responsive */
+@media (max-width: 1000px) {
+  .hero-copy h1 {
+    font-size: clamp(56px, 8vw, 82px);
+  }
+
+  .phone {
+    width: min(390px, 88vw);
+    transform:
+      perspective(1400px)
+      rotateY(-4deg)
+      rotateZ(2deg);
+  }
+}
+
+@media (max-width: 650px) {
+  header .brand-mark,
+  .site-header .brand-mark,
+  .navbar .brand-mark {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+
+  header .brand-name,
+  .site-header .brand-name,
+  .navbar .brand-name {
+    font-size: 25px;
+  }
+
+  .phone-stage {
+    min-height: 820px;
+  }
+
+  .phone {
+    width: min(390px, 94vw);
+    transform: rotateZ(1deg);
+  }
+}
+
+/* =========================================================
+   REFERENCE HERO — final visual direction
+   ========================================================= */
+
+body {
+  background:
+    radial-gradient(circle at 70% 20%, rgba(14, 105, 70, .32), transparent 34%),
+    radial-gradient(circle at 72% 70%, rgba(7, 84, 58, .23), transparent 36%),
+    #071012;
+}
+
+/* Header */
+.reference-nav {
+  width: min(1440px, calc(100% - 80px));
+  max-width: 1440px;
+  min-height: 110px;
+  margin: 0 auto;
+  padding: 18px 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+}
+
+.reference-brand {
+  gap: 16px;
+}
+
+.reference-brand .brand-mark {
+  width: 70px;
+  height: 70px;
+  flex: 0 0 70px;
+  border-radius: 18px;
+}
+
+.reference-brand .brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reference-brand .brand-word {
+  color: #fff;
+  font-size: 45px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.055em;
+}
+
+.reference-links {
+  justify-self: center;
+  gap: 58px;
+}
+
+.reference-links a {
+  color: #f1f4f5;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.reference-download {
+  min-height: 52px;
+  padding: 0 27px;
+  border-radius: 999px;
+  font-size: 16px;
+}
+
+/* Hero composition */
+.reference-hero {
+  width: min(1440px, calc(100% - 80px));
+  max-width: 1440px;
+  min-height: 850px;
+  margin: 0 auto;
+  padding: 38px 0 60px;
+  display: grid;
+  grid-template-columns: minmax(0, .95fr) minmax(470px, .75fr);
+  gap: 50px;
+  align-items: center;
+}
+
+.reference-hero-copy {
+  padding-left: 4px;
+}
+
+.reference-eyebrow {
+  width: fit-content;
+  margin-bottom: 30px;
+  padding: 11px 19px;
+  border-radius: 999px;
+  background: rgba(21, 91, 67, .28);
+  color: #6af0b5;
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: .12em;
+}
+
+.reference-title {
+  max-width: 650px;
+  margin: 0;
+  color: #fff;
+  font-size: clamp(76px, 6.5vw, 108px);
+  line-height: .91;
+  font-weight: 900;
+  letter-spacing: -.065em;
+}
+
+.reference-title span {
+  display: block;
+  white-space: nowrap;
+}
+
+.reference-title .reference-money {
+  width: fit-content;
+  color: #5ee7a8;
+}
+
+.reference-copy {
+  max-width: 640px;
+  margin-top: 31px;
+  color: #a7b0ba;
+  font-size: 24px;
+  line-height: 1.45;
+  letter-spacing: 0;
+}
+
+.reference-actions {
+  margin-top: 29px;
+  gap: 18px;
+}
+
+.reference-ios-button,
+.reference-learn {
+  min-height: 58px;
+  padding: 0 38px;
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.reference-ios-button {
+  color: #06120d;
+  background: #5ee7a8;
+}
+
+.apple-mark {
+  margin-right: 10px;
+  font-size: 17px;
+}
+
+.reference-learn {
+  min-width: 185px;
+  border-color: #71858d;
+}
+
+.reference-benefits {
+  max-width: 530px;
+  margin-top: 38px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.reference-benefit {
+  min-height: 105px;
+  padding-right: 30px;
+  color: #aeb6bf;
+  font-size: 17px;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+.reference-benefit + .reference-benefit {
+  padding-left: 30px;
+  border-left: 1px solid rgba(255,255,255,.11);
+}
+
+.reference-benefit-icon {
+  width: 43px;
+  height: 43px;
+  margin-bottom: 11px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(10, 71, 51, .42);
+  color: #4be6a0;
+  font-size: 20px;
+}
+
+.reference-note {
+  margin-top: 35px;
+  color: #77838e;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+
+/* Phone product shot */
+.reference-phone-stage {
+  min-height: 850px;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+}
+
+.reference-phone {
+  width: 445px;
+  min-height: 820px;
+  padding: 13px 15px 25px;
+  border-radius: 55px;
+  border: 2px solid rgba(225,229,226,.42);
+  background: #080d0f;
+
+  transform:
+    perspective(1500px)
+    rotateY(-5deg)
+    rotateX(1deg)
+    rotateZ(3deg);
+
+  transform-origin: center;
+
+  box-shadow:
+    0 70px 140px rgba(0,0,0,.62),
+    25px 30px 90px rgba(24,130,85,.22),
+    inset 0 0 0 7px rgba(255,255,255,.035);
+}
+
+.reference-phone .phone-top {
+  padding: 0 12px;
+}
+
+/* Brand inside phone */
+.reference-phone .preview-brand-row {
+  margin: 8px 8px 10px;
+}
+
+.reference-phone .preview-brand img {
+  width: 31px;
+  height: 31px;
+  flex: 0 0 31px;
+}
+
+.reference-phone .preview-brand-name {
+  font-size: 17px;
+}
+
+.reference-phone .preview-brand-slogan {
+  font-size: 7px;
+}
+
+.reference-phone .preview-premium-badge {
+  padding: 6px 9px;
+  font-size: 7px;
+}
+
+/* Phone top menu */
+.reference-phone .preview-app-nav {
+  height: 62px;
+  padding: 5px 7px;
+  border-radius: 18px;
+}
+
+.reference-phone .preview-nav-item {
+  height: 49px;
+  font-size: 8px;
+}
+
+.reference-phone .preview-nav-icon {
+  width: 28px;
+  height: 27px;
+  font-size: 15px;
+}
+
+.reference-phone .preview-app-divider {
+  margin: 9px -15px 16px;
+}
+
+/* Dashboard */
+.reference-phone .app-overview {
+  margin: 0 8px 16px;
+}
+
+.reference-phone .app-overview-title {
+  font-size: 24px;
+}
+
+.reference-phone .app-savings-card {
+  min-height: 166px;
+  margin: 0 8px 17px;
+  padding: 20px;
+  border-radius: 23px;
+  background: #39775a;
+}
+
+.reference-phone .app-savings-value {
+  font-size: 35px;
+}
+
+.reference-phone .app-spend-card {
+  min-height: 125px;
+  margin: 0 8px 17px;
+  padding: 16px;
+}
+
+.reference-phone .app-spend-value {
+  font-size: 27px;
+}
+
+.reference-phone .app-section-label {
+  margin: 18px 8px 10px;
+}
+
+.reference-phone .app-glance-grid {
+  margin: 0 8px 14px;
+  gap: 10px;
+}
+
+.reference-phone .app-glance-card {
+  min-height: 120px;
+  padding: 13px;
+}
+
+.reference-phone .app-glance-value {
+  font-size: 18px;
+}
+
+.reference-phone .app-glance-date {
+  font-size: 14px;
+}
+
+.reference-phone .app-next-label {
+  margin-top: 15px;
+}
+
+.reference-phone .app-next-card {
+  min-height: 67px;
+  margin: 0 8px;
+  padding: 10px 13px;
+}
+
+/* Glow from reference */
+.reference-phone-stage .glow-one {
+  width: 560px;
+  height: 560px;
+  background: rgba(21, 122, 81, .32);
+  filter: blur(100px);
+}
+
+.reference-phone-stage .glow-two {
+  width: 360px;
+  height: 360px;
+  right: -40px;
+  bottom: 80px;
+  background: rgba(62, 230, 158, .10);
+  filter: blur(90px);
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .reference-nav,
+  .reference-hero {
+    width: min(100% - 40px, 1440px);
+  }
+
+  .reference-links {
+    gap: 28px;
+  }
+
+  .reference-hero {
+    grid-template-columns: 1fr 430px;
+    gap: 20px;
+  }
+
+  .reference-title {
+    font-size: clamp(65px, 7vw, 90px);
+  }
+
+  .reference-copy {
+    font-size: 20px;
+  }
+
+  .reference-phone {
+    width: 405px;
+  }
+}
+
+@media (max-width: 850px) {
+  .reference-nav {
+    grid-template-columns: auto auto;
+  }
+
+  .reference-links {
+    display: none;
+  }
+
+  .reference-download {
+    justify-self: end;
+  }
+
+  .reference-hero {
+    grid-template-columns: 1fr;
+    padding-top: 50px;
+  }
+
+  .reference-title {
+    font-size: clamp(62px, 13vw, 92px);
+  }
+
+  .reference-phone-stage {
+    min-height: 820px;
+    margin-top: 30px;
+  }
+
+  .reference-phone {
+    width: min(420px, 90vw);
+    transform: rotateZ(2deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .reference-nav,
+  .reference-hero {
+    width: calc(100% - 28px);
+  }
+
+  .reference-brand .brand-mark {
+    width: 50px;
+    height: 50px;
+    flex-basis: 50px;
+  }
+
+  .reference-brand .brand-word {
+    font-size: 31px;
+  }
+
+  .reference-download {
+    min-height: 44px;
+    padding: 0 17px;
+    font-size: 13px;
+  }
+
+  .reference-title {
+    font-size: clamp(56px, 17vw, 76px);
+  }
+
+  .reference-copy {
+    font-size: 18px;
+  }
+
+  .reference-benefits {
+    gap: 12px;
+  }
+
+  .reference-benefit,
+  .reference-benefit + .reference-benefit {
+    padding: 0 10px;
+    border: 0;
+    font-size: 14px;
+  }
+
+  .reference-actions {
+    flex-wrap: wrap;
+  }
+
+  .reference-ios-button,
+  .reference-learn {
+    min-height: 54px;
+    padding: 0 25px;
+  }
+}
+
+/* Smaller phone on homepage */
+.reference-phone-stage {
+  min-height: 700px;
+}
+
+.reference-phone {
+  width: 365px;
+  min-height: 700px;
+  transform:
+    perspective(1500px)
+    rotateY(-5deg)
+    rotateX(1deg)
+    rotateZ(3deg)
+    scale(0.88);
+}
+
+.reference-phone-stage .glow-one {
+  width: 450px;
+  height: 450px;
+}
+
+.reference-phone-stage .glow-two {
+  width: 290px;
+  height: 290px;
+}
+
+@media (max-width: 1100px) {
+  .reference-phone {
+    width: 350px;
+    transform:
+      perspective(1500px)
+      rotateY(-5deg)
+      rotateX(1deg)
+      rotateZ(3deg)
+      scale(0.88);
+  }
+}
+
+@media (max-width: 850px) {
+  .reference-phone {
+    width: min(365px, 86vw);
+    transform: rotateZ(2deg) scale(0.90);
+  }
+}
+
+/* Realistic iPhone proportions */
+.reference-phone-stage {
+  min-height: 690px;
+}
+
+.reference-phone {
+  width: 365px;
+  height: 740px;
+  min-height: 0;
+  overflow: hidden;
+
+  transform:
+    perspective(1500px)
+    rotateY(-5deg)
+    rotateX(1deg)
+    rotateZ(3deg);
+
+  border-radius: 52px;
+}
+
+/* Slightly compress the app UI so the full preview fits naturally */
+.reference-phone .preview-brand-row,
+.reference-phone .preview-app-nav,
+.reference-phone .preview-app-divider,
+.reference-phone .app-overview,
+.reference-phone .app-savings-card,
+.reference-phone .app-spend-card,
+.reference-phone .app-section-label,
+.reference-phone .app-glance-grid,
+.reference-phone .app-next-card {
+  transform-origin: top center;
+}
+
+.reference-phone .app-savings-card {
+  min-height: 145px;
+  padding: 17px 18px;
+  margin-bottom: 14px;
+}
+
+.reference-phone .app-spend-card {
+  min-height: 108px;
+  padding: 14px;
+  margin-bottom: 13px;
+}
+
+.reference-phone .app-glance-card {
+  min-height: 105px;
+  padding: 12px;
+}
+
+.reference-phone .app-next-card {
+  min-height: 62px;
+}
+
+.reference-phone .app-section-label {
+  margin-top: 13px;
+}
+
+@media (max-width: 1100px) {
+  .reference-phone {
+    width: 350px;
+    height: 710px;
+  }
+}
+
+@media (max-width: 850px) {
+  .reference-phone {
+    width: min(360px, 88vw);
+    height: 730px;
+    transform: rotateZ(2deg);
+  }
+}
+
+/* Hero headline: more breathing room + white first lines */
+.reference-title {
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+}
+
+.reference-title span {
+  color: #ffffff;
+  margin-bottom: 5px;
+}
+
+.reference-title .reference-money {
+  color: #5ee7a8;
+  margin-bottom: 0;
+}
+
+/* More letter spacing in hero headline */
+.reference-title {
+  letter-spacing: -0.005em;
+}
+
+.reference-title span {
+  letter-spacing: -0.005em;
+}
+
+/* Phone header: logo left, Savlivo + slogan centered vertically to its right */
+.reference-phone .preview-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.reference-phone .preview-brand img {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  object-fit: cover;
+}
+
+.reference-phone .preview-brand-name,
+.reference-phone .preview-brand-slogan {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  line-height: 1;
+}
+
+.reference-phone .preview-brand-name {
+  font-size: 16px;
+  font-weight: 850;
+  color: #ffffff;
+}
+
+.reference-phone .preview-brand-slogan {
+  margin-left: -4px;
+  font-size: 8px;
+  font-weight: 600;
+  color: #9aa6ad;
+  white-space: nowrap;
+}
+
+.reference-phone .preview-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Homepage Savlivo brand: bottom-left */
+.reference-nav .reference-brand {
+  position: fixed;
+  left: 32px;
+  bottom: 28px;
+  top: auto;
+  z-index: 100;
+}
+
+.reference-nav .reference-brand .brand-mark {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+}
+
+.reference-nav .reference-brand .brand-word {
+  font-size: 30px;
+}
+
+@media (max-width: 650px) {
+  .reference-nav .reference-brand {
+    left: 18px;
+    bottom: 18px;
+  }
+
+  .reference-nav .reference-brand .brand-mark {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+
+  .reference-nav .reference-brand .brand-word {
+    font-size: 25px;
+  }
+}
+
+/* REVERT: keep the main/header Savlivo brand in its original position */
+.reference-nav .reference-brand {
+  position: static;
+  left: auto;
+  bottom: auto;
+  top: auto;
+  z-index: auto;
+}
+
+.reference-nav .reference-brand .brand-mark {
+  width: 70px;
+  height: 70px;
+  flex: 0 0 70px;
+}
+
+.reference-nav .reference-brand .brand-word {
+  font-size: 45px;
+}
+
+/* Bottom-left/footer Savlivo logo — before the Savlivo text */
+footer .brand,
+.footer .brand,
+footer .footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+footer .brand::before,
+.footer .brand::before,
+footer .footer-brand::before {
+  content: "";
+  display: block;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 9px;
+  background: url("./assets/logo.png") center / cover no-repeat;
+}
+
+@media (max-width: 650px) {
+  .reference-nav .reference-brand {
+    position: static;
+    left: auto;
+    bottom: auto;
+  }
+
+  .reference-nav .reference-brand .brand-mark {
+    width: 50px;
+    height: 50px;
+    flex-basis: 50px;
+  }
+
+  .reference-nav .reference-brand .brand-word {
+    font-size: 31px;
+  }
+}
+
+/* Footer: use real Savlivo logo instead of S placeholder */
+footer .brand::before,
+.footer .brand::before,
+footer .footer-brand::before {
+  content: none !important;
+  display: none !important;
+}
+
+footer .brand-mark img,
+footer .footer-logo img,
+.footer .brand-mark img,
+.footer .footer-logo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+/* Phone header polish:
+   - slogan closer to Savlivo
+   - slogan green
+   - PREMIUM as green pill
+*/
+
+.reference-phone .preview-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reference-phone .preview-brand-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 850;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.reference-phone .preview-brand-slogan {
+  margin-left: -3px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  color: #5ee7a8;
+  white-space: nowrap;
+}
+
+/* Green PREMIUM pill */
+.reference-phone .preview-premium-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(94, 231, 168, 0.32);
+  border-radius: 999px;
+  background: rgba(25, 88, 61, 0.72);
+  color: #5ee7a8;
+  font-size: 7px;
+  font-weight: 850;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+/* Phone: bring Savlivo + slogan much closer to logo */
+.reference-phone .preview-brand {
+  gap: 2px;
+}
+
+.reference-phone .preview-brand-name {
+  margin-left: 1px;
+  margin-right: 0;
+}
+
+.reference-phone .preview-brand-slogan {
+  margin-left: -1px;
+}
+
+
+/* Phone: bring branding even closer to logo */
+.reference-phone .preview-brand {
+  gap: 0;
+}
+
+.reference-phone .preview-brand-name {
+  margin-left: -2px;
+}
+
+.reference-phone .preview-brand-slogan {
+  margin-left: -3px;
+}
+
+/* Phone navigation — app-style icons */
+.reference-phone .preview-nav-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.reference-phone .preview-nav-item {
+  color: #7f8b91;
+}
+
+.reference-phone .preview-nav-item.active {
+  color: #5ee7a8;
+}
+
+.reference-phone .preview-nav-item.active .preview-nav-icon {
+  background: rgba(25, 88, 61, 0.72);
+  color: #5ee7a8;
+}
+
+/* Filled Home icon like the app */
+.reference-phone .preview-nav-item.active:first-child svg {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+/* AI sparkle */
+.reference-phone .preview-nav-item:nth-child(5) svg {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+/* Move everything below the top navigation slightly down */
+.reference-hero {
+  padding-top: 75px;
+}
+
+
+/* Richer final CTA */
+.cta {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr);
+  gap: 56px;
+  align-items: center;
+  text-align: left !important;
+}
+
+.cta-main {
+  position: relative;
+  z-index: 2;
+}
+
+.cta-main > p {
+  max-width: 680px;
+}
+
+.cta-points {
+  display: grid;
+  gap: 14px;
+  margin: 28px 0 30px;
+}
+
+.cta-point {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cta-point-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(94, 231, 168, 0.14);
+  color: #5ee7a8;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.cta-point div {
+  display: grid;
+  gap: 3px;
+}
+
+.cta-point strong {
+  color: #fff;
+  font-size: 15px;
+}
+
+.cta-point span:last-child {
+  color: #9aa6ad;
+  font-size: 14px;
+}
+
+.cta-summary {
+  position: relative;
+  z-index: 2;
+  padding: 26px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 24px;
+  background: rgba(5, 18, 14, .42);
+  backdrop-filter: blur(12px);
+}
+
+.cta-summary-label {
+  display: block;
+  margin-bottom: 18px;
+  color: #5ee7a8;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .12em;
+}
+
+.cta-summary-item {
+  display: grid;
+  gap: 5px;
+  padding: 17px 0;
+}
+
+.cta-summary-item + .cta-summary-item {
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.cta-summary-item strong {
+  color: #fff;
+  font-size: 18px;
+}
+
+.cta-summary-item span {
+  color: #98a4aa;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+@media (max-width: 850px) {
+  .cta {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+}
+
+/* Align the WITH SAVLIVO card with the main CTA information */
+.cta {
+  align-items: start !important;
+}
+
+.cta-summary {
+  margin-top: 34px;
+  align-self: start;
+}
+
+/* Revert previous CTA alignment */
+.cta {
+  align-items: center !important;
+}
+
+.cta-summary {
+  margin-top: 0 !important;
+  align-self: auto !important;
+}
+
+/* Move WITH SAVLIVO up to align with "Take control of your subscriptions" */
+.cta-summary {
+  transform: translateY(-38px);
+}
+
+@media (max-width: 850px) {
+  .cta-summary {
+    transform: none;
+  }
+}
+
+/* WITH SAVLIVO — smaller and higher */
+.cta-summary {
+  max-width: 330px;
+  width: 100%;
+  justify-self: end;
+  padding: 20px 22px;
+  border-radius: 20px;
+  transform: translateY(-95px);
+}
+
+.cta-summary-label {
+  margin-bottom: 10px;
+}
+
+.cta-summary-item {
+  gap: 3px;
+  padding: 12px 0;
+}
+
+.cta-summary-item strong {
+  font-size: 16px;
+}
+
+.cta-summary-item span {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+@media (max-width: 850px) {
+  .cta-summary {
+    max-width: none;
+    justify-self: stretch;
+    transform: none;
+  }
+}
+
+/* Final CTA OUTER green card — smaller/less tall */
+.cta {
+  min-height: 0 !important;
+  padding-top: 55px !important;
+  padding-bottom: 55px !important;
+}
+
+/* Restore WITH SAVLIVO inner card size */
+.cta-summary {
+  max-width: none;
+  width: auto;
+  padding: 26px;
+  border-radius: 24px;
+  transform: translateY(-70px);
+}
+
+.cta-summary-label {
+  margin-bottom: 18px;
+}
+
+.cta-summary-item {
+  gap: 5px;
+  padding: 17px 0;
+}
+
+.cta-summary-item strong {
+  font-size: 18px;
+}
+
+.cta-summary-item span {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+@media (max-width: 850px) {
+  .cta {
+    padding-top: 40px !important;
+    padding-bottom: 40px !important;
+  }
+
+  .cta-summary {
+    transform: none;
+  }
+}
+
+/* Move WITH SAVLIVO card upward into the lighter green area */
+.cta-summary {
+  transform: translateY(-135px) !important;
+}
+
+@media (max-width: 850px) {
+  .cta-summary {
+    transform: none !important;
+  }
+}
+
+/* WITH SAVLIVO — position directly to the left of the intro text area */
+.cta {
+  position: relative;
+}
+
+.cta-summary {
+  position: absolute !important;
+  right: 55px;
+  top: 120px;
+  width: 340px;
+  transform: none !important;
+  margin: 0 !important;
+}
+
+@media (max-width: 850px) {
+  .cta-summary {
+    position: static !important;
+    width: auto;
+    transform: none !important;
+  }
+}
+
+/* WITH SAVLIVO — left side of the CTA card, not overlapping text */
+.cta {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: 340px minmax(0, 1fr) !important;
+  gap: 55px !important;
+  align-items: start !important;
+}
+
+/* Main "Take control..." content on the right */
+.cta-main {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+/* WITH SAVLIVO card on the left */
+.cta-summary {
+  position: static !important;
+  grid-column: 1;
+  grid-row: 1;
+  width: 100% !important;
+  max-width: 340px !important;
+  margin: 42px 0 0 !important;
+  transform: none !important;
+  justify-self: start !important;
+  align-self: start !important;
+}
+
+@media (max-width: 850px) {
+  .cta {
+    grid-template-columns: 1fr !important;
+    gap: 30px !important;
+  }
+
+  .cta-main,
+  .cta-summary {
+    grid-column: 1;
+  }
+
+  .cta-main {
+    grid-row: 1;
+  }
+
+  .cta-summary {
+    grid-row: 2;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+}
+
+/* Align bottom of WITH SAVLIVO card with Coming to the App Store button */
+.cta {
+  align-items: stretch !important;
+}
+
+.cta-summary {
+  align-self: end !important;
+  margin: 0 !important;
+}
+
+.cta-main {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Keep App Store button at the bottom of the right column */
+.cta-main > .button {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+@media (max-width: 850px) {
+  .cta-summary {
+    align-self: auto !important;
+  }
+
+  .cta-main {
+    display: block;
+  }
+}
+
+/* WITH SAVLIVO card — slightly lower */
+.cta-summary {
+  transform: translateY(18px) !important;
+}
+
+@media (max-width: 850px) {
+  .cta-summary {
+    transform: none !important;
+  }
+}
+
+/* WITH SAVLIVO card — move slightly up */
+.cta-summary {
+  transform: translateY(-10px) !important;
+}
+
+@media (max-width: 850px) {
+  .cta-summary {
+    transform: none !important;
+  }
+}
+
+/* =========================================================
+   Community savings tracker
+   ========================================================= */
+
+.community-savings {
+  width: min(920px, calc(100% - 40px));
+  margin: 90px auto;
+  padding: 64px 40px 58px;
+  text-align: center;
+  border: 1px solid rgba(94, 231, 168, 0.10);
+  border-radius: 30px;
+  background:
+    radial-gradient(
+      circle at 50% 45%,
+      rgba(25, 88, 61, 0.22),
+      transparent 55%
+    ),
+    rgba(8, 20, 17, 0.52);
+  box-shadow:
+    0 35px 80px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.community-savings-icon {
+  height: 46px;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 5px;
+  margin-bottom: 18px;
+}
+
+.community-savings-icon span {
+  width: 8px;
+  display: block;
+  border-radius: 999px;
+  background: #5ee7a8;
+  box-shadow: 0 0 22px rgba(94, 231, 168, 0.18);
+}
+
+.community-savings-icon span:nth-child(1) {
+  height: 18px;
+}
+
+.community-savings-icon span:nth-child(2) {
+  height: 30px;
+}
+
+.community-savings-icon span:nth-child(3) {
+  height: 44px;
+}
+
+.community-savings-label {
+  margin-bottom: 18px;
+  color: #5ee7a8;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.18em;
+}
+
+.community-savings h2 {
+  max-width: 720px;
+  margin: 0 auto 22px;
+  color: #ffffff;
+  font-size: clamp(32px, 4vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+
+.community-savings-total {
+  margin: 0 auto 27px;
+  color: #ffffff;
+  font-size: clamp(58px, 8vw, 92px);
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.055em;
+  font-variant-numeric: tabular-nums;
+}
+
+.community-savings-bar {
+  width: min(680px, 100%);
+  height: 14px;
+  margin: 0 auto 22px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(94, 231, 168, 0.10);
+}
+
+.community-savings-bar-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    #19583d,
+    #5ee7a8
+  );
+  transition: width 1.2s cubic-bezier(.22, 1, .36, 1);
+}
+
+.community-savings > p {
+  margin: 0;
+  color: #87949c;
+  font-size: 15px;
+}
+
+@media (max-width: 650px) {
+  .community-savings {
+    margin: 60px auto;
+    padding: 48px 22px 44px;
+    border-radius: 24px;
+  }
+
+  .community-savings-total {
+    font-size: clamp(50px, 16vw, 72px);
+  }
+}
+
+/* =========================================================
+   DOWNLOAD CTA — clean responsive layout
+   Desktop: two columns
+   Mobile/tablet: one column
+   ========================================================= */
+
+#download.cta {
+  min-height: 0 !important;
+  padding: 42px !important;
+  grid-template-columns: minmax(0, 1fr) 340px !important;
+  gap: 55px !important;
+  align-items: start !important;
+  overflow: hidden;
+}
+
+#download .cta-main,
+#download .cta-summary {
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+}
+
+#download .cta-main {
+  width: 100% !important;
+}
+
+#download .cta-main > p {
+  width: 100%;
+  max-width: 680px;
+}
+
+#download .cta-points {
+  margin-top: 24px;
+  margin-bottom: 24px;
+  gap: 10px;
+}
+
+#download .cta-point {
+  min-width: 0;
+}
+
+#download .cta-point div {
+  min-width: 0;
+}
+
+#download .cta-summary {
+  width: 100% !important;
+  max-width: 340px !important;
+  padding: 20px 22px;
+  justify-self: end;
+}
+
+#download .cta-summary > * {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+#download .cta-summary-item {
+  margin: 0 !important;
+  padding: 12px 0 !important;
+}
+
+#download .cta-summary-item + .cta-summary-item {
+  border-top: 1px solid rgba(255,255,255,.09);
+}
+
+#download .cta-summary-item strong {
+  display: block;
+  margin: 0 0 5px !important;
+  line-height: 1.25 !important;
+  white-space: normal !important;
+}
+
+#download .cta-summary-item span,
+#download .cta-summary-item p {
+  display: block;
+  max-width: 100% !important;
+  margin: 0 !important;
+  line-height: 1.45 !important;
+  white-space: normal !important;
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 850px) {
+  #download.cta {
+    width: calc(100% - 28px) !important;
+    padding: 36px 24px !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 34px !important;
+  }
+
+  #download .cta-main,
+  #download .cta-summary {
+    width: 100% !important;
+    max-width: none !important;
+    justify-self: stretch !important;
+  }
+
+  #download .cta-main h2,
+  #download .cta-main > p,
+  #download .cta-point strong,
+  #download .cta-point span {
+    max-width: 100% !important;
+    white-space: normal !important;
+  }
+
+  #download .cta-summary {
+    padding: 22px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  #download.cta {
+    width: calc(100% - 20px) !important;
+    padding: 32px 20px !important;
+  }
+
+  #download .cta-summary {
+    padding: 20px !important;
+  }
+}
+
+/* Savlivo AI */
+.savlivo-ai-section {
+  width: min(1180px, calc(100% - 40px));
+  margin: 110px auto;
+  scroll-margin-top: 110px;
+}
+
+.savlivo-ai-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr);
+  gap: 70px;
+  align-items: center;
+  padding: 68px;
+  overflow: hidden;
+  border: 1px solid rgba(94, 231, 168, .12);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 80% 40%, rgba(25, 88, 61, .25), transparent 42%),
+    rgba(8, 20, 17, .72);
+  box-shadow: 0 35px 90px rgba(0, 0, 0, .22);
+}
+
+.savlivo-ai-copy h2 {
+  margin: 14px 0 20px;
+  color: #fff;
+  font-size: clamp(42px, 5vw, 68px);
+  line-height: .98;
+  letter-spacing: -.035em;
+}
+
+.savlivo-ai-copy > p {
+  max-width: 590px;
+  margin: 0;
+  color: #9aa6ac;
+  font-size: 17px;
+  line-height: 1.65;
+}
+
+.savlivo-ai-features {
+  display: grid;
+  gap: 22px;
+  margin-top: 38px;
+}
+
+.savlivo-ai-feature {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.ai-feature-icon {
+  display: flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(94, 231, 168, .18);
+  border-radius: 13px;
+  background: rgba(25, 88, 61, .35);
+  color: #5ee7a8;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .08em;
+}
+
+.savlivo-ai-feature strong {
+  display: block;
+  margin: 1px 0 5px;
+  color: #fff;
+  font-size: 16px;
+}
+
+.savlivo-ai-feature p {
+  margin: 0;
+  color: #849198;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.savlivo-ai-demo {
+  padding: 26px;
+  border: 1px solid rgba(94, 231, 168, .14);
+  border-radius: 26px;
+  background: rgba(5, 13, 11, .88);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, .32);
+}
+
+.ai-demo-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+
+.ai-orb {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8ff3c3, #2b9d6b 45%, #123d2c 72%);
+  box-shadow: 0 0 28px rgba(94, 231, 168, .18);
+}
+
+.ai-demo-header strong,
+.ai-demo-header span {
+  display: block;
+}
+
+.ai-demo-header strong {
+  color: #fff;
+  font-size: 14px;
+}
+
+.ai-demo-header div > span {
+  margin-top: 3px;
+  color: #75838a;
+  font-size: 11px;
+}
+
+.ai-message {
+  max-width: 88%;
+  margin-top: 22px;
+  padding: 15px 17px;
+  border-radius: 18px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ai-message.user {
+  margin-left: auto;
+  border-bottom-right-radius: 6px;
+  background: rgba(255, 255, 255, .07);
+  color: #dfe6e3;
+}
+
+.ai-message.assistant {
+  border: 1px solid rgba(94, 231, 168, .10);
+  border-bottom-left-radius: 6px;
+  background: rgba(25, 88, 61, .22);
+  color: #b9c5c0;
+}
+
+.ai-message-label {
+  display: block;
+  margin-bottom: 7px;
+  color: #5ee7a8;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .12em;
+}
+
+.ai-suggestion {
+  margin-top: 20px;
+  padding: 16px 18px;
+  border: 1px solid rgba(94, 231, 168, .14);
+  border-radius: 16px;
+  background: rgba(94, 231, 168, .045);
+}
+
+.ai-suggestion span,
+.ai-suggestion strong {
+  display: block;
+}
+
+.ai-suggestion span {
+  margin-bottom: 5px;
+  color: #708078;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.ai-suggestion strong {
+  color: #e8f3ee;
+  font-size: 13px;
+}
+
+.ai-input {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  padding: 13px 16px;
+  border: 1px solid rgba(255, 255, 255, .07);
+  border-radius: 14px;
+  color: #68766f;
+  font-size: 12px;
+}
+
+.ai-input span {
+  color: #5ee7a8;
+  font-size: 18px;
+}
+
+@media (max-width: 850px) {
+  .savlivo-ai-card {
+    grid-template-columns: 1fr;
+    gap: 45px;
+    padding: 42px 28px;
+  }
+
+  .savlivo-ai-section {
+    margin: 75px auto;
+  }
+}
+
+/* =========================================================
+   MID-WIDTH HERO REFINEMENT
+   Keep desktop composition on laptops / landscape tablets.
+   Stack only when the screen is genuinely narrow.
+   ========================================================= */
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .reference-nav {
+    display: grid !important;
+    grid-template-columns: auto 1fr auto !important;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .reference-links {
+    display: none !important;
+  }
+
+  .reference-download {
+    width: auto !important;
+    min-width: 150px;
+    justify-self: end !important;
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+
+  .reference-hero {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(310px, 0.82fr) !important;
+    gap: 24px !important;
+    align-items: center;
+    min-height: 720px;
+    padding-top: 55px !important;
+  }
+
+  .reference-hero-copy {
+    max-width: 520px;
+    margin: 0 !important;
+    padding-left: 0;
+    text-align: left !important;
+  }
+
+  .reference-eyebrow {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .reference-title {
+    max-width: 520px;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    font-size: clamp(58px, 7.1vw, 78px) !important;
+    line-height: 1 !important;
+  }
+
+  .reference-title span {
+    white-space: nowrap !important;
+  }
+
+  .reference-title .reference-money {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .reference-copy {
+    max-width: 500px;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    font-size: 18px !important;
+    line-height: 1.5;
+  }
+
+  .reference-actions {
+    justify-content: flex-start !important;
+  }
+
+  .reference-ios-button,
+  .reference-learn {
+    min-height: 52px;
+    padding-left: 25px;
+    padding-right: 25px;
+    font-size: 15px;
+  }
+
+  .reference-benefits {
+    max-width: 480px;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .reference-benefit {
+    padding-right: 18px;
+    font-size: 14px;
+  }
+
+  .reference-benefit + .reference-benefit {
+    padding-left: 18px;
+  }
+
+  .reference-note {
+    text-align: left !important;
+  }
+
+  .reference-phone-stage {
+    min-height: 680px !important;
+    margin-top: 0 !important;
+  }
+
+  .reference-phone {
+    width: clamp(305px, 32vw, 345px) !important;
+    height: clamp(625px, 65vw, 700px) !important;
+    transform:
+      perspective(1500px)
+      rotateY(-4deg)
+      rotateX(1deg)
+      rotateZ(2deg) !important;
+  }
+}
+
+/* Stack the hero only once space is actually tight. */
+@media (max-width: 760px) {
+  .reference-nav {
+    grid-template-columns: auto auto !important;
+  }
+
+  .reference-download {
+    width: auto !important;
+    justify-self: end !important;
+  }
+
+  .reference-hero {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* =========================================================
+   FINAL MOBILE HEADER
+   Never allow Download app to stretch across the header.
+   ========================================================= */
+
+@media (max-width: 760px) {
+  .reference-nav {
+    width: calc(100% - 28px) !important;
+    min-height: 76px !important;
+    padding: 10px 0 !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 14px !important;
+  }
+
+  .reference-brand {
+    flex: 0 1 auto !important;
+    min-width: 0;
+    gap: 9px !important;
+  }
+
+  .reference-brand .brand-mark {
+    width: 44px !important;
+    height: 44px !important;
+    flex: 0 0 44px !important;
+    border-radius: 12px !important;
+  }
+
+  .reference-brand .brand-word {
+    font-size: 28px !important;
+    line-height: 1 !important;
+    white-space: nowrap;
+  }
+
+  .reference-links {
+    display: none !important;
+  }
+
+  .reference-download {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 42px !important;
+
+    flex: 0 0 auto !important;
+    display: inline-flex !important;
+    justify-self: auto !important;
+
+    padding: 0 17px !important;
+
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .reference-brand .brand-mark {
+    width: 39px !important;
+    height: 39px !important;
+    flex-basis: 39px !important;
+  }
+
+  .reference-brand .brand-word {
+    font-size: 24px !important;
+  }
+
+  .reference-download {
+    min-height: 39px !important;
+    padding: 0 13px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* =========================================================
+   MID-WIDTH HEADER — isolated fix
+   Brand left, Download app intrinsic right.
+   ========================================================= */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .reference-nav {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+
+  .reference-links {
+    display: none !important;
+  }
+
+  .reference-download {
+    width: max-content !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    justify-self: end !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* =========================================================
+   HERO TITLE — stable resizing
+   Keep the 3-line composition clean at every width.
+   ========================================================= */
+
+.reference-title {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.reference-title span {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* Mid-width: reduce title earlier instead of letting it crowd the phone. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .reference-title {
+    font-size: clamp(54px, 6.4vw, 72px) !important;
+    line-height: 0.98 !important;
+    max-width: 460px !important;
+  }
+
+  .reference-title span {
+    white-space: nowrap !important;
+  }
+}
+
+/* Narrow screens: keep the intended 3 lines, but scale to viewport. */
+@media (max-width: 760px) {
+  .reference-title {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: clamp(48px, 14.5vw, 72px) !important;
+    line-height: 0.98 !important;
+  }
+
+  .reference-title span {
+    width: fit-content !important;
+    max-width: 100% !important;
+    white-space: nowrap !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .reference-title {
+    font-size: clamp(43px, 13.8vw, 54px) !important;
+  }
+}
+
+/* =========================================================
+   HOW IT WORKS — responsive columns
+   Desktop: 4 across
+   Tablet: 2 x 2
+   Mobile: 1 column
+   ========================================================= */
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  #how .steps {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 42px 28px !important;
+  }
+
+  #how .step {
+    min-width: 0 !important;
+    width: auto !important;
+  }
+}
+
+@media (max-width: 760px) {
+  #how .steps {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0 !important;
+  }
+
+  #how .step {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 28px 0 !important;
+  }
+
+  #how .step + .step {
+    border-top: 1px solid rgba(94, 231, 168, 0.18);
+  }
+
+  #how .step h3 {
+    max-width: none !important;
+    white-space: normal !important;
+  }
+
+  #how .step p {
+    max-width: 520px !important;
+  }
+}
+
+/* =========================================================
+   HOW IT WORKS — laptop correction
+   Keep all 4 steps on one row on normal laptop widths.
+   ========================================================= */
+
+@media (min-width: 900px) {
+  #how .steps {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-auto-flow: row !important;
+    gap: 18px !important;
+  }
+
+  #how .step {
+    width: auto !important;
+    min-width: 0 !important;
+    grid-row: auto !important;
+  }
+
+  #how .step h3 {
+    white-space: normal !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 899px) {
+  #how .steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* =========================================================
+   HERO PLATFORM DOWNLOAD BUTTONS
+   ========================================================= */
+
+.platform-download {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.platform-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.platform-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.reference-ios-button .platform-icon {
+  color: inherit;
+}
+
+.reference-learn .platform-icon {
+  color: inherit;
+}
+
+@media (max-width: 760px) {
+  .platform-download {
+    white-space: nowrap;
+  }
+
+  .platform-icon {
+    width: 18px;
+    height: 18px;
+    flex-basis: 18px;
+  }
+}
+
+/* Keep platform download button labels on one line */
+.reference-actions {
+  flex-wrap: wrap !important;
+}
+
+.platform-download {
+  width: max-content !important;
+  min-width: max-content !important;
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+
+.platform-download span {
+  white-space: nowrap !important;
+}
+
+@media (max-width: 760px) {
+  .reference-actions {
+    align-items: flex-start !important;
+  }
+
+  .platform-download {
+    width: max-content !important;
+    min-width: max-content !important;
+    flex: 0 0 auto !important;
+  }
+}
+
+/* =========================================================
+   PRE-LAUNCH TEASER MODE
+   Keep full site in source; show only hero + footer for now.
+   ========================================================= */
+
+.prelaunch-note {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.prelaunch-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(94, 231, 168, 0.26);
+  border-radius: 999px;
+  background: rgba(25, 88, 61, 0.42);
+  color: #5ee7a8;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.prelaunch-note p {
+  margin: 0;
+  color: #9aa6ad;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.reference-actions .platform-download {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0.92;
+}
+
+/* Hide full product site until public app launch. */
+.trust-strip,
+.features,
+#how,
+.savlivo-ai-section,
+#privacy,
+#download,
+.community-savings {
+  display: none !important;
+}
+
+/* Give teaser hero a complete landing-page feel. */
+.reference-hero {
+  min-height: calc(100vh - 110px);
+}
+
+footer {
+  margin-top: 0 !important;
+}
+
+@media (max-width: 760px) {
+  .prelaunch-note {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .reference-hero {
+    min-height: auto;
+    padding-bottom: 70px;
+  }
+}
+
+/* Pre-launch: hide header download button */
+.reference-nav .reference-download {
+  display: none !important;
+}
+
+/* Pre-launch: full website launch note */
+.full-site-note {
+  max-width: 540px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.full-site-note strong,
+.full-site-note span {
+  display: block;
+}
+
+.full-site-note strong {
+  margin-bottom: 5px;
+  color: #e9efec;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.full-site-note span {
+  color: #7f8b86;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .full-site-note {
+    max-width: 100%;
+    margin-top: 18px;
+  }
+}
+
+/* Pre-launch: navigation labels are informational only */
+.reference-links a {
+  pointer-events: none !important;
+  cursor: default !important;
+  text-decoration: none !important;
+}
