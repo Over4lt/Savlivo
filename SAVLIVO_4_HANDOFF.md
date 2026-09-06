@@ -1,5 +1,42 @@
 # Savlivo 5 — Handoff
 
+## Do this first
+
+1. Run:
+   `git status --short`
+
+2. Run:
+   `git --no-pager log -8 --oneline`
+
+3. Confirm local HEAD is still:
+   `e585ec6 Add robots and sitemap for teaser site`
+
+4. Confirm whether the three website commits have been pushed to `origin/main`:
+   - `52c9651 Add Savlivo pre-launch teaser website`
+   - `9c3afa3 Polish teaser mobile layout`
+   - `e585ec6 Add robots and sitemap for teaser site`
+
+5. Immediate active task:
+   **Create and publish a production-quality Privacy Policy at `savlivo.com/privacy` that matches the actual Savlivo implementation.**
+
+6. Before drafting legal/privacy claims, inspect the current app/API implementation for:
+   - account and authentication data
+   - subscription and savings data
+   - Savlivo AI / Groq processing
+   - voice/audio transcription
+   - notifications
+   - biometrics
+   - account deletion and retention
+   - analytics/tracking/advertising
+   - third-party processors
+   - user rights and data export/deletion behavior
+
+7. After the Privacy Policy is live:
+   **continue App Store release preparation for the known-good TestFlight Build 7.**
+
+---
+
+
 ## Current state
 
 Savlivo has reached three important milestones:
