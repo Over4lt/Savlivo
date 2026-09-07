@@ -37,7 +37,9 @@ async function ensureStoreConnection() {
   }
 }
 
-export async function getAnnualPlanPrices() {
+export type BillingPeriod = "monthly" | "annual";
+
+export async function getPlanPrices() {
   if (Platform.OS !== "ios") {
     return null;
   }
@@ -46,7 +48,9 @@ export async function getAnnualPlanPrices() {
 
   const result = await fetchProducts({
     skus: [
+      products.manualMonthly,
       products.manualYearly,
+      products.premiumMonthly,
       products.premiumYearly
     ],
     type: "subs"
@@ -54,17 +58,31 @@ export async function getAnnualPlanPrices() {
 
   const fetched = result ?? [];
 
-  const manual = fetched.find(
-    (product) => product.id === products.manualYearly
-  );
-
-  const premium = fetched.find(
-    (product) => product.id === products.premiumYearly
-  );
+  const priceFor = (productId: string) =>
+    fetched.find((product) => product.id === productId)?.displayPrice ?? null;
 
   return {
-    manual: manual?.displayPrice ?? null,
-    premium: premium?.displayPrice ?? null
+    manual: {
+      monthly: priceFor(products.manualMonthly),
+      annual: priceFor(products.manualYearly)
+    },
+    premium: {
+      monthly: priceFor(products.premiumMonthly),
+      annual: priceFor(products.premiumYearly)
+    }
+  };
+}
+
+export async function getAnnualPlanPrices() {
+  const prices = await getPlanPrices();
+
+  if (!prices) {
+    return null;
+  }
+
+  return {
+    manual: prices.manual.annual,
+    premium: prices.premium.annual
   };
 }
 
@@ -98,7 +116,10 @@ async function verifyAndFinishPurchase(purchase: Purchase) {
   return result;
 }
 
-export async function purchasePlan(plan: "manual" | "premium") {
+export async function purchasePlan(
+  plan: "manual" | "premium",
+  billingPeriod: BillingPeriod = "annual"
+) {
   if (Platform.OS !== "ios") {
     throw new Error("ANDROID_BILLING_NOT_IMPLEMENTED");
   }
@@ -107,8 +128,12 @@ export async function purchasePlan(plan: "manual" | "premium") {
 
   const productId =
     plan === "manual"
-      ? products.manualYearly
-      : products.premiumYearly;
+      ? billingPeriod === "monthly"
+        ? products.manualMonthly
+        : products.manualYearly
+      : billingPeriod === "monthly"
+        ? products.premiumMonthly
+        : products.premiumYearly;
 
   return new Promise((resolve, reject) => {
     let settled = false;

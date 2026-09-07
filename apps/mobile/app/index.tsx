@@ -27,7 +27,7 @@ import DateTimePicker, {
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { api, clearToken, getToken, setToken } from "../src/api";
-import { getAnnualPlanPrices, purchasePlan } from "../src/billing";
+import { getPlanPrices, purchasePlan, type BillingPeriod } from "../src/billing";
 import {
   getSubscriptionManagementUrl,
   openProviderUrl,
@@ -987,11 +987,16 @@ export default function Home() {
   const biometricAuthenticatingRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
   const [plan, setPlan] = useState("VIEWER");
+  const [previewPlan, setPreviewPlan] = useState<"MANUAL" | "PREMIUM">("PREMIUM");
+  const effectivePlan = plan === "VIEWER" ? previewPlan : plan;
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("annual");
+  const [manualMonthlyPrice, setManualMonthlyPrice] = useState<string | null>(null);
   const [manualAnnualPrice, setManualAnnualPrice] = useState<string | null>(null);
+  const [premiumMonthlyPrice, setPremiumMonthlyPrice] = useState<string | null>(null);
   const [premiumAnnualPrice, setPremiumAnnualPrice] = useState<string | null>(null);
   const planDisplayName =
     plan === "VIEWER"
-      ? "Free"
+      ? "Preview"
       : plan === "MANUAL"
         ? "Manual"
         : plan === "PREMIUM"
@@ -2806,17 +2811,19 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
 
-    void getAnnualPlanPrices()
+    void getPlanPrices()
       .then((prices) => {
         if (cancelled || !prices) {
           return;
         }
 
-        setManualAnnualPrice(prices.manual);
-        setPremiumAnnualPrice(prices.premium);
+        setManualMonthlyPrice(prices.manual.monthly);
+        setManualAnnualPrice(prices.manual.annual);
+        setPremiumMonthlyPrice(prices.premium.monthly);
+        setPremiumAnnualPrice(prices.premium.annual);
       })
       .catch(() => {
-        // StoreKit price unavailable; keep fallback display price.
+        // StoreKit price unavailable; keep fallback display prices.
       });
 
     return () => {
@@ -3112,12 +3119,12 @@ export default function Home() {
 
   useEffect(() => {
     if (
-      plan !== "PREMIUM" &&
+      effectivePlan !== "PREMIUM" &&
       (screen === "autopilot" || screen === "ai")
     ) {
       setScreen("home");
     }
-  }, [plan, screen]);
+  }, [effectivePlan, screen]);
 
   useEffect(() => {
     if (screen !== "ai") return;
@@ -3505,10 +3512,30 @@ export default function Home() {
     setAuthed(false);
   }
 
+  function requireActivePlan(feature = "this feature") {
+    if (plan !== "VIEWER") {
+      return true;
+    }
+
+    Alert.alert(
+      "Preview mode",
+      `You're previewing ${previewPlan === "PREMIUM" ? "Premium" : "Manual"}. Choose a plan to use ${feature} with your own data.`,
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "View plans",
+          onPress: () => setScreen("plans")
+        }
+      ]
+    );
+
+    return false;
+  }
+
   async function upgrade(planName: "manual" | "premium") {
     setLoading(true);
     try {
-      await purchasePlan(planName);
+      await purchasePlan(planName, billingPeriod);
       await refresh();
       setScreen("home");
       Alert.alert(
@@ -3525,6 +3552,8 @@ export default function Home() {
   }
 
   async function addDemoSubscriptions() {
+    if (!requireActivePlan("subscriptions")) return;
+
     setLoading(true);
     try {
       const payloads = [
@@ -3652,6 +3681,7 @@ export default function Home() {
   async function confirmProviderStatus(
     result: "PAUSED" | "CANCELLED" | "ACTIVE" | "UNCHANGED"
   ) {
+    if (!requireActivePlan("subscription management")) return;
     if (!pendingProviderResult) return;
 
     if (result === "UNCHANGED") {
@@ -3703,6 +3733,8 @@ export default function Home() {
   }
 
   async function removeSubscription() {
+    if (!requireActivePlan("subscription management")) return;
+
     const targetId =
       editingSubscriptionIdRef.current ?? editingSubscriptionId;
 
@@ -3729,6 +3761,7 @@ export default function Home() {
   }
 
   async function confirmActionSheet() {
+    if (!requireActivePlan("subscription management")) return;
     if (!actionSheet) return;
 
     const { subscription, action } = actionSheet;
@@ -4776,6 +4809,7 @@ export default function Home() {
   }
 
   async function openAiGuidedAction() {
+    if (!requireActivePlan("Premium actions")) return;
     if (!aiGuidedAction) return;
 
     const { subscription, action } = aiGuidedAction;
@@ -5093,6 +5127,8 @@ export default function Home() {
   async function askSavlivo(
     questionOverride?: unknown
   ) {
+    if (!requireActivePlan("Savlivo AI")) return;
+
     const question =
       (
         typeof questionOverride === "string"
@@ -6018,7 +6054,7 @@ export default function Home() {
         icon: "trending-up-outline",
         activeIcon: "trending-up"
       },
-      ...(plan === "PREMIUM"
+      ...(effectivePlan === "PREMIUM"
         ? [
             {
               key: "autopilot" as Screen,
@@ -6822,6 +6858,8 @@ export default function Home() {
   }
 
   async function saveServiceForm() {
+    if (!requireActivePlan("subscription management")) return;
+
     const monthly = Number(monthlyPriceInput);
     if (!Number.isFinite(monthly) || monthly <= 0) {
       Alert.alert(
@@ -7395,8 +7433,71 @@ export default function Home() {
           <View style={[styles.planIntro, { backgroundColor: theme.surface }]}>
             <Text style={[styles.planPageTitle, { color: theme.text }]}>Choose your Savlivo plan</Text>
             <Text style={[styles.muted, { color: theme.muted }]}>
-              Start free to keep an overview. Manual unlocks subscription management and savings tools. Premium adds Savlivo AI and advanced insights.
+              Preview Savlivo before subscribing. Manual unlocks the self-service tools. Premium adds Savlivo AI, Autopilot and advanced insights.
             </Text>
+
+            {plan === "VIEWER" ? (
+              <View style={{ marginTop: 14 }}>
+                <Text style={[styles.planCopy, { color: theme.muted, marginBottom: 8 }]}>
+                  Preview mode
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable
+                    onPress={() => setPreviewPlan("MANUAL")}
+                    style={[
+                      styles.backButton,
+                      {
+                        flex: 1,
+                        borderRadius: 14,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor:
+                          previewPlan === "MANUAL"
+                            ? visual.greenHero
+                            : theme.surface,
+                        borderColor:
+                          previewPlan === "MANUAL"
+                            ? visual.greenMuted
+                            : theme.border
+                      }
+                    ]}
+                  >
+                    <Text style={[styles.backText, { color: theme.text }]}>
+                      Manual Preview
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => setPreviewPlan("PREMIUM")}
+                    style={[
+                      styles.backButton,
+                      {
+                        flex: 1,
+                        borderRadius: 14,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor:
+                          previewPlan === "PREMIUM"
+                            ? visual.greenHero
+                            : theme.surface,
+                        borderColor:
+                          previewPlan === "PREMIUM"
+                            ? visual.greenMuted
+                            : theme.border
+                      }
+                    ]}
+                  >
+                    <Text style={[styles.backText, { color: theme.text }]}>
+                      Premium Preview
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <Text style={[styles.planCopy, { color: theme.muted, marginTop: 10 }]}>
+                  You are previewing {previewPlan === "PREMIUM" ? "Premium" : "Manual"}. Upgrade to use these features with your own data.
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           <View
@@ -7414,10 +7515,10 @@ export default function Home() {
               }
             ]}
           >
-            <Text style={[styles.planName, { color: theme.text }]}>Free</Text>
-            <Text style={[styles.planPrice, { color: theme.text }]}>Free</Text>
+            <Text style={[styles.planName, { color: theme.text }]}>Preview</Text>
+            <Text style={[styles.planPrice, { color: theme.text }]}>Preview mode</Text>
             <Text style={[styles.planCopy, { color: theme.muted }]}>
-              Keep an eye on your subscriptions, recurring spending and upcoming renewals.
+              Explore the Manual and Premium experiences before subscribing. Real actions require an active plan.
             </Text>
             {plan === "VIEWER" ? (
               <Text style={[styles.planCopy, { color: theme.muted }]}>
@@ -7425,6 +7526,65 @@ export default function Home() {
               </Text>
             ) : null}
           </View>
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              marginTop: 24,
+              marginBottom: 4
+            }}
+          >
+            <Pressable
+              onPress={() => setBillingPeriod("monthly")}
+              style={[
+                styles.backButton,
+                {
+                  flex: 1,
+                  borderRadius: 14,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor:
+                    billingPeriod === "monthly"
+                      ? visual.greenHero
+                      : theme.surface,
+                  borderColor:
+                    billingPeriod === "monthly"
+                      ? visual.greenMuted
+                      : theme.border
+                }
+              ]}
+            >
+              <Text style={[styles.backText, { color: theme.text }]}>
+                Monthly
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setBillingPeriod("annual")}
+              style={[
+                styles.backButton,
+                {
+                  flex: 1,
+                  borderRadius: 14,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor:
+                    billingPeriod === "annual"
+                      ? visual.greenHero
+                      : theme.surface,
+                  borderColor:
+                    billingPeriod === "annual"
+                      ? visual.greenMuted
+                      : theme.border
+                }
+              ]}
+            >
+              <Text style={[styles.backText, { color: theme.text }]}>
+                Annual
+              </Text>
+            </Pressable>
+          </View>
+
           <Pressable
             style={[
               styles.planOption,
@@ -7443,7 +7603,9 @@ export default function Home() {
           >
             <Text style={[styles.planName, { color: theme.text }]}>Manual</Text>
             <Text style={[styles.planPrice, { color: theme.text }]}>
-              {manualAnnualPrice ? `${manualAnnualPrice}/year` : "Loading price…"}
+              {billingPeriod === "monthly"
+                ? `${manualMonthlyPrice ?? "kr29"}/month`
+                : `${manualAnnualPrice ?? "kr249"}/year`}
             </Text>
             <Text style={[styles.planCopy, { color: theme.muted }]}>
               Self-service toolbox: manage subscriptions, renewal dates and savings yourself.
@@ -7481,7 +7643,9 @@ export default function Home() {
                 { color: theme.text }
               ]}
             >
-              {premiumAnnualPrice ? `${premiumAnnualPrice}/year` : "Loading price…"}
+              {billingPeriod === "monthly"
+                ? `${premiumMonthlyPrice ?? "kr49"}/month`
+                : `${premiumAnnualPrice ?? "kr499"}/year`}
             </Text>
             <Text
               style={[
