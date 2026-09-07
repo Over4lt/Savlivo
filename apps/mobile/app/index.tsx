@@ -1004,6 +1004,7 @@ export default function Home() {
   const biometricAuthenticatingRef = useRef(false);
   const appStateRef = useRef(AppState.currentState);
   const [plan, setPlan] = useState("VIEWER");
+  const [userId, setUserId] = useState<string | null>(null);
   const [previewPlan, setPreviewPlan] = useState<"MANUAL" | "PREMIUM">("PREMIUM");
   const effectivePlan = plan === "VIEWER" ? previewPlan : plan;
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("annual");
@@ -1201,6 +1202,10 @@ export default function Home() {
   ] = useState(
     emptyAssistantPreferences
   );
+  const [
+    aiPreferencesLoadedUserId,
+    setAiPreferencesLoadedUserId
+  ] = useState<string | null>(null);
   const [aiMessages, setAiMessages] = useState<Array<{ role: "assistant" | "user"; text: string }>>([
     { role: "assistant", text: "Hi — I can help you set up Savlivo, troubleshoot prices and renewal dates, and decide what to keep, pause or cancel." }
   ]);
@@ -3024,8 +3029,7 @@ export default function Home() {
           savedCurrency,
           savedLanguage,
           savedOnboardingComplete,
-          savedRegionalOverrides,
-          savedAiPreferences
+          savedRegionalOverrides
         ] = await Promise.all([
             AsyncStorage.getItem("savlivo_theme"),
             AsyncStorage.getItem("savlivo_country_code"),
@@ -3035,32 +3039,8 @@ export default function Home() {
             AsyncStorage.getItem("savlivo_onboarding_complete"),
             AsyncStorage.getItem(
               "savlivo_manual_regional_price_overrides"
-            ),
-            AsyncStorage.getItem("savlivo_ai_preferences")
+            )
           ]);
-
-        if (savedAiPreferences) {
-          try {
-            const parsed = JSON.parse(savedAiPreferences);
-            if (
-              parsed &&
-              typeof parsed === "object" &&
-              Array.isArray(parsed.protectedSubscriptionIds)
-            ) {
-              setAiPreferences({
-                ...emptyAssistantPreferences,
-                ...parsed,
-                protectedSubscriptionIds:
-                  parsed.protectedSubscriptionIds.filter(
-                    (id: unknown): id is string =>
-                      typeof id === "string"
-                  )
-              });
-            }
-          } catch {
-            // Ignore invalid locally stored AI preferences.
-          }
-        }
 
         if (savedRegionalOverrides) {
           try {
@@ -3279,13 +3259,77 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!preferencesHydrated) return;
+    if (!preferencesHydrated || !userId) {
+      setAiPreferencesLoadedUserId(null);
+      setAiPreferences(emptyAssistantPreferences);
+      return;
+    }
+
+    let cancelled = false;
+    const storageKey = `savlivo_ai_preferences_${userId}`;
+
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(storageKey);
+
+        if (cancelled) return;
+
+        if (!saved) {
+          setAiPreferences(emptyAssistantPreferences);
+          setAiPreferencesLoadedUserId(userId);
+          return;
+        }
+
+        const parsed = JSON.parse(saved);
+
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          Array.isArray(parsed.protectedSubscriptionIds)
+        ) {
+          setAiPreferences({
+            ...emptyAssistantPreferences,
+            ...parsed,
+            protectedSubscriptionIds:
+              parsed.protectedSubscriptionIds.filter(
+                (id: unknown): id is string =>
+                  typeof id === "string"
+              )
+          });
+        } else {
+          setAiPreferences(emptyAssistantPreferences);
+        }
+      } catch {
+        setAiPreferences(emptyAssistantPreferences);
+      } finally {
+        if (!cancelled) {
+          setAiPreferencesLoadedUserId(userId);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [preferencesHydrated, userId]);
+
+  useEffect(() => {
+    if (
+      !userId ||
+      aiPreferencesLoadedUserId !== userId
+    ) {
+      return;
+    }
 
     AsyncStorage.setItem(
-      "savlivo_ai_preferences",
+      `savlivo_ai_preferences_${userId}`,
       JSON.stringify(aiPreferences)
     ).catch(() => {});
-  }, [aiPreferences, preferencesHydrated]);
+  }, [
+    aiPreferences,
+    aiPreferencesLoadedUserId,
+    userId
+  ]);
 
   useEffect(() => {
     if (!preferencesHydrated) return;
@@ -3556,7 +3600,10 @@ export default function Home() {
   }, [authed, items]);
 
   async function refresh() {
-    const me = await api<{ plan: string }>("/v1/me");
+    const me = await api<{
+      user: { id: string; email: string };
+      plan: string;
+    }>("/v1/me");
     const subs = await api<{ items: Subscription[] }>("/v1/subscriptions");
 
     const deduped = new Map<string, Subscription>();
@@ -3584,6 +3631,7 @@ export default function Home() {
       }
     }
 
+    setUserId(me.user.id);
     setPlan(me.plan);
     setItems([...deduped.values()]);
   }
@@ -3793,6 +3841,9 @@ export default function Home() {
     setPassword("");
     setShowPassword(false);
     setItems([]);
+    setUserId(null);
+    setAiPreferencesLoadedUserId(null);
+    setAiPreferences(emptyAssistantPreferences);
     setPlan("VIEWER");
     setScreen("home");
     setAuthed(false);
