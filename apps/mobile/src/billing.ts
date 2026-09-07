@@ -1,4 +1,4 @@
-import { Alert, Platform } from "react-native";
+import { Platform } from "react-native";
 
 import {
   fetchProducts,
@@ -16,7 +16,7 @@ export const products = {
   manualMonthly: "com.thomashodne.savlivo.manual.monthly",
   manualYearly: "com.thomashodne.savlivo.manual.yearly",
   premiumMonthly: "com.thomashodne.savlivo.premium.monthly",
-  premiumYearly: "com.thomashodne.savlivo.premium.yearly"
+  premiumYearly: "com.thomashodne.savlivo.premium.annual"
 } as const;
 
 let connectionPromise: Promise<boolean> | null = null;
@@ -57,15 +57,6 @@ export async function getPlanPrices() {
   });
 
   const fetched = result ?? [];
-
-  Alert.alert(
-    "StoreKit diagnostics",
-    fetched.length
-      ? `Fetched ${fetched.length} product(s):\n\n${fetched
-          .map((product) => product.id)
-          .join("\n")}`
-      : "Fetched 0 products from StoreKit."
-  );
 
   const priceFor = (productId: string) =>
     fetched.find((product) => product.id === productId)?.displayPrice ?? null;

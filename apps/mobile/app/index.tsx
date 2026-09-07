@@ -3280,6 +3280,7 @@ export default function Home() {
 
   const visual = {
     green: darkMode ? "#32E58A" : "#22D978",
+    greenText: darkMode ? "#32E58A" : "#0F9958",
     greenSoft: darkMode ? "#385F4C" : "#EDF9F2",
     greenMuted: darkMode ? "#86F2B9" : "#0F9958",
     greenHero: darkMode ? "#426E58" : "#D5F4E3",
@@ -7208,7 +7209,7 @@ export default function Home() {
             <Text
               style={[
                 styles.modernSavedValue,
-                { color: visual.green }
+                { color: visual.greenText }
               ]}
             >
               {formatFinancialAggregate(
@@ -7604,8 +7605,8 @@ export default function Home() {
             <Text style={[styles.planName, { color: theme.text }]}>Manual</Text>
             <Text style={[styles.planPrice, { color: theme.text }]}>
               {billingPeriod === "monthly"
-                ? `${manualMonthlyPrice ?? "kr29"}/month`
-                : `${manualAnnualPrice ?? "kr249"}/year`}
+                ? manualMonthlyPrice ? `${manualMonthlyPrice}/month` : "—"
+                : manualAnnualPrice ? `${manualAnnualPrice}/year` : "—"}
             </Text>
             <Text style={[styles.planCopy, { color: theme.muted }]}>
               Self-service toolbox: manage subscriptions, renewal dates and savings yourself.
@@ -7644,8 +7645,8 @@ export default function Home() {
               ]}
             >
               {billingPeriod === "monthly"
-                ? `${premiumMonthlyPrice ?? "kr49"}/month`
-                : `${premiumAnnualPrice ?? "kr499"}/year`}
+                ? premiumMonthlyPrice ? `${premiumMonthlyPrice}/month` : "—"
+                : premiumAnnualPrice ? `${premiumAnnualPrice}/year` : "—"}
             </Text>
             <Text
               style={[
@@ -7689,7 +7690,7 @@ export default function Home() {
               minimumFontScale={0.82}
             >
               <Text style={styles.modernBrandName}>Savlivo</Text>
-              <Text style={[styles.modernBrandSlogan, { color: visual.green }]}>
+              <Text style={[styles.modernBrandSlogan, { color: visual.greenText }]}>
                 {" — Smart money stays with you"}
               </Text>
             </Text>
@@ -7773,7 +7774,7 @@ export default function Home() {
                 <Text
                   style={[
                     styles.modernScreenEyebrow,
-                    { color: visual.green }
+                    { color: visual.greenText }
                   ]}
                 >
                   {tr("SAVLIVO ASSISTANT")}
@@ -8773,7 +8774,7 @@ export default function Home() {
                   <Text
                     style={[
                       styles.modernSavingsStatValue,
-                      { color: visual.green }
+                      { color: visual.greenText }
                     ]}
                   >
                     {formatRegionalAggregate(
@@ -9145,7 +9146,7 @@ export default function Home() {
               <Text
                 style={[
                   styles.modernScreenEyebrow,
-                  { color: visual.green }
+                  { color: visual.greenText }
                 ]}
               >
                 PREMIUM
@@ -9200,7 +9201,7 @@ export default function Home() {
                   <Text
                     style={[
                       styles.modernAutopilotEyebrow,
-                      { color: visual.green }
+                      { color: visual.greenText }
                     ]}
                   >
                     {tr("MONTHLY ACTION PLAN")}
