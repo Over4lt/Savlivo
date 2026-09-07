@@ -336,16 +336,35 @@ export async function sendTransactionalEmail(
   subject: string,
   text: string
 ) {
-  const webhook = process.env.SAVLIVO_EMAIL_WEBHOOK_URL;
-  if (!webhook) throw new Error("EMAIL_WEBHOOK_NOT_CONFIGURED");
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from =
+    process.env.SAVLIVO_EMAIL_FROM?.trim() ||
+    "Savlivo <support@savlivo.com>";
 
-  const response = await fetch(webhook, {
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY_NOT_CONFIGURED");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ to, subject, text })
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject,
+      text,
+    }),
   });
 
-  if (!response.ok) throw new Error(`EMAIL_WEBHOOK_${response.status}`);
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(
+      `RESEND_EMAIL_FAILED_${response.status}: ${details}`
+    );
+  }
 }
 
 async function sendEmail(job: any) {

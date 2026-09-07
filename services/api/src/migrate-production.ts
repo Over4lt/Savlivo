@@ -23,6 +23,7 @@ const migrationFiles = [
   "db/migrations/010_account_deletion_grace_period.sql",
   "services/api/src/savlivo-migration-savings-ledger-1.7.0.sql",
   "services/api/migrations/20260824_notifications.sql",
+  "services/api/migrations/20260907_password_reset.sql",
 ];
 
 const client = new Client({ connectionString: databaseUrl });
