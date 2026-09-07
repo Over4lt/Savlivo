@@ -36,6 +36,118 @@ export async function findUserByEmail(email: string) {
   return result.rows[0] ?? null;
 }
 
+export async function updateUserPassword(
+  userId: string,
+  passwordHash: string
+) {
+  const result = await pool.query(
+    `UPDATE users
+     SET password_hash = $2,
+         updated_at = now()
+     WHERE id = $1
+     RETURNING id`,
+    [userId, passwordHash]
+  );
+
+  return Boolean(result.rows[0]);
+}
+
+export async function createPasswordResetToken(
+  userId: string,
+  tokenHash: string,
+  expiresAt: Date
+) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `UPDATE password_reset_tokens
+       SET used_at = now()
+       WHERE user_id = $1
+         AND used_at IS NULL`,
+      [userId]
+    );
+
+    await client.query(
+      `INSERT INTO password_reset_tokens (
+         user_id,
+         token_hash,
+         expires_at
+       )
+       VALUES ($1, $2, $3)`,
+      [userId, tokenHash, expiresAt]
+    );
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function consumePasswordResetToken(
+  tokenHash: string,
+  passwordHash: string
+) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const tokenResult = await client.query(
+      `SELECT id, user_id
+       FROM password_reset_tokens
+       WHERE token_hash = $1
+         AND used_at IS NULL
+         AND expires_at > now()
+       FOR UPDATE`,
+      [tokenHash]
+    );
+
+    const token = tokenResult.rows[0];
+
+    if (!token) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+
+    await client.query(
+      `UPDATE users
+       SET password_hash = $2,
+           updated_at = now()
+       WHERE id = $1`,
+      [token.user_id, passwordHash]
+    );
+
+    await client.query(
+      `UPDATE password_reset_tokens
+       SET used_at = now()
+       WHERE id = $1`,
+      [token.id]
+    );
+
+    await client.query(
+      `UPDATE password_reset_tokens
+       SET used_at = now()
+       WHERE user_id = $1
+         AND used_at IS NULL`,
+      [token.user_id]
+    );
+
+    await client.query("COMMIT");
+    return true;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function findUserDeletionStatus(userId: string) {
   const result = await pool.query(
     `SELECT deletion_requested_at, deletion_scheduled_for

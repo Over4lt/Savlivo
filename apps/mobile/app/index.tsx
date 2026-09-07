@@ -9,6 +9,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -27,6 +28,7 @@ import DateTimePicker, {
   type DateTimePickerEvent
 } from "@react-native-community/datetimepicker";
 import { StatusBar } from "expo-status-bar";
+import { useLocalSearchParams } from "expo-router";
 import { Asset } from "expo-asset";
 import * as FileSystem from "expo-file-system/legacy";
 import { Ionicons } from "@expo/vector-icons";
@@ -976,10 +978,20 @@ const fxRatesFromUsd: Record<string, number> = {
 
 
 export default function Home() {
+  const routeParams = useLocalSearchParams<{
+    resetToken?: string;
+  }>();
+
   const [email, setEmail] = useState("demo@savlivo.local");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetPasswordConfirm, setShowResetPasswordConfirm] =
+    useState(false);
   const [loading, setLoading] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
@@ -1136,6 +1148,20 @@ export default function Home() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [regionModalOpen, setRegionModalOpen] = useState(false);
   const [neverPauseModalOpen, setNeverPauseModalOpen] = useState(false);
+  const [changePasswordModalOpen, setChangePasswordModalOpen] =
+    useState(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState("");
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [confirmNewPasswordInput, setConfirmNewPasswordInput] =
+    useState("");
+  const [showCurrentPasswordInput, setShowCurrentPasswordInput] =
+    useState(false);
+  const [showNewPasswordInput, setShowNewPasswordInput] =
+    useState(false);
+  const [
+    showConfirmNewPasswordInput,
+    setShowConfirmNewPasswordInput
+  ] = useState(false);
   const [languageModalOpen, setLanguageModalOpen] = useState(false);
   const [renewalsSheetOpen, setRenewalsSheetOpen] = useState(false);
   const [aiInput, setAiInput] = useState("");
@@ -1314,6 +1340,8 @@ export default function Home() {
     "Notifications": "Varsler",
     "Security": "Sikkerhet",
     "Face ID / Touch ID": "Face ID / Touch ID",
+    "Change password": "Endre passord",
+    "Update your account password": "Oppdater passordet for kontoen din",
     "Use biometrics to unlock Savlivo": "Bruk biometri for å låse opp Savlivo",
     "Biometrics unavailable on this device": "Biometri er ikke tilgjengelig på denne enheten",
     "Biometric unlock": "Biometrisk opplåsing",
@@ -2815,6 +2843,67 @@ export default function Home() {
 
 
   useEffect(() => {
+    const token =
+      typeof routeParams.resetToken === "string"
+        ? routeParams.resetToken.trim()
+        : "";
+
+    if (!token) return;
+
+    setResetToken(token);
+    setResetPassword("");
+    setResetPasswordConfirm("");
+    setShowResetPassword(false);
+    setShowResetPasswordConfirm(false);
+  }, [routeParams.resetToken]);
+
+  useEffect(() => {
+    function handlePasswordResetUrl(url: string | null) {
+      if (!url) return;
+
+      const match = url.match(
+        /^savlivo:\/\/reset-password(?:\?|$)(.*)$/
+      );
+
+      if (!match) return;
+
+      const query = match[1] ?? "";
+      const tokenMatch = query.match(
+        /(?:^|&)token=([^&]+)/
+      );
+
+      if (!tokenMatch?.[1]) return;
+
+      try {
+        setResetToken(
+          decodeURIComponent(tokenMatch[1])
+        );
+        setResetPassword("");
+        setResetPasswordConfirm("");
+        setShowResetPassword(false);
+        setShowResetPasswordConfirm(false);
+      } catch {
+        setResetToken(null);
+      }
+    }
+
+    void Linking.getInitialURL()
+      .then(handlePasswordResetUrl)
+      .catch(() => {});
+
+    const subscription = Linking.addEventListener(
+      "url",
+      ({ url }) => {
+        handlePasswordResetUrl(url);
+      }
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     void getPlanPrices()
@@ -3542,6 +3631,162 @@ export default function Home() {
     }
   }
 
+  async function requestPasswordReset() {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail.includes("@")) {
+      Alert.alert("Savlivo", "Enter your email address first.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await api("/v1/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({
+          email: normalizedEmail
+        })
+      });
+
+      Alert.alert(
+        "Check your email",
+        "If a Savlivo account exists for that email, we'll send a password reset link."
+      );
+    } catch {
+      Alert.alert(
+        "Savlivo",
+        "We couldn't send the reset request right now. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitPasswordReset() {
+    if (!resetToken) {
+      Alert.alert(
+        "Savlivo",
+        "This password reset link is invalid or has expired."
+      );
+      return;
+    }
+
+    if (resetPassword.length < 8) {
+      Alert.alert(
+        "Savlivo",
+        "Your new password must be at least 8 characters."
+      );
+      return;
+    }
+
+    if (resetPassword !== resetPasswordConfirm) {
+      Alert.alert(
+        "Savlivo",
+        "The new passwords do not match."
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await api("/v1/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({
+          token: resetToken,
+          newPassword: resetPassword
+        })
+      });
+
+      await clearToken();
+      setAuthed(false);
+      setResetToken(null);
+      setResetPassword("");
+      setResetPasswordConfirm("");
+      setPassword("");
+
+      Alert.alert(
+        "Password changed",
+        "Your Savlivo password has been reset. You can now log in with your new password."
+      );
+    } catch {
+      Alert.alert(
+        "Reset link expired",
+        "This password reset link is invalid, expired, or has already been used. Request a new reset link and try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitPasswordChange() {
+    if (!currentPasswordInput) {
+      Alert.alert(
+        "Savlivo",
+        "Enter your current password."
+      );
+      return;
+    }
+
+    if (newPasswordInput.length < 8) {
+      Alert.alert(
+        "Savlivo",
+        "Your new password must be at least 8 characters."
+      );
+      return;
+    }
+
+    if (newPasswordInput !== confirmNewPasswordInput) {
+      Alert.alert(
+        "Savlivo",
+        "The new passwords do not match."
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      await api("/v1/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword: currentPasswordInput,
+          newPassword: newPasswordInput
+        })
+      });
+
+      setChangePasswordModalOpen(false);
+      setCurrentPasswordInput("");
+      setNewPasswordInput("");
+      setConfirmNewPasswordInput("");
+
+      Alert.alert(
+        "Password changed",
+        "Your Savlivo password has been updated."
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "";
+
+      if (message.includes("CURRENT_PASSWORD_INCORRECT")) {
+        Alert.alert(
+          "Incorrect password",
+          "Your current password is incorrect."
+        );
+      } else {
+        Alert.alert(
+          "Savlivo",
+          message || "We couldn't change your password right now. Please try again."
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function logout() {
     await clearToken();
     setRememberMe(false);
@@ -4169,6 +4414,229 @@ export default function Home() {
     fixData?: boolean;
   }>;
 
+  if (resetToken) {
+    return (
+      <SafeAreaView
+        style={[
+          styles.screen,
+          { backgroundColor: theme.bg }
+        ]}
+      >
+        <StatusBar
+          style={darkMode ? "light" : "dark"}
+          backgroundColor={theme.bg}
+        />
+
+        <View style={styles.authCard}>
+          <View style={styles.modernBrandLockup}>
+            <Image
+              source={require("../assets/logo.png")}
+              style={styles.modernHeaderLogo as any}
+              resizeMode="cover"
+            />
+
+            <Text
+              style={[
+                styles.modernBrandLine,
+                { color: theme.text }
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
+              <Text style={styles.modernBrandName}>
+                Savlivo
+              </Text>
+              <Text
+                style={[
+                  styles.modernBrandSlogan,
+                  { color: visual.greenText }
+                ]}
+              >
+                {" — Smart money stays with you"}
+              </Text>
+            </Text>
+          </View>
+
+          <Text
+            style={{
+              color: theme.text,
+              fontSize: 20,
+              fontWeight: "700",
+              marginBottom: 8
+            }}
+          >
+            Reset password
+          </Text>
+
+          <Text
+            style={{
+              color: theme.muted,
+              fontSize: 14,
+              lineHeight: 20,
+              marginBottom: 18
+            }}
+          >
+            Choose a new password for your Savlivo account.
+          </Text>
+
+          <View style={styles.passwordInputWrap}>
+            <TextInput
+              style={[
+                styles.input,
+                styles.passwordInput,
+                {
+                  backgroundColor: darkMode
+                    ? "#11171C"
+                    : "#FFFFFF",
+                  borderColor: theme.border,
+                  color: theme.text
+                }
+              ]}
+              placeholderTextColor={theme.muted}
+              value={resetPassword}
+              onChangeText={setResetPassword}
+              secureTextEntry={!showResetPassword}
+              placeholder="New password"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <Pressable
+              style={styles.passwordVisibilityButton}
+              onPress={() =>
+                setShowResetPassword((value) => !value)
+              }
+              accessibilityRole="button"
+              accessibilityLabel={
+                showResetPassword
+                  ? "Hide new password"
+                  : "Show new password"
+              }
+            >
+              <Ionicons
+                name={
+                  showResetPassword
+                    ? "eye-off-outline"
+                    : "eye-outline"
+                }
+                size={22}
+                color={theme.muted}
+              />
+            </Pressable>
+          </View>
+
+          <View style={styles.passwordInputWrap}>
+            <TextInput
+              style={[
+                styles.input,
+                styles.passwordInput,
+                {
+                  backgroundColor: darkMode
+                    ? "#11171C"
+                    : "#FFFFFF",
+                  borderColor: theme.border,
+                  color: theme.text
+                }
+              ]}
+              placeholderTextColor={theme.muted}
+              value={resetPasswordConfirm}
+              onChangeText={setResetPasswordConfirm}
+              secureTextEntry={!showResetPasswordConfirm}
+              placeholder="Confirm new password"
+              autoCapitalize="none"
+              autoCorrect={false}
+              onSubmitEditing={() => {
+                if (!loading) {
+                  void submitPasswordReset();
+                }
+              }}
+            />
+
+            <Pressable
+              style={styles.passwordVisibilityButton}
+              onPress={() =>
+                setShowResetPasswordConfirm(
+                  (value) => !value
+                )
+              }
+              accessibilityRole="button"
+              accessibilityLabel={
+                showResetPasswordConfirm
+                  ? "Hide confirmed password"
+                  : "Show confirmed password"
+              }
+            >
+              <Ionicons
+                name={
+                  showResetPasswordConfirm
+                    ? "eye-off-outline"
+                    : "eye-outline"
+                }
+                size={22}
+                color={theme.muted}
+              />
+            </Pressable>
+          </View>
+
+          <Text
+            style={{
+              color: theme.muted,
+              fontSize: 12,
+              marginTop: -2,
+              marginBottom: 14
+            }}
+          >
+            Minimum 8 characters
+          </Text>
+
+          <Pressable
+            style={[
+              styles.primary,
+              { backgroundColor: visual.greenHero },
+              loading && { opacity: 0.6 }
+            ]}
+            disabled={loading}
+            onPress={() => {
+              void submitPasswordReset();
+            }}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryText}>
+                Set new password
+              </Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            style={{
+              alignSelf: "center",
+              marginTop: 16
+            }}
+            disabled={loading}
+            onPress={() => {
+              setResetToken(null);
+              setResetPassword("");
+              setResetPasswordConfirm("");
+            }}
+          >
+            <Text
+              style={{
+                color: theme.muted,
+                fontSize: 12,
+                fontWeight: "600"
+              }}
+            >
+              Back to login
+            </Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (
     !authed &&
     preferencesHydrated &&
@@ -4506,7 +4974,7 @@ export default function Home() {
           <View style={styles.modernBrandLockup}>
             <Image
               source={require("../assets/logo.png")}
-              style={styles.modernHeaderLogo}
+              style={styles.modernHeaderLogo as any}
               resizeMode="cover"
             />
 
@@ -4626,7 +5094,6 @@ export default function Home() {
             </Text>
           </Pressable>
 
-
           <Pressable
             style={[
               styles.primary,
@@ -4656,6 +5123,29 @@ export default function Home() {
           >
             <Text style={[styles.secondaryText, { color: theme.text }]}>
               Create account
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => void requestPasswordReset()}
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Forgot password?"
+            style={{
+              alignSelf: "flex-end",
+              marginTop: 8,
+              marginBottom: 14
+            }}
+          >
+            <Text
+              style={{
+                color: theme.muted,
+                fontSize: 12,
+                fontWeight: "600",
+                letterSpacing: -0.1
+              }}
+            >
+              Forgot password?
             </Text>
           </Pressable>
 
@@ -8369,7 +8859,7 @@ export default function Home() {
           <View style={styles.modernBrandLockup}>
             <Image
               source={require("../assets/logo.png")}
-              style={styles.modernHeaderLogo}
+              style={styles.modernHeaderLogo as any}
               resizeMode="cover"
             />
             <Text
@@ -10209,6 +10699,11 @@ export default function Home() {
                       ? "Use biometrics to unlock Savlivo"
                       : "Biometrics unavailable on this device",
                     biometricEnabled ? "On" : "Off"
+                  ],
+                  [
+                    "Change password",
+                    "Update your account password",
+                    "Change"
                   ]
                 ]
               },
@@ -10384,6 +10879,15 @@ export default function Home() {
                           if (title === "Never pause") {
                             setNeverPauseModalOpen(true);
                           }
+                          if (title === "Change password") {
+                            setCurrentPasswordInput("");
+                            setNewPasswordInput("");
+                            setConfirmNewPasswordInput("");
+                            setShowCurrentPasswordInput(false);
+                            setShowNewPasswordInput(false);
+                            setShowConfirmNewPasswordInput(false);
+                            setChangePasswordModalOpen(true);
+                          }
                           if (title === "Export data") {
                             void exportSavlivoData();
                           }
@@ -10501,6 +11005,244 @@ export default function Home() {
           </View>
         </View>
       ) : null}
+
+      <Modal
+        transparent
+        visible={changePasswordModalOpen}
+        animationType="fade"
+        onRequestClose={() =>
+          setChangePasswordModalOpen(false)
+        }
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.regionSheet,
+              {
+                backgroundColor: darkMode
+                  ? "#11171C"
+                  : "#FFFFFF",
+                borderColor: visual.borderSubtle
+              }
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.settingsRowTitle,
+                    { color: theme.text }
+                  ]}
+                >
+                  {tr("Change password")}
+                </Text>
+
+                <Text
+                  style={[
+                    styles.formHint,
+                    { color: theme.muted }
+                  ]}
+                >
+                  {tr("Update your account password")}
+                </Text>
+              </View>
+
+              <Pressable
+                style={[
+                  styles.regionClose,
+                  {
+                    backgroundColor: visual.greenSoft
+                  }
+                ]}
+                onPress={() =>
+                  setChangePasswordModalOpen(false)
+                }
+              >
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={visual.greenMuted}
+                />
+              </Pressable>
+            </View>
+
+            <View
+              style={[
+                styles.passwordInputWrap,
+                { marginTop: 18 }
+              ]}
+            >
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.passwordInput,
+                  {
+                    backgroundColor: darkMode
+                      ? "#0B1014"
+                      : "#FFFFFF",
+                    borderColor: theme.border,
+                    color: theme.text
+                  }
+                ]}
+                placeholderTextColor={theme.muted}
+                value={currentPasswordInput}
+                onChangeText={setCurrentPasswordInput}
+                secureTextEntry={!showCurrentPasswordInput}
+                placeholder="Current password"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <Pressable
+                style={styles.passwordVisibilityButton}
+                onPress={() =>
+                  setShowCurrentPasswordInput(
+                    (value) => !value
+                  )
+                }
+              >
+                <Ionicons
+                  name={
+                    showCurrentPasswordInput
+                      ? "eye-off-outline"
+                      : "eye-outline"
+                  }
+                  size={22}
+                  color={theme.muted}
+                />
+              </Pressable>
+            </View>
+
+            <View style={styles.passwordInputWrap}>
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.passwordInput,
+                  {
+                    backgroundColor: darkMode
+                      ? "#0B1014"
+                      : "#FFFFFF",
+                    borderColor: theme.border,
+                    color: theme.text
+                  }
+                ]}
+                placeholderTextColor={theme.muted}
+                value={newPasswordInput}
+                onChangeText={setNewPasswordInput}
+                secureTextEntry={!showNewPasswordInput}
+                placeholder="New password"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <Pressable
+                style={styles.passwordVisibilityButton}
+                onPress={() =>
+                  setShowNewPasswordInput(
+                    (value) => !value
+                  )
+                }
+              >
+                <Ionicons
+                  name={
+                    showNewPasswordInput
+                      ? "eye-off-outline"
+                      : "eye-outline"
+                  }
+                  size={22}
+                  color={theme.muted}
+                />
+              </Pressable>
+            </View>
+
+            <View style={styles.passwordInputWrap}>
+              <TextInput
+                style={[
+                  styles.input,
+                  styles.passwordInput,
+                  {
+                    backgroundColor: darkMode
+                      ? "#0B1014"
+                      : "#FFFFFF",
+                    borderColor: theme.border,
+                    color: theme.text
+                  }
+                ]}
+                placeholderTextColor={theme.muted}
+                value={confirmNewPasswordInput}
+                onChangeText={setConfirmNewPasswordInput}
+                secureTextEntry={!showConfirmNewPasswordInput}
+                placeholder="Confirm new password"
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={() => {
+                  if (!loading) {
+                    void submitPasswordChange();
+                  }
+                }}
+              />
+
+              <Pressable
+                style={styles.passwordVisibilityButton}
+                onPress={() =>
+                  setShowConfirmNewPasswordInput(
+                    (value) => !value
+                  )
+                }
+              >
+                <Ionicons
+                  name={
+                    showConfirmNewPasswordInput
+                      ? "eye-off-outline"
+                      : "eye-outline"
+                  }
+                  size={22}
+                  color={theme.muted}
+                />
+              </Pressable>
+            </View>
+
+            <Text
+              style={[
+                styles.formHint,
+                {
+                  color: theme.muted,
+                  marginBottom: 14
+                }
+              ]}
+            >
+              Minimum 8 characters
+            </Text>
+
+            <Pressable
+              style={[
+                styles.primary,
+                { backgroundColor: visual.greenHero },
+                loading && { opacity: 0.6 }
+              ]}
+              disabled={loading}
+              onPress={() => {
+                void submitPasswordChange();
+              }}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryText}>
+                  Change password
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         transparent

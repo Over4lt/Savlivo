@@ -1,4 +1,5 @@
 import http from "node:http";
+import crypto from "node:crypto";
 import { URL } from "node:url";
 import { ensureMainlandChinaServices, ensureSubscriptionMarketSchema, healthcheckDb } from "./db.js";
 import { createToken, getAuthUser } from "./auth.js";
@@ -10,6 +11,9 @@ import {
   createActionRecord,
   createUser,
   findUserByEmail,
+  updateUserPassword,
+  createPasswordResetToken,
+  consumePasswordResetToken,
   getEntitlement,
   getSavingsSummary,
   getSubscription,
@@ -34,7 +38,12 @@ import {
   getRegionalPricing,
   refreshVerifiedPricingCountries
 } from "./pricing.js";
-import { dispatchDueNotifications, registerPushToken, setNotificationPreferences } from "./notifications.js";
+import {
+  dispatchDueNotifications,
+  registerPushToken,
+  setNotificationPreferences,
+  sendTransactionalEmail
+} from "./notifications.js";
 import { reconcileSavingsEvents } from "./savings.js";
 import { askAssistant } from "./assistant.js";
 import {
@@ -119,6 +128,100 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    if (
+      req.method === "POST" &&
+      url.pathname === "/v1/auth/forgot-password"
+    ) {
+      const body = await readJson(req);
+      const email = String(body.email ?? "").trim().toLowerCase();
+
+      if (email.includes("@")) {
+        const user = await findUserByEmail(email);
+
+        if (user) {
+          try {
+            const token = crypto.randomBytes(32).toString("base64url");
+            const tokenHash = crypto
+              .createHash("sha256")
+              .update(token)
+              .digest("hex");
+
+            const expiresAt = new Date(
+              Date.now() + 30 * 60 * 1000
+            );
+
+            await createPasswordResetToken(
+              user.id,
+              tokenHash,
+              expiresAt
+            );
+
+            const resetBase =
+              process.env.SAVLIVO_PASSWORD_RESET_URL?.trim() ||
+              "savlivo://reset-password";
+
+            const separator = resetBase.includes("?") ? "&" : "?";
+            const resetUrl =
+              `${resetBase}${separator}token=` +
+              encodeURIComponent(token);
+
+            await sendTransactionalEmail(
+              user.email,
+              "Reset your Savlivo password",
+              [
+                "We received a request to reset your Savlivo password.",
+                "",
+                `Reset your password: ${resetUrl}`,
+                "",
+                "This link expires in 30 minutes and can only be used once.",
+                "",
+                "If you did not request this, you can ignore this email."
+              ].join("\n")
+            );
+          } catch (err) {
+            console.error("PASSWORD_RESET_EMAIL_FAILED", err);
+          }
+        }
+      }
+
+      // Always return the same response so registered emails
+      // cannot be discovered through this endpoint.
+      return send(res, 200, { ok: true });
+    }
+
+    if (
+      req.method === "POST" &&
+      url.pathname === "/v1/auth/reset-password"
+    ) {
+      const body = await readJson(req);
+      const token = String(body.token ?? "").trim();
+      const newPassword = String(body.newPassword ?? "");
+
+      if (!token || newPassword.length < 8) {
+        return send(res, 400, {
+          error: "INVALID_RESET_REQUEST"
+        });
+      }
+
+      const tokenHash = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
+
+      const changed = await consumePasswordResetToken(
+        tokenHash,
+        hashPassword(newPassword)
+      );
+
+      if (!changed) {
+        return send(res, 400, {
+          error: "RESET_TOKEN_INVALID_OR_EXPIRED"
+        });
+      }
+
+      return send(res, 200, { ok: true });
+    }
+
     if (req.method === "GET" && url.pathname === "/v1/pricing") {
       const country = String(url.searchParams.get("country") ?? "US").toUpperCase();
       const refresh = url.searchParams.get("refresh") === "1";
@@ -142,6 +245,43 @@ const server = http.createServer(async (req, res) => {
         error: "ACCOUNT_DELETION_PENDING",
         deletionScheduledFor: deletionStatus.deletion_scheduled_for
       });
+    }
+
+    if (
+      req.method === "POST" &&
+      url.pathname === "/v1/auth/change-password"
+    ) {
+      const body = await readJson(req);
+      const currentPassword = String(body.currentPassword ?? "");
+      const newPassword = String(body.newPassword ?? "");
+
+      if (!currentPassword || newPassword.length < 8) {
+        return send(res, 400, {
+          error: "INVALID_PASSWORD"
+        });
+      }
+
+      const user = await findUserByEmail(auth.email);
+
+      if (
+        !user ||
+        !verifyPassword(
+          currentPassword,
+          user.password_hash
+        )
+      ) {
+        return unauthorized(
+          res,
+          "CURRENT_PASSWORD_INCORRECT"
+        );
+      }
+
+      await updateUserPassword(
+        auth.id,
+        hashPassword(newPassword)
+      );
+
+      return send(res, 200, { ok: true });
     }
 
     if (req.method === "POST" && url.pathname === "/v1/billing/verify") {

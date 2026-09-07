@@ -331,15 +331,29 @@ async function sendPush(job: any) {
   if (!response.ok) throw new Error(`EXPO_PUSH_${response.status}`);
 }
 
-async function sendEmail(job: any) {
+export async function sendTransactionalEmail(
+  to: string,
+  subject: string,
+  text: string
+) {
   const webhook = process.env.SAVLIVO_EMAIL_WEBHOOK_URL;
   if (!webhook) throw new Error("EMAIL_WEBHOOK_NOT_CONFIGURED");
+
   const response = await fetch(webhook, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ to: job.destination, subject: job.payload.title, text: `${job.payload.body}\n\nOpen Savlivo: ${job.payload.deepLink}` })
+    body: JSON.stringify({ to, subject, text })
   });
+
   if (!response.ok) throw new Error(`EMAIL_WEBHOOK_${response.status}`);
+}
+
+async function sendEmail(job: any) {
+  await sendTransactionalEmail(
+    job.destination,
+    job.payload.title,
+    `${job.payload.body}\n\nOpen Savlivo: ${job.payload.deepLink}`
+  );
 }
 
 export async function dispatchDueNotifications() {
