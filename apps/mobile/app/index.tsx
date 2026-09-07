@@ -21,6 +21,8 @@ import {
   View
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import DateTimePicker, {
   type DateTimePickerEvent
 } from "@react-native-community/datetimepicker";
@@ -72,6 +74,7 @@ import {
   isProtectionRequest,
   parseSavingsGoalAmount,
   protectSubscription,
+  unprotectSubscription,
   rankAllowedRecommendations,
   setMonthlySavingsGoal
 } from "../lib/ai-preferences";
@@ -1130,6 +1133,7 @@ export default function Home() {
   const providerWasOpenedRef = useRef(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [regionModalOpen, setRegionModalOpen] = useState(false);
+  const [neverPauseModalOpen, setNeverPauseModalOpen] = useState(false);
   const [languageModalOpen, setLanguageModalOpen] = useState(false);
   const [renewalsSheetOpen, setRenewalsSheetOpen] = useState(false);
   const [aiInput, setAiInput] = useState("");
@@ -2929,7 +2933,8 @@ export default function Home() {
           savedCurrency,
           savedLanguage,
           savedOnboardingComplete,
-          savedRegionalOverrides
+          savedRegionalOverrides,
+          savedAiPreferences
         ] = await Promise.all([
             AsyncStorage.getItem("savlivo_theme"),
             AsyncStorage.getItem("savlivo_country_code"),
@@ -2939,8 +2944,32 @@ export default function Home() {
             AsyncStorage.getItem("savlivo_onboarding_complete"),
             AsyncStorage.getItem(
               "savlivo_manual_regional_price_overrides"
-            )
+            ),
+            AsyncStorage.getItem("savlivo_ai_preferences")
           ]);
+
+        if (savedAiPreferences) {
+          try {
+            const parsed = JSON.parse(savedAiPreferences);
+            if (
+              parsed &&
+              typeof parsed === "object" &&
+              Array.isArray(parsed.protectedSubscriptionIds)
+            ) {
+              setAiPreferences({
+                ...emptyAssistantPreferences,
+                ...parsed,
+                protectedSubscriptionIds:
+                  parsed.protectedSubscriptionIds.filter(
+                    (id: unknown): id is string =>
+                      typeof id === "string"
+                  )
+              });
+            }
+          } catch {
+            // Ignore invalid locally stored AI preferences.
+          }
+        }
 
         if (savedRegionalOverrides) {
           try {
@@ -3157,6 +3186,15 @@ export default function Home() {
       hideSub.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (!preferencesHydrated) return;
+
+    AsyncStorage.setItem(
+      "savlivo_ai_preferences",
+      JSON.stringify(aiPreferences)
+    ).catch(() => {});
+  }, [aiPreferences, preferencesHydrated]);
 
   useEffect(() => {
     if (!preferencesHydrated) return;
@@ -4565,7 +4603,10 @@ export default function Home() {
 
 
           <Pressable
-            style={styles.primary}
+            style={[
+              styles.primary,
+              { backgroundColor: visual.greenHero }
+            ]}
             onPress={() => loginOrRegister(false)}
             disabled={loading}
           >
@@ -7664,6 +7705,452 @@ export default function Home() {
     );
   }
 
+  async function exportSavlivoData() {
+    try {
+      const escapeHtml = (value: unknown) =>
+        String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+
+      const formatMinor = (
+        minor?: number,
+        currency?: string
+      ) => {
+        if (typeof minor !== "number") return "—";
+
+        const code = currency || selectedCurrency || "USD";
+
+        try {
+          return new Intl.NumberFormat(undefined, {
+            style: "currency",
+            currency: code,
+            maximumFractionDigits: 2
+          }).format(minor / 100);
+        } catch {
+          return `${code} ${(minor / 100).toFixed(2)}`;
+        }
+      };
+
+      const protectedNames =
+        aiPreferences.protectedSubscriptionIds
+          .map(
+            (id) =>
+              items.find((item) => item.id === id)
+                ?.serviceName
+          )
+          .filter(
+            (name): name is string => Boolean(name)
+          );
+
+      const totalSavedMinor = items.reduce(
+        (sum, item) =>
+          sum + (item.savedSoFarMinor ?? 0),
+        0
+      );
+
+      const subscriptionCards =
+        items.length > 0
+          ? items
+              .map(
+                (item) => `
+                  <div class="subscription">
+                    <div class="subscription-top">
+                      <div>
+                        <div class="service">
+                          ${escapeHtml(item.serviceName)}
+                        </div>
+                        <div class="plan">
+                          ${escapeHtml(
+                            item.planName || "Subscription"
+                          )}
+                        </div>
+                      </div>
+
+                      <div class="status">
+                        ${escapeHtml(
+                          effectiveSubscriptionStatus(item)
+                        )}
+                      </div>
+                    </div>
+
+                    <div class="details">
+                      <div class="detail">
+                        <span>Monthly price</span>
+                        <strong>
+                          ${escapeHtml(
+                            formatMinor(
+                              item.monthlyPriceMinor,
+                              item.currency
+                            )
+                          )}
+                        </strong>
+                      </div>
+
+                      <div class="detail">
+                        <span>Renewal date</span>
+                        <strong>
+                          ${escapeHtml(
+                            item.renewalDate || "—"
+                          )}
+                        </strong>
+                      </div>
+
+                      <div class="detail">
+                        <span>Saved so far</span>
+                        <strong>
+                          ${escapeHtml(
+                            formatMinor(
+                              item.savedSoFarMinor,
+                              item.currency
+                            )
+                          )}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+                `
+              )
+              .join("")
+          : `
+              <div class="empty">
+                No subscriptions are currently stored
+                in this Savlivo account.
+              </div>
+            `;
+
+      const exportedAt = new Date();
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <style>
+              @page { margin: 36px; }
+
+              * { box-sizing: border-box; }
+
+              body {
+                margin: 0;
+                background: #ffffff;
+                color: #111827;
+                font-family:
+                  -apple-system,
+                  BlinkMacSystemFont,
+                  "Helvetica Neue",
+                  Arial,
+                  sans-serif;
+                font-size: 13px;
+                line-height: 1.45;
+              }
+
+              .header {
+                padding: 10px 0 26px;
+                border-bottom: 1px solid #e5e7eb;
+              }
+
+              .brand {
+                color: #0f9958;
+                font-size: 13px;
+                font-weight: 800;
+                letter-spacing: 1.6px;
+                text-transform: uppercase;
+              }
+
+              h1 {
+                margin: 7px 0 6px;
+                font-size: 30px;
+                line-height: 1.1;
+                letter-spacing: -0.8px;
+              }
+
+              .subtitle { color: #667085; }
+
+              .section { margin-top: 26px; }
+
+              .section-label {
+                margin-bottom: 10px;
+                color: #0f9958;
+                font-size: 11px;
+                font-weight: 800;
+                letter-spacing: 1.3px;
+                text-transform: uppercase;
+              }
+
+              .overview {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+              }
+
+              .metric {
+                width: 48%;
+                min-height: 76px;
+                padding: 14px;
+                background: #effaf4;
+                border: 1px solid #d6f0e1;
+                border-radius: 14px;
+              }
+
+              .metric-label {
+                color: #667085;
+                font-size: 11px;
+                margin-bottom: 5px;
+              }
+
+              .metric-value {
+                font-size: 17px;
+                font-weight: 800;
+              }
+
+              .subscription {
+                margin-bottom: 10px;
+                padding: 15px;
+                border: 1px solid #e5e7eb;
+                border-radius: 14px;
+                page-break-inside: avoid;
+              }
+
+              .subscription-top {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 12px;
+                margin-bottom: 13px;
+              }
+
+              .service {
+                font-size: 16px;
+                font-weight: 800;
+              }
+
+              .plan {
+                margin-top: 2px;
+                color: #667085;
+                font-size: 12px;
+              }
+
+              .status {
+                padding: 5px 9px;
+                background: #effaf4;
+                color: #0f9958;
+                border-radius: 999px;
+                font-size: 10px;
+                font-weight: 800;
+              }
+
+              .details {
+                display: flex;
+                gap: 8px;
+              }
+
+              .detail {
+                flex: 1;
+                padding-top: 10px;
+                border-top: 1px solid #f0f1f3;
+              }
+
+              .detail span {
+                display: block;
+                color: #667085;
+                font-size: 10px;
+                margin-bottom: 3px;
+              }
+
+              .detail strong {
+                font-size: 12px;
+              }
+
+              .preference {
+                padding: 13px 0;
+                border-bottom: 1px solid #e5e7eb;
+              }
+
+              .preference-label {
+                color: #667085;
+                font-size: 11px;
+              }
+
+              .preference-value {
+                margin-top: 3px;
+                font-weight: 700;
+              }
+
+              .empty {
+                padding: 18px;
+                color: #667085;
+                background: #f8faf9;
+                border-radius: 14px;
+              }
+
+              .footer {
+                margin-top: 32px;
+                padding-top: 14px;
+                border-top: 1px solid #e5e7eb;
+                color: #98a2b3;
+                font-size: 10px;
+              }
+            </style>
+          </head>
+
+          <body>
+            <div class="header">
+              <div class="brand">Savlivo</div>
+              <h1>Data Export</h1>
+              <div class="subtitle">
+                A summary of the data stored in your
+                Savlivo account.
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-label">
+                Account overview
+              </div>
+
+              <div class="overview">
+                <div class="metric">
+                  <div class="metric-label">
+                    Savlivo plan
+                  </div>
+                  <div class="metric-value">
+                    ${escapeHtml(planDisplayName)}
+                  </div>
+                </div>
+
+                <div class="metric">
+                  <div class="metric-label">
+                    Subscription market
+                  </div>
+                  <div class="metric-value">
+                    ${escapeHtml(selectedCountryName)}
+                  </div>
+                </div>
+
+                <div class="metric">
+                  <div class="metric-label">
+                    Currency
+                  </div>
+                  <div class="metric-value">
+                    ${escapeHtml(selectedCurrency)}
+                  </div>
+                </div>
+
+                <div class="metric">
+                  <div class="metric-label">
+                    Subscriptions
+                  </div>
+                  <div class="metric-value">
+                    ${items.length}
+                  </div>
+                </div>
+
+                <div class="metric">
+                  <div class="metric-label">
+                    Recorded savings
+                  </div>
+                  <div class="metric-value">
+                    ${escapeHtml(
+                      formatMinor(
+                        totalSavedMinor,
+                        selectedCurrency
+                      )
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-label">
+                Subscriptions
+              </div>
+              ${subscriptionCards}
+            </div>
+
+            <div class="section">
+              <div class="section-label">
+                Savings & preferences
+              </div>
+
+              <div class="preference">
+                <div class="preference-label">
+                  Monthly savings goal
+                </div>
+                <div class="preference-value">
+                  ${
+                    typeof aiPreferences
+                      .monthlySavingsGoalMinor === "number"
+                      ? escapeHtml(
+                          formatMinor(
+                            aiPreferences
+                              .monthlySavingsGoalMinor,
+                            selectedCurrency
+                          )
+                        )
+                      : "Not set"
+                  }
+                </div>
+              </div>
+
+              <div class="preference">
+                <div class="preference-label">
+                  Protected services
+                </div>
+                <div class="preference-value">
+                  ${
+                    protectedNames.length
+                      ? protectedNames
+                          .map(escapeHtml)
+                          .join(", ")
+                      : "None"
+                  }
+                </div>
+              </div>
+            </div>
+
+            <div class="footer">
+              Exported from Savlivo ·
+              ${escapeHtml(
+                exportedAt.toLocaleString()
+              )}
+            </div>
+          </body>
+        </html>
+      `;
+
+      const { uri } =
+        await Print.printToFileAsync({ html });
+
+      const sharingAvailable =
+        await Sharing.isAvailableAsync();
+
+      if (!sharingAvailable) {
+        Alert.alert(
+          "Savlivo",
+          "Your data export was created, but sharing is not available on this device."
+        );
+        return;
+      }
+
+      await Sharing.shareAsync(uri, {
+        mimeType: "application/pdf",
+        dialogTitle: "Export Savlivo data",
+        UTI: "com.adobe.pdf"
+      });
+    } catch (err: any) {
+      Alert.alert(
+        "Savlivo",
+        err?.message ??
+          "Could not export your data."
+      );
+    }
+  }
+
+
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.bg }]}>
       <StatusBar style={darkMode ? "light" : "dark"} backgroundColor={theme.bg} />
@@ -7944,7 +8431,7 @@ export default function Home() {
                       }
                     ]}
                   >
-                    <Text style={[styles.aiGuideEyebrow, { color: theme.muted }]}>
+                    <Text style={[styles.aiGuideEyebrow, { color: visual.greenText }]}>
                       {tr("GUIDED ACTION")}
                     </Text>
                     <Text style={[styles.aiGuideTitle, { color: theme.text }]}>
@@ -8134,7 +8621,7 @@ export default function Home() {
           <>
             <View style={styles.compactHomeHeading}>
               <View>
-                <Text style={[styles.compactHomeEyebrow, { color: theme.muted }]}>
+                <Text style={[styles.compactHomeEyebrow, { color: visual.greenText }]}>
                   {tr("OVERVIEW")}
                 </Text>
                 <Text style={[styles.compactHomeTitle, { color: theme.text }]}>
@@ -8464,7 +8951,7 @@ export default function Home() {
             {plan === "PREMIUM" ? (
               <>
                 <View style={styles.compactSectionHeader}>
-                  <Text style={[styles.compactSectionLabel, { color: theme.muted }]}>
+                  <Text style={[styles.compactSectionLabel, { color: visual.greenText }]}>
                     {tr("NEXT BEST MOVE")}
                   </Text>
                 </View>
@@ -8542,7 +9029,7 @@ export default function Home() {
             {attentionItems.length > 0 ? (
               <>
                 <View style={styles.compactSectionHeader}>
-                  <Text style={[styles.compactSectionLabel, { color: theme.muted }]}>
+                  <Text style={[styles.compactSectionLabel, { color: visual.greenText }]}>
                     {tr("NEEDS ATTENTION")}
                   </Text>
 
@@ -8664,7 +9151,7 @@ export default function Home() {
               <Text
                 style={[
                   styles.modernScreenEyebrow,
-                  { color: theme.muted }
+                  { color: visual.greenText }
                 ]}
               >
                 {tr("YOUR PROGRESS")}
@@ -8829,7 +9316,7 @@ export default function Home() {
             <Text
               style={[
                 styles.modernSectionEyebrow,
-                { color: theme.muted }
+                { color: visual.greenText }
               ]}
             >
               {tr("CURRENT POSITION")}
@@ -8993,7 +9480,7 @@ export default function Home() {
                 <Text
                   style={[
                     styles.modernSectionEyebrow,
-                    { color: theme.muted }
+                    { color: visual.greenText }
                   ]}
                 >
                   {tr("WHERE TO LOOK NEXT")}
@@ -9231,7 +9718,7 @@ export default function Home() {
             <Text
               style={[
                 styles.modernSectionEyebrow,
-                { color: theme.muted }
+                { color: visual.greenText }
               ]}
             >
               {tr("THIS MONTH")}
@@ -9346,7 +9833,7 @@ export default function Home() {
                   style={[
                     styles.modernSectionEyebrow,
                     {
-                      color: theme.muted,
+                      color: visual.greenText,
                       marginTop: 22
                     }
                   ]}
@@ -9555,7 +10042,7 @@ export default function Home() {
                 title: "Privacy & data",
                 icon: "shield-checkmark-outline" as const,
                 rows: [
-                  ["Export data", "Subscriptions and savings history", "Later"],
+                  ["Export data", "Subscriptions, savings and preferences", "PDF"],
                   ["Delete account", "Remove your Savlivo account and data", "Remove"]
                 ]
               }
@@ -9692,6 +10179,12 @@ export default function Home() {
                             setCountrySearch("");
                             setRegionModalOpen(true);
                           }
+                          if (title === "Never pause") {
+                            setNeverPauseModalOpen(true);
+                          }
+                          if (title === "Export data") {
+                            void exportSavlivoData();
+                          }
                           if (title === "Face ID / Touch ID") {
                             void toggleBiometricUnlock();
                           }
@@ -9806,6 +10299,169 @@ export default function Home() {
           </View>
         </View>
       ) : null}
+
+      <Modal
+        transparent
+        visible={neverPauseModalOpen}
+        animationType="fade"
+        onRequestClose={() => setNeverPauseModalOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View
+            style={[
+              styles.regionSheet,
+              {
+                backgroundColor: darkMode
+                  ? "#11171C"
+                  : "#FFFFFF",
+                borderColor: visual.borderSubtle
+              }
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.settingsRowTitle,
+                    { color: theme.text }
+                  ]}
+                >
+                  {tr("Never pause")}
+                </Text>
+                <Text
+                  style={[
+                    styles.formHint,
+                    { color: theme.muted }
+                  ]}
+                >
+                  {tr("Choose services Savlivo should protect")}
+                </Text>
+              </View>
+
+              <Pressable
+                style={[
+                  styles.regionClose,
+                  {
+                    backgroundColor: visual.greenSoft
+                  }
+                ]}
+                onPress={() =>
+                  setNeverPauseModalOpen(false)
+                }
+              >
+                <Text
+                  style={[
+                    styles.actionText,
+                    { color: visual.greenMuted }
+                  ]}
+                >
+                  {tr("Done")}
+                </Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={{
+                maxHeight: 420,
+                marginTop: 16
+              }}
+              showsVerticalScrollIndicator={false}
+            >
+              {marketItems
+                .filter(
+                  (item) =>
+                    effectiveSubscriptionStatus(item) === "ACTIVE"
+                )
+                .map((item) => {
+                  const protectedService =
+                    aiPreferences
+                      .protectedSubscriptionIds
+                      .includes(item.id);
+
+                  return (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.settingsRow,
+                        {
+                          borderColor:
+                            visual.borderSubtle
+                        }
+                      ]}
+                    >
+                      <View
+                        style={
+                          styles.settingsRowInfo
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.settingsRowTitle,
+                            {
+                              color: theme.text
+                            }
+                          ]}
+                        >
+                          {item.serviceName}
+                        </Text>
+
+                        {item.planName ? (
+                          <Text
+                            style={[
+                              styles.settingsRowValue,
+                              {
+                                color: theme.muted
+                              }
+                            ]}
+                          >
+                            {item.planName}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <Switch
+                        value={protectedService}
+                        onValueChange={(value) => {
+                          setAiPreferences(
+                            (current) =>
+                              value
+                                ? protectSubscription(
+                                    current,
+                                    item.id
+                                  )
+                                : unprotectSubscription(
+                                    current,
+                                    item.id
+                                  )
+                          );
+                        }}
+                        trackColor={{
+                          false: darkMode
+                            ? "#5A5A5E"
+                            : "#D1D1D6",
+                          true:
+                            visual.greenMuted
+                        }}
+                        ios_backgroundColor={
+                          darkMode
+                            ? "#5A5A5E"
+                            : "#D1D1D6"
+                        }
+                      />
+                    </View>
+                  );
+                })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         transparent
