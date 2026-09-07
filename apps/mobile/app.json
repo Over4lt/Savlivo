@@ -9,7 +9,8 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.thomashodne.savlivo",
-      "icon": "./assets/logo.png"
+      "icon": "./assets/logo.png",
+      "buildNumber": "10"
     },
     "android": {
       "package": "com.thomashodne.savlivo",

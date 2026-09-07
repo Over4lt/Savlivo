@@ -249,6 +249,10 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - ExpoPrint (15.0.8):
+    - ExpoModulesCore
+  - ExpoSharing (14.0.8):
+    - ExpoModulesCore
   - ExpoSpeech (14.0.8):
     - ExpoModulesCore
   - ExpoWebBrowser (15.0.11):
@@ -2065,7 +2069,7 @@ DEPENDENCIES:
   - ExpoAsset (from `../../../node_modules/expo-asset/ios`)
   - ExpoAudio (from `../../../node_modules/expo-audio/ios`)
   - ExpoDevice (from `../../../node_modules/expo-device/ios`)
-  - ExpoFileSystem (from `../../../node_modules/expo/node_modules/expo-file-system/ios`)
+  - ExpoFileSystem (from `../../../node_modules/expo-file-system/ios`)
   - ExpoFont (from `../../../node_modules/expo-font/ios`)
   - ExpoHead (from `../../../node_modules/expo-router/ios`)
   - ExpoIap (from `../../../node_modules/expo-iap/ios`)
@@ -2073,6 +2077,8 @@ DEPENDENCIES:
   - ExpoLinking (from `../../../node_modules/expo-linking/ios`)
   - ExpoLocalAuthentication (from `../../../node_modules/expo-local-authentication/ios`)
   - ExpoModulesCore (from `../../../node_modules/expo-modules-core`)
+  - ExpoPrint (from `../../../node_modules/expo-print/ios`)
+  - ExpoSharing (from `../../../node_modules/expo-sharing/ios`)
   - ExpoSpeech (from `../../../node_modules/expo-speech/ios`)
   - ExpoWebBrowser (from `../../../node_modules/expo-web-browser/ios`)
   - EXUpdatesInterface (from `../../../node_modules/expo-updates-interface/ios`)
@@ -2181,7 +2187,7 @@ EXTERNAL SOURCES:
   ExpoDevice:
     :path: "../../../node_modules/expo-device/ios"
   ExpoFileSystem:
-    :path: "../../../node_modules/expo/node_modules/expo-file-system/ios"
+    :path: "../../../node_modules/expo-file-system/ios"
   ExpoFont:
     :path: "../../../node_modules/expo-font/ios"
   ExpoHead:
@@ -2196,6 +2202,10 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-local-authentication/ios"
   ExpoModulesCore:
     :path: "../../../node_modules/expo-modules-core"
+  ExpoPrint:
+    :path: "../../../node_modules/expo-print/ios"
+  ExpoSharing:
+    :path: "../../../node_modules/expo-sharing/ios"
   ExpoSpeech:
     :path: "../../../node_modules/expo-speech/ios"
   ExpoWebBrowser:
@@ -2368,6 +2378,8 @@ SPEC CHECKSUMS:
   ExpoLinking: 2ef632ad5013e3f1568fae9408d56ab9af5efc55
   ExpoLocalAuthentication: 58fadf98e9caeae82455d15e4bffc94691585c83
   ExpoModulesCore: 9e6a5514828e7dd5ded9e99d33557be2d284e660
+  ExpoPrint: 813bfa965eda2ecc4b1cdc61612c820e239c382a
+  ExpoSharing: 0d983394ed4a80334bab5a0d5384f75710feb7e8
   ExpoSpeech: d22b56570ccfab5a27112dc9691f1ac83537de26
   ExpoWebBrowser: 970dd4c64c29c955c3af664c8058ba768a4c9187
   EXUpdatesInterface: 5adf50cb41e079c861da6d9b4b954c3db9a50734
