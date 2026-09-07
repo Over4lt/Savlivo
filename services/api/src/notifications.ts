@@ -356,6 +356,33 @@ export async function sendTransactionalEmail(
       to: [to],
       subject,
       text,
+      html: text.includes("savlivo://reset-password?token=")
+        ? (() => {
+            const match = text.match(/savlivo:\/\/reset-password\?token=[^\s]+/);
+            const resetUrl = match?.[0];
+
+            if (!resetUrl) {
+              return `<p>${text.replace(/\n/g, "<br>")}</p>`;
+            }
+
+            return `
+              <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.5;color:#1f2937">
+                <h2 style="margin:0 0 16px">Reset your Savlivo password</h2>
+                <p>We received a request to reset your Savlivo password.</p>
+                <p style="margin:24px 0">
+                  <a
+                    href="${resetUrl}"
+                    style="display:inline-block;padding:12px 18px;background:#2f7d4a;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600"
+                  >
+                    Reset password
+                  </a>
+                </p>
+                <p>This link expires in 30 minutes and can only be used once.</p>
+                <p>If you did not request this, you can ignore this email.</p>
+              </div>
+            `;
+          })()
+        : `<p>${text.replace(/\n/g, "<br>")}</p>`,
     }),
   });
 
