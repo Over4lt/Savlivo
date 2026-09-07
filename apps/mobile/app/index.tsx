@@ -8354,26 +8354,81 @@ export default function Home() {
         };
       };
 
+      const reportItems = items.filter(
+        (item) => item.countryCode === selectedCountryCode
+      );
+
       const protectedNames =
         aiPreferences.protectedSubscriptionIds
           .map(
             (id) =>
-              items.find((item) => item.id === id)
+              reportItems.find((item) => item.id === id)
                 ?.serviceName
           )
           .filter(
             (name): name is string => Boolean(name)
           );
 
-      const totalSavedMinor = items.reduce(
+      const currentSubscriptions = reportItems.filter(
+        (item) => {
+          const status = effectiveSubscriptionStatus(item)
+            .trim()
+            .toUpperCase();
+
+          return (
+            status !== "CANCELLED" &&
+            status !== "CANCELED"
+          );
+        }
+      );
+
+      const cancelledSubscriptions = reportItems.filter(
+        (item) => {
+          const status = effectiveSubscriptionStatus(item)
+            .trim()
+            .toUpperCase();
+
+          return (
+            status === "CANCELLED" ||
+            status === "CANCELED"
+          );
+        }
+      );
+
+      const savedCurrencies = new Set(
+        reportItems
+          .filter(
+            (item) =>
+              typeof item.savedSoFarMinor === "number" &&
+              Number.isFinite(item.savedSoFarMinor) &&
+              item.savedSoFarMinor > 0 &&
+              Boolean(item.currency)
+          )
+          .map((item) => String(item.currency))
+      );
+
+      const totalSavedMinor = reportItems.reduce(
         (sum, item) =>
           sum + (item.savedSoFarMinor ?? 0),
         0
       );
 
-      const subscriptionCards =
-        items.length > 0
-          ? items
+      const recordedSavingsDisplay =
+        savedCurrencies.size > 1
+          ? "Multiple currencies"
+          : formatMinor(
+              totalSavedMinor,
+              savedCurrencies.size === 1
+                ? [...savedCurrencies][0]
+                : selectedCurrency
+            );
+
+      const renderSubscriptionCards = (
+        subscriptions: Subscription[],
+        emptyMessage: string
+      ) =>
+        subscriptions.length > 0
+          ? subscriptions
               .map((item) => {
                 const status = statusMeta(
                   effectiveSubscriptionStatus(item)
@@ -8442,10 +8497,30 @@ export default function Home() {
               .join("")
           : `
               <div class="empty">
-                No subscriptions are currently stored
-                in this Savlivo account.
+                ${escapeHtml(emptyMessage)}
               </div>
             `;
+
+      const subscriptionCards =
+        renderSubscriptionCards(
+          currentSubscriptions,
+          "No current subscriptions."
+        );
+
+      const cancelledSubscriptionCards =
+        cancelledSubscriptions.length > 0
+          ? `
+              <div class="section">
+                <div class="section-label">
+                  Subscription history
+                </div>
+                ${renderSubscriptionCards(
+                  cancelledSubscriptions,
+                  ""
+                )}
+              </div>
+            `
+          : "";
 
       const exportedAt = new Date();
 
@@ -8785,7 +8860,7 @@ export default function Home() {
                     Subscriptions
                   </div>
                   <div class="metric-value">
-                    ${items.length}
+                    ${currentSubscriptions.length}
                   </div>
                 </div>
 
@@ -8794,12 +8869,7 @@ export default function Home() {
                     Recorded savings
                   </div>
                   <div class="metric-value">
-                    ${escapeHtml(
-                      formatMinor(
-                        totalSavedMinor,
-                        selectedCurrency
-                      )
-                    )}
+                    ${escapeHtml(recordedSavingsDisplay)}
                   </div>
                 </div>
               </div>
@@ -8807,10 +8877,12 @@ export default function Home() {
 
             <div class="section">
               <div class="section-label">
-                Subscriptions
+                Current subscriptions
               </div>
               ${subscriptionCards}
             </div>
+
+            ${cancelledSubscriptionCards}
 
             <div class="section">
               <div class="section-label">
@@ -8868,6 +8940,17 @@ export default function Home() {
       const { uri } =
         await Print.printToFileAsync({ html });
 
+      const reportDate =
+        exportedAt.toISOString().slice(0, 10);
+
+      const reportUri =
+        `${FileSystem.cacheDirectory}Savlivo-Report-${reportDate}.pdf`;
+
+      await FileSystem.copyAsync({
+        from: uri,
+        to: reportUri
+      });
+
       const sharingAvailable =
         await Sharing.isAvailableAsync();
 
@@ -8879,7 +8962,7 @@ export default function Home() {
         return;
       }
 
-      await Sharing.shareAsync(uri, {
+      await Sharing.shareAsync(reportUri, {
         mimeType: "application/pdf",
         dialogTitle: "Export Savlivo data",
         UTI: "com.adobe.pdf"
