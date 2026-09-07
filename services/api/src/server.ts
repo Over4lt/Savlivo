@@ -158,7 +158,7 @@ const server = http.createServer(async (req, res) => {
 
             const resetBase =
               process.env.SAVLIVO_PASSWORD_RESET_URL?.trim() ||
-              "savlivo://reset-password";
+              "https://savlivo.com/reset-password";
 
             const separator = resetBase.includes("?") ? "&" : "?";
             const resetUrl =

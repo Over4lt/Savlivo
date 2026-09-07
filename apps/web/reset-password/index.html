@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reset your Savlivo password</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .reset-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .reset-card {
+      width: min(100%, 520px);
+      text-align: center;
+    }
+
+    .reset-card img {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      margin-bottom: 20px;
+    }
+
+    .reset-card h1 {
+      margin-bottom: 12px;
+    }
+
+    .reset-card p {
+      line-height: 1.6;
+      opacity: 0.8;
+    }
+
+    .reset-button {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 18px;
+      border-radius: 10px;
+      background: #2f7d4a;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <main class="reset-shell">
+    <section class="reset-card">
+      <img src="/assets/logo.png" alt="Savlivo" />
+      <h1>Reset your password</h1>
+      <p>
+        If Savlivo is installed, this link should open the app automatically.
+      </p>
+      <a id="open-app" class="reset-button" href="#">
+        Open Savlivo
+      </a>
+    </section>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    const button = document.getElementById("open-app");
+
+    if (token) {
+      button.href =
+        "savlivo://reset-password?token=" + encodeURIComponent(token);
+    } else {
+      button.removeAttribute("href");
+      button.textContent = "Invalid reset link";
+    }
+  </script>
+</body>
+</html>

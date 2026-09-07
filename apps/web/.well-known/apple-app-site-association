@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "FFK4ZKV9A9.com.thomashodne.savlivo"
+        ],
+        "components": [
+          {
+            "/": "/reset-password",
+            "comment": "Open Savlivo password reset links in the iOS app"
+          },
+          {
+            "/": "/reset-password/",
+            "comment": "Open Savlivo password reset links in the iOS app"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -10963,7 +10963,7 @@ export default function Home() {
                 styles.settingsLogout,
                 {
                   backgroundColor: darkMode ? "#3A1F21" : "#FDECEC",
-                  borderColor: darkMode ? "#6B2B2F" : "#F5B7B1"
+                  borderColor: darkMode ? "#FF8A80" : "#D92D20"
                 }
               ]}
               onPress={logout}

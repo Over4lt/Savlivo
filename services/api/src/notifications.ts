@@ -356,9 +356,9 @@ export async function sendTransactionalEmail(
       to: [to],
       subject,
       text,
-      html: text.includes("savlivo://reset-password?token=")
+      html: text.includes("/reset-password?token=")
         ? (() => {
-            const match = text.match(/savlivo:\/\/reset-password\?token=[^\s]+/);
+            const match = text.match(/https:\/\/savlivo\.com\/reset-password\?token=[^\s]+/);
             const resetUrl = match?.[0];
 
             if (!resetUrl) {
