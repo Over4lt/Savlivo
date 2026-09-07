@@ -1,4 +1,4 @@
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 
 import {
   fetchProducts,
@@ -57,6 +57,15 @@ export async function getPlanPrices() {
   });
 
   const fetched = result ?? [];
+
+  Alert.alert(
+    "StoreKit diagnostics",
+    fetched.length
+      ? `Fetched ${fetched.length} product(s):\n\n${fetched
+          .map((product) => product.id)
+          .join("\n")}`
+      : "Fetched 0 products from StoreKit."
+  );
 
   const priceFor = (productId: string) =>
     fetched.find((product) => product.id === productId)?.displayPrice ?? null;
