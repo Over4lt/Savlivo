@@ -27,6 +27,8 @@ import DateTimePicker, {
   type DateTimePickerEvent
 } from "@react-native-community/datetimepicker";
 import { StatusBar } from "expo-status-bar";
+import { Asset } from "expo-asset";
+import * as FileSystem from "expo-file-system/legacy";
 import { Ionicons } from "@expo/vector-icons";
 import { api, clearToken, getToken, setToken } from "../src/api";
 import { getPlanPrices, purchasePlan, type BillingPeriod } from "../src/billing";
@@ -4501,8 +4503,31 @@ export default function Home() {
       <SafeAreaView style={[styles.screen, { backgroundColor: theme.bg }]}>
         <StatusBar style={darkMode ? "light" : "dark"} backgroundColor={theme.bg} />
         <View style={styles.authCard}>
-          <Text style={[styles.brand, { color: theme.text }]}>Savlivo</Text>
-          <Text style={[styles.tagline, { color: theme.muted }]}>Watch more. Pay less.</Text>
+          <View style={styles.modernBrandLockup}>
+            <Image
+              source={require("../assets/logo.png")}
+              style={styles.modernHeaderLogo}
+              resizeMode="cover"
+            />
+
+            <Text
+              style={[styles.modernBrandLine, { color: theme.text }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
+              <Text style={styles.modernBrandName}>Savlivo</Text>
+
+              <Text
+                style={[
+                  styles.modernBrandSlogan,
+                  { color: visual.greenText }
+                ]}
+              >
+                {" — Smart money stays with you"}
+              </Text>
+            </Text>
+          </View>
 
           <TextInput
             style={[
@@ -7734,6 +7759,60 @@ export default function Home() {
         }
       };
 
+      const logoAsset = Asset.fromModule(
+        require("../assets/logo.png")
+      );
+      await logoAsset.downloadAsync();
+
+      const logoBase64 = logoAsset.localUri
+        ? await FileSystem.readAsStringAsync(
+            logoAsset.localUri,
+            {
+              encoding: FileSystem.EncodingType.Base64
+            }
+          )
+        : "";
+
+      const logoSrc = logoBase64
+        ? `data:image/png;base64,${logoBase64}`
+        : "";
+
+      const statusMeta = (statusValue: string) => {
+        const normalized =
+          statusValue.trim().toUpperCase();
+
+        if (normalized === "ACTIVE") {
+          return {
+            label: "Active",
+            className: "status-active"
+          };
+        }
+
+        if (normalized === "PAUSED") {
+          return {
+            label: "Paused",
+            className: "status-paused"
+          };
+        }
+
+        if (
+          normalized === "CANCELLED" ||
+          normalized === "CANCELED"
+        ) {
+          return {
+            label: "Cancelled",
+            className: "status-cancelled"
+          };
+        }
+
+        return {
+          label:
+            statusValue.charAt(0).toUpperCase() +
+            statusValue.slice(1).toLowerCase(),
+          className: "status-neutral"
+        };
+      };
+
       const protectedNames =
         aiPreferences.protectedSubscriptionIds
           .map(
@@ -7754,11 +7833,15 @@ export default function Home() {
       const subscriptionCards =
         items.length > 0
           ? items
-              .map(
-                (item) => `
+              .map((item) => {
+                const status = statusMeta(
+                  effectiveSubscriptionStatus(item)
+                );
+
+                return `
                   <div class="subscription">
-                    <div class="subscription-top">
-                      <div>
+                    <div class="subscription-main">
+                      <div class="subscription-name-wrap">
                         <div class="service">
                           ${escapeHtml(item.serviceName)}
                         </div>
@@ -7769,10 +7852,12 @@ export default function Home() {
                         </div>
                       </div>
 
-                      <div class="status">
-                        ${escapeHtml(
-                          effectiveSubscriptionStatus(item)
-                        )}
+                      <div class="status-wrap">
+                        <span
+                          class="status-pill ${status.className}"
+                        >
+                          ${escapeHtml(status.label)}
+                        </span>
                       </div>
                     </div>
 
@@ -7811,8 +7896,8 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                `
-              )
+                `;
+              })
               .join("")
           : `
               <div class="empty">
@@ -7829,14 +7914,18 @@ export default function Home() {
           <head>
             <meta charset="utf-8" />
             <style>
-              @page { margin: 36px; }
+              @page {
+                margin: 32px;
+              }
 
-              * { box-sizing: border-box; }
+              * {
+                box-sizing: border-box;
+              }
 
               body {
                 margin: 0;
                 background: #ffffff;
-                color: #111827;
+                color: #17352a;
                 font-family:
                   -apple-system,
                   BlinkMacSystemFont,
@@ -7845,101 +7934,179 @@ export default function Home() {
                   sans-serif;
                 font-size: 13px;
                 line-height: 1.45;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
               }
 
               .header {
-                padding: 10px 0 26px;
-                border-bottom: 1px solid #e5e7eb;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 24px;
+                padding: 4px 0 22px;
+                border-bottom: 1px solid #dfe8e3;
               }
 
-              .brand {
-                color: #0f9958;
-                font-size: 13px;
+              .header-brand {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+              }
+
+              .logo {
+                width: 48px;
+                height: 48px;
+                object-fit: cover;
+                border-radius: 12px;
+              }
+
+              .brand-name {
+                color: #173d30;
+                font-size: 27px;
+                line-height: 1;
                 font-weight: 800;
-                letter-spacing: 1.6px;
-                text-transform: uppercase;
-              }
-
-              h1 {
-                margin: 7px 0 6px;
-                font-size: 30px;
-                line-height: 1.1;
                 letter-spacing: -0.8px;
               }
 
-              .subtitle { color: #667085; }
+              .tagline {
+                margin-top: 5px;
+                color: #27895c;
+                font-size: 10px;
+                font-weight: 700;
+              }
 
-              .section { margin-top: 26px; }
+              .header-copy {
+                text-align: right;
+              }
+
+              h1 {
+                margin: 0;
+                color: #173d30;
+                font-size: 25px;
+                line-height: 1.1;
+                font-weight: 800;
+                letter-spacing: -0.6px;
+              }
+
+              .subtitle {
+                margin-top: 6px;
+                color: #7a8982;
+                font-size: 10px;
+              }
+
+              .section {
+                margin-top: 24px;
+              }
 
               .section-label {
-                margin-bottom: 10px;
-                color: #0f9958;
-                font-size: 11px;
+                margin-bottom: 11px;
+                color: #27895c;
+                font-size: 10px;
                 font-weight: 800;
-                letter-spacing: 1.3px;
+                letter-spacing: 1.1px;
                 text-transform: uppercase;
               }
 
               .overview {
                 display: flex;
                 flex-wrap: wrap;
-                gap: 10px;
+                gap: 9px;
               }
 
               .metric {
                 width: 48%;
-                min-height: 76px;
-                padding: 14px;
-                background: #effaf4;
-                border: 1px solid #d6f0e1;
-                border-radius: 14px;
+                min-height: 72px;
+                padding: 13px 14px;
+                background: #f5f8f6;
+                border: 1px solid #dfe8e3;
+                border-radius: 12px;
+                page-break-inside: avoid;
               }
 
               .metric-label {
-                color: #667085;
-                font-size: 11px;
-                margin-bottom: 5px;
+                color: #7a8982;
+                font-size: 10px;
+                margin-bottom: 4px;
               }
 
               .metric-value {
-                font-size: 17px;
+                color: #173d30;
+                font-size: 16px;
                 font-weight: 800;
               }
 
               .subscription {
-                margin-bottom: 10px;
-                padding: 15px;
-                border: 1px solid #e5e7eb;
-                border-radius: 14px;
+                margin-bottom: 9px;
+                padding: 14px;
+                background: #ffffff;
+                border: 1px solid #e0e8e3;
+                border-radius: 12px;
                 page-break-inside: avoid;
               }
 
-              .subscription-top {
+              .subscription-main {
                 display: flex;
                 justify-content: space-between;
-                align-items: flex-start;
-                gap: 12px;
-                margin-bottom: 13px;
+                align-items: center;
+                gap: 16px;
+                margin-bottom: 12px;
+              }
+
+              .subscription-name-wrap {
+                flex: 1;
               }
 
               .service {
-                font-size: 16px;
+                color: #17352a;
+                font-size: 15px;
                 font-weight: 800;
               }
 
               .plan {
                 margin-top: 2px;
-                color: #667085;
-                font-size: 12px;
+                color: #87938e;
+                font-size: 11px;
               }
 
-              .status {
-                padding: 5px 9px;
-                background: #effaf4;
-                color: #0f9958;
+              .status-wrap {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+              }
+
+              .status-pill {
+                display: inline-block;
+                min-width: 70px;
+                padding: 5px 10px;
                 border-radius: 999px;
-                font-size: 10px;
+                text-align: center;
+                font-size: 9px;
+                line-height: 1;
                 font-weight: 800;
+              }
+
+              .status-active {
+                color: #286a4a;
+                background: #dcece3;
+                border: 1px solid #c9dfd2;
+              }
+
+              .status-paused {
+                color: #755b18;
+                background: #f5e9c6;
+                border: 1px solid #ead9a8;
+              }
+
+              .status-cancelled {
+                color: #8a3d3f;
+                background: #f3dfe0;
+                border: 1px solid #e8cacc;
+              }
+
+              .status-neutral {
+                color: #626f69;
+                background: #edf1ef;
+                border: 1px solid #dde4e0;
               }
 
               .details {
@@ -7949,60 +8116,93 @@ export default function Home() {
 
               .detail {
                 flex: 1;
-                padding-top: 10px;
-                border-top: 1px solid #f0f1f3;
+                padding-top: 9px;
+                border-top: 1px solid #edf1ef;
               }
 
               .detail span {
                 display: block;
-                color: #667085;
-                font-size: 10px;
                 margin-bottom: 3px;
+                color: #87938e;
+                font-size: 9px;
               }
 
               .detail strong {
-                font-size: 12px;
+                color: #354a42;
+                font-size: 11px;
+                font-weight: 700;
               }
 
               .preference {
-                padding: 13px 0;
-                border-bottom: 1px solid #e5e7eb;
+                padding: 12px 14px;
+                margin-bottom: 7px;
+                background: #f5f8f6;
+                border: 1px solid #dfe8e3;
+                border-radius: 11px;
+                page-break-inside: avoid;
               }
 
               .preference-label {
-                color: #667085;
-                font-size: 11px;
+                color: #7a8982;
+                font-size: 10px;
               }
 
               .preference-value {
                 margin-top: 3px;
+                color: #29463a;
                 font-weight: 700;
               }
 
               .empty {
                 padding: 18px;
-                color: #667085;
-                background: #f8faf9;
-                border-radius: 14px;
+                color: #75847d;
+                background: #f5f8f6;
+                border: 1px solid #e0e8e3;
+                border-radius: 12px;
               }
 
               .footer {
-                margin-top: 32px;
-                padding-top: 14px;
-                border-top: 1px solid #e5e7eb;
-                color: #98a2b3;
-                font-size: 10px;
+                margin-top: 28px;
+                padding-top: 13px;
+                border-top: 1px solid #dfe8e3;
+                color: #8b9792;
+                font-size: 9px;
+              }
+
+              .footer strong {
+                color: #5f746a;
               }
             </style>
           </head>
 
           <body>
             <div class="header">
-              <div class="brand">Savlivo</div>
-              <h1>Data Export</h1>
-              <div class="subtitle">
-                A summary of the data stored in your
-                Savlivo account.
+              <div class="header-brand">
+                ${
+                  logoSrc
+                    ? `<img
+                        class="logo"
+                        src="${logoSrc}"
+                      />`
+                    : ""
+                }
+
+                <div>
+                  <div class="brand-name">
+                    Savlivo
+                  </div>
+                  <div class="tagline">
+                    Smart money stays with you
+                  </div>
+                </div>
+              </div>
+
+              <div class="header-copy">
+                <h1>Data Export</h1>
+                <div class="subtitle">
+                  Your subscriptions, savings
+                  and preferences
+                </div>
               </div>
             </div>
 
@@ -8113,10 +8313,12 @@ export default function Home() {
             </div>
 
             <div class="footer">
-              Exported from Savlivo ·
+              <strong>Exported from Savlivo</strong>
+              ·
               ${escapeHtml(
                 exportedAt.toLocaleString()
               )}
+              · Smart money stays with you
             </div>
           </body>
         </html>
