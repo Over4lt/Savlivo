@@ -9037,9 +9037,11 @@ export default function Home() {
                   styles.modernPlanBadgeText,
                   {
                     color:
-                      plan === "PREMIUM"
-                        ? visual.green
-                        : theme.muted
+                      darkMode
+                        ? plan === "PREMIUM"
+                          ? visual.green
+                          : theme.muted
+                        : visual.greenText
                   }
                 ]}
               >
