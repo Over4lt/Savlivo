@@ -1,0 +1,15 @@
+# Future provider browser candidates — investigation only
+
+2026-09-08. No additional browser pilots implemented. Classifications are suitability inferences, not authenticated system-sheet acceptance results. Existing URLs below come from apps/mobile/src/providerRouting.ts; no new destination was invented.
+
+| Provider/route | Classification | Evidence and next check |
+|---|---|---|
+| Netflix direct | GOOD PILOT CANDIDATE | Existing account/cancelplan URLs and manual account flow. Current NO/iOS action-sheet pilot still needs sign-in, dismissal and app-handoff acceptance on iPhone. [Official guidance](https://help.netflix.com/en/node/407). |
+| Spotify direct | GOOD PILOT CANDIDATE | Existing https://www.spotify.com/account/ destination; official account-based cancellation. Check login, Family/Duo manager vs member and partner billing before enabling. [Official guidance](https://support.spotify.com/us/article/cancel-premium/). |
+| Apple-managed | SYSTEM SUBSCRIPTION MANAGEMENT REQUIRED | Preserve existing https://apps.apple.com/account/subscriptions route and Apple-owned management; do not wrap it in a provider website pilot. [Apple guidance](https://support.apple.com/en-us/118428). |
+| Google Play-managed | SYSTEM SUBSCRIPTION MANAGEMENT REQUIRED | Preserve existing https://play.google.com/store/account/subscriptions and Google account/Play management. Direct Google One/YouTube are distinct billing routes requiring separate review. [Google guidance](https://support.google.com/googleplay/answer/7018481). |
+| Disney+ direct | NEEDS PROVIDER-SPECIFIC REVIEW | Existing https://www.disneyplus.com/account; official help search documents mobile/web account management, but the fetched help page did not expose readable detail. Validate country, bundles, partner billing and login before rollout. [Official help](https://help.disneyplus.com/article/disneyplus-manage-subscription). |
+| Amazon/Prime | NEEDS PROVIDER-SPECIFIC REVIEW | Existing code distinguishes Prime, Prime Video regional account pages and Amazon Channels. General [official Prime page](https://www.amazon.com/amazonprime) is insufficient proof of all signed-in cancellation routes. Do not collapse these products into one management flow; country/account and sign-in review needed. |
+| Microsoft direct | GOOD PILOT CANDIDATE | Existing https://account.microsoft.com/services/ is also referenced by official guidance. Verify sign-in/MFA, recurring-billing-off vs cancellation, product and partner distinctions on device. [Official guidance](https://support.microsoft.com/en-US/accounts-billing/subscriptions/turn-recurring-billing-on-or-off-for-a-microsoft-subscription). |
+
+System Safari sheets do not share ordinary Safari cookies, so additional sign-in is possible. They cannot provide a trusted cancellation outcome to Savlivo merely by closing. Preserve user confirmation and platform billing separation in any future experiment. Never inspect sessions, inject scripts or automate provider actions. [Expo SDK 54 behavior](https://docs.expo.dev/versions/v54.0.0/sdk/webbrowser/).

@@ -31,6 +31,8 @@ import DateTimePicker, {
   type DateTimePickerEvent
 } from "@react-native-community/datetimepicker";
 import { StatusBar } from "expo-status-bar";
+import * as WebBrowser from "expo-web-browser";
+import { openNetflixNorwayBrowser, usesNetflixNorwayBrowser } from "../lib/netflix-norway-browser";
 import { useLocalSearchParams } from "expo-router";
 import { Asset } from "expo-asset";
 import * as FileSystem from "expo-file-system/legacy";
@@ -1135,6 +1137,7 @@ export default function Home() {
   const [statusConfirmOpen, setStatusConfirmOpen] = useState(false);
   const [statusEffectiveDateInput, setStatusEffectiveDateInput] = useState("");
   const providerWasOpenedRef = useRef(false);
+  const actionSheetDismissedRef = useRef<(() => void) | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [regionModalOpen, setRegionModalOpen] = useState(false);
   const [neverPauseModalOpen, setNeverPauseModalOpen] = useState(false);
@@ -4002,7 +4005,14 @@ export default function Home() {
       return false;
     }
 
-    return await openProviderUrl(url);
+    return openNetflixNorwayBrowser(url, subscription, selectedCountryCode, {
+      platform: Platform.OS,
+      openSystemBrowser: (destination) => WebBrowser.openBrowserAsync(destination, {
+        dismissButtonStyle: "done",
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
+      }),
+      openExternal: openProviderUrl
+    });
   }
 
   function rememberProviderRedirect(
@@ -4101,10 +4111,19 @@ export default function Home() {
 
     const { subscription, action } = actionSheet;
 
-    // Close the sheet before handing control to the provider.
+    // Safari must be presented after the native action sheet has dismissed.
+    // Keep external-browser timing unchanged outside the iOS Netflix/NO pilot.
+    if (actionSheetDismissedRef.current) return;
+    const isBrowserPilot = usesNetflixNorwayBrowser(
+      providerManagementFallbackUrl(subscription, action), subscription, selectedCountryCode, Platform.OS
+    );
+    const sheetDismissed = isBrowserPilot
+      ? new Promise<void>(resolve => { actionSheetDismissedRef.current = resolve; })
+      : null;
     setActionSheet(null);
 
     try {
+      if (sheetDismissed) await sheetDismissed;
       // Restore the reliable subscription-management flow:
       //
       // 1. Open the known provider/service management destination.
@@ -12793,6 +12812,11 @@ export default function Home() {
       <Modal
         transparent
         visible={!!actionSheet}
+        onDismiss={() => {
+          const resolve = actionSheetDismissedRef.current;
+          actionSheetDismissedRef.current = null;
+          resolve?.();
+        }}
         animationType="fade"
         onRequestClose={() => setActionSheet(null)}
       >
