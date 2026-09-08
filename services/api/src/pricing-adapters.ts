@@ -3248,6 +3248,78 @@ const googleOneStoreEstimatedCatalog: Record<
 const googleOnePricingFeedFilename =
   "pricing_2026_07_28.json";
 
+// Only page-linked modules on Google's own origin may supply a filename.
+export function parseGoogleOnePricingAssets(html: string): string[] {
+  const paths = new Set<string>();
+  for (const tag of html.matchAll(/<script\b[^>]*>/gi)) {
+    const src = tag[0].match(/\ssrc=["'](\/about\/assets\/d\/[A-Za-z0-9_-]+\.min\.js)["']/);
+    if (src) paths.add(src[1]);
+  }
+  return paths.size <= 16 ? [...paths] : [];
+}
+
+export function parseGoogleOnePricingFilename(asset: string): string | null {
+  if (
+    !/customElements\.define\(["'`]g1-localized-price["'`],/.test(asset) ||
+    !asset.includes("/about/feeds/${") ||
+    !asset.includes("COUNTRY_CODE") ||
+    !asset.includes("CURRENCY_CODE")
+  ) return null;
+
+  // Match the component's default feed, not preview overrides or arbitrary URLs.
+  const defaults = [...asset.matchAll(/\b[A-Za-z_$][\w$]*\(\)\s*\|\|\s*["'`](pricing_\d{4}_\d{2}_\d{2}\.json)["'`]/g)];
+  const filenames = new Set(asset.match(/pricing_\d{4}_\d{2}_\d{2}\.json/g));
+  if (defaults.length !== 1 || filenames.size !== 1) return null;
+  const filename = defaults[0][1];
+  const date = filename.slice(8, 18).replaceAll("_", "-");
+  const parsed = new Date(date);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) return null;
+  return filename;
+}
+
+export async function discoverGoogleOnePricingFilename(): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  const read = async (path: string) => {
+    const response = await fetch(`https://one.google.com${path}`, {
+      signal: controller.signal,
+      redirect: "error"
+    });
+    if (!response.ok) throw new Error(`HTTP_${response.status}`);
+    return response.text();
+  };
+  try {
+    const paths = parseGoogleOnePricingAssets(await read("/intl/ALL_se/about/"));
+    if (!paths.length) return null;
+    const assets = await Promise.all(paths.map(read));
+    const pricingAssets = assets.filter(asset => asset.includes("g1-localized-price"));
+    const filenames = pricingAssets.map(parseGoogleOnePricingFilename);
+    if (!filenames.length || filenames.some(filename => filename === null)) return null;
+    return new Set(filenames).size === 1 ? filenames[0] : null;
+  } catch {
+    return null;
+  } finally {
+    controller.abort();
+    clearTimeout(timer);
+  }
+}
+
+let googleOneDiscoveryCache: {
+  expiresAt: number;
+  result: Promise<string | null>;
+} | undefined;
+
+function cachedGoogleOnePricingFilename() {
+  if (!googleOneDiscoveryCache || googleOneDiscoveryCache.expiresAt <= Date.now()) {
+    // Share in-flight work across markets and cache failures too.
+    googleOneDiscoveryCache = {
+      expiresAt: Date.now() + 5 * 60 * 1000,
+      result: discoverGoogleOnePricingFilename()
+    };
+  }
+  return googleOneDiscoveryCache.result;
+}
+
 async function googleOneAdapter(
   ctx: AdapterContext
 ): Promise<AdapterPrice[]> {
@@ -3312,14 +3384,26 @@ async function googleOneAdapter(
       : [ctx.countryCode.toLowerCase()];
     const acceptedPlans = new Set<string>();
 
-    for (const feedMarket of feedMarkets) {
+    const feedRoutes = feedMarkets.map(market => ({
+      market, filename: googleOnePricingFeedFilename
+    }));
+    for (let index = 0; index <= feedRoutes.length; index++) {
       if (acceptedPlans.size === 2) break;
+      if (index === feedMarkets.length) {
+        // Run every existing route first. Discovery only fills missing plans.
+        const discovered = await cachedGoogleOnePricingFilename();
+        if (discovered && discovered > googleOnePricingFeedFilename) {
+          feedRoutes.push(...feedMarkets.map(market => ({ market, filename: discovered })));
+        }
+      }
+      const route = feedRoutes[index];
+      if (!route) break;
 
       const pricingFeedUrl =
         "https" + "://" + "one.google.com/intl/ALL_" +
-        feedMarket +
+        route.market +
         "/about/feeds/" +
-        googleOnePricingFeedFilename;
+        route.filename;
 
       try {
         const feedJson = await fetchText(

@@ -13,6 +13,9 @@ import {
   parseSpotifyFaqPrices,
   parseSpotifyNextData,
   providerAdapters,
+  parseGoogleOnePricingAssets,
+  parseGoogleOnePricingFilename,
+  discoverGoogleOnePricingFilename,
   parseGoogleOneMarket,
   parseGoogleOneStructuredPrices,
   parseGoogleOnePricingFeed,
@@ -4742,6 +4745,7 @@ test("Google One GB recovery preserves existing plans and validates provider ide
       const urls: string[] = [];
       t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
         const url = String(input);
+        if (url.endsWith("/about/")) throw new Error("discovery unavailable");
         urls.push(url);
         const body = url.includes("ALL_gb/") ? scenario.primary : scenario.recovery;
         if (body === null) throw new Error("offline");
@@ -4767,7 +4771,7 @@ test("Google One GB recovery preserves existing plans and validates provider ide
 test("Google One foreign failures preserve store prices and Norway remains independent", async (t) => {
   const urls: string[] = [];
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
-    urls.push(String(input));
+    if (!String(input).endsWith("/about/")) urls.push(String(input));
     throw new Error("offline");
   });
   const se = await providerAdapters["google-one"]({ countryCode: "SE", currency: "SEK" });
@@ -4778,4 +4782,173 @@ test("Google One foreign failures preserve store prices and Norway remains indep
   assert.ok(no.every(p => p.verification === "registry"));
   assert.equal(urls.length, 2);
   assert.ok(urls[1].startsWith("https://one.google.com/plans?"));
+});
+
+const discoveryPage = '<script type="module" src="/about/assets/d/pricing.min.js"></script>';
+const discoveryAsset = (filename = "pricing_2026_09_01.json") =>
+  'let n=c()||`' + filename + '`; let url=`/about/feeds/${n}`;' +
+  'data.COUNTRY_CODE; data.CURRENCY_CODE; customElements.define(`g1-localized-price`,a);';
+
+test("Google One discovery parsers restrict assets and reject ambiguous or invalid filenames", () => {
+  assert.deepEqual(parseGoogleOnePricingAssets(discoveryPage + discoveryPage), ["/about/assets/d/pricing.min.js"]);
+  for (const src of ["https://evil.test/a.js", "//one.google.com/a.js", "/about/assets/d/../a.min.js", "/about/assets/d/a.min.js?url=evil"]) {
+    assert.deepEqual(parseGoogleOnePricingAssets(`<script src="${src}"></script>`), []);
+  }
+  assert.deepEqual(parseGoogleOnePricingAssets(Array.from({ length: 17 }, (_, i) => `<script src="/about/assets/d/a${i}.min.js"></script>`).join("")), []);
+  assert.equal(parseGoogleOnePricingFilename(discoveryAsset()), "pricing_2026_09_01.json");
+  for (const asset of [
+    "pricing_2026_09_01.json",
+    discoveryAsset("pricing_2026_02_30.json"),
+    discoveryAsset("pricing_2026_13_01.json"),
+    discoveryAsset("../../pricing_2026_09_01.json"),
+    discoveryAsset().replace("COUNTRY_CODE", "country"),
+    discoveryAsset().replace("CURRENCY_CODE", "currency"),
+    discoveryAsset().replace("g1-localized-price", "other"),
+    discoveryAsset().replace("/about/feeds/${", "/other/${"),
+    discoveryAsset() + ' let preview="pricing_2026_10_01.json";',
+    discoveryAsset() + ' let other=c()||`pricing_2026_09_01.json`;'
+  ]) assert.equal(parseGoogleOnePricingFilename(asset), null);
+});
+
+test("Google One discovery fails closed on page and asset failures", async (t) => {
+  for (const failure of ["none", "page network", "page HTTP", "empty page", "asset network", "asset HTTP", "asset parse", "conflict", "redirect"]) {
+    await t.test(failure, async (t) => {
+      t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+        assert.equal(init?.redirect, "error");
+        assert.ok(String(input).startsWith("https://one.google.com/"));
+        const page = String(input).endsWith("/about/");
+        if (failure === "redirect" || failure === (page ? "page network" : "asset network")) throw new Error("unavailable");
+        if (failure === (page ? "page HTTP" : "asset HTTP")) return new Response("", { status: 503 });
+        if (page) return new Response(failure === "empty page" ? "" : discoveryPage + (failure === "conflict" ? '<script src="/about/assets/d/other.min.js"></script>' : ""));
+        return new Response(failure === "asset parse" ? "broken" : discoveryAsset(String(input).includes("other") ? "pricing_2026_10_01.json" : "pricing_2026_09_01.json"));
+      });
+      assert.equal(await discoverGoogleOnePricingFilename(), failure === "none" ? "pricing_2026_09_01.json" : null);
+    });
+  }
+});
+
+test("Google One discovery aborts on its shared deadline", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.mock.method(globalThis, "fetch", (_input: unknown, init: RequestInit) => new Promise((_resolve, reject) => {
+    init.signal!.addEventListener("abort", () => reject(new Error("timeout")));
+  }));
+  const result = discoverGoogleOnePricingFilename();
+  t.mock.timers.tick(4000);
+  assert.equal(await result, null);
+});
+
+test("Google One discovered feeds only recover missing validated storage prices", async (t) => {
+  let now = Date.now() + 3600000;
+  const feed = (overrides = {}) => JSON.stringify({
+    COUNTRY_CODE: "SE", CURRENCY_CODE: "SEK",
+    PRICE_100_MONTHLY: 21, PRICE_200_MONTHLY: 31,
+    PRICE_2048_MONTHLY: 100, PRICE_5120_MONTHLY: 200,
+    PRICE_GEN_AI_PLUS_MONTHLY: 55, PRICE_GEN_AI_PRO_MONTHLY: 255,
+    ...overrides
+  });
+  const cases = [
+    { name: "recover both", primary: null, newer: feed(), expected: [2100, 3100, 9900] },
+    { name: "preserve primary", primary: feed({ PRICE_100_MONTHLY: 19, PRICE_200_MONTHLY: null }), newer: feed(), expected: [1900, 3100, 9900] },
+    { name: "complete primary skips discovery", primary: feed(), newer: null, expected: [2100, 3100, 9900] },
+    { name: "newer network", primary: null, newer: null, expected: [1900, 2900, 9900] },
+    { name: "newer malformed", primary: null, newer: "{", expected: [1900, 2900, 9900] },
+    { name: "newer country", primary: null, newer: feed({ COUNTRY_CODE: "US" }), expected: [1900, 2900, 9900] },
+    { name: "newer currency", primary: null, newer: feed({ CURRENCY_CODE: "USD" }), expected: [1900, 2900, 9900] },
+    { name: "newer partial", primary: null, newer: feed({ PRICE_200_MONTHLY: null }), expected: [2100, 2900, 9900] },
+    { name: "partial survives discovery failure", primary: feed({ PRICE_200_MONTHLY: null }), newer: null, discoveryFails: true, expected: [2100, 2900, 9900] },
+    { name: "same version", primary: null, newer: feed(), filename: "pricing_2026_07_28.json", expected: [1900, 2900, 9900] },
+    { name: "older version", primary: null, newer: feed(), filename: "pricing_2026_07_01.json", expected: [1900, 2900, 9900] }
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async (t) => {
+      now += 3600000;
+      t.mock.method(Date, "now", () => now);
+      const urls: string[] = [];
+      t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.endsWith("/about/")) {
+          if (scenario.discoveryFails) throw new Error("offline");
+          return new Response(discoveryPage);
+        }
+        if (url.endsWith(".min.js")) return new Response(discoveryAsset(scenario.filename));
+        const body = url.endsWith("pricing_2026_07_28.json") ? scenario.primary : scenario.newer;
+        if (body === null) throw new Error("offline");
+        return new Response(body);
+      });
+      const prices = await providerAdapters["google-one"]({ countryCode: "SE", currency: "SEK" });
+      assert.deepEqual(prices.map(p => p.monthlyPriceMinor).sort((a,b) => a-b), scenario.expected);
+      assert.ok(urls[0].endsWith("pricing_2026_07_28.json"));
+      if (scenario.name === "complete primary skips discovery") assert.equal(urls.length, 1);
+      if (scenario.filename) assert.equal(urls.filter(u => u.includes("/feeds/")).length, 1);
+      for (const price of prices) {
+        assert.ok(["Storage 100 GB", "Storage 200 GB", "Google AI Plus — 2 TB"].includes(price.planName));
+        if (price.monthlyPriceMinor === 3100 || price.monthlyPriceMinor === 2100) {
+          assert.equal(price.verification, "authoritative-provider");
+        }
+      }
+      if (scenario.name === "recover both") assert.ok(prices.filter(p => p.planName.startsWith("Storage")).every(p => p.sourceUrl.endsWith("pricing_2026_09_01.json")));
+    });
+  }
+});
+
+test("Google One discovery shares attempts and caches failure until expiry", async (t) => {
+  let now = Date.now() + 86400000;
+  t.mock.method(Date, "now", () => now);
+  let pages = 0;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    if (String(input).endsWith("/about/")) pages++;
+    throw new Error("offline");
+  });
+  const run = () => providerAdapters["google-one"]({ countryCode: "SE", currency: "SEK" });
+  await Promise.all([run(), run()]);
+  await run();
+  assert.equal(pages, 1);
+  now += 300001;
+  await run();
+  assert.equal(pages, 2);
+});
+
+test("Google One Norway never requests discovery even with a failed provider", async (t) => {
+  const urls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    urls.push(String(input));
+    throw new Error("offline");
+  });
+  const prices = await providerAdapters["google-one"]({ countryCode: "NO", currency: "NOK" });
+  assert.equal(prices.length, 8);
+  assert.equal(urls.length, 1);
+  assert.ok(urls[0].startsWith("https://one.google.com/plans?"));
+});
+
+test("Google One discovered GB routes follow pinned UK recovery and reuse discovery", async (t) => {
+  t.mock.method(Date, "now", () => 9000000000000);
+  const urls: string[] = [];
+  const pinned = "pricing_2026_07_28.json";
+  const newer = "pricing_2026_09_01.json";
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.endsWith("/about/")) return new Response(discoveryPage);
+    if (url.endsWith(".min.js")) return new Response(discoveryAsset());
+    if (url.includes("ALL_gb")) return new Response("", { status: 404 });
+    return new Response(JSON.stringify({
+      COUNTRY_CODE: "GB", CURRENCY_CODE: "GBP",
+      PRICE_100_MONTHLY: url.endsWith(pinned) ? 1.59 : 9,
+      PRICE_200_MONTHLY: url.endsWith(pinned) ? null : 2.49
+    }));
+  });
+  const run = () => providerAdapters["google-one"]({ countryCode: "GB", currency: "GBP" });
+  const prices = await run();
+  assert.deepEqual(prices.map(p => p.monthlyPriceMinor).sort((a,b) => a-b), [159, 249]);
+  assert.deepEqual(urls.filter(u => u.includes("/feeds/")).map(u => new URL(u).pathname), [
+    `/intl/ALL_gb/about/feeds/${pinned}`,
+    `/intl/ALL_uk/about/feeds/${pinned}`,
+    `/intl/ALL_gb/about/feeds/${newer}`,
+    `/intl/ALL_uk/about/feeds/${newer}`
+  ]);
+  assert.ok(prices.find(p => p.monthlyPriceMinor === 159)!.sourceUrl.endsWith(pinned));
+  assert.ok(prices.find(p => p.monthlyPriceMinor === 249)!.sourceUrl.endsWith(newer));
+  await run();
+  assert.equal(urls.filter(u => u.endsWith("/about/")).length, 1);
 });
