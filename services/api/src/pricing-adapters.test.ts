@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -21,6 +22,8 @@ import {
   parseGoogleOnePricingFeed,
   parseMaxStructuredPrices,
   parseICloudPlusPrices,
+  parseICloudSupportPrices,
+  verifiedProviderRegistry,
   parseMicrosoft365Prices,
   parseMicrosoft365BasicPrice,
   parseMicrosoft365ChinaPrices,
@@ -4951,4 +4954,108 @@ test("Google One discovered GB routes follow pinned UK recovery and reuse discov
   assert.ok(prices.find(p => p.monthlyPriceMinor === 249)!.sourceUrl.endsWith(newer));
   await run();
   assert.equal(urls.filter(u => u.endsWith("/about/")).length, 1);
+});
+
+
+const iCloudSupportFixture = readFileSync(new URL("./fixtures/icloud-support-pricing.html", import.meta.url), "utf8");
+const iCloudSupportExpected: Array<[string, string, number[]]> = [
+  ["CA", "CAD", [1.29, 3.99, 12.99, 39.99, 79.99]],
+  ["GB", "GBP", [0.99, 2.99, 8.99, 26.99, 54.99]],
+  ["AU", "AUD", [1.49, 4.49, 14.99, 44.99, 89.99]],
+  ["NZ", "NZD", [1.99, 5.99, 19.99, 59.99, 119.99]],
+  ["BR", "BRL", [5.9, 19.9, 66.9, 199.9, 399.9]],
+  ["MX", "MXN", [17, 49, 179, 499, 999]],
+  ["CZ", "CZK", [25, 79, 249, 749, 1490]],
+  ["HU", "HUF", [399, 1290, 4490, 12990, 26990]],
+  ["IL", "ILS", [3.9, 11.9, 39.9, 119.9, 239.9]],
+  ["PL", "PLN", [4.99, 14.99, 49.99, 149.99, 299.99]],
+  ["RO", "RON", [4.99, 14.99, 49.99, 149.99, 299.99]],
+  ["SA", "SAR", [3.99, 12.99, 44.99, 129.99, 269.99]],
+  ["ZA", "ZAR", [14.99, 59.99, 199.99, 599.99, 1199.99]],
+  ["CH", "CHF", [1, 3, 10, 30, 60]],
+  ["TR", "TRY", [49.99, 169.99, 549.99, 1699.99, 3399.99]],
+  ["AE", "AED", [3.99, 11.99, 39.99, 119.99, 239.99]],
+  ["HK", "HKD", [8, 23, 78, 238, 468]],
+  ["IN", "INR", [75, 219, 749, 2999, 5900]],
+  ["ID", "IDR", [15000, 59000, 199000, 599000, 1199000]],
+  ["MY", "MYR", [3.9, 11.9, 44.9, 129.9, 269.9]],
+  ["PH", "PHP", [59, 199, 699, 1990, 3990]],
+  ["SG", "SGD", [1.48, 3.98, 13.98, 42.98, 84.98]],
+  ["TW", "TWD", [30, 90, 300, 900, 1790]],
+  ["TH", "THB", [35, 99, 399, 1190, 2390]]
+];
+
+test("iCloud support table verifies five plans in 24 explicit country/currency sections", () => {
+  for (const [country, currency, amounts] of iCloudSupportExpected) {
+    assert.deepEqual(parseICloudSupportPrices(iCloudSupportFixture, country, currency),
+      ["50 GB", "200 GB", "2 TB", "6 TB", "12 TB"].map((planName, i) => ({ planName, amount: amounts[i] })));
+    assert.deepEqual(parseICloudSupportPrices(iCloudSupportFixture, country, "USD"), []);
+  }
+  for (const [country, currency] of [["AL", "ALL"], ["IS", "ISK"], ["DE", "EUR"], ["NO", "NOK"], ["JP", "JPY"]]) {
+    assert.deepEqual(parseICloudSupportPrices(iCloudSupportFixture, country, currency), []);
+  }
+});
+
+test("iCloud support table rejects missing identity, currency, cadence, partial and ambiguous sections", () => {
+  const section = iCloudSupportFixture.match(/<h4[^>]*>Canada[\s\S]*?<\/ul>/)![0];
+  for (const html of [
+    "", iCloudSupportFixture.replace("Canada (CAD)", "Canada (USD)"),
+    iCloudSupportFixture.replace("Canada (CAD)", "Other (CAD)"),
+    iCloudSupportFixture.replace("monthly pricing", "annual pricing"),
+    iCloudSupportFixture.replace("iCloud+ plans and pricing", "Other product"),
+    iCloudSupportFixture + section,
+    iCloudSupportFixture.replace("$1.29", "$0"),
+    iCloudSupportFixture.replace("$1.29", "$1.29 or $2.29"),
+    iCloudSupportFixture.replace("$1.29", "€1.29"),
+    iCloudSupportFixture.replace("$1.29", "$1,29"),
+    iCloudSupportFixture.replace(section, section.replace(/<li\b[^>]*>[\s\S]*?<\/li>/, "")),
+    iCloudSupportFixture.replace(section, section.replace("200 GB", "50 GB"))
+  ]) assert.deepEqual(parseICloudSupportPrices(html, "CA", "CAD"), []);
+});
+
+test("iCloud support adapter returns 120 authoritative Apple-route prices with one shared fetch", async (t) => {
+  t.mock.method(Date, "now", () => 9100000000000);
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    assert.equal(String(input), "https://support.apple.com/en-us/108047");
+    calls++;
+    return new Response(iCloudSupportFixture);
+  });
+  await Promise.all(iCloudSupportExpected.map(async ([countryCode, currency, amounts]) => {
+    const prices = await providerAdapters["icloud-plus"]({ countryCode, currency });
+    assert.equal(prices.length, 5);
+    assert.deepEqual(prices.map(p => p.monthlyPriceMinor), amounts.map(a => Math.round(a * 100)));
+    assert.ok(prices.every(p => p.countryCode === countryCode && p.currency === currency &&
+      p.billingProviderSlug === "apple" && p.verification === "authoritative-provider"));
+  }));
+  assert.equal(calls, 1);
+});
+
+test("iCloud support failures preserve registry prices and never touch established Norway source", async (t) => {
+  const original = verifiedProviderRegistry.CA;
+  verifiedProviderRegistry.CA = [...(original ?? []), {
+    serviceSlug: "icloud-plus", planName: "50 GB", currency: "CAD",
+    monthlyPriceMinor: 129, sourceUrl: "https://support.apple.com/en-us/108047", billingProviderSlug: "apple"
+  }];
+  t.after(() => { if (original) verifiedProviderRegistry.CA = original; else delete verifiedProviderRegistry.CA; });
+  let now = 9200000000000;
+  for (const failure of ["network", "HTTP", "parser", "currency"]) {
+    await t.test(failure, async (t) => {
+      now += 3600000;
+      t.mock.method(Date, "now", () => now);
+      t.mock.method(globalThis, "fetch", async () => {
+        if (failure === "network") throw new Error("offline");
+        return new Response(failure === "currency" ? iCloudSupportFixture.replace("Canada (CAD)", "Canada (USD)") : "broken", { status: failure === "HTTP" ? 503 : 200 });
+      });
+      const prices = await providerAdapters["icloud-plus"]({ countryCode: "CA", currency: "CAD" });
+      assert.equal(prices.length, 1);
+      assert.equal(prices[0].monthlyPriceMinor, 129);
+      assert.equal(prices[0].verification, "registry");
+    });
+  }
+  const urls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => { urls.push(String(input)); throw new Error("offline"); });
+  const prices = await providerAdapters["icloud-plus"]({ countryCode: "NO", currency: "NOK" });
+  assert.ok(prices.length > 0 && prices.every(p => p.verification === "registry"));
+  assert.deepEqual(urls, ["https://www.apple.com/no/icloud/"]);
 });

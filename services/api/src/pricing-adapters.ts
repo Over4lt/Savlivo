@@ -5949,6 +5949,89 @@ function iCloudStorefrontPath(
     : null;
 }
 
+// Explicit country/currency identities observed in Apple's global support table.
+// This source only adds markets absent from the established storefront adapter.
+const iCloudSupportMarkets: Record<string, [string, string, string]> = {
+  CA: ["Canada", "CAD", "$"], GB: ["United Kingdom", "GBP", "£"],
+  AU: ["Australia", "AUD", "$"], NZ: ["New Zealand", "NZD", "$"],
+  BR: ["Brazil", "BRL", "R$"], MX: ["Mexico", "MXN", "$"],
+  CZ: ["Czechia", "CZK", "Kč"], HU: ["Hungary", "HUF", "Ft"],
+  IL: ["Israel", "ILS", "₪"], PL: ["Poland", "PLN", "zł"],
+  RO: ["Romania", "RON", "lei"], SA: ["Saudi Arabia", "SAR", "﷼"],
+  ZA: ["South Africa", "ZAR", "R"], CH: ["Switzerland", "CHF", "CHF"],
+  TR: ["Türkiye", "TRY", "TL"], AE: ["United Arab Emirates", "AED", "AED"],
+  HK: ["Hong Kong", "HKD", "HK$"], IN: ["India", "INR", "Rs"],
+  ID: ["Indonesia", "IDR", "Rp"], MY: ["Malaysia", "MYR", "RM"],
+  PH: ["Philippines", "PHP", "₱"], SG: ["Singapore", "SGD", "S$"],
+  TW: ["Taiwan", "TWD", "NT$"], TH: ["Thailand", "THB", "฿"]
+};
+
+export function parseICloudSupportPrices(
+  html: string, countryCode: string, currency: string
+): ICloudPlusPrice[] {
+  html = html.replace(/&uuml;/g, "ü");
+  const market = iCloudSupportMarkets[countryCode];
+  if (!market || market[1] !== currency) return [];
+  const text = htmlToText(html);
+  if (!text.includes("iCloud+ plans and pricing") ||
+      !text.includes("See the monthly pricing and plans per country or region below.")) return [];
+
+  const sections = [...html.matchAll(/<h4\b[^>]*>([\s\S]*?)<\/h4>\s*<ul\b[^>]*>([\s\S]*?)<\/ul>/gi)];
+  const matching = sections.filter(section => {
+    const heading = htmlToText(section[1].replace(/<sup\b[^>]*>[\s\S]*?<\/sup>/gi, ""));
+    return heading.replace(/\s*\([^)]*\)$/, "") === market[0];
+  });
+  if (matching.length !== 1) return [];
+  const heading = htmlToText(matching[0][1].replace(/<sup\b[^>]*>[\s\S]*?<\/sup>/gi, ""));
+  if (!heading.endsWith(`(${currency})`)) return [];
+
+  const symbol = market[2].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const amountPattern = "([0-9]+(?:\\.[0-9]{1,2})?)";
+  const patterns = [
+    new RegExp(`^${symbol}\\s*${amountPattern}$`),
+    new RegExp(`^${amountPattern}\\s*${symbol}$`)
+  ];
+  const plans = ["50 GB", "200 GB", "2 TB", "6 TB", "12 TB"];
+  const prices = new Map<string, number>();
+  for (const row of matching[0][2].matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)) {
+    const value = htmlToText(row[1]).replace(/&pound;/g, "£");
+    const parts = value.match(/^(50 GB|200 GB|2 TB|6 TB|12 TB)\s*:\s*(.+)$/);
+    if (!parts || prices.has(parts[1])) return [];
+    const match = patterns.map(pattern => parts[2].match(pattern)).find(Boolean);
+    const amount = match ? Number(match[1]) : NaN;
+    if (!Number.isFinite(amount) || amount <= 0) return [];
+    prices.set(parts[1], amount);
+  }
+  if (prices.size !== plans.length) return [];
+  return plans.map(planName => ({ planName, amount: prices.get(planName)! }));
+}
+
+const iCloudSupportUrl = "https://support.apple.com/en-us/108047";
+let iCloudSupportCache: { expiresAt: number; html: Promise<string> } | undefined;
+
+async function iCloudSupportAdapter(ctx: AdapterContext, candidates: PriceCandidate[]) {
+  if (iCloudSupportMarkets[ctx.countryCode]?.[1] === ctx.currency) {
+    try {
+      if (!iCloudSupportCache || iCloudSupportCache.expiresAt <= Date.now()) {
+        iCloudSupportCache = {
+          expiresAt: Date.now() + 5 * 60 * 1000,
+          html: fetchText(iCloudSupportUrl)
+        };
+      }
+      const prices = parseICloudSupportPrices(await iCloudSupportCache.html, ctx.countryCode, ctx.currency);
+      for (const price of prices) {
+        candidates.push(...officialStructuredCandidates(exactForRoute(
+          "icloud-plus", price.planName, ctx.countryCode, ctx.currency,
+          price.amount, iCloudSupportUrl, "apple"
+        )));
+      }
+    } catch {
+      // Existing registry and persisted fallback remain available on every failure.
+    }
+  }
+  return resolvePriceCandidates(ctx, candidates);
+}
+
 async function icloudPlusAdapter(
   ctx: AdapterContext
 ): Promise<AdapterPrice[]> {
@@ -5965,10 +6048,7 @@ async function icloudPlusAdapter(
     );
 
   if (storefront == null) {
-    return resolvePriceCandidates(
-      ctx,
-      candidates
-    );
+    return iCloudSupportAdapter(ctx, candidates);
   }
 
   const url =
