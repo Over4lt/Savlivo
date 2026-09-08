@@ -212,3 +212,22 @@ test("next-wave subscriptions can be created and edited without moving another m
   assert.equal(saved.size,5);
   await assert.rejects(updateSubscription({userId:"other-account",subscriptionId:"1",serviceSlug:"apple-music",billingProviderSlug:"apple",currency:"CHF",monthlyPriceMinor:1}),/SUBSCRIPTION_NOT_FOUND/);
 });
+
+test("release review preserves all 23 selectable markets and valid offline pricing identities", async(t)=>{
+  const expected = ["US","NO","SE","DK","DE","ES","FR","IT","PT","NL","BE","AT","IE","FI","CN","GB","AU","NZ","CH","PL","BR","CZ","MY"];
+  assert.deepEqual(countryCurrencyData.map(([cc])=>cc),expected);
+  t.mock.method(globalThis,"fetch",async()=>{throw new Error("offline");});
+  const subscriptions=countryCurrencyData.map(([countryCode,,currency])=>({id:countryCode,countryCode,currency,monthlyPriceMinor:1299}));
+  const before=structuredClone(subscriptions);
+  for(const [cc,,currency] of countryCurrencyData){
+    assert.equal(countryCurrencies[cc],currency);
+    assert.equal(new Intl.NumberFormat("en-US",{style:"currency",currency}).resolvedOptions().maximumFractionDigits,2);
+    assert.match(formatMarketMinor(1299,currency,"en-US"),/12\.99/);
+    assert.deepEqual(subscriptionsForMarket(subscriptions,cc).map(p=>p.id),[cc]);
+    const prices=await fetchProviderLocalPrices(cc,currency);
+    assert.ok(prices.length>0,cc);
+    assert.ok(prices.every(p=>p.countryCode===cc&&p.currency===currency&&Number.isInteger(p.monthlyPriceMinor)&&p.monthlyPriceMinor>0),cc);
+    if(expansionMarketServices[cc]) for(const service of expansionMarketServices[cc]) assert.ok(prices.some(p=>p.serviceSlug===service),`${cc} ${service}`);
+  }
+  assert.deepEqual(subscriptions,before);
+});
