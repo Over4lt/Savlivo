@@ -4,6 +4,10 @@ let generation = 0;
 let expiryTimer;
 const $ = id => document.getElementById(id);
 const message = text => {$("message").textContent = text;};
+if (location.protocol !== "https:" && location.hostname !== "localhost") {
+  $("login").hidden=true;message("HTTPS is required for admin access.");
+  throw new Error("HTTPS_REQUIRED");
+}
 function clearSession() {
   token = null; clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();
 }

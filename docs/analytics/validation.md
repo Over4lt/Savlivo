@@ -30,3 +30,13 @@ In a separately approved local/staging environment with disposable accounts and 
 7. Validate production hosting HTTPS, CSP/frame-ancestors headers and a reviewed MFA boundary before enabling public admin access. Physical iPhone testing and real-browser admin acceptance remain outstanding.
 
 No push/deploy/merge, production migrations, privacy publication or release actions. Build remains unchanged. The unrelated .htaccess was never opened, modified, staged or deleted.
+
+## Security review from 173b743
+
+See security-review-173b743.md for defects, residual blockers and the exact stored-field inventory; migration-runbook.md for future staged verification. Narrow fixes cover optional-pool error isolation, malformed targets, atomic session issuance/audit, logout revocation during audit failure, monetary subcohorts and response/static-page hardening. No mobile/pricing/schema changes.
+
+Current validation: 17 focused API security/validation tests (included in 351 passing full API tests); 11 PostgreSQL integration tests (one parent + ten named subtests); 107 mobile tests; 5 admin client simulated-DOM tests. All passed with zero failures/skips on final runs. API/mobile TypeScript and API build passed. Admin JavaScript syntax passed. No iOS export was rerun because mobile code did not change; the earlier export above is historical evidence, not a new physical/device test.
+
+The disposable integration run now covers migrations 011/012 twice with an existing known subscription, 013/014 twice, session entropy/hash/15-minute expiry, concurrent session isolation, actual/pending deletion, role deletion, atomic audit failure, logout/replay denial, response headers, all reporting group thresholds at 0/1/9/10/11 users across allowed windows/market scopes, amount-contributor suppression, expired-event exclusion before purge, a 5,001-row cleanup fixture and operational-row preservation. Existing price-history failure/deduplication/A→B→A cases remain in the parent scenario. One first attempt preceded database readiness and failed to connect; the clean initialized runs passed.
+
+Ordinary routes bypass optional data handling even when its pool fails; idle pool errors are handled without payload logging. This does not claim that a shared PostgreSQL server outage leaves database-dependent customer operations functional. No real-browser/header/MFA/physical acceptance or production action was performed. Verdict: NOT READY — BLOCKERS REMAIN for production activation.

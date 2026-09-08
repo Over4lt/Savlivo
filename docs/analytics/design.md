@@ -30,6 +30,8 @@ Public market intelligence: observations of independently persisted verified pro
 
 ## Activation and policy review
 
+**Security review update:** See [security-review-173b743.md](security-review-173b743.md) and [migration-runbook.md](migration-runbook.md). Production activation is NOT READY: MFA/hosting verification, overlapping-report disclosure decisions and privacy review remain blockers.
+
 Proposed review defaults (not silently enabled policy): raw events 30 days, daily thresholded aggregates 365 days, admin audit 180 days. These balance short debugging/funnel windows against seasonal trends and security review. Operator/product/legal review must approve purposes, applicable basis/consent/opt-out, retention, deletion rights and policy facts before collection. No legal conclusion is made.
 
 Implementation must require explicit retention configuration and collection approval; no configured policy means no event collection. Store expiry per row so future cleanup does not depend on remembering the original setting. Maintenance must remain enabled when collection is stopped, until retained rows expire. Account deletion must cascade actor mappings/events immediately. Aggregates have no actor reference but are not promised irreversibly anonymous.
@@ -64,7 +66,7 @@ The endpoint has a 1 KiB body limit and 30 requests/minute per authenticated use
 
 Schema 013 adds five tables: analytics_actors, analytics_events, admin_roles, admin_sessions, admin_audit. Actor/user and session/role relations cascade; audit identity becomes null after user deletion. Indexes cover event time/market/event, actor, expiries and session hashes. There is no raw-payload JSON column.
 
-Admin API: POST/DELETE `/v1/admin/session`, GET `/v1/admin/overview?days=7|30|90&market=NO` (market optional). Only DB role `analytics_reader` grants access. Existing password verification is reused, with dummy password work for unknown/non-admin identities. Opaque 256-bit random session tokens expire absolutely after 15 minutes; only their SHA-256 hash is stored. Customer JWTs and client role claims cannot authorize admin reads. Every read rechecks role, expiry and pending account deletion. Successful session creation, logout and dashboard reads are audited; audit failure fails closed. No role mutation, user viewer, export or destructive admin API exists.
+Admin API: POST/DELETE `/v1/admin/session`, GET `/v1/admin/overview?days=7|30|90&market=NO` (market optional). Only DB role `analytics_reader` grants access. Existing password verification is reused, with dummy password work for unknown/non-admin identities. Opaque 256-bit random session tokens expire absolutely after 15 minutes; only their SHA-256 hash is stored. Customer JWTs and client role claims cannot authorize admin reads. Every read rechecks role, expiry and pending account deletion. Session creation and its audit are atomic. Authorized dashboard read attempts are audited; audit failure denies the read. Logout revokes first even if its subsequent audit write fails. No role mutation, user viewer, export or destructive admin API exists.
 
 Admin login limits: 5/minute per remote socket address and 30/minute globally per process. Reads: 30/minute per admin. In-memory keys expire after one minute and maps have hard capacity. Behind a proxy, socket addresses may group clients; forwarded headers are deliberately not trusted without a separately reviewed proxy configuration. These limits are not a distributed/WAF replacement. Denied attempts are rate-limited but are not persisted as an audit stream. MFA/passkeys are not implemented.
 
@@ -81,7 +83,7 @@ Implemented aggregate-only queries, with 3-second timeout in a read-only transac
 - Event count and distinct actors by event over retained rows in the selected window/selected market. Explicitly client-reported. No-result counts do not identify missing providers.
 - Non-personal data quality: selectable-market/catalog count, registry fallback row count in scope and persisted pricing rows grouped by existing verification label.
 
-Every user-derived group requires at least 10 distinct users/actors (entitlement rows are unique per user). A suppressed/empty group means unavailable, not zero. Repeated filtered queries can still permit inference; access remains restricted. No raw user/event/AI conversation explorer is present.
+Every user-derived group requires at least 10 distinct users/actors (entitlement rows are unique per user). Monetary sums and unknown-amount counts additionally require their own ten-contributor cohort; an unavailable count must not be interpreted as zero. A suppressed/empty group means unavailable, not zero. Repeated filtered queries can still permit inference; access remains restricted. No raw user/event/AI conversation explorer is present.
 
 Deferred: DAU/WAU/MAU, return/retention cohorts, entitlement conversion, AI request→action→save funnel, category breakdown, named missing-service demand, monthly growth-report generation, and Savlivo revenue. Current IAP evidence contains transaction validity/product/expiry, not trustworthy proceeds/fees/refunds; user subscription spending is never revenue. Client emission and authoritative confirmation instrumentation need a reviewed follow-up, with deduplication and completeness definitions before claiming funnel rates.
 

@@ -40,7 +40,7 @@ export async function boundedJson(req: IncomingMessage, maxBytes = 1024): Promis
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 function respond(res: ServerResponse, status: number, data: unknown) {
-  res.writeHead(status, {"Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"});
+  res.writeHead(status, {"Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'"});
   res.end(JSON.stringify(data));
 }
 export function adminConfiguration(env: NodeJS.ProcessEnv = process.env) {
@@ -80,8 +80,10 @@ export async function dashboardData(days: number, market: string | null) {
       FROM analytics_events WHERE occurred_at >= now()-$1*interval '1 day' AND expires_at>now()
       AND ($2::text IS NULL OR market=$2) GROUP BY event HAVING count(DISTINCT actor_id)>=10 ORDER BY event`, [days,market]);
     const subscriptions = await client.query(`SELECT currency, count(*)::int AS subscriptions,
-      count(DISTINCT user_id)::int AS users, sum(monthly_price_minor)::text AS monthly_hundredths,
-      count(*) FILTER(WHERE monthly_price_minor IS NULL)::int AS unknown_amounts
+      count(DISTINCT user_id)::int AS users, CASE WHEN count(DISTINCT user_id) FILTER(WHERE monthly_price_minor IS NOT NULL)>=10
+        THEN sum(monthly_price_minor)::text ELSE NULL END AS monthly_hundredths,
+      CASE WHEN count(DISTINCT user_id) FILTER(WHERE monthly_price_minor IS NULL)>=10
+        THEN count(*) FILTER(WHERE monthly_price_minor IS NULL)::int ELSE NULL END AS unknown_amounts
       FROM subscriptions WHERE status='ACTIVE' AND ($1::text IS NULL OR country_code=$1)
       GROUP BY currency HAVING count(DISTINCT user_id)>=10 ORDER BY currency`,[market]);
     const entitlements = await client.query(`SELECT e.plan,count(*)::int AS users FROM entitlements e
@@ -104,14 +106,17 @@ export async function dashboardData(days: number, market: string | null) {
       subscriptions: subscriptions.rows, serviceDistribution:serviceDistribution.rows, dataQuality, entitlements: entitlements.rows, newUsers: newUsers.rows[0]?.count ?? null,
       days, market, collectionEnabled: collectionPolicy() !== null,
       rawRetentionDays: collectionPolicy(), minimumCohort: 10,
-      notes: ["Event counts are client-reported, not verified provider outcomes. Mobile instrumentation is not installed.",
+      notes: ["Minimum cohorts apply separately to known amounts and unknown-amount counts; suppressed means unavailable, not zero.",
+        "Event counts are client-reported, not verified provider outcomes. Mobile instrumentation is not installed.",
         "Event window may be incomplete due to expiry or collection start. No DAU/retention/conversion claim is made.",
         "Subscription totals cover stored ACTIVE rows only, without scheduled/effective-date adjustment; grouped by currency in stored hundredths. Not complete current spending or Savlivo revenue.",
         "Entitlements are last stored records, not verified current paid access. Entitlements/new accounts use account country, not selected-market activity. Small cohorts are suppressed."]};
   } catch (error) { await client.query("ROLLBACK"); throw error; } finally {client.release();}
 }
 export async function handlePrivateData(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
-  const url = new URL(req.url ?? "/", "http://localhost");
+  let url: URL;
+  try {url = new URL(req.url ?? "/", "http://localhost");}
+  catch {respond(res,400,{error:"INVALID_REQUEST"});return true;}
   const isAdmin = url.pathname.startsWith("/v1/admin/");
   if (!isAdmin && url.pathname !== "/v1/analytics/events") return false;
   try {
@@ -150,17 +155,26 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
       const passwordValid = verifyPassword(body.password,user.rows[0]?.password_hash ?? dummyPasswordHash);
       if (!user.rows[0] || !passwordValid) {respond(res,401,{error:"UNAUTHORIZED"});return true;}
       const id = user.rows[0].id;
-      await audit(id,"session_created",config.days);
       const token = `adm_${randomBytes(32).toString("base64url")}`;
-      await pool.query("INSERT INTO admin_sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '15 minutes')",[hashSession(token),id]);
+      await pool.query(`WITH issued AS (
+        INSERT INTO admin_sessions(token_hash,user_id,expires_at)
+        SELECT $1,u.id,now()+interval '15 minutes' FROM users u JOIN admin_roles r ON r.user_id=u.id
+        WHERE u.id=$2 AND r.role='analytics_reader' AND u.deletion_scheduled_for IS NULL
+        AND u.password_hash=$4 RETURNING user_id
+      ) INSERT INTO admin_audit(user_id,action,expires_at)
+        SELECT user_id,'session_created',now()+$3*interval '1 day' FROM issued RETURNING user_id`,
+        [hashSession(token),id,config.days,user.rows[0].password_hash]).then(result=>{
+          if(result.rowCount!==1)throw new Error("ADMIN_SESSION_NOT_ISSUED");
+        });
       respond(res,200,{token,expiresInSeconds:900});return true;
     }
     const userId = await authenticatedAdmin(req.headers.authorization);
     if (!userId) {respond(res,401,{error:"UNAUTHORIZED"});return true;}
     if (!readLimit(userId)) {respond(res,429,{error:"RATE_LIMITED"});return true;}
     if (url.pathname === "/v1/admin/session" && req.method === "DELETE") {
-      await audit(userId,"session_closed",config.days);
+      // Revoking privilege must not depend on audit availability. Never roll this deletion back.
       await pool.query("DELETE FROM admin_sessions WHERE token_hash=$1",[hashSession(req.headers.authorization!.slice(7))]);
+      await audit(userId,"session_closed",config.days);
       respond(res,200,{ok:true});return true;
     }
     if (url.pathname === "/v1/admin/overview" && req.method === "GET") {

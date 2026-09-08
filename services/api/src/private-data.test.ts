@@ -85,3 +85,28 @@ test("retention still purges expired events when its audit write fails",async(t)
     await maintainPrivateData();assert.ok(statements.some(query=>query.startsWith("DELETE FROM analytics_events")));
   } finally {for(const key of ["ANALYTICS_MAINTENANCE_ENABLED","ADMIN_AUDIT_RETENTION_DAYS","PRICING_HISTORY_ENABLED"]) {if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key];}}
 });
+test("all optional database idle errors are handled without logging payloads",async(t)=>{
+  const {privateDataPool}=await import("./private-data-db.js");
+  const messages:unknown[][]=[];t.mock.method(console,"warn",(...args:unknown[])=>messages.push(args));
+  assert.doesNotThrow(()=>privateDataPool.emit("error",new Error("password=secret email=user@example.org")));
+  assert.equal(messages.length,1);assert.equal(JSON.stringify(messages).includes("secret"),false);
+});
+test("analytics/admin outage does not intercept any existing customer route",async(t)=>{
+  const {privateDataPool}=await import("./private-data-db.js");
+  t.mock.method(privateDataPool,"query",async()=>{throw new Error("database unavailable");});
+  for(const path of ["/v1/auth/login","/v1/subscriptions","/v1/subscriptions/id","/v1/assistant","/v1/savings","/v1/actions","/v1/pricing","/v1/notifications/preferences","/v1/reports"]) {
+    for(const method of ["GET","POST","PATCH","DELETE"])assert.equal(await handlePrivateData({url:path,method,headers:{}} as IncomingMessage,{} as any),false);
+  }
+});
+test("every declared analytics dimension rejects objects arrays oversized strings and sensitive text",()=>{
+  for(const field of ["event","market","platform","service","category"]) {
+    for(const value of [{},["ios"],null,42,true,"x".repeat(4096),"https://example.org/account","Full Legal Name","raw prompt", "token=secret"])
+      assert.throws(()=>parseAnalyticsEvent({...valid,[field]:value}),`${field} ${typeof value}`);
+  }
+  for(const field of ["fullName","password","accessToken","refreshToken","ip","rawPrompt","rawResponse","searchText","cookies","actor_id","user_id"])assert.throws(()=>parseAnalyticsEvent({...valid,[field]:"secret"}));
+});
+test("malformed request targets cannot reject the shared server callback",async()=>{
+  let status=0;
+  assert.equal(await handlePrivateData({url:"http://[",headers:{}} as IncomingMessage,{writeHead:(code:number)=>{status=code;},end:()=>{}} as any),true);
+  assert.equal(status,400);
+});

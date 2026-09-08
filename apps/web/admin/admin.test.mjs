@@ -66,3 +66,9 @@ test("late unauthorized logout cannot clear a newer authenticated session",async
   finishLogout();await logout;
   assert.equal(nodes.dashboard.hidden,false);assert.ok(nodes.results.children.length>0);
 });
+test("admin refuses a non-local insecure page before accepting credentials",()=>{
+  let calls=0;const nodes={login:new Element(),message:new Element()};
+  assert.throws(()=>vm.runInNewContext(source,{location:{protocol:"http:",hostname:"savlivo.com"},
+    document:{getElementById:id=>nodes[id]},fetch:()=>{calls++;}}),/HTTPS_REQUIRED/);
+  assert.equal(nodes.login.hidden,true);assert.equal(calls,0);
+});
