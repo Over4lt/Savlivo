@@ -1,3 +1,5 @@
+import { maintainPrivateData } from "./private-data-maintenance.js";
+import { handlePrivateData } from "./private-data-http.js";
 import { subscriptionsForMarket, subscriptionCountry } from "../../../packages/contracts/src/markets.js";
 import http from "node:http";
 import crypto from "node:crypto";
@@ -73,6 +75,7 @@ function unauthorized(res: http.ServerResponse, error = "UNAUTHORIZED") {
 }
 
 const server = http.createServer(async (req, res) => {
+  if (await handlePrivateData(req, res)) return;
   if (req.method === "OPTIONS") return send(res, 204, {});
   const url = new URL(req.url ?? "/", "http://localhost");
 
@@ -969,6 +972,8 @@ ensureSubscriptionMarketSchema()
     console.log("subscription market schema ensured");
 
     server.listen(Number(process.env.PORT ?? 3000), () => {
+      void maintainPrivateData();
+      setInterval(() => { void maintainPrivateData(); }, 15 * 60 * 1000).unref();
       console.log(`Savlivo API listening on http://localhost:${process.env.PORT ?? 3000}`);
 
       void ensureMainlandChinaServices()
