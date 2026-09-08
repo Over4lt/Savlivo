@@ -19,7 +19,11 @@ export type SavlivoHelpTopic =
   | "notifications"
   | "region"
   | "appearance"
-  | "data-health";
+  | "data-health"
+  | "market"
+  | "reports"
+  | "password"
+  | "privacy-data";
 
 type HelpEntry = {
   topic: SavlivoHelpTopic;
@@ -49,7 +53,7 @@ const helpEntries: HelpEntry[] = [
       "manage subscription"
     ],
     answer:
-      "Subscriptions is where you manage each service. You can add or edit the service, billing route, plan, actual monthly price and confirmed renewal date. You can also start Pause, Cancel or Reactivate flows from each subscription card."
+      "Subscriptions is where you manage each service for the currently selected subscription market. You can add or edit the service, billing route, plan, actual monthly price and confirmed renewal date. You can also start Pause, Cancel or Reactivate flows from each subscription card. If a subscription seems to disappear after you change country, switch back to the market where it was added."
   },
   {
     topic: "savings",
@@ -162,7 +166,7 @@ const helpEntries: HelpEntry[] = [
       "settings"
     ],
     answer:
-      "Settings contains your Savlivo plan, appearance, country and currency, notification preferences, Premium/Autopilot controls and privacy/data options."
+      "Settings contains your Savlivo plan, appearance, subscription market, language, notification preferences, Premium and Autopilot controls, account security and privacy/data options. Changes to the subscription market affect which country's subscriptions and local currency you are viewing; they do not delete subscriptions saved in another market."
   },
   {
     topic: "region",
@@ -173,7 +177,66 @@ const helpEntries: HelpEntry[] = [
       "currency and region"
     ],
     answer:
-      "Currency & region controls the country Savlivo uses for regional pricing and the local currency shown for that country. Your recorded subscription bill remains the actual amount you entered; Savlivo does not simply FX-convert that bill to create a local price."
+      "Savlivo uses the local currency for the selected subscription market, while each recorded subscription keeps the actual price you entered for that market. Savlivo does not simply FX-convert an existing subscription bill to create a different local price. If you want to understand why subscriptions appear or disappear when changing country, ask about the subscription market."
+  },
+
+  {
+    topic: "market",
+    aliases: [
+      "subscription market",
+      "selected market",
+      "market",
+      "change country",
+      "switch country",
+      "different country",
+      "missing subscription",
+      "subscription disappeared",
+      "where is my subscription"
+    ],
+    answer:
+      "A Savlivo account can contain subscriptions from multiple countries, but the app shows the subscriptions for the currently selected subscription market. For example, subscriptions added while Norway is selected are shown in the Norway view, while subscriptions added under the United States are shown in the US view. Switching market changes the view and local currency; it does not delete subscriptions from another market."
+  },
+  {
+    topic: "reports",
+    aliases: [
+      "report",
+      "reports",
+      "pdf",
+      "pdf report",
+      "export report",
+      "subscription report",
+      "export pdf"
+    ],
+    answer:
+      "A Savlivo PDF report is created for the subscription market that is selected when you export it. It includes subscriptions and recorded savings for that market rather than combining subscriptions from different countries or currencies into one total. If you need a report for another country, switch to that subscription market and export a new report."
+  },
+  {
+    topic: "password",
+    aliases: [
+      "password",
+      "forgot password",
+      "reset password",
+      "change password",
+      "new password",
+      "can't log in",
+      "cannot log in"
+    ],
+    answer:
+      "If you forget your password, use the password-reset option on the sign-in screen and follow the secure link sent to your email address. If you are already signed in and want a new password, use the password option in Settings. Password-reset links are time-limited and can only be used once."
+  },
+  {
+    topic: "privacy-data",
+    aliases: [
+      "privacy",
+      "my data",
+      "personal data",
+      "export data",
+      "delete data",
+      "delete account",
+      "account data"
+    ],
+    answer:
+      "Privacy & data settings let you review Savlivo's data controls, export available account information and request account deletion. Account deletion is different from removing an individual subscription: it removes the Savlivo account and associated account data through Savlivo's account-deletion flow."
   },
   {
     topic: "appearance",
@@ -211,7 +274,7 @@ const helpEntries: HelpEntry[] = [
       "upgrade"
     ],
     answer:
-      "Savlivo has plan-based features. Premium unlocks Autopilot recommendations and the Savlivo Assistant experience. You can open the plan screen from the badge in the header or from Settings."
+      "Savlivo has three customer-facing levels: Preview, Manual and Premium. Preview lets you explore the core experience before upgrading. Manual gives you more control over managing subscriptions yourself. Premium adds Savlivo's advanced Assistant and Autopilot recommendations. You can open the plan screen from the badge in the header or from Settings."
   },
   {
     topic: "data-health",
@@ -288,9 +351,9 @@ export function getSavlivoHelp(
   }
 
   return (
-    "I can explain any part of Savlivo, including Home, Subscriptions, " +
-    "Savings, Autopilot, renewal dates, spending, billing routes, " +
-    "statuses, Settings, plans and notifications. Ask me what a feature " +
-    "does or how to use it."
+    "I can help you understand and use Savlivo, including Home, Subscriptions, " +
+    "Savings, Autopilot, plans, subscription markets, reports, renewal dates, " +
+    "spending, billing routes, statuses, Settings, passwords, privacy and notifications. " +
+    "Ask what you want to do, what something means, or why something looks different."
   );
 }
