@@ -1,5 +1,7 @@
 # Local review and acceptance
 
+> Current update: [activation-blockers-f5530fa.md](activation-blockers-f5530fa.md) supersedes the historical reporting/auth scope below. User-derived reports are removed; admin is local-rehearsal-only. Passkey delivery and hosting verification remain technical blockers.
+
 Starting bab1216 (17 commits ahead of origin/build10-final); only unrelated .htaccess untracked. Reviewed local series from 36d480f through bab1216 and audited auth, schema/migrations, API, static web, mobile identity, purchases, privacy text and pricing persistence. No live production inspection or secret retrieval.
 
 Preservation: 30 selectable markets/currencies, 43 services, unchanged 107-combination catalog, 364 registry rows, 757 offline prices and 6,300 management destinations. The API/mobile suites compare registry/offline and management baselines directly. `baseline-bab1216.json` additionally records a byte-identical comparison of 142 protected tracked mobile/contracts/pricing files against starting HEAD. AI/general conversation/multilingual actions, manual subscriptions, selected-market PDF/AI, browser confirmation, IAP, reminders/savings/status and app/build configuration remain unchanged.

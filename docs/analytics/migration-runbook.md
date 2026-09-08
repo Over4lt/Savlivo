@@ -54,7 +54,7 @@ Apply `db/migrations/014_verified_price_observations.sql` as committed. Verify p
 
 Deploy the reviewed backend with all collection/admin/history flags still false. Confirm existing login, subscription reads/writes, manual records/Viaplay, AI general/multilingual/structured actions, selected markets, pricing fallbacks and reminders continue to work. Admin should return 404 while disabled. Existing clients should make zero analytics requests. Optional database pool adds at most two lazy connections per API instance; verify capacity against actual DB limits.
 
-A separate controlled test environment should then verify authorized admin/denial/expiry/revocation, atomic audit/session creation, logout during audit failure, expiry purge and cohort fixtures. Apply production hosting headers only through reviewed actual host configuration; publish only index.html/admin.js/admin.css, not test files. Resolve MFA, cohort disclosure and privacy decisions before approving production flags/role grants. Client instrumentation is not included in this deployment.
+A separate controlled test environment should then verify authorized admin/denial/expiry/revocation, atomic audit/session creation, logout during audit failure, expiry purge and non-disclosure fixtures. Apply production hosting headers only through reviewed actual host configuration; publish only index.html/admin.js/admin.css, not test files. Complete passkey authentication, verify hosting and resolve privacy decisions before approving production flags/role grants. Client instrumentation is not included in this deployment.
 
 ## Rollback limitations
 
@@ -67,3 +67,7 @@ Do not remove Viaplay if subscriptions reference it. Do not restore service_id N
 ## Local evidence
 
 The guarded disposable PostgreSQL test applies 011/012 twice with a pre-existing known subscription and verifies identity/value preservation. It applies 013/014 twice with existing subscription fixtures, exercises constraints/FK deletion/session expiry, tests 0/1/9/10/11 cohorts and bounded retention, and proves price-observation failure leaves current pricing untouched. It is not evidence of actual production table sizes, locks, migration status, permissions, headers or recoverability.
+
+## Update after f5530fa
+
+See activation-blockers-f5530fa.md. User-derived reports have been removed; no cohort threshold alone is treated as sufficient. Admin now requires an explicitly non-production development/test runtime in addition to prior flags, and the client is localhost-only. Keep production NODE_ENV=production; never bypass the gate by changing it to development/test. Existing production/unconfigured admin requests return 404. No new migration was added in this batch. Passkey credential/challenge/enrollment and credential-bound session migration is still required before production exposure; prepare and rehearse that follow-up before revising this sequence. No TOTP requirement is imposed in addition to a correctly implemented passkey flow.

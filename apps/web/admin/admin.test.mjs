@@ -18,18 +18,20 @@ function harness(fetch) {
   vm.runInNewContext(source,context);return nodes;
 }
 const response=(data,status=200)=>({ok:status===200,status,json:async()=>data});
-const overview={markets:[["NO","Norway","NOK"]],collectionEnabled:false,catalogServices:43,newUsers:null,notes:["No raw AI data"],
-  dataQuality:{selectableMarkets:30,registryRows:364,persistedPrices:[]},serviceDistribution:[],events:[{event:"<script>bad()</script>",count:10,actors:10}],entitlements:[],subscriptions:[]};
+const overview={markets:[["NO","Norway","NOK"]],collectionEnabled:false,catalogServices:43,newUsers:123456,notes:["<script>bad()</script>"],
+  dataQuality:{selectableMarkets:30,registryRows:364,persistedPrices:[]},serviceDistribution:[],events:[{event:"PRIVATE_EVENT_SENTINEL",count:10,actors:10}],entitlements:[],subscriptions:[]};
 const submit={preventDefault(){}};
 test("admin client uses memory token, clears password, renders data as text, and sends bounded filters",async()=>{
   const requests=[];const nodes=harness(async(url,options)=>{requests.push({url,options});return response(url.endsWith("session")?{token:"adm_test",expiresInSeconds:900}:overview);});
   await nodes.login.listeners.submit(submit);
   assert.equal(nodes.password.value,"");assert.equal(nodes.login.hidden,true);
   assert.equal(requests[1].options.headers.Authorization,"Bearer adm_test");
-  assert.match(requests[1].url,/days=30&market=$/);
+  assert.match(requests[1].url,/overview\?market=$/);
   assert.equal(requests[0].options.credentials,"omit");
   const texts=element=>[element.textContent,...element.children.flatMap(texts)];
   assert.ok(texts(nodes.results).includes("<script>bad()</script>")); // Text, never parsed as HTML.
+  assert.equal(texts(nodes.results).join(" ").includes("PRIVATE_EVENT_SENTINEL"),false);
+  assert.equal(texts(nodes.results).join(" ").includes("123456"),false);
 });
 test("logout clears sensitive view immediately and rejects late dashboard result",async()=>{
   let complete;let reads=0;
@@ -70,5 +72,12 @@ test("admin refuses a non-local insecure page before accepting credentials",()=>
   let calls=0;const nodes={login:new Element(),message:new Element()};
   assert.throws(()=>vm.runInNewContext(source,{location:{protocol:"http:",hostname:"savlivo.com"},
     document:{getElementById:id=>nodes[id]},fetch:()=>{calls++;}}),/HTTPS_REQUIRED/);
+  assert.equal(nodes.login.hidden,true);assert.equal(calls,0);
+});
+
+test("hosted HTTPS admin page refuses legacy password entry before any request",()=>{
+  let calls=0;const nodes={login:new Element(),message:new Element()};
+  assert.throws(()=>vm.runInNewContext(source,{location:{protocol:"https:",hostname:"savlivo.com"},
+    document:{getElementById:id=>nodes[id]},fetch:()=>{calls++;}}),/ADMIN_PRODUCTION_DISABLED/);
   assert.equal(nodes.login.hidden,true);assert.equal(calls,0);
 });

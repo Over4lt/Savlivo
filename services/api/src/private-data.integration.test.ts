@@ -72,14 +72,12 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
     await pool.query(`INSERT INTO analytics_events(actor_id,event,market,platform,occurred_at,expires_at)
       SELECT id,'catalog_search','NO','ios',now()-interval '10 days',now()+interval '20 days' FROM analytics_actors`);
     await pool.query("INSERT INTO entitlements(user_id,plan) SELECT id,'MANUAL' FROM users");
-    const data=await dashboardData(7,"NO");assert.equal(data.events.length,1);assert.equal(data.events[0].count,11);
-    assert.equal(data.subscriptions[0].monthly_hundredths,String(12345*11));assert.equal(data.entitlements[0].users,11);
-    assert.equal((await dashboardData(30,"NO")).events.length,2);
-    assert.equal((await dashboardData(30,"US")).events.length,0);
+    const data=await dashboardData("NO");
+    assert.equal("events" in data,false);assert.equal("subscriptions" in data,false);
     assert.equal(JSON.stringify(data).includes("Private manual name"),false);
     assert.equal(JSON.stringify(data).includes("@example.invalid"),false);
     await pool.query("INSERT INTO admin_roles(user_id,role) VALUES($1,'analytics_reader')",[user]);
-    process.env.ADMIN_ENABLED="true";process.env.ANALYTICS_MAINTENANCE_ENABLED="true";process.env.ADMIN_ALLOWED_ORIGIN="https://savlivo.com";process.env.ADMIN_AUDIT_RETENTION_DAYS="180";
+    process.env.NODE_ENV="test";process.env.ADMIN_ENABLED="true";process.env.ANALYTICS_MAINTENANCE_ENABLED="true";process.env.ADMIN_ALLOWED_ORIGIN="https://savlivo.com";process.env.ADMIN_AUDIT_RETENTION_DAYS="180";
     await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
     const base=`http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
     const headers={Origin:"https://savlivo.com","Content-Type":"application/json"};
@@ -108,6 +106,12 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
     assert.equal((await fetch(`${base}/v1/admin/overview`,{headers:authorized})).status,200);
     assert.equal((await fetch(`${base}/v1/admin/overview`,{headers:{...authorized,Origin:"https://evil.invalid"}})).status,403);
     assert.equal((await pool.query("SELECT count(*)::int n FROM admin_audit WHERE action='dashboard_read'")).rows[0].n,1);
+    for(const query of ["days=7","days=30","market=NO&service=netflix","market=NO&category=video","service=netflix&billing=apple","market=NO&market=US"])
+      assert.equal((await fetch(`${base}/v1/admin/overview?${query}`,{headers:authorized})).status,400);
+    process.env.NODE_ENV="production";
+    assert.equal((await fetch(`${base}/v1/admin/overview`,{headers:authorized})).status,404);
+    assert.equal((await fetch(`${base}/v1/admin/session`,{method:"POST",headers,body:JSON.stringify({email:"fixture1@example.invalid",password})})).status,404);
+    process.env.NODE_ENV="test";
     // Audit failure denies data disclosure.
     await pool.query("ALTER TABLE admin_audit RENAME TO unavailable_admin_audit");
     assert.equal((await fetch(`${base}/v1/admin/overview`,{headers:authorized})).status,503);
@@ -144,7 +148,7 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
     await expireAnalytics();assert.equal((await pool.query("SELECT count(*)::int n FROM analytics_events")).rows[0].n,12);
     await pool.query("DELETE FROM users WHERE id=ANY($1::uuid[])",[[users[0].id,users[1].id]]);
     assert.equal((await pool.query("SELECT count(*)::int n FROM analytics_events")).rows[0].n,9);
-    assert.equal((await dashboardData(7,"NO")).events.length,0); // Small-cohort suppression.
+    assert.equal("events" in await dashboardData("NO"),false); // No personal reporting.
     assert.equal((await pool.query("SELECT count(*)::int n FROM subscriptions")).rows[0].n,9);
     await t.test("concurrent sessions revoke independently; normal routes cannot grant roles or alter audit; deletion cascades",async()=>{
       const owner=users[2].id;
@@ -156,6 +160,7 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
       assert.equal((await fetch(`${base}/v1/admin/audit`,{method:"DELETE",headers:ownerHeaders})).status,404);
       const out=await fetch(`${base}/v1/admin/session`,{method:"DELETE",headers:ownerHeaders});assert.equal(out.status,200);
       assert.equal(out.headers.get("cache-control"),"no-store");assert.equal(out.headers.get("x-content-type-options"),"nosniff");
+      assert.equal(out.headers.get("permissions-policy"),"camera=(), microphone=(), geolocation=(), payment=()");
       assert.equal(out.headers.get("referrer-policy"),"no-referrer");assert.equal(out.headers.get("x-frame-options"),"DENY");
       assert.equal(await authenticatedAdmin(`Bearer ${tokens[0]}`),null);
       assert.equal(await authenticatedAdmin(`Bearer ${tokens[1]}`),owner);
@@ -165,7 +170,7 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
       assert.equal((await pool.query("SELECT count(*)::int n FROM analytics_actors WHERE user_id=$1",[owner])).rows[0].n,0);
       assert.ok((await pool.query("SELECT count(*)::int n FROM admin_audit WHERE action='session_closed' AND user_id IS NULL")).rows[0].n>0);
     });
-    for(const size of [0,1,9,10,11]) await t.test(`all user-derived group thresholds with ${size} users`,async()=>{
+    for(const size of [0,1,9,10,11]) await t.test(`user-derived reports remain absent with ${size} users`,async()=>{
       await pool.query("DELETE FROM users"); // Explicit guarded disposable fixture only.
       await pool.query(`INSERT INTO users(email,password_hash,country_code,currency)
         SELECT 'cohort'||i||'@example.invalid','disabled','NO','NOK' FROM generate_series(1,$1) i`,[size]);
@@ -175,24 +180,42 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
       await pool.query("INSERT INTO analytics_actors(user_id) SELECT id FROM users");
       await pool.query(`INSERT INTO analytics_events(actor_id,event,market,platform,expires_at)
         SELECT id,'catalog_search','NO','ios',now()+interval '1 day' FROM analytics_actors`);
-      for(const market of [null,"NO","US"]) for(const days of [7,30,90]) {
-        const result=await dashboardData(days,market);const visible=size>=10 && market!=="US";
-        for(const rows of [result.events,result.subscriptions,result.entitlements,result.serviceDistribution])assert.equal(rows.length,visible?1:0);
-        assert.equal(result.newUsers,visible?size:null);
+      for(const market of [null,"NO","US"]) {
+        const result=await dashboardData(market);
+        for(const key of ["events","subscriptions","entitlements","newUsers","serviceDistribution"])assert.equal(key in result,false);
         assert.equal(JSON.stringify(result).includes("Private service name"),false);
       }
     });
-    await t.test("known-amount contributors require their own cohort; expired events disappear before cleanup",async()=>{
+    await t.test("unknown amounts and expiry cannot change the public-only report",async()=>{
       await pool.query("UPDATE subscriptions SET monthly_price_minor=NULL");
       await pool.query("UPDATE subscriptions SET monthly_price_minor=54321 WHERE id=(SELECT id FROM subscriptions LIMIT 1)");
-      let result=await dashboardData(7,"NO");assert.equal(result.subscriptions[0].monthly_hundredths,null);
-      assert.equal(result.subscriptions[0].unknown_amounts,10);
+      const result=await dashboardData("NO");
       await pool.query("UPDATE subscriptions SET monthly_price_minor=0");
-      result=await dashboardData(7,"NO");assert.equal(result.subscriptions[0].monthly_hundredths,"0");
-      assert.equal(result.subscriptions[0].unknown_amounts,null);
+      assert.deepEqual(await dashboardData("NO"),result);
       await pool.query("UPDATE analytics_events SET expires_at=now()-interval '1 second'");
-      assert.equal((await dashboardData(7,"NO")).events.length,0);
+      assert.deepEqual(await dashboardData("NO"),result);
       assert.equal((await pool.query("SELECT count(*)::int n FROM analytics_events")).rows[0].n,11);
+    });
+    await t.test("successive snapshots, complementary groups and unknown spending disclose no user-derived change",async()=>{
+      const baselineNO=await dashboardData("NO"), baselineGlobal=await dashboardData(null);
+      // 11 global vs 10 in NO: changing the eleventh account must not change either report.
+      await pool.query("UPDATE users SET country_code='US',currency='USD' WHERE id=(SELECT id FROM users LIMIT 1)");
+      await pool.query("UPDATE subscriptions SET country_code='US',currency='USD' WHERE user_id IN (SELECT id FROM users WHERE country_code='US')");
+      assert.deepEqual(await dashboardData("NO"),baselineNO);assert.deepEqual(await dashboardData(null),baselineGlobal);
+      // Parent 20, NO child 10, US sibling 9, final account SE.
+      await pool.query(`INSERT INTO users(email,password_hash,country_code,currency)
+        SELECT 'extra'||i||'@example.invalid','disabled',CASE WHEN i=9 THEN 'SE' ELSE 'US' END,
+          CASE WHEN i=9 THEN 'SEK' ELSE 'USD' END FROM generate_series(1,9) i`);
+      assert.deepEqual(await dashboardData(null),baselineGlobal);
+      for(const interval of ["1 day","7 days","30 days"]) {
+        await pool.query("UPDATE users SET created_at=now()-$1::interval",[interval]);
+        await pool.query("UPDATE analytics_events SET occurred_at=now()-$1::interval",[interval]);
+        assert.deepEqual(await dashboardData("NO"),baselineNO);assert.deepEqual(await dashboardData(null),baselineGlobal);
+      }
+      await pool.query("UPDATE subscriptions SET monthly_price_minor=NULL");
+      assert.deepEqual(await dashboardData("NO"),baselineNO);
+      await pool.query("DELETE FROM users WHERE country_code='SE'");
+      assert.deepEqual(await dashboardData(null),baselineGlobal);
     });
     await t.test("bounded retention, audit expiry, empty actor cleanup and operational data survival",async()=>{
       const before=(await pool.query("SELECT * FROM subscriptions ORDER BY id")).rows;

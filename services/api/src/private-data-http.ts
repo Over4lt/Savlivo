@@ -40,14 +40,16 @@ export async function boundedJson(req: IncomingMessage, maxBytes = 1024): Promis
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 function respond(res: ServerResponse, status: number, data: unknown) {
-  res.writeHead(status, {"Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'"});
+  res.writeHead(status, {"Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'"});
   res.end(JSON.stringify(data));
 }
 export function adminConfiguration(env: NodeJS.ProcessEnv = process.env) {
   const days = retentionDays(env.ADMIN_AUDIT_RETENTION_DAYS, 30, 365);
   let origin: URL;
   try { origin = new URL(env.ADMIN_ALLOWED_ORIGIN ?? ""); } catch { return null; }
-  if (env.ADMIN_ENABLED !== "true" || env.ANALYTICS_MAINTENANCE_ENABLED !== "true" || !days || origin.origin !== env.ADMIN_ALLOWED_ORIGIN ||
+  // Temporary fail-closed boundary: legacy password auth is local rehearsal only.
+  // Do not set a production deployment to development/test to bypass this gate.
+  if (!["development", "test"].includes(env.NODE_ENV ?? "") || env.ADMIN_ENABLED !== "true" || env.ANALYTICS_MAINTENANCE_ENABLED !== "true" || !days || origin.origin !== env.ADMIN_ALLOWED_ORIGIN ||
     (origin.protocol !== "https:" && !(env.NODE_ENV !== "production" && origin.hostname === "localhost" && origin.protocol === "http:"))) return null;
   return {days, origin: origin.origin};
 }
@@ -62,56 +64,28 @@ export async function authenticatedAdmin(token: string | undefined): Promise<str
 async function audit(userId: string, action: string, days: number) {
   await pool.query("INSERT INTO admin_audit(user_id,action,expires_at) VALUES($1,$2,now()+$3*interval '1 day')", [userId,action,days]);
 }
-export function dashboardFilters(url: URL): {days: number; market: string | null} {
-  if ([...url.searchParams.keys()].some(key => !["days","market"].includes(key)) ||
-    url.searchParams.getAll("days").length > 1 || url.searchParams.getAll("market").length > 1) throw new Error("INVALID_FILTER");
-  const days = Number(url.searchParams.get("days") ?? "30");
+export function dashboardFilters(url: URL): {market: string | null} {
+  // No time windows or user-derived drilldowns: overlapping queries permit subtraction.
+  if ([...url.searchParams.keys()].some(key => key !== "market") ||
+    url.searchParams.getAll("market").length > 1) throw new Error("INVALID_FILTER");
   const market = url.searchParams.get("market") || null;
-  if (![7,30,90].includes(days) || (market && !countryCurrencyData.some(([code]) => code === market))) throw new Error("INVALID_FILTER");
-  return {days,market};
+  if (market && !countryCurrencyData.some(([code]) => code === market)) throw new Error("INVALID_FILTER");
+  return {market};
 }
-export async function dashboardData(days: number, market: string | null) {
-  // Read-only transaction + statement timeout bounds query load. All user-derived groups require 10 users.
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN READ ONLY");
-    await client.query("SET LOCAL statement_timeout = '3000ms'");
-    const events = await client.query(`SELECT event, count(*)::int AS count, count(DISTINCT actor_id)::int AS actors
-      FROM analytics_events WHERE occurred_at >= now()-$1*interval '1 day' AND expires_at>now()
-      AND ($2::text IS NULL OR market=$2) GROUP BY event HAVING count(DISTINCT actor_id)>=10 ORDER BY event`, [days,market]);
-    const subscriptions = await client.query(`SELECT currency, count(*)::int AS subscriptions,
-      count(DISTINCT user_id)::int AS users, CASE WHEN count(DISTINCT user_id) FILTER(WHERE monthly_price_minor IS NOT NULL)>=10
-        THEN sum(monthly_price_minor)::text ELSE NULL END AS monthly_hundredths,
-      CASE WHEN count(DISTINCT user_id) FILTER(WHERE monthly_price_minor IS NULL)>=10
-        THEN count(*) FILTER(WHERE monthly_price_minor IS NULL)::int ELSE NULL END AS unknown_amounts
-      FROM subscriptions WHERE status='ACTIVE' AND ($1::text IS NULL OR country_code=$1)
-      GROUP BY currency HAVING count(DISTINCT user_id)>=10 ORDER BY currency`,[market]);
-    const entitlements = await client.query(`SELECT e.plan,count(*)::int AS users FROM entitlements e
-      JOIN users u ON u.id=e.user_id WHERE ($1::text IS NULL OR u.country_code=$1)
-      GROUP BY e.plan HAVING count(*)>=10 ORDER BY e.plan`,[market]);
-    const newUsers = await client.query(`SELECT count(*)::int AS count FROM users
-      WHERE created_at>=now()-$1*interval '1 day' AND ($2::text IS NULL OR country_code=$2) HAVING count(*)>=10`,[days,market]);
-    const serviceDistribution=await client.query(`SELECT COALESCE(svc.slug,'manual') AS service,
-      bp.slug AS billing_route,count(*)::int AS subscriptions FROM subscriptions s
-      LEFT JOIN services svc ON svc.id=s.service_id JOIN billing_providers bp ON bp.id=s.billing_provider_id
-      WHERE s.status='ACTIVE' AND ($1::text IS NULL OR s.country_code=$1)
-      GROUP BY svc.slug,bp.slug HAVING count(DISTINCT s.user_id)>=10 ORDER BY subscriptions DESC,service,billing_route LIMIT 20`,[market]);
-    const storedPrices=await client.query(`SELECT verification,count(*)::int AS prices FROM verified_provider_prices
-      WHERE ($1::text IS NULL OR country_code=$1) GROUP BY verification ORDER BY verification`,[market]);
-    const dataQuality={selectableMarkets:countryCurrencyData.length,catalogServices:serviceCatalog.length,
-      registryRows:Object.entries(verifiedProviderRegistry).filter(([country])=>!market||country===market).reduce((sum,[,rows])=>sum+rows.length,0),
-      persistedPrices:storedPrices.rows};
-    await client.query("COMMIT");
-    return {markets: countryCurrencyData, catalogServices: serviceCatalog.length, events: events.rows,
-      subscriptions: subscriptions.rows, serviceDistribution:serviceDistribution.rows, dataQuality, entitlements: entitlements.rows, newUsers: newUsers.rows[0]?.count ?? null,
-      days, market, collectionEnabled: collectionPolicy() !== null,
-      rawRetentionDays: collectionPolicy(), minimumCohort: 10,
-      notes: ["Minimum cohorts apply separately to known amounts and unknown-amount counts; suppressed means unavailable, not zero.",
-        "Event counts are client-reported, not verified provider outcomes. Mobile instrumentation is not installed.",
-        "Event window may be incomplete due to expiry or collection start. No DAU/retention/conversion claim is made.",
-        "Subscription totals cover stored ACTIVE rows only, without scheduled/effective-date adjustment; grouped by currency in stored hundredths. Not complete current spending or Savlivo revenue.",
-        "Entitlements are last stored records, not verified current paid access. Entitlements/new accounts use account country, not selected-market activity. Small cohorts are suppressed."]};
-  } catch (error) { await client.query("ROLLBACK"); throw error; } finally {client.release();}
+export async function dashboardData(market: string | null) {
+  // Deliberately query no accounts, portfolios, actors or events. Suppression alone
+  // cannot protect live aggregates against repeated/overlapping queries.
+  const storedPrices = await pool.query(`SELECT verification,count(*)::int AS prices FROM verified_provider_prices
+    WHERE ($1::text IS NULL OR country_code=$1) GROUP BY verification ORDER BY verification`, [market]);
+  return {markets: countryCurrencyData, catalogServices: serviceCatalog.length,
+    dataQuality: {selectableMarkets: countryCurrencyData.length, catalogServices: serviceCatalog.length,
+      registryRows: Object.entries(verifiedProviderRegistry).filter(([country]) => !market || country === market)
+        .reduce((sum,[,rows]) => sum + rows.length,0), persistedPrices: storedPrices.rows},
+    market, collectionEnabled: collectionPolicy() !== null, rawRetentionDays: collectionPolicy(),
+    disclosureModel: "non-personal-provider-coverage-only",
+    notes: ["Only catalog and provider-price coverage is reported. These are not user spending or Savlivo revenue.",
+      "User-derived events, accounts, entitlements, portfolios, spending and funnels are deferred because overlapping reports can disclose small changes.",
+      "No user-level drilldowns or rolling time windows are available. No anonymity guarantee is claimed."]};
 }
 export async function handlePrivateData(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   let url: URL;
@@ -178,9 +152,9 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
       respond(res,200,{ok:true});return true;
     }
     if (url.pathname === "/v1/admin/overview" && req.method === "GET") {
-      const {days,market} = dashboardFilters(url);
+      const {market} = dashboardFilters(url);
       await audit(userId,"dashboard_read",config.days); // Failure denies the read.
-      respond(res,200,await dashboardData(days,market));return true;
+      respond(res,200,await dashboardData(market));return true;
     }
     respond(res,404,{error:"NOT_FOUND"});return true;
   } catch (error) {

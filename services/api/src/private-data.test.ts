@@ -48,8 +48,8 @@ test("bounded reader rejects oversized and non-JSON payloads",async()=>{
 });
 test("admin fails closed without complete explicit configuration",()=>{
   assert.equal(adminConfiguration({}),null);
-  assert.equal(adminConfiguration({ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"http://example.org"}),null);
-  assert.equal(adminConfiguration({ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"https://savlivo.com"})?.origin,"https://savlivo.com");
+  assert.equal(adminConfiguration({NODE_ENV:"test",ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"http://example.org"}),null);
+  assert.equal(adminConfiguration({NODE_ENV:"test",ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"https://savlivo.com"})?.origin,"https://savlivo.com");
 });
 test("customer tokens and client admin claims cannot become privileged sessions",async()=>{
   assert.equal(await authenticatedAdmin(undefined),null);
@@ -62,8 +62,8 @@ test("rate limiting expires and memory capacity denies by default",()=>{
   assert.equal(limit("a",0),false);assert.equal(limit("b",0),false);assert.equal(limit("b",60000),true);
 });
 test("dashboard rejects arbitrary ranges, market text and duplicate filters",()=>{
-  assert.deepEqual(dashboardFilters(new URL("https://x/?days=7&market=NO")),{days:7,market:"NO"});
-  for(const query of ["days=999","market=RU","email=x","days=7&days=30"]) assert.throws(()=>dashboardFilters(new URL(`https://x/?${query}`)));
+  assert.deepEqual(dashboardFilters(new URL("https://x/?market=NO")),{market:"NO"});
+  for(const query of ["days=7","days=30","days=90","days=999","market=RU","email=x","days=7&days=30","market=NO&market=US","market=NO&service=netflix","market=NO&category=video","service=netflix&billing=apple"]) assert.throws(()=>dashboardFilters(new URL(`https://x/?${query}`)));
 });
 test("private handler leaves existing customer routes unchanged and disabled admin denies",async()=>{
   const req={url:"/v1/assistant",headers:{}} as IncomingMessage;
@@ -109,4 +109,20 @@ test("malformed request targets cannot reject the shared server callback",async(
   let status=0;
   assert.equal(await handlePrivateData({url:"http://[",headers:{}} as IncomingMessage,{writeHead:(code:number)=>{status=code;},end:()=>{}} as any),true);
   assert.equal(status,400);
+});
+
+test("legacy admin access is disabled in production and unspecified runtimes",()=>{
+  const config={ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"https://savlivo.com"};
+  for(const NODE_ENV of [undefined,"production","staging"]) assert.equal(adminConfiguration({...config,NODE_ENV}),null);
+});
+test("dashboard never queries user-derived tables or exposes suppressed measures",async(t)=>{
+  const {privateDataPool}=await import("./private-data-db.js");
+  const {dashboardData}=await import("./private-data-http.js");
+  const queries:string[]=[];
+  t.mock.method(privateDataPool,"query",async(query:string)=>{queries.push(query);return {rows:[{verification:"authoritative-provider",prices:1}]};});
+  const first=await dashboardData("NO");
+  assert.deepEqual(await dashboardData("NO"),first);
+  assert.ok(queries.every(query=>query.includes("FROM verified_provider_prices")));
+  assert.ok(queries.every(query=>!/(analytics_events|analytics_actors|subscriptions|entitlements|FROM users)/.test(query)));
+  for(const key of ["events","subscriptions","entitlements","newUsers","serviceDistribution","days","minimumCohort"])assert.equal(key in first,false);
 });

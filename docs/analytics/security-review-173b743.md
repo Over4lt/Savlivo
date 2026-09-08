@@ -1,5 +1,7 @@
 # Analytics/admin security review
 
+> Current update: [activation-blockers-f5530fa.md](activation-blockers-f5530fa.md) supersedes the historical reporting/auth scope below. User-derived reports are removed; admin is local-rehearsal-only. Passkey delivery and hosting verification remain technical blockers.
+
 Starting state: 173b743 on build10-final, 19 commits ahead of the recorded origin reference. Only unrelated `apps/web/.well-known/.htaccess` untracked. Reviewed 707bde3/173b743, migrations 011–014, all new persistence/HTTP/browser code, customer registration, migration runner and technical docs. No production state was inspected.
 
 ## Verdict
