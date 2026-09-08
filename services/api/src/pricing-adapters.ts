@@ -3023,6 +3023,72 @@ export function parseGoogleOneStructuredPrices(
 
 
 
+export function parseGoogleOnePricingFeed(
+  json: string,
+  expectedCountryCode: string,
+  expectedCurrency: string
+): Array<{
+  planName: string;
+  amount: number;
+}> {
+  let data: unknown;
+
+  try {
+    data = JSON.parse(json);
+  } catch {
+    return [];
+  }
+
+  if (
+    !data ||
+    typeof data !== "object"
+  ) {
+    return [];
+  }
+
+  const record =
+    data as Record<string, unknown>;
+
+  if (
+    record.COUNTRY_CODE !==
+      expectedCountryCode ||
+    record.CURRENCY_CODE !==
+      expectedCurrency
+  ) {
+    return [];
+  }
+
+  const mappings: Array<
+    [string, string]
+  > = [
+    ["PRICE_100_MONTHLY", "Storage 100 GB"],
+    ["PRICE_200_MONTHLY", "Storage 200 GB"],
+    ["PRICE_GEN_AI_PLUS_MONTHLY", "Google AI Plus"],
+    ["PRICE_GEN_AI_PRO_MONTHLY", "Google AI Pro"]
+  ];
+
+  return mappings.flatMap(
+    ([key, planName]) => {
+      const amount = record[key];
+
+      if (
+        typeof amount !== "number" ||
+        !Number.isFinite(amount) ||
+        amount <= 0
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          planName,
+          amount
+        }
+      ];
+    }
+  );
+}
+
 const googleOneStoreEstimatedCatalog: Record<
   string,
   {
@@ -3179,6 +3245,9 @@ const googleOneStoreEstimatedCatalog: Record<
   }
 };
 
+const googleOnePricingFeedFilename =
+  "pricing_2026_07_28.json";
+
 async function googleOneAdapter(
   ctx: AdapterContext
 ): Promise<AdapterPrice[]> {
@@ -3227,13 +3296,65 @@ async function googleOneAdapter(
    *
    * URL country/region/language inputs do not change that
    * active market from the request's geo-derived market.
-   * Until Savlivo has verified foreign-market egress, only
-   * NO + NOK is allowed to become authoritative live pricing.
+   *
+   * For foreign markets, Savlivo may additionally use Google's
+   * provider-owned pricing feed when its embedded country and
+   * currency exactly match the requested market.
    */
   if (
     ctx.countryCode !== "NO" ||
     ctx.currency !== "NOK"
   ) {
+    const pricingFeedUrl =
+      "https" + "://" + "one.google.com/intl/ALL_" +
+      ctx.countryCode.toLowerCase() +
+      "/about/feeds/" +
+      googleOnePricingFeedFilename;
+
+    try {
+      const feedJson = await fetchText(
+        pricingFeedUrl,
+        ctx.countryCode.toLowerCase()
+      );
+
+      const feedPrices =
+        parseGoogleOnePricingFeed(
+          feedJson,
+          ctx.countryCode,
+          ctx.currency
+        );
+
+      for (const price of feedPrices) {
+        if (
+          price.planName !== "Storage 100 GB" &&
+          price.planName !== "Storage 200 GB"
+        ) {
+          continue;
+        }
+
+        const items = exactForRoute(
+          "google-one",
+          price.planName,
+          ctx.countryCode,
+          ctx.currency,
+          price.amount,
+          pricingFeedUrl,
+          "direct"
+        );
+
+        candidates.push(
+          ...officialStructuredCandidates(
+            items
+          )
+        );
+      }
+    } catch {
+      /*
+       * Foreign feed failures preserve existing
+       * registry/store pricing unchanged.
+       */
+    }
+
     return resolvePriceCandidates(
       ctx,
       candidates

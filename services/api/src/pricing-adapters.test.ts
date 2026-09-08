@@ -14,6 +14,7 @@ import {
   parseSpotifyNextData,
   parseGoogleOneMarket,
   parseGoogleOneStructuredPrices,
+  parseGoogleOnePricingFeed,
   parseMaxStructuredPrices,
   parseICloudPlusPrices,
   parseMicrosoft365Prices,
@@ -1072,6 +1073,56 @@ AF_initDataCallback({key: 'ds:2', hash: '2', data:[
           storageLabel: "100 GB"
         }
       ]
+    );
+  }
+);
+
+test(
+  "Google One pricing feed parser extracts provider-owned monthly prices",
+  () => {
+    const json = JSON.stringify({
+      COUNTRY_CODE: "SE",
+      CURRENCY_CODE: "SEK",
+      PRICE_100_MONTHLY: 19,
+      PRICE_200_MONTHLY: 29,
+      PRICE_GEN_AI_PLUS_MONTHLY: 55,
+      PRICE_GEN_AI_PRO_MONTHLY: 255,
+      PRICE_FREE: 0
+    });
+
+    assert.deepEqual(
+      parseGoogleOnePricingFeed(
+        json,
+        "SE",
+        "SEK"
+      ),
+      [
+        { planName: "Storage 100 GB", amount: 19 },
+        { planName: "Storage 200 GB", amount: 29 },
+        { planName: "Google AI Plus", amount: 55 },
+        { planName: "Google AI Pro", amount: 255 }
+      ]
+    );
+  }
+);
+
+test(
+  "Google One pricing feed parser rejects wrong country or currency",
+  () => {
+    const json = JSON.stringify({
+      COUNTRY_CODE: "SE",
+      CURRENCY_CODE: "SEK",
+      PRICE_100_MONTHLY: 19
+    });
+
+    assert.deepEqual(
+      parseGoogleOnePricingFeed(json, "NO", "SEK"),
+      []
+    );
+
+    assert.deepEqual(
+      parseGoogleOnePricingFeed(json, "SE", "NOK"),
+      []
     );
   }
 );
