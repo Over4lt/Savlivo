@@ -43,3 +43,15 @@ test("international market switching keeps selected AI savings and report amount
   }
   assert.deepEqual(items,before);
 });
+
+test("zero-decimal currency display preserves Savlivo hundredths without reinterpreting saved amounts",()=>{
+  for(const currency of ["JPY","KRW","VND","IDR"]){
+    for(const minor of [1,99,100,12345,119900000]){
+      const expected=new Intl.NumberFormat("en-US",{style:"currency",currency,maximumFractionDigits:2}).format(minor/100);
+      assert.equal(formatMarketMinor(minor,currency,"en-US"),expected);
+    }
+    assert.match(formatMarketMinor(12345,currency,"en-US"),/123\.45/);
+  }
+  // KWD storage is still hundredths; genuine thousandths remain unsupported input.
+  assert.match(formatMarketMinor(12345,"KWD","en-US"),/123\.450/);
+});

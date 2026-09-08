@@ -82,7 +82,13 @@ export function isCurrentMarketPricing(
 
 export function formatMarketMinor(minor: number, currency: string, locale?: string) {
   try {
-    return new Intl.NumberFormat(locale, { style: "currency", currency }).format(minor / 100);
+    // Savlivo stores hundredths for every currency, not ISO currency minor units.
+    // Keep whole-unit display where appropriate, but never round away stored cents.
+    const formatter = new Intl.NumberFormat(locale, { style: "currency", currency });
+    const digits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
+    return (digits < 2
+      ? new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 2 })
+      : formatter).format(minor / 100);
   } catch {
     return `${currency} ${(minor / 100).toFixed(2)}`;
   }

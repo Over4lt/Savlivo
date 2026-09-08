@@ -7175,14 +7175,7 @@ export default function Home() {
     const minor = item.monthlyPriceMinor ?? 0;
     const storedCurrency = item.currency || "USD";
 
-    try {
-      return new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: storedCurrency
-      }).format(minor / 100);
-    } catch {
-      return `${storedCurrency} ${(minor / 100).toFixed(2)}`;
-    }
+    return formatMarketMinor(minor, storedCurrency);
   }
 
   function regionalDisplayRange(
