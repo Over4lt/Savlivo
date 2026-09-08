@@ -12,6 +12,7 @@ import {
   findSpotifyRecurringPrices,
   parseSpotifyFaqPrices,
   parseSpotifyNextData,
+  providerAdapters,
   parseGoogleOneMarket,
   parseGoogleOneStructuredPrices,
   parseGoogleOnePricingFeed,
@@ -4717,3 +4718,64 @@ test(
     );
   }
 );
+
+
+test("Google One GB recovery preserves existing plans and validates provider identity", async (t) => {
+  const feed = (overrides = {}) => JSON.stringify({
+    COUNTRY_CODE: "GB", CURRENCY_CODE: "GBP",
+    PRICE_100_MONTHLY: 1.59, PRICE_200_MONTHLY: 2.49,
+    PRICE_2048_MONTHLY: 7.99, PRICE_GEN_AI_PLUS_MONTHLY: 3.99,
+    ...overrides
+  });
+  const cases = [
+    { name: "complete original", primary: feed(), recovery: feed(), expected: [159, 249], calls: 1 },
+    { name: "network failure", primary: null, recovery: feed(), expected: [159, 249], calls: 2 },
+    { name: "parser failure", primary: "{", recovery: feed(), expected: [159, 249], calls: 2 },
+    { name: "partial original survives conflicting recovery", primary: feed({ PRICE_200_MONTHLY: null }), recovery: feed({ PRICE_100_MONTHLY: 9 }), expected: [159, 249], calls: 2 },
+    { name: "wrong recovery country", primary: null, recovery: feed({ COUNTRY_CODE: "US" }), expected: [], calls: 2 },
+    { name: "wrong recovery currency", primary: null, recovery: feed({ CURRENCY_CODE: "USD" }), expected: [], calls: 2 },
+    { name: "both fail", primary: null, recovery: null, expected: [], calls: 2 },
+    { name: "partial original survives recovery failure", primary: feed({ PRICE_200_MONTHLY: null }), recovery: null, expected: [159], calls: 2 }
+  ];
+  for (const scenario of cases) {
+    await t.test(scenario.name, async (t) => {
+      const urls: string[] = [];
+      t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+        const url = String(input);
+        urls.push(url);
+        const body = url.includes("ALL_gb/") ? scenario.primary : scenario.recovery;
+        if (body === null) throw new Error("offline");
+        return new Response(body);
+      });
+      const prices = await providerAdapters["google-one"]({ countryCode: "GB", currency: "GBP" });
+      assert.deepEqual(prices.map(p => p.monthlyPriceMinor).sort((a,b) => a-b), scenario.expected);
+      assert.equal(urls.length, scenario.calls);
+      assert.ok(urls[0].includes("/ALL_gb/about/feeds/"));
+      if (urls.length === 2) assert.ok(urls[1].includes("/ALL_uk/about/feeds/"));
+      for (const price of prices) {
+        assert.equal(price.verification, "authoritative-provider");
+        assert.equal(price.countryCode, "GB");
+        assert.equal(price.currency, "GBP");
+        assert.equal(price.billingProviderSlug, "direct");
+        assert.ok(["Storage 100 GB", "Storage 200 GB"].includes(price.planName));
+        if (scenario.primary === null) assert.ok(price.sourceUrl.includes("ALL_uk/"));
+      }
+    });
+  }
+});
+
+test("Google One foreign failures preserve store prices and Norway remains independent", async (t) => {
+  const urls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    urls.push(String(input));
+    throw new Error("offline");
+  });
+  const se = await providerAdapters["google-one"]({ countryCode: "SE", currency: "SEK" });
+  assert.deepEqual(se.map(p => p.monthlyPriceMinor).sort((a,b) => a-b), [1900, 2900, 9900]);
+  assert.equal(urls.length, 1);
+  const no = await providerAdapters["google-one"]({ countryCode: "NO", currency: "NOK" });
+  assert.equal(no.length, 8);
+  assert.ok(no.every(p => p.verification === "registry"));
+  assert.equal(urls.length, 2);
+  assert.ok(urls[1].startsWith("https://one.google.com/plans?"));
+});

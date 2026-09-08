@@ -3305,54 +3305,68 @@ async function googleOneAdapter(
     ctx.countryCode !== "NO" ||
     ctx.currency !== "NOK"
   ) {
-    const pricingFeedUrl =
-      "https" + "://" + "one.google.com/intl/ALL_" +
-      ctx.countryCode.toLowerCase() +
-      "/about/feeds/" +
-      googleOnePricingFeedFilename;
+    // Google's own g1-localized-price asset maps GB to ALL_uk.
+    // Keep the existing route first; recover only missing storage plans.
+    const feedMarkets = ctx.countryCode === "GB"
+      ? ["gb", "uk"]
+      : [ctx.countryCode.toLowerCase()];
+    const acceptedPlans = new Set<string>();
 
-    try {
-      const feedJson = await fetchText(
-        pricingFeedUrl,
-        ctx.countryCode.toLowerCase()
-      );
+    for (const feedMarket of feedMarkets) {
+      if (acceptedPlans.size === 2) break;
 
-      const feedPrices =
-        parseGoogleOnePricingFeed(
-          feedJson,
-          ctx.countryCode,
-          ctx.currency
-        );
+      const pricingFeedUrl =
+        "https" + "://" + "one.google.com/intl/ALL_" +
+        feedMarket +
+        "/about/feeds/" +
+        googleOnePricingFeedFilename;
 
-      for (const price of feedPrices) {
-        if (
-          price.planName !== "Storage 100 GB" &&
-          price.planName !== "Storage 200 GB"
-        ) {
-          continue;
-        }
-
-        const items = exactForRoute(
-          "google-one",
-          price.planName,
-          ctx.countryCode,
-          ctx.currency,
-          price.amount,
+      try {
+        const feedJson = await fetchText(
           pricingFeedUrl,
-          "direct"
+          ctx.countryCode.toLowerCase()
         );
 
-        candidates.push(
-          ...officialStructuredCandidates(
-            items
-          )
-        );
+        const feedPrices =
+          parseGoogleOnePricingFeed(
+            feedJson,
+            ctx.countryCode,
+            ctx.currency
+          );
+
+        for (const price of feedPrices) {
+          if (
+            price.planName !== "Storage 100 GB" &&
+            price.planName !== "Storage 200 GB"
+          ) {
+            continue;
+          }
+
+          if (acceptedPlans.has(price.planName)) continue;
+          acceptedPlans.add(price.planName);
+
+          const items = exactForRoute(
+            "google-one",
+            price.planName,
+            ctx.countryCode,
+            ctx.currency,
+            price.amount,
+            pricingFeedUrl,
+            "direct"
+          );
+
+          candidates.push(
+            ...officialStructuredCandidates(
+              items
+            )
+          );
+        }
+      } catch {
+        /*
+         * Foreign feed failures preserve existing
+         * registry/store pricing unchanged.
+         */
       }
-    } catch {
-      /*
-       * Foreign feed failures preserve existing
-       * registry/store pricing unchanged.
-       */
     }
 
     return resolvePriceCandidates(
