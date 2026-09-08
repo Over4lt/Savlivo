@@ -1,3 +1,4 @@
+import { parseAddSubscriptionIntent, type AddSubscriptionIntent } from "../../../packages/contracts/src/discovery.js";
 import Groq from "groq-sdk";
 
 export type AssistantHistoryMessage = {
@@ -39,6 +40,7 @@ export type AssistantRequest = {
 };
 
 export type AssistantResult = {
+  catalogAction?: AddSubscriptionIntent;
   answer: string;
   language: string;
   intent:
@@ -233,6 +235,13 @@ export async function askAssistant(
       "INVALID_ASSISTANT_MESSAGE"
     );
   }
+
+  const catalogAction = parseAddSubscriptionIntent(message, request.context?.countryCode ?? "", request.context?.currency ?? "");
+  if (catalogAction) return {
+    answer: /^(legg til|jeg har)/i.test(message) ? "Se gjennom abonnementet og bekreft i skjemaet. Ingenting er lagt til ennå." : "Review and confirm the subscription in the form. Nothing has been added yet.",
+    language: request.languageHint ?? "en", intent:"NAVIGATION", action:null, serviceNames:[], navigationTarget:null,
+    needsExternalResearch:false, catalogAction
+  };
 
   if (!groq) {
     throw new Error(

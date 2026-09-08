@@ -666,6 +666,7 @@ const server = http.createServer(async (req, res) => {
         const created = await addSubscription({
           userId: auth.id,
           serviceSlug: String(body.serviceSlug ?? ""),
+          customServiceName: body.customServiceName == null ? undefined : String(body.customServiceName),
           billingProviderSlug: String(body.billingProviderSlug ?? ""),
           countryCode,
           monthlyPriceMinor:
@@ -690,6 +691,7 @@ const server = http.createServer(async (req, res) => {
             ? err.message
             : "UNKNOWN_ERROR";
 
+        if (message === "INVALID_MANUAL_SUBSCRIPTION") return send(res, 400, { error: message });
         if (
           message ===
           "UNKNOWN_SERVICE_OR_BILLING_PROVIDER"
@@ -712,6 +714,7 @@ const server = http.createServer(async (req, res) => {
           userId: auth.id,
           subscriptionId: subscriptionMatch[1],
           serviceSlug: String(body.serviceSlug ?? ""),
+          customServiceName: body.customServiceName == null ? undefined : String(body.customServiceName),
           billingProviderSlug: String(body.billingProviderSlug ?? ""),
           monthlyPriceMinor:
             body.monthlyPriceMinor == null ? undefined : Number(body.monthlyPriceMinor),
@@ -723,6 +726,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, updated);
       } catch (err) {
         const message = err instanceof Error ? err.message : "UNKNOWN_ERROR";
+        if (message === "INVALID_MANUAL_SUBSCRIPTION") return send(res, 400, { error: message });
         if (message === "SUBSCRIPTION_NOT_FOUND_OR_INVALID_ROUTE") {
           return send(res, 404, { error: message });
         }

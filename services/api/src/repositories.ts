@@ -1,3 +1,4 @@
+import { validateManualSubscription } from "../../../packages/contracts/src/discovery.js";
 import { pool } from "./db.js";
 import type { SavlivoPlan, ActionType } from "../../../packages/contracts/src/index.js";
 
@@ -258,10 +259,11 @@ export async function listSubscriptions(userId: string) {
   const result = await pool.query(
     `SELECT
        s.id,
-       svc.slug AS "serviceSlug",
-       svc.name AS "serviceName",
+       COALESCE(svc.slug, 'manual') AS "serviceSlug",
+       COALESCE(svc.name, s.custom_service_name) AS "serviceName",
        bp.slug AS "billingProviderSlug",
        s.country_code AS "countryCode",
+       s.custom_service_name AS "customServiceName",
        s.status,
        s.monthly_price_minor AS "monthlyPriceMinor",
        s.currency,
@@ -311,7 +313,7 @@ export async function listSubscriptions(userId: string) {
 
        s.updated_at AS "updatedAt"
      FROM subscriptions s
-     JOIN services svc ON svc.id = s.service_id
+     LEFT JOIN services svc ON svc.id = s.service_id
      JOIN billing_providers bp ON bp.id = s.billing_provider_id
      WHERE s.user_id = $1
      ORDER BY svc.name`,
@@ -325,10 +327,11 @@ export async function getSubscription(userId: string, id: string) {
   const result = await pool.query(
     `SELECT
        s.id,
-       svc.slug AS "serviceSlug",
-       svc.name AS "serviceName",
+       COALESCE(svc.slug, 'manual') AS "serviceSlug",
+       COALESCE(svc.name, s.custom_service_name) AS "serviceName",
        bp.slug AS "billingProviderSlug",
        s.country_code AS "countryCode",
+       s.custom_service_name AS "customServiceName",
        s.status,
        s.monthly_price_minor AS "monthlyPriceMinor",
        s.currency,
@@ -340,7 +343,7 @@ export async function getSubscription(userId: string, id: string) {
        to_char(s.status_effective_date::date, 'YYYY-MM-DD') AS "statusEffectiveDate",
        s.updated_at AS "updatedAt"
      FROM subscriptions s
-     JOIN services svc ON svc.id = s.service_id
+     LEFT JOIN services svc ON svc.id = s.service_id
      JOIN billing_providers bp ON bp.id = s.billing_provider_id
      WHERE s.user_id = $1 AND s.id = $2`,
     [userId, id]
@@ -351,6 +354,7 @@ export async function getSubscription(userId: string, id: string) {
 export async function addSubscription(args: {
   userId: string;
   serviceSlug: string;
+  customServiceName?: string;
   billingProviderSlug: string;
   countryCode?: string;
   monthlyPriceMinor?: number;
@@ -358,6 +362,16 @@ export async function addSubscription(args: {
   renewalDate?: string;
   planName?: string;
 }) {
+  if (args.serviceSlug === "manual") {
+    const name = validateManualSubscription(args);
+    const result = await pool.query(`INSERT INTO subscriptions
+      (user_id, service_id, custom_service_name, billing_provider_id, country_code, status, monthly_price_minor, currency, renewal_date, plan_name)
+      SELECT $1, NULL, $2, bp.id, $4, 'ACTIVE', $5, $6, $7, $8 FROM billing_providers bp WHERE bp.slug=$3 RETURNING id`,
+      [args.userId,name,args.billingProviderSlug,args.countryCode,args.monthlyPriceMinor,args.currency,args.renewalDate??null,args.planName??null]);
+    if(!result.rows[0])throw new Error("INVALID_MANUAL_SUBSCRIPTION");
+    return getSubscription(args.userId,result.rows[0].id);
+  }
+  if(args.customServiceName !== undefined)throw new Error("INVALID_MANUAL_SUBSCRIPTION");
   const result = await pool.query(
     `INSERT INTO subscriptions (
        user_id, service_id, billing_provider_id, country_code, status,
@@ -393,12 +407,26 @@ export async function updateSubscription(args: {
   userId: string;
   subscriptionId: string;
   serviceSlug: string;
+  customServiceName?: string;
   billingProviderSlug: string;
   monthlyPriceMinor?: number;
   currency?: string;
   renewalDate?: string;
   planName?: string;
 }) {
+  if(args.serviceSlug === "manual") {
+    const existing = await getSubscription(args.userId,args.subscriptionId);
+    if(!existing || existing.serviceSlug !== "manual")throw new Error("SUBSCRIPTION_NOT_FOUND_OR_INVALID_ROUTE");
+    const name=validateManualSubscription({...args,countryCode:existing.countryCode,currency:existing.currency});
+    if(args.currency!==existing.currency)throw new Error("INVALID_MANUAL_SUBSCRIPTION");
+    const result=await pool.query(`UPDATE subscriptions s SET custom_service_name=$3, billing_provider_id=bp.id,
+      monthly_price_minor=$5, renewal_date=$6, plan_name=$7, updated_at=now()
+      FROM billing_providers bp WHERE s.user_id=$1 AND s.id=$2 AND s.service_id IS NULL AND bp.slug=$4 RETURNING s.id`,
+      [args.userId,args.subscriptionId,name,args.billingProviderSlug,args.monthlyPriceMinor,args.renewalDate??null,args.planName??null]);
+    if(!result.rows[0])throw new Error("SUBSCRIPTION_NOT_FOUND_OR_INVALID_ROUTE");
+    return getSubscription(args.userId,args.subscriptionId);
+  }
+  if(args.customServiceName !== undefined)throw new Error("INVALID_MANUAL_SUBSCRIPTION");
   const client = await pool.connect();
 
   try {
@@ -925,8 +953,8 @@ export async function listSavingsEvents(
          )
        END AS "periodEnd",
        se.created_at AS "createdAt",
-       svc.slug AS "serviceSlug",
-       svc.name AS "serviceName"
+       COALESCE(svc.slug, CASE WHEN sub.custom_service_name IS NOT NULL THEN 'manual' END) AS "serviceSlug",
+       COALESCE(svc.name, sub.custom_service_name) AS "serviceName"
      FROM savings_events se
      LEFT JOIN subscriptions sub
        ON sub.id = se.subscription_id

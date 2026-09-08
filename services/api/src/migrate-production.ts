@@ -22,6 +22,7 @@ const migrationFiles = [
   "db/migrations/009_subscription_market.sql",
   "db/migrations/010_account_deletion_grace_period.sql",
   "db/migrations/011_add_viaplay.sql",
+  "db/migrations/012_manual_subscriptions.sql",
   "services/api/src/savlivo-migration-savings-ledger-1.7.0.sql",
   "services/api/migrations/20260824_notifications.sql",
   "services/api/migrations/20260907_password_reset.sql",

@@ -142,7 +142,7 @@ export async function queueRenewalReminders() {
         (s.renewal_date - 3) + time '09:00:00'
       ) AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC'),
       jsonb_build_object(
-        'title', svc.name || ' renews soon',
+        'title', COALESCE(svc.name, s.custom_service_name) || ' renews soon',
         'body',
           'Renews ' ||
           to_char(s.renewal_date, 'Mon DD') ||
@@ -157,7 +157,7 @@ export async function queueRenewalReminders() {
     FROM subscriptions s
     JOIN users u
       ON u.id = s.user_id
-    JOIN services svc
+    LEFT JOIN services svc
       ON svc.id = s.service_id
     JOIN notification_endpoints e
       ON e.user_id = u.id
@@ -205,10 +205,10 @@ export async function queueRenewalReminders() {
         (s.renewal_date - 3) + time '09:00:00'
       ) AT TIME ZONE COALESCE(NULLIF(u.timezone, ''), 'UTC'),
       jsonb_build_object(
-        'title', svc.name || ' renews soon',
+        'title', COALESCE(svc.name, s.custom_service_name) || ' renews soon',
         'body',
           'Your ' ||
-          svc.name ||
+          COALESCE(svc.name, s.custom_service_name) ||
           ' subscription renews ' ||
           to_char(s.renewal_date, 'Mon DD') ||
           '.',
@@ -222,7 +222,7 @@ export async function queueRenewalReminders() {
     FROM subscriptions s
     JOIN users u
       ON u.id = s.user_id
-    JOIN services svc
+    LEFT JOIN services svc
       ON svc.id = s.service_id
     LEFT JOIN notification_preferences p
       ON p.user_id = u.id
@@ -256,7 +256,7 @@ async function dueJobs(): Promise<DueNotification[]> {
       j.user_id AS "userId",
       u.email,
       j.subscription_id AS "subscriptionId",
-      svc.name AS "serviceName",
+      COALESCE(svc.name, s.custom_service_name) AS "serviceName",
       to_char(
         s.renewal_date::date,
         'YYYY-MM-DD'
@@ -269,7 +269,7 @@ async function dueJobs(): Promise<DueNotification[]> {
       ON u.id = j.user_id
     JOIN subscriptions s
       ON s.id = j.subscription_id
-    JOIN services svc
+    LEFT JOIN services svc
       ON svc.id = s.service_id
     LEFT JOIN notification_preferences p
       ON p.user_id = u.id

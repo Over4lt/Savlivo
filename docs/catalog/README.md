@@ -2,6 +2,8 @@
 
 Baseline: 60362c6, 2026-09-08. This is a local, reviewable batch, not a release.
 
+Follow-up implementation: [Scalable Catalog & Discovery UX + AI Integration](discovery-implementation.md). The sections below describe the historical foundation; the follow-up implements search, confirmed AI handoff and real manual records with an additional migration.
+
 ## Scope and evidence limits
 
 The source-of-truth selectable configuration contains 30 markets, 42 service identities, 363 registry rows and 756 offline pricing results representing 106 distinct service/plan names. The baseline captures currencies, exact registry rows, offline plan/route results, billing selections and deduplicated management destination profiles. Baseline tests: API 300, mobile 84. The preceding 77/77 international live check is historical evidence, not a claim of fresh recertification of every provider in this task.

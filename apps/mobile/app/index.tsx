@@ -1,8 +1,10 @@
-import { transitionCatalogDraft, serviceCatalog, serviceCategories, billingProviders, serviceBillingProviders, billingProvidersForService, defaultBillingProviderForService, isBillingProviderAllowed, allCurrencies, serviceAvailableInMarket, type BillingProviderSlug } from "../../../packages/contracts/src/catalog";
+import { discoveryRequestIsCurrent, parseAddSubscriptionIntent, validateAddSubscriptionIntent, validateManualSubscription } from "../../../packages/contracts/src/discovery";
+import { transitionCatalogDraft, serviceCatalog, searchCatalog, catalogDiscoveryPolicy, catalogCategories, type CatalogCategory, billingProviders, serviceBillingProviders, billingProvidersForService, defaultBillingProviderForService, isBillingProviderAllowed, allCurrencies, serviceAvailableInMarket, type BillingProviderSlug } from "../../../packages/contracts/src/catalog";
 import {
   countryCurrencyData, subscriptionsForMarket, formatMarketMinor, isCurrentMarketPricing, expansionServiceAvailable
 } from "../../../packages/contracts/src/markets";
 import {
+  useMemo,
   useEffect,
   useRef,
   useState } from "react";
@@ -106,6 +108,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { registerSavlivoPushNotifications, subscribeToSavlivoNotificationTaps } from "../src/notifications";
 
 type Subscription = {
+  customServiceName?: string;
   id: string;
   serviceName: string;
   serviceSlug: string;
@@ -2903,7 +2906,16 @@ export default function Home() {
       )}`;
     }
   }
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [catalogCategory, setCatalogCategory] = useState<CatalogCategory | undefined>();
+  const [customServiceName, setCustomServiceName] = useState("");
+  const saveServiceBusyRef = useRef(false);
+  const discoveryEpochRef = useRef(0);
+  const formMarketRef = useRef(selectedCountryCode);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
+  const catalogResults = useMemo(() => searchCatalog(catalogQuery, selectedCountryCode, {
+    category: catalogCategory, limit: catalogQuery || catalogCategory ? catalogDiscoveryPolicy.searchLimit : catalogDiscoveryPolicy.defaultLimit
+  }), [catalogQuery, selectedCountryCode, catalogCategory]);
   const [serviceSelectionLocked, setServiceSelectionLocked] = useState(false);
   const [serviceFormOpen, setServiceFormOpen] = useState(false);
   const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
@@ -5248,6 +5260,15 @@ export default function Home() {
       ).trim();
 
     if (!question) return;
+    const requestEpoch=++discoveryEpochRef.current;
+
+    const addIntent=parseAddSubscriptionIntent(question,selectedCountryCode,selectedCountryCurrency());
+    if(addIntent && openCatalogAction(addIntent)) {
+      setAiMessages(current=>[...current,{role:"user",text:question},{role:"assistant",text:/^(legg til|jeg har)/i.test(question)?"Se gjennom og bekreft i skjemaet. Ingenting er lagt til ennå.":"Review and confirm in the form. Nothing has been added yet."}]);
+      setAiInput("");
+      return;
+    }
+    const requestMarket=selectedCountryCodeRef.current;
 
     const q = question.toLowerCase();
     const subscriptionIntent =
@@ -6033,6 +6054,13 @@ export default function Home() {
             }
           );
 
+        if(!discoveryRequestIsCurrent({countryCode:requestMarket,epoch:requestEpoch},{countryCode:selectedCountryCodeRef.current,epoch:discoveryEpochRef.current}))return;
+        if(remote.catalogAction && openCatalogAction(remote.catalogAction)) {
+          setAiMessages(current=>[...current,{role:"user",text:question},{role:"assistant",text:remote.answer}]);
+          setAiInput("");
+          return;
+        }
+
         if (
           remote.intent === "NAVIGATION" &&
           remote.navigationTarget
@@ -6527,6 +6555,7 @@ export default function Home() {
     billingProviderSlug: string
   ) {
     const expectedCurrency = selectedCountryCurrency();
+    if(serviceSlug === "manual")return [];
 
     const rows = (pricingSnapshot?.items ?? []).filter(
       (entry: any) =>
@@ -6761,6 +6790,15 @@ export default function Home() {
   );
 
   function selectCountry(code: string, name: string, currency: string) {
+    if (code !== selectedCountryCodeRef.current) {
+      discoveryEpochRef.current += 1;
+      setServiceFormOpen(false);
+      setSubscriptionPlanInput("");
+      setMonthlyPriceInput("");
+      setCustomServiceName("");
+      setCatalogQuery("");
+      setCatalogCategory(undefined);
+    }
     selectedCountryCodeRef.current = code;
     setPricingSnapshot(null);
     setSelectedCountryCode(code);
@@ -6867,6 +6905,10 @@ export default function Home() {
   }
 
   function openAddService() {
+    if(saveServiceBusyRef.current)return;
+    discoveryEpochRef.current += 1;
+    setCatalogQuery("");
+    setCatalogCategory(undefined);
     setServiceSelectionLocked(false);
     setServicePickerOpen(true);
   }
@@ -6877,7 +6919,10 @@ export default function Home() {
         (entry) => entry.slug === serviceSlug
       );
 
-    if (!service) return;
+    if (!service || saveServiceBusyRef.current) return;
+    discoveryEpochRef.current += 1;
+    formMarketRef.current = selectedCountryCodeRef.current;
+    setCustomServiceName("");
 
     editingSubscriptionIdRef.current = null;
     setEditingSubscriptionId(null);
@@ -6897,7 +6942,7 @@ export default function Home() {
     setRenewalDateInput("");
     setShowRenewalDatePicker(false);
 
-    syncPlanAndPrice(
+    if (serviceAvailableInMarket(service.slug, selectedCountryCode)) syncPlanAndPrice(
       service.slug,
       defaultBillingProvider
     );
@@ -6906,7 +6951,45 @@ export default function Home() {
     setServiceFormOpen(true);
   }
 
+  function beginManualService(name = "") {
+    if(saveServiceBusyRef.current)return;
+    discoveryEpochRef.current += 1;
+    if (!requireActivePlan("subscription management")) return;
+    formMarketRef.current = selectedCountryCodeRef.current;
+    editingSubscriptionIdRef.current = null;
+    setEditingSubscriptionId(null);
+    setServiceSlugInput("manual");
+    setCustomServiceName(name.slice(0,100));
+    setServiceSelectionLocked(true);
+    setBillingProviderInput("");
+    setSubscriptionPlanInput("");
+    setMonthlyPriceInput("");
+    setRenewalDateInput("");
+    setShowRenewalDatePicker(false);
+    setServicePickerOpen(false);
+    setServiceFormOpen(true);
+  }
+
+  function openCatalogAction(action: unknown) {
+    if(saveServiceBusyRef.current)return false;
+    const candidate=validateAddSubscriptionIntent(action,selectedCountryCodeRef.current,selectedCountryCurrency(),pricingSnapshot?.items??[]);
+    if(!candidate || !requireActivePlan("subscription management"))return false;
+    Keyboard.dismiss();
+    if(candidate.kind==="manual")beginManualService(candidate.customServiceName);
+    else {
+      beginAddService(candidate.serviceSlug);
+      setBillingProviderInput(candidate.billingProviderSlug);
+      setSubscriptionPlanInput("planName" in candidate.prefill ? String(candidate.prefill.planName) : "");
+      setMonthlyPriceInput("monthlyPriceMinor" in candidate.prefill ? (Number(candidate.prefill.monthlyPriceMinor)/100).toFixed(2) : "");
+    }
+    return true;
+  }
+
   function openEditService(item: Subscription) {
+    if(saveServiceBusyRef.current)return;
+    discoveryEpochRef.current += 1;
+    formMarketRef.current = selectedCountryCodeRef.current;
+    setCustomServiceName(item.customServiceName ?? "");
     setShowRenewalDatePicker(false);
     setServiceSelectionLocked(true);
     editingSubscriptionIdRef.current = item.id;
@@ -6960,7 +7043,9 @@ export default function Home() {
   async function saveServiceForm() {
     if (!requireActivePlan("subscription management")) return;
 
-    const monthly = Number(monthlyPriceInput);
+    if(saveServiceBusyRef.current || formMarketRef.current !== selectedCountryCodeRef.current) return;
+    if(!billingProviderInput) { Alert.alert("Billing route required", "Select how you actually pay for this subscription."); return; }
+    const monthly = Number(monthlyPriceInput.trim().replace(",", "."));
     if (!Number.isFinite(monthly) || monthly <= 0) {
       Alert.alert(
         "Monthly price required",
@@ -6992,6 +7077,7 @@ export default function Home() {
       selectedCountryCurrency();
 
     const body = {
+      ...(serviceSlugInput === "manual" ? {customServiceName:customServiceName.trim()} : {}),
       serviceSlug: serviceSlugInput,
       billingProviderSlug: billingProviderInput,
       countryCode: selectedCountryCode,
@@ -7003,6 +7089,9 @@ export default function Home() {
     };
 
     try {
+      if(serviceSlugInput === "manual")validateManualSubscription(body);
+      if(!Number.isSafeInteger(body.monthlyPriceMinor) || body.monthlyPriceMinor>2147483647)throw new Error("Amount too large");
+      saveServiceBusyRef.current=true;
       if (targetSubscriptionId) {
         const updated = await api<Subscription>(
           `/v1/subscriptions/${targetSubscriptionId}`,
@@ -7040,9 +7129,9 @@ export default function Home() {
     } catch (err: any) {
       Alert.alert(
         "Savlivo",
-        err?.body?.error ?? "Could not save subscription."
+        err?.body?.error ?? err?.message ?? "Could not save subscription."
       );
-    }
+    } finally { saveServiceBusyRef.current=false; }
   }
 
   function normalizedStatus(status?: string) {
@@ -7211,7 +7300,7 @@ export default function Home() {
               ]}
               numberOfLines={1}
             >
-              {item.billingProviderSlug}
+              {item.customServiceName ? "Manual · " : ""}{item.billingProviderSlug}
               {item.planName
                 ? ` · ${item.planName}`
                 : ""}
@@ -11356,6 +11445,9 @@ export default function Home() {
             </View>
 
             <ScrollView
+              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               style={[
                 styles.servicePickerScroll,
                 {
@@ -11369,106 +11461,43 @@ export default function Home() {
               }
               showsVerticalScrollIndicator={false}
             >
-              {serviceCategories.map((category) => {
-                const availableServices = serviceCatalog
-                  .filter(
-                    (service) =>
-                      serviceAvailableInMarket(
-                        service.slug,
-                        selectedCountryCode
-                      ) &&
-                      serviceHasRegionalPricing(service.slug) &&
-                      category.slugs.includes(
-                        service.slug as never
-                      ) &&
-                      !marketItems.some(
-                        (item) =>
-                          item.serviceSlug === service.slug
-                      )
-                  )
-                  .sort((a, b) =>
-                    a.name.localeCompare(b.name)
-                  );
-
-                if (!availableServices.length) {
-                  return null;
-                }
-
-                return (
-                  <View
-                    key={category.key}
-                    style={styles.servicePickerCategory}
-                  >
-                    <Text
-                      style={[
-                        styles.servicePickerCategoryTitle,
-                        { color: visual.greenMuted }
-                      ]}
-                    >
-                      {category.name.toUpperCase()}
-                    </Text>
-
-                    <View
-                      style={[
-                        styles.servicePickerCategoryCard,
-                        {
-                          backgroundColor: theme.surfaceSoft,
-                          borderColor: theme.border
-                        }
-                      ]}
-                    >
-                      {availableServices.map(
-                        (service, index) => (
-                          <Pressable
-                            key={service.slug}
-                            style={[
-                              styles.servicePickerRow,
-                              index <
-                                availableServices.length - 1
-                                ? {
-                                    borderBottomWidth: 1,
-                                    borderBottomColor:
-                                      theme.border
-                                  }
-                                : null
-                            ]}
-                            onPress={() =>
-                              beginAddService(service.slug)
-                            }
-                          >
-                            <View
-                              style={{
-                                marginRight: 12
-                              }}
-                            >
-                              <ServiceLogo
-                                serviceSlug={service.slug}
-                                serviceName={service.name}
-                                size={38}
-                              />
-                            </View>
-
-                            <Text
-                              style={[
-                                styles.servicePickerName,
-                                { color: theme.text }
-                              ]}
-                            >
-                              {service.name}
-                            </Text>
-
-                            <Ionicons
-                              name="chevron-forward"
-                              size={18}
-                              color={visual.greenMuted}
-                            />
-                          </Pressable>
-                        )
-                      )}
-                    </View>
+              <TextInput
+                accessibilityLabel="Search subscription catalog"
+                placeholder="Search services"
+                placeholderTextColor={theme.muted}
+                autoCorrect={false}
+                value={catalogQuery}
+                onChangeText={setCatalogQuery}
+                returnKeyType="search"
+                onSubmitEditing={()=>Keyboard.dismiss()}
+                style={[styles.input,{color:theme.text,backgroundColor:theme.surfaceSoft,borderColor:theme.border}]}
+              />
+              {catalogQuery ? <Pressable accessibilityLabel="Clear catalog search" onPress={()=>setCatalogQuery("")} style={{padding:12}}><Text style={{color:theme.text}}>Clear search</Text></Pressable> : null}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {[{id:undefined,name:"All categories"},...catalogCategories].map(category=>(
+                  <Pressable key={category.id??"all"} accessibilityRole="button" accessibilityState={{selected:catalogCategory===category.id}}
+                    onPress={()=>setCatalogCategory(category.id)} style={[styles.choiceChip,{borderColor:theme.border,backgroundColor:catalogCategory===category.id?theme.pill:theme.surface}]}>
+                    <Text style={{color:theme.text}}>{category.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Text style={[styles.formHint,{color:theme.muted}]}>{catalogQuery?"Catalog results — select a service":"Available in this market · alphabetical suggestions"}</Text>
+              {catalogResults.length===0 ? <Text style={[styles.formHint,{color:theme.muted}]}>No matching services. You can add your subscription manually.</Text> : null}
+              {catalogResults.map(service=>(
+                <Pressable key={service.slug} accessibilityRole="button" accessibilityLabel={`Add ${service.name}`}
+                  style={[styles.servicePickerRow,{borderBottomWidth:1,borderBottomColor:theme.border}]} onPress={()=>beginAddService(service.slug)}>
+                  <ServiceLogo serviceSlug={service.slug} serviceName={service.name} size={38}/>
+                  <View style={{flex:1,marginLeft:12}}>
+                    <Text style={[styles.servicePickerName,{color:theme.text}]}>{service.name}</Text>
+                    {!serviceAvailableInMarket(service.slug,selectedCountryCode) ? <Text style={{color:theme.muted}}>Local availability unverified · enter your actual bill</Text> : null}
+                    {marketItems.some(item=>item.serviceSlug===service.slug) ? <Text style={{color:theme.muted}}>Already in this market — review before adding another</Text> : null}
                   </View>
-                );
-              })}
+                  <Ionicons name="chevron-forward" size={18} color={visual.greenMuted}/>
+                </Pressable>
+              ))}
+              <Pressable accessibilityRole="button" onPress={()=>beginManualService(catalogQuery)} style={[styles.servicePickerRow,{borderColor:theme.border}]}>
+                <Text style={{color:theme.text}}>Legg til manuelt · Add manually</Text>
+              </Pressable>
             </ScrollView>
           </View>
         </View>
@@ -11528,6 +11557,11 @@ export default function Home() {
               {tr("Tap a local plan price to fill it automatically. You can still edit the monthly price manually if your actual billed amount is different.")}
             </Text>
 
+            <Text style={[styles.formHint,{color:theme.muted}]}>{selectedCountryName} · {selectedCountryCurrency()}</Text>
+            {serviceSlugInput === "manual" ? <>
+              <Text style={[styles.formHint,{color:theme.muted}]}>Manual subscription · details are supplied by you, not verified provider metadata. Choose your actual billing route.</Text>
+              <TextInput accessibilityLabel="Manual service name" placeholder="Service name" maxLength={100} value={customServiceName} onChangeText={setCustomServiceName} style={[styles.input,{color:theme.text,borderColor:theme.border,backgroundColor:theme.surfaceSoft}]} />
+            </> : null}
             <Text style={[styles.fieldLabel, { color: theme.muted }]}>
               {tr("Service")}
             </Text>
@@ -11613,9 +11647,9 @@ export default function Home() {
               {tr("Billing route")}
             </Text>
             <View style={styles.choiceWrap}>
-              {billingProvidersForService(
+              {(serviceSlugInput === "manual" ? billingProviders : billingProvidersForService(
                 serviceSlugInput
-              ).map((provider) => (
+              )).map((provider) => (
                 <Pressable
                   key={provider.slug}
                   style={[

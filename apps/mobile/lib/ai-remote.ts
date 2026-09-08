@@ -1,6 +1,8 @@
+import type { AddSubscriptionIntent } from "../../../packages/contracts/src/discovery";
 import { api } from "../src/api";
 
 export type RemoteAssistantResult = {
+  catalogAction?: AddSubscriptionIntent;
   answer: string;
   language: string;
   intent:

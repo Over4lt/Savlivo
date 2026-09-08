@@ -290,3 +290,18 @@ test("catalog batch preserves all 363 baseline registry rows and all 756 offline
     if(viaplay.length){assert.equal(viaplay[0].verification,"registry");assert.equal(viaplay[0].billingProviderSlug,"direct");}
   }
 });
+
+test("discovery preserves all 364 registry rows and 757 offline results from 2258c70",async(t)=>{
+  const baseline=JSON.parse(readFileSync(new URL("../../../docs/catalog/baseline-2258c70.json",import.meta.url),"utf8"));
+  const digest=(value:unknown)=>createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  t.mock.method(globalThis,"fetch",async()=>{throw new Error("offline");});
+  assert.deepEqual(countryCurrencyData,baseline.markets.map((m:any)=>[m.country,m.name,m.currency]));
+  let registry=0,offline=0;
+  for(const market of baseline.markets){
+    assert.equal(digest(verifiedProviderRegistry[market.country]??[]),market.registrySha256);
+    const prices=await fetchProviderLocalPrices(market.country,market.currency);
+    assert.equal(digest(prices.map(({updatedAt,...p})=>p)),market.offlineSha256,market.country);
+    registry+=market.registryRows;offline+=prices.length;
+  }
+  assert.equal(registry,364);assert.equal(offline,757);
+});

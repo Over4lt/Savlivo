@@ -864,7 +864,7 @@ export function serviceAvailableInMarket(
   serviceSlug: string,
   countryCode: string
 ) {
-  const launchMarkets = serviceCatalog.find(service=>service.slug===serviceSlug)?.launchMarkets;
+  const launchMarkets = catalogBySlug.get(serviceSlug)?.launchMarkets;
   if (launchMarkets) return launchMarkets.includes(countryCode);
   const expansionAvailability = expansionServiceAvailable(serviceSlug, countryCode);
   if (expansionAvailability !== undefined) return expansionAvailability;
@@ -890,6 +890,11 @@ export function normalizeCatalogText(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase("en-US").replace(/\+/g," plus ")
     .replace(/[-_/]/g," ").replace(/\s+/g," ").trim();
 }
+const catalogBySlug = new Map(serviceCatalog.map(service => [service.slug, service]));
+
+// Relevance is availability, not a popularity/market-share claim.
+export const catalogDiscoveryPolicy = { defaultLimit: 12, searchLimit: 30, rankEvidence: "unranked" } as const;
+
 const searchIndex = serviceCatalog.map(service => ({
   service, keys: [...new Set([service.name, service.slug, ...service.aliases].map(normalizeCatalogText))]
 }));
@@ -945,7 +950,7 @@ export function resolveCatalogCandidate(input: {
 
 // Instruction destinations are explicitly labelled, never represented as cancellation APIs.
 export function catalogManagementDestination(serviceSlug:string,countryCode:string,billingProviderSlug:string) {
-  return serviceCatalog.find(service=>service.slug===serviceSlug)?.management?.find(route=>route.countryCode===countryCode&&route.billingProviderSlug===billingProviderSlug);
+  return catalogBySlug.get(serviceSlug)?.management?.find(route=>route.countryCode===countryCode&&route.billingProviderSlug===billingProviderSlug);
 }
 
 export function transitionCatalogDraft<T extends {serviceSlug:string;billingProviderSlug:string;planName:string;monthlyPrice:string}>(draft:T,serviceSlug:string,billingProviderSlug:string):T {

@@ -17,6 +17,8 @@ export type ActionStatus =
   | "CANCELLED";
 
 export interface SubscriptionSummary {
+  /** Present only for a user-supplied, non-catalog subscription. */
+  customServiceName?: string;
   id: string;
   serviceSlug: string;
   serviceName: string;
