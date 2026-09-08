@@ -91,7 +91,7 @@ test("notifications retain user timezone independently of the subscription marke
 
 
 test("only evidence-ready expansion markets are selectable and their catalogs are bounded", () => {
-  assert.deepEqual(countryCurrencyData.filter(([cc]) => !audit.mobileMarkets.includes(cc)).map(([cc]) => cc), ["GB", "AU", "NZ"]);
+  assert.deepEqual(countryCurrencyData.filter(([cc]) => !audit.mobileMarkets.includes(cc)).map(([cc]) => cc), ["GB", "AU", "NZ", "CH", "PL", "BR", "CZ"]);
   for (const cc of ["GB", "AU", "NZ"]) {
     const services = expansionMarketServices[cc];
     assert.ok(services.length >= 4);
@@ -132,5 +132,53 @@ test("every existing market retains every baseline fallback service plan price a
           p.billingProviderSlug === row.route && p.monthlyPriceMinor === row.minor), `${market.country} ${service} ${row.plan} ${row.route}`);
       }
     }
+  }
+});
+
+const previousExpansion = JSON.parse(readFileSync(new URL("../../../docs/markets/readiness-after.json", import.meta.url), "utf8"));
+const nextWave = [["CH", "CHF", "de-CH", "Europe/Zurich"], ["PL", "PLN", "pl-PL", "Europe/Warsaw"], ["BR", "BRL", "pt-BR", "America/Sao_Paulo"], ["CZ", "CZK", "cs-CZ", "Europe/Prague"]];
+
+test("next-wave selection filtering integer amounts savings and reminders remain market scoped", () => {
+  const items = nextWave.map(([countryCode,currency], i) => ({id:countryCode,countryCode,currency,monthlyPriceMinor:1299+i}));
+  const before = structuredClone(items);
+  for (const [cc,currency,locale,timeZone] of nextWave) {
+    assert.ok(countryCurrencyData.some(([code,,cur]) => code === cc && cur === currency));
+    assert.deepEqual(expansionMarketServices[cc], ["icloud-plus","apple-music","apple-tv-plus","spotify"]);
+    assert.equal(expansionServiceAvailable("netflix",cc),false);
+    assert.equal(isCurrentMarketPricing({countryCode:cc,currency},cc,cc),true);
+    assert.equal(isCurrentMarketPricing({countryCode:cc,currency:"USD"},cc,cc),false);
+    const selected = subscriptionsForMarket(items,cc);
+    assert.equal(selected.length,1);
+    assert.equal(selected[0].id,cc);
+    assert.equal(selected.reduce((sum,p)=>sum+p.monthlyPriceMinor,0)*12, items.find(p=>p.id===cc)!.monthlyPriceMinor*12);
+    const parts = new Intl.NumberFormat(locale,{style:"currency",currency}).formatToParts(12.99);
+    assert.equal(parts.find(p=>p.type==="fraction")?.value,"99");
+    assert.equal(formatMarketMinor(1299,currency,locale), parts.map(p=>p.value).join(""));
+    assert.equal(subscriptionCountry(cc.toLowerCase(),currency),cc);
+    assert.equal(subscriptionCountry("",currency),undefined); // New currencies never move legacy subscriptions.
+    const instant=reminderInstantForRenewal("2026-10-15",timeZone);
+    assert.equal(new Intl.DateTimeFormat("en-GB",{timeZone,hour:"2-digit",hourCycle:"h23"}).format(new Date(instant)),"09");
+  }
+  assert.deepEqual(items,before);
+});
+
+test("regional pricing retains all 52 next-wave registry rows during total provider outage", async(t)=>{
+  t.mock.method(globalThis,"fetch",async()=>{throw new Error("offline");});
+  t.mock.method(pool,"query",(async()=>({rows:[]})) as any);
+  for(const [cc,currency] of nextWave){
+    const snapshot=await getRegionalPricing(cc,{forceRefresh:true});
+    const launch=snapshot.items.filter(p=>expansionMarketServices[cc].includes(p.serviceSlug));
+    assert.equal(launch.length,13);
+    for(const row of verifiedProviderRegistry[cc]) assert.ok(launch.some(p=>p.serviceSlug===row.serviceSlug&&p.planName===row.planName&&p.monthlyPriceMinor===row.monthlyPriceMinor&&p.billingProviderSlug===row.billingProviderSlug&&p.currency===currency&&p.countryCode===cc&&p.verification==="registry"));
+  }
+});
+
+test("all 18 pre-wave markets remain selectable with their existing catalogs and exact launch fallbacks",async(t)=>{
+  t.mock.method(globalThis,"fetch",async()=>{throw new Error("offline");});
+  for(const cc of previousExpansion.mobileMarkets) assert.ok(countryCurrencyData.some(([code])=>code===cc));
+  for(const market of previousExpansion.markets.filter((m:any)=>m.launchPlans)){
+    assert.deepEqual(expansionMarketServices[market.country],market.launchServices);
+    const prices=await fetchProviderLocalPrices(market.country,market.currency);
+    for(const row of market.launchPlans) assert.ok(prices.some(p=>p.serviceSlug===row.serviceSlug&&p.planName===row.planName&&p.monthlyPriceMinor===row.monthlyPriceMinor&&p.billingProviderSlug===row.billingProviderSlug&&p.currency===row.currency));
   }
 });

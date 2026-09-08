@@ -5172,3 +5172,89 @@ test("Apple TV Belgian registry price survives every new-source failure", async 
   const no = await providerAdapters["apple-tv-plus"]({ countryCode: "NO", currency: "NOK" });
   assert.ok(no.length > 0 && no.every(p => p.verification === "registry"));
 });
+
+// Extracted official page cards and recurring Spotify product records, fetched 2026-09-08.
+const nextWaveFixtures: Record<string, {currency: string; storefront: string; locale: string; music: string; tv: string; spotify: any}> =
+  JSON.parse(readFileSync(new URL("./fixtures/next-wave-pricing.json", import.meta.url), "utf8"));
+const nextWaveServices = ["icloud-plus", "apple-music", "apple-tv-plus", "spotify"] as const;
+function nextWavePage(cc: string, url: string) {
+  const f = nextWaveFixtures[cc];
+  if (url === "https://support.apple.com/en-us/108047") return iCloudSupportFixture;
+  if (url === `https://www.apple.com/${f.storefront}/apple-music/`) return f.music;
+  if (url === `https://www.apple.com/${f.storefront}/apple-tv/`) return f.tv;
+  if (url.startsWith(`https://www.spotify.com/${cc.toLowerCase()}`)) return `<script id="__NEXT_DATA__">${JSON.stringify(f.spotify)}</script>`;
+  throw new Error("Unverified fixture URL " + url);
+}
+
+test("next-wave adapters verify 52 monthly prices with exact country currency plan and billing route", async (t) => {
+  for (const [cc, f] of Object.entries(nextWaveFixtures)) {
+    t.mock.method(Date, "now", () => 9300000000000);
+    t.mock.method(globalThis, "fetch", async (url: any) => new Response(nextWavePage(cc, String(url))));
+    let count = 0;
+    for (const service of nextWaveServices) {
+      const prices = await providerAdapters[service]({countryCode: cc, currency: f.currency});
+      const expected = verifiedProviderRegistry[cc].filter(p => p.serviceSlug === service);
+      assert.equal(prices.length, expected.length, `${cc} ${service}`);
+      for (const p of prices) {
+        const row = expected.find(r => r.planName === p.planName)!;
+        assert.ok(row, p.planName);
+        assert.equal(p.monthlyPriceMinor, row.monthlyPriceMinor);
+        assert.equal(p.verification, "authoritative-provider", `${cc} ${service}`);
+        assert.equal(p.billingProviderSlug, row.billingProviderSlug);
+        assert.equal(p.countryCode, cc);
+        assert.equal(p.currency, f.currency);
+      }
+      count += prices.length;
+    }
+    assert.equal(count, 13);
+    t.mock.restoreAll();
+  }
+});
+
+test("next-wave registry prices survive all provider failures independently", async (t) => {
+  let now = 9400000000000;
+  for (const [cc, f] of Object.entries(nextWaveFixtures)) {
+    for (const failure of ["network", "timeout", "http", "empty", "country", "currency", "identity", "annual"]) {
+      await t.test(`${cc} ${failure}`, async (t) => {
+        now += 3600000;
+        t.mock.method(Date, "now", () => now);
+        t.mock.method(globalThis, "fetch", async (url: any) => {
+          if (failure === "network") throw new Error("offline");
+          if (failure === "timeout") throw new DOMException("timeout", "TimeoutError");
+          if (failure === "http") return new Response("Unavailable", {status:503});
+          if (failure === "empty") return new Response("<html>Provider redesign</html>");
+          let html = nextWavePage(cc, String(url));
+          if (failure === "country") html = html.replaceAll(f.locale, "en_US").replaceAll(`"country":"${cc}"`, '"country":"US"').replaceAll(cc === "CH" ? "Switzerland" : cc === "PL" ? "Poland" : cc === "BR" ? "Brazil" : "Czechia", "Unproven country");
+          if (failure === "currency") html = html.replace(/CHF|zł|PLN|R\$|BRL|Kč|CZK/gi, "USD");
+          if (failure === "identity") html = html.replaceAll('rel="canonical"', 'rel="alternate"').replaceAll('data-analytics-gallery-item-id', 'unknown-id').replaceAll('PREMIUM_', 'UNKNOWN_').replaceAll("iCloud+ plans and pricing", "Unknown product");
+          // Reject monthly markers rather than treating annual totals as monthly prices.
+          if (failure === "annual") html = "<html>Annual plans only</html>";
+          return new Response(html);
+        });
+        for (const service of nextWaveServices) {
+          const prices = await providerAdapters[service]({countryCode:cc,currency:f.currency});
+          const expected = verifiedProviderRegistry[cc].filter(p => p.serviceSlug === service);
+          assert.equal(prices.length, expected.length, service);
+          assert.ok(prices.every(p => p.verification === "registry"), service);
+          for (const row of expected) assert.ok(prices.some(p => p.planName === row.planName && p.monthlyPriceMinor === row.monthlyPriceMinor && p.billingProviderSlug === row.billingProviderSlug), `${service} ${row.planName}`);
+        }
+      });
+    }
+  }
+});
+
+test("new Apple patterns reject wrong currency incomplete or conflicting plans and annual offers", () => {
+  for (const f of Object.values(nextWaveFixtures)) {
+    assert.deepEqual(parseAppleMusicPrices(f.music, "CAD"), []);
+    assert.equal(parseAppleTvPlusInternationalPrice(f.tv, "CAD"), null);
+    assert.deepEqual(parseAppleMusicPrices(f.music.replace('data-analytics-gallery-item-id="student"', 'data-analytics-gallery-item-id="unproven"'), f.currency), []);
+    const extraPrice = f.music.match(/<p\b[^>]*>([\s\S]*?)<\/p>/)![1].replace(/[0-9]+(?:[.,][0-9]+)?/, "999");
+    assert.deepEqual(parseAppleMusicPrices(f.music.replace("</p>", extraPrice + "</p>"), f.currency), []);
+    const currencyToken = f.currency === "CHF" ? "CHF" : f.currency === "PLN" ? "zł" : f.currency === "BRL" ? "R$" : "Kč";
+    const annualMusic = f.music.replace(/Monat|miesiąc|mês|měsíc/g, "year");
+    assert.deepEqual(parseAppleMusicPrices(annualMusic, f.currency), []);
+    const annualTv = f.tv.replace(/Monat|miesięcznie|miesiąc|mês|měsíčně|měsíc/g, "year");
+    assert.equal(parseAppleTvPlusInternationalPrice(annualTv, f.currency), null);
+    assert.ok(f.music.includes(currencyToken));
+  }
+});

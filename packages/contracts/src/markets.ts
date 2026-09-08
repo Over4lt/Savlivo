@@ -31,7 +31,11 @@ export const countryCurrencyData = [
   ["CN", "China", "CNY"],
   ["GB", "United Kingdom", "GBP"],
   ["AU", "Australia", "AUD"],
-  ["NZ", "New Zealand", "NZD"]
+  ["NZ", "New Zealand", "NZD"],
+  ["CH", "Switzerland", "CHF"],
+  ["PL", "Poland", "PLN"],
+  ["BR", "Brazil", "BRL"],
+  ["CZ", "Czechia", "CZK"]
 ] as const;
 
 
@@ -80,6 +84,10 @@ export function formatMarketMinor(minor: number, currency: string, locale?: stri
 // Only independently verified launch services are offered in newly activated markets.
 // Existing market availability rules are left unchanged.
 export const expansionMarketServices: Record<string, readonly string[]> = {
+  CH: ["icloud-plus", "apple-music", "apple-tv-plus", "spotify"],
+  PL: ["icloud-plus", "apple-music", "apple-tv-plus", "spotify"],
+  BR: ["icloud-plus", "apple-music", "apple-tv-plus", "spotify"],
+  CZ: ["icloud-plus", "apple-music", "apple-tv-plus", "spotify"],
   GB: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one", "spotify"],
   AU: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
   NZ: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"]

@@ -596,6 +596,67 @@ export const verifiedProviderRegistry: Record<
     billingProviderSlug?: BillingProviderSlug;
   }>
 > = {
+  // Next-wave official monthly snapshots verified 2026-09-08; all prior fallbacks retained.
+  CH: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "CHF", "monthlyPriceMinor": 100, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "CHF", "monthlyPriceMinor": 300, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "CHF", "monthlyPriceMinor": 1000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "CHF", "monthlyPriceMinor": 3000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "CHF", "monthlyPriceMinor": 6000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "CHF", "monthlyPriceMinor": 1490, "sourceUrl": "https://www.apple.com/chde/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "CHF", "monthlyPriceMinor": 2490, "sourceUrl": "https://www.apple.com/chde/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "CHF", "monthlyPriceMinor": 890, "sourceUrl": "https://www.apple.com/chde/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "CHF", "monthlyPriceMinor": 1090, "sourceUrl": "https://www.apple.com/chde/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "spotify", "planName": "Individual", "currency": "CHF", "monthlyPriceMinor": 1595, "sourceUrl": "https://www.spotify.com/ch-de/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Student", "currency": "CHF", "monthlyPriceMinor": 895, "sourceUrl": "https://www.spotify.com/ch-de/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Duo", "currency": "CHF", "monthlyPriceMinor": 2195, "sourceUrl": "https://www.spotify.com/ch-de/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Family", "currency": "CHF", "monthlyPriceMinor": 2695, "sourceUrl": "https://www.spotify.com/ch-de/premium/", "billingProviderSlug": "direct"},
+  ],
+  PL: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "PLN", "monthlyPriceMinor": 499, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "PLN", "monthlyPriceMinor": 1499, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "PLN", "monthlyPriceMinor": 4999, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "PLN", "monthlyPriceMinor": 14999, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "PLN", "monthlyPriceMinor": 29999, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "PLN", "monthlyPriceMinor": 2699, "sourceUrl": "https://www.apple.com/pl/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "PLN", "monthlyPriceMinor": 4599, "sourceUrl": "https://www.apple.com/pl/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "PLN", "monthlyPriceMinor": 1449, "sourceUrl": "https://www.apple.com/pl/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "PLN", "monthlyPriceMinor": 3499, "sourceUrl": "https://www.apple.com/pl/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "spotify", "planName": "Individual", "currency": "PLN", "monthlyPriceMinor": 2699, "sourceUrl": "https://www.spotify.com/pl/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Student", "currency": "PLN", "monthlyPriceMinor": 1449, "sourceUrl": "https://www.spotify.com/pl/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Duo", "currency": "PLN", "monthlyPriceMinor": 3699, "sourceUrl": "https://www.spotify.com/pl/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Family", "currency": "PLN", "monthlyPriceMinor": 4599, "sourceUrl": "https://www.spotify.com/pl/premium/", "billingProviderSlug": "direct"},
+  ],
+  BR: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "BRL", "monthlyPriceMinor": 590, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "BRL", "monthlyPriceMinor": 1990, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "BRL", "monthlyPriceMinor": 6690, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "BRL", "monthlyPriceMinor": 19990, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "BRL", "monthlyPriceMinor": 39990, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "BRL", "monthlyPriceMinor": 2390, "sourceUrl": "https://www.apple.com/br/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "BRL", "monthlyPriceMinor": 4090, "sourceUrl": "https://www.apple.com/br/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "BRL", "monthlyPriceMinor": 1290, "sourceUrl": "https://www.apple.com/br/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "BRL", "monthlyPriceMinor": 3490, "sourceUrl": "https://www.apple.com/br/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "spotify", "planName": "Individual", "currency": "BRL", "monthlyPriceMinor": 2390, "sourceUrl": "https://www.spotify.com/br/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Student", "currency": "BRL", "monthlyPriceMinor": 1290, "sourceUrl": "https://www.spotify.com/br/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Duo", "currency": "BRL", "monthlyPriceMinor": 3190, "sourceUrl": "https://www.spotify.com/br/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Family", "currency": "BRL", "monthlyPriceMinor": 4090, "sourceUrl": "https://www.spotify.com/br/premium/", "billingProviderSlug": "direct"},
+  ],
+  CZ: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "CZK", "monthlyPriceMinor": 2500, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "CZK", "monthlyPriceMinor": 7900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "CZK", "monthlyPriceMinor": 24900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "CZK", "monthlyPriceMinor": 74900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "CZK", "monthlyPriceMinor": 149000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "CZK", "monthlyPriceMinor": 18500, "sourceUrl": "https://www.apple.com/cz/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "CZK", "monthlyPriceMinor": 29900, "sourceUrl": "https://www.apple.com/cz/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "CZK", "monthlyPriceMinor": 9900, "sourceUrl": "https://www.apple.com/cz/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "CZK", "monthlyPriceMinor": 19900, "sourceUrl": "https://www.apple.com/cz/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "spotify", "planName": "Individual", "currency": "CZK", "monthlyPriceMinor": 18500, "sourceUrl": "https://www.spotify.com/cz/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Student", "currency": "CZK", "monthlyPriceMinor": 9700, "sourceUrl": "https://www.spotify.com/cz/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Duo", "currency": "CZK", "monthlyPriceMinor": 24900, "sourceUrl": "https://www.spotify.com/cz/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Family", "currency": "CZK", "monthlyPriceMinor": 29900, "sourceUrl": "https://www.spotify.com/cz/premium/", "billingProviderSlug": "direct"},
+  ],
   // Official launch-market snapshots verified 2026-09-08. Live adapters remain preferred.
   "GB": [
     {
@@ -6450,6 +6511,10 @@ function appleMusicCurrencyPatterns(
    * never infer a price through FX conversion.
    */
   const patterns: Record<string, RegExp[]> = {
+    CHF: [/CHF\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*Monat|pro\s+Monat)/gi],
+    PLN: [/([0-9]+(?:,[0-9]{1,2})?)\s*zł\s*(?:\/\s*miesiąc|za\s+miesiąc)/gi],
+    BRL: [/R\$\s*([0-9]+(?:,[0-9]{1,2})?)\s*por\s+mês/gi],
+    CZK: [/([0-9]+(?:,[0-9]{1,2})?)\s*Kč\s*(?:\/\s*měsíc|měsíčně)/gi],
     GBP: [/£\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
     AUD: [/A\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
     NZD: [/NZ\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
@@ -6741,6 +6806,7 @@ function appleMusicStorefrontPath(
   countryCode: string
 ): string | null {
   const storefronts: Record<string, string> = {
+    CH: "chde", PL: "pl", BR: "br", CZ: "cz",
     GB: "uk",
     AU: "au",
     NZ: "nz",
@@ -6812,7 +6878,8 @@ async function appleMusicAdapter(
             "/apple-music/"
           );
 
-  const addedCurrencies: Record<string, string> = { GB: "GBP", AU: "AUD", NZ: "NZD" };
+  const addedCurrencies: Record<string, string> = { GB: "GBP", AU: "AUD", NZ: "NZD", CH: "CHF", PL: "PLN", BR: "BRL", CZ: "CZK" };
+  const addedLocales: Record<string, string> = { CH: "de_CH", PL: "pl_PL", BR: "pt_BR", CZ: "cs_CZ" };
   const addedCurrency = addedCurrencies[ctx.countryCode];
   if (addedCurrency && addedCurrency !== ctx.currency) {
     return resolvePriceCandidates(ctx, candidates);
@@ -6822,7 +6889,7 @@ async function appleMusicAdapter(
     const html =
       await fetchText(url);
 
-    if (addedCurrency && !verifyAppleStorefrontIdentity(html, url, `en_${ctx.countryCode}`)) {
+    if (addedCurrency && !verifyAppleStorefrontIdentity(html, url, addedLocales[ctx.countryCode] ?? `en_${ctx.countryCode}`)) {
       return resolvePriceCandidates(ctx, candidates);
     }
 
@@ -7206,6 +7273,10 @@ function appleTvInternationalCurrencyPatterns(
     string,
     RegExp[]
   > = {
+    CHF: [/CHF\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:pro\s+Monat|im\s+Monat|\/\s*Monat)/gi],
+    PLN: [/([0-9]+(?:,[0-9]{1,2})?)\s*zł\s*(?:miesięcznie|\/\s*miesiąc)/gi],
+    BRL: [/R\$\s*([0-9]+(?:,[0-9]{1,2})?)\s*por\s+mês/gi],
+    CZK: [/([0-9]+(?:,[0-9]{1,2})?)\s*Kč\s*(?:měsíčně|\/\s*měsíc)/gi],
     GBP: [/£\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:per\s+month|\/\s*month)/gi],
     AUD: [/A\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:per\s+month|\/\s*month)/gi],
     NZD: [/NZ\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:per\s+month|\/\s*month)/gi],
@@ -7445,6 +7516,7 @@ function appleTvStorefrontPath(
     string,
     string
   > = {
+    CH: "chde", PL: "pl", BR: "br", CZ: "cz",
     GB: "uk",
     AU: "au",
     NZ: "nz",
@@ -7988,6 +8060,7 @@ async function appleTvAdapter(
   }
 
   const addedMarkets: Record<string, [string, string]> = {
+    CH: ["CHF", "de_CH"], PL: ["PLN", "pl_PL"], BR: ["BRL", "pt_BR"], CZ: ["CZK", "cs_CZ"],
     GB: ["GBP", "en_GB"], AU: ["AUD", "en_AU"],
     NZ: ["NZD", "en_NZ"], BE: ["EUR", "fr_BE"]
   };

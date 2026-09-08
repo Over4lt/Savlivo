@@ -1,0 +1,194 @@
+{
+  "CH": {
+    "currency": "CHF",
+    "storefront": "chde",
+    "locale": "de_CH",
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/chde/apple-music/\" />\n<meta property=\"og:locale\" content=\"de_CH\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Einzelperson</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\tCHF 14.90/Monat, <br />erster Monat kosten­los für neue Abonnent:innen.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Familie</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\tCHF 24.90/Monat, einen Monat kosten­los für neue\n\t\t\t\t\t\t\t\t\tAbonnent:innen.\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Studie­rende</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">Noch mehr sparen bei nur\n\t\t\t\t\t\t\t\t\tCHF 8.90/Monat, den ersten Monat gibt es kosten­los für neue\n\t\t\t\t\t\t\t\t\tAbonnent:innen.\n\t\t\t\t\t\t\t\t</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/chde/apple-tv/\" />\n<meta property=\"og:locale\" content=\"de_CH\" />\n<p class=\"tile-copy typography-tout\">Du be­kommst Apple TV 3 Monate dazu, wenn du ein Apple Gerät kaufst und das Angebot inner­halb von 90 Tagen einlöst.<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Fussnote 1\" data-modal-close>1</a></sup></p>\n<p class=\"tile-copy typography-tout\">Hol dir Apple TV für nur CHF 10.90 pro Monat nach Ablauf des kosten­losen 7‑tägigen Probe­abos.<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Fussnote 2\" data-modal-close>2</a></sup> Und teile Apple TV mit deiner Familie.<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Fussnote 3\" data-modal-close>3</a></sup></p>\n<p class=\"tile-copy typography-tout\">Student:innen erhalten das <span class=\"lg-nowrap\">Apple Music Abo für Studie­rende</span> 1 Monat kosten­los, plus Zugang zu Apple TV.<sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"Fussnote 4\" data-modal-close>4</a></sup></p>\n<p class=\"tile-copy typography-tout\">Hol dir Apple One und kombiniere bis zu fünf gross­artige Services zu einem niedrigen monat­lichen Preis.<sup class=\"footnote footnote-number\"><a href=\"#footnote-5\" aria-label=\"Fussnote 5\" data-modal-close>5</a></sup> Und erlebe mehr für weniger.</p>",
+    "spotify": {
+      "props": {
+        "pageProps": {
+          "basePageProps": {
+            "country": "CH"
+          },
+          "components": {
+            "plans": [
+              {
+                "planId": "PREMIUM_INDIVIDUAL",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "3 Monate für CHF 0",
+                "secondaryPriceDescription": "Danach CHF 15.95/Monat",
+                "subheaderPrice": "KOSTENLOS"
+              },
+              {
+                "planId": "PREMIUM_STUDENT",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "1 Monat für CHF 0",
+                "secondaryPriceDescription": "Danach CHF 8.95/Monat",
+                "subheaderPrice": "KOSTENLOS"
+              },
+              {
+                "planId": "PREMIUM_DUO",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "CHF 21.95/Monat",
+                "secondaryPriceDescription": null,
+                "subheaderPrice": "CHF 21.95"
+              },
+              {
+                "planId": "PREMIUM_FAMILY",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "CHF 26.95/Monat",
+                "secondaryPriceDescription": null,
+                "subheaderPrice": "CHF 26.95"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "PL": {
+    "currency": "PLN",
+    "storefront": "pl",
+    "locale": "pl_PL",
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/pl/apple-music/\" />\n<meta property=\"og:locale\" content=\"pl_PL\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Indywidualny</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t26,99 zł/miesiąc, <br />pierwszy miesiąc bezpłatnie dla nowych subskrypcji.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Plan rodzinny</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t45,99 zł/miesiąc i&nbsp;pierwszy miesiąc gratis dla nowych\n\t\t\t\t\t\t\t\t\tsubskrypcji.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Plan&nbsp;studencki</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">Dodatkowa oszczędność z&nbsp;ceną\n\t\t\t\t\t\t\t\t\t14,49 zł/miesiąc i&nbsp;pierwszym miesiącem gratis dla nowych\n\t\t\t\t\t\t\t\t\tsubskrypcji.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/pl/apple-tv/\" />\n<meta property=\"og:locale\" content=\"pl_PL\" />\n<p class=\"tile-copy typography-tout\">Po zakupie urządzenia Apple masz 90 dni, żeby skorzystać z 3-miesięcznego dostępu do Apple TV<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Przypis 1\">1</a></sup>.</p>\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\tApple TV za jedyne\n\t\t\t\t\t\t\t\t\t34,99 zł miesięcznie po bezpłatnym 7-dniowym okresie próbnym<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Przypis 2\" data-modal-close>2</a></sup>. Podziel się Apple TV z rodziną<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Przypis 3\">3</a></sup>\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">Studiujący dostają 1 miesiąc<span class=\"lg-nowrap\"> Apple Music gratis w ramach subskrypcji studenckiej</span>, a do tego dostęp do Apple TV<sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"Przypis 4\">4</a></sup></p>\n<p class=\"tile-copy typography-tout\">Wybierz Apple One i połącz do czterech fantastycznych usług Apple w ramach jednej niskiej opłaty miesięcznej<sup class=\"footnote footnote-number\"><a href=\"#footnote-5\" aria-label=\"Przypis 5\">5</a></sup> Żeby mieć więcej za mniej.</p>",
+    "spotify": {
+      "props": {
+        "pageProps": {
+          "basePageProps": {
+            "country": "PL"
+          },
+          "components": {
+            "plans": [
+              {
+                "planId": "PREMIUM_INDIVIDUAL",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "0 zł za 3 miesiące",
+                "secondaryPriceDescription": "Po tym okresie 26,99 zł/miesiąc.",
+                "subheaderPrice": "ZA DARMO"
+              },
+              {
+                "planId": "PREMIUM_STUDENT",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "0 zł za 1 miesiąc",
+                "secondaryPriceDescription": "Po tym okresie 14,49 zł/miesiąc.",
+                "subheaderPrice": "ZA DARMO"
+              },
+              {
+                "planId": "PREMIUM_DUO",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "36,99 zł miesięcznie",
+                "secondaryPriceDescription": null,
+                "subheaderPrice": "36,99 ZŁ"
+              },
+              {
+                "planId": "PREMIUM_FAMILY",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "45,99 zł miesięcznie",
+                "secondaryPriceDescription": null,
+                "subheaderPrice": "45,99 ZŁ"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "BR": {
+    "currency": "BRL",
+    "storefront": "br",
+    "locale": "pt_BR",
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/br/apple-music/\" />\n<meta property=\"og:locale\" content=\"pt_BR\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Individual</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\tR$ 23,90 por mês. <br />O primeiro mês é grátis para novas assinaturas.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Família</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\tR$ 40,90 por mês. O primeiro mês é grátis para novas assinaturas.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Universitária</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\tDescontos ainda maiores por\n\t\t\t\t\t\t\t\t\tR$ 12,90 por mês. O primeiro mês é grátis para novas assinaturas.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/br/apple-tv/\" />\n<meta property=\"og:locale\" content=\"pt_BR\" />\n<p class=\"tile-copy typography-tout\">Você recebe três&nbsp;meses de Apple&nbsp;TV grátis na compra de um aparelho Apple e tem até 90&nbsp;dias para resgatar a oferta<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Nota de rodapé 1\" data-modal-close>1</a></sup>.</p>\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\tAssine o Apple&nbsp;TV por apenas\n\t\t\t\t\t\t\t\t\tR$ 34,90&nbsp;por mês após o período de teste gratuito de sete&nbsp;dias<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Nota de rodapé 2\" data-modal-close>2</a></sup>. E compartilhe o Apple&nbsp;TV com a família<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Nota de rodapé 3\" data-modal-close>3</a></sup>.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">Estudantes ganham um mês <span class=\"lg-nowrap\">de Assinatura Universitária do Apple&nbsp;Music</span> e acesso ao Apple&nbsp;TV<sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"Nota de rodapé 4\" data-modal-close>4</a></sup>.</p>\n<p class=\"tile-copy typography-tout\">Assine o Apple&nbsp;One e junte até cinco serviços por um valor mensal mais baixo<sup class=\"footnote footnote-number\"><a href=\"#footnote-5\" aria-label=\"Nota de rodapé 5\" data-modal-close>5</a></sup>. Assim você aproveita mais por menos.</p>",
+    "spotify": {
+      "props": {
+        "pageProps": {
+          "basePageProps": {
+            "country": "BR"
+          },
+          "components": {
+            "plans": [
+              {
+                "planId": "PREMIUM_INDIVIDUAL",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "R$ 0 por 3 meses",
+                "secondaryPriceDescription": "Depois é só R$ 23,90/mês",
+                "subheaderPrice": "GRÁTIS"
+              },
+              {
+                "planId": "PREMIUM_STUDENT",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "R$ 0 por 1 mês",
+                "secondaryPriceDescription": "Depois é só R$ 12,90/mês",
+                "subheaderPrice": "GRÁTIS"
+              },
+              {
+                "planId": "PREMIUM_DUO",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "R$ 31,90/mês",
+                "secondaryPriceDescription": null,
+                "subheaderPrice": "R$ 31,90"
+              },
+              {
+                "planId": "PREMIUM_FAMILY",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "R$ 40,90/mês",
+                "secondaryPriceDescription": null,
+                "subheaderPrice": "R$ 40,90"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "CZ": {
+    "currency": "CZK",
+    "storefront": "cz",
+    "locale": "cs_CZ",
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/cz/apple-music/\" />\n<meta property=\"og:locale\" content=\"cs_CZ\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Individuální tarif</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t185 Kč/měsíc, <br />první měsíc pro nové předplatitele zdarma.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Rodina</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t299 Kč/měsíc, první měsíc zdarma pro nové\n\t\t\t\t\t\t\t\t\tpředplatitele.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Studentský tarif</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">Extra úspora s cenou jen\n\t\t\t\t\t\t\t\t\t99 Kč/měsíc, první měsíc zdarma pro nové\n\t\t\t\t\t\t\t\t\tpředplatitele.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/cz/apple-tv/\" />\n<meta property=\"og:locale\" content=\"cs_CZ\" />\n<p class=\"tile-copy typography-tout\">Když si koupíš zařízení Apple a do 90 dnů uplatníš tuhle nabídku, dostaneš Apple TV na 3 měsíce zdarma.<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Poznámka 1\">1</a></sup></p>\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\tZískej Apple TV už za\n\t\t\t\t\t\t\t\t\t199 Kč měsíčně po 7denním zkušebním období.<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Poznámka 2\" data-modal-close>2</a></sup> A sdílej Apple TV s celou rodinou.<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Poznámka 3\">3</a></sup>\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">Studenti mají <span class=\"lg-nowrap\">studentský tarif Apple Music</span> na 1 měsíc zadarmo a navíc přístup k Apple TV.<sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"Poznámka 4\" data-modal-close>4</a></sup></p>\n<p class=\"tile-copy typography-tout\">Pořiď si Apple One a využívej až čtyři skvělé služby v balíčku za jednu výhodnou měsíční cenu.<sup class=\"footnote footnote-number\"><a href=\"#footnote-5\" aria-label=\"Poznámka 5\" data-modal-close>5</a></sup> A užívej si víc zábavy za míň peněz.</p>",
+    "spotify": {
+      "props": {
+        "pageProps": {
+          "basePageProps": {
+            "country": "CZ"
+          },
+          "components": {
+            "plans": [
+              {
+                "planId": "PREMIUM_INDIVIDUAL",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "0 Kč na 3 měsíce",
+                "secondaryPriceDescription": "Potom 185 Kč/měsíc",
+                "subheaderPrice": "ZDARMA"
+              },
+              {
+                "planId": "PREMIUM_STUDENT",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "0 Kč na 1 měsíc",
+                "secondaryPriceDescription": "Potom 97 Kč/měsíc",
+                "subheaderPrice": "ZDARMA"
+              },
+              {
+                "planId": "PREMIUM_DUO",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "249 Kč/měsíc",
+                "secondaryPriceDescription": null,
+                "subheaderPrice": "249 KČ"
+              },
+              {
+                "planId": "PREMIUM_FAMILY",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "299 Kč/měsíc",
+                "secondaryPriceDescription": null,
+                "subheaderPrice": "299 KČ"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
