@@ -4756,17 +4756,17 @@ test("Google One GB recovery preserves existing plans and validates provider ide
         return new Response(body);
       });
       const prices = await providerAdapters["google-one"]({ countryCode: "GB", currency: "GBP" });
-      assert.deepEqual(prices.map(p => p.monthlyPriceMinor).sort((a,b) => a-b), scenario.expected);
+      assert.deepEqual(prices.map(p => p.monthlyPriceMinor).sort((a,b) => a-b), [159, 249]);
       assert.equal(urls.length, scenario.calls);
       assert.ok(urls[0].includes("/ALL_gb/about/feeds/"));
       if (urls.length === 2) assert.ok(urls[1].includes("/ALL_uk/about/feeds/"));
       for (const price of prices) {
-        assert.equal(price.verification, "authoritative-provider");
+        assert.equal(price.verification, scenario.expected.some(amount => amount === price.monthlyPriceMinor) ? "authoritative-provider" : "registry");
         assert.equal(price.countryCode, "GB");
         assert.equal(price.currency, "GBP");
         assert.equal(price.billingProviderSlug, "direct");
         assert.ok(["Storage 100 GB", "Storage 200 GB"].includes(price.planName));
-        if (scenario.primary === null) assert.ok(price.sourceUrl.includes("ALL_uk/"));
+        if (scenario.primary === null && scenario.expected.length) assert.ok(price.sourceUrl.includes("ALL_uk/"));
       }
     });
   }
@@ -5100,12 +5100,6 @@ test("Apple Music adds nine Apple-billed prices with matching country and curren
 });
 
 test("Apple Music new sources fail safely without removing registry fallback", async (t) => {
-  const original = verifiedProviderRegistry.GB;
-  verifiedProviderRegistry.GB = [...(original ?? []), {
-    serviceSlug: "apple-music", planName: "Individual", currency: "GBP",
-    monthlyPriceMinor: 1199, sourceUrl: "https://www.apple.com/uk/apple-music/", billingProviderSlug: "apple"
-  }];
-  t.after(() => { if (original) verifiedProviderRegistry.GB = original; else delete verifiedProviderRegistry.GB; });
   const html = musicFixture("uk");
   for (const body of [null, "", html.replace("en_GB", "en_US"),
     html.replaceAll("£", "€"), html.replace('item-id="family"', 'item-id="other"'),
@@ -5114,9 +5108,9 @@ test("Apple Music new sources fail safely without removing registry fallback", a
     await t.test(body === null ? "network" : "invalid provider evidence", async (t) => {
       t.mock.method(globalThis, "fetch", async () => { if (body === null) throw new Error("offline"); return new Response(body); });
       const prices = await providerAdapters["apple-music"]({ countryCode: "GB", currency: "GBP" });
-      assert.equal(prices.length, 1);
-      assert.equal(prices[0].monthlyPriceMinor, 1199);
-      assert.equal(prices[0].verification, "registry");
+      assert.deepEqual(prices.map(p => [p.planName, p.monthlyPriceMinor, p.verification]), [
+        ["Individual", 1199, "registry"], ["Family", 1999, "registry"], ["Student", 599, "registry"]
+      ]);
     });
   }
   let calls = 0;

@@ -3,13 +3,13 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
   countryCurrencies, countryCurrencyData, subscriptionsForMarket,
-  subscriptionCountry, isCurrentMarketPricing, formatMarketMinor
+  subscriptionCountry, isCurrentMarketPricing, formatMarketMinor, expansionMarketServices, expansionServiceAvailable
 } from "../../../packages/contracts/src/markets.js";
 import { pool } from "./db.js";
 import { addSubscription } from "./repositories.js";
 import { reminderInstantForRenewal } from "./notification-logic.js";
-import { mergeFreshAndPersistedPricing } from "./pricing.js";
-import type { AdapterPrice } from "./pricing-adapters.js";
+import { getRegionalPricing, mergeFreshAndPersistedPricing } from "./pricing.js";
+import { fetchProviderLocalPrices, verifiedProviderRegistry, type AdapterPrice } from "./pricing-adapters.js";
 
 const audit = JSON.parse(readFileSync(new URL("../../../docs/markets/readiness-before.json", import.meta.url), "utf8"));
 
@@ -86,5 +86,51 @@ test("notifications retain user timezone independently of the subscription marke
   for (const timeZone of ["Europe/Oslo","Europe/London","Australia/Sydney","Pacific/Auckland"]) {
     const instant = reminderInstantForRenewal("2026-10-15", timeZone);
     assert.equal(new Intl.DateTimeFormat("en-GB", {timeZone,hour:"2-digit",hourCycle:"h23"}).format(new Date(instant)), "09");
+  }
+});
+
+
+test("only evidence-ready expansion markets are selectable and their catalogs are bounded", () => {
+  assert.deepEqual(countryCurrencyData.filter(([cc]) => !audit.mobileMarkets.includes(cc)).map(([cc]) => cc), ["GB", "AU", "NZ"]);
+  for (const cc of ["GB", "AU", "NZ"]) {
+    const services = expansionMarketServices[cc];
+    assert.ok(services.length >= 4);
+    assert.ok(services.includes("icloud-plus") && services.includes("apple-music") && services.includes("apple-tv-plus") && services.includes("google-one"));
+    assert.equal(expansionServiceAvailable("netflix", cc), false);
+    assert.equal(expansionServiceAvailable("hulu", cc), false);
+    assert.equal(expansionServiceAvailable("tencent-video", cc), false);
+    assert.equal(expansionServiceAvailable("icloud-plus", cc), true);
+    const rows = verifiedProviderRegistry[cc];
+    assert.equal(rows.length, cc === "GB" ? 15 : 11);
+    assert.ok(rows.every(row => services.includes(row.serviceSlug)));
+    assert.ok(rows.filter(row => row.serviceSlug.startsWith("apple-") || row.serviceSlug === "icloud-plus").every(row => row.billingProviderSlug === "apple"));
+    assert.ok(rows.filter(row => ["google-one", "spotify"].includes(row.serviceSlug)).every(row => row.billingProviderSlug === "direct"));
+  }
+  assert.equal(expansionServiceAvailable("netflix", "NO"), undefined); // Existing rules still decide.
+  assert.equal(expansionServiceAvailable("spotify", "AU"), false);
+});
+
+test("pricing lookup retains all 37 launch plans during complete provider outage", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => { throw new Error("offline"); });
+  t.mock.method(pool, "query", (async () => ({ rows: [] })) as any);
+  for (const country of ["GB", "AU", "NZ"]) {
+    const snapshot = await getRegionalPricing(country, {forceRefresh:true});
+    assert.equal(snapshot.countryCode, country);
+    assert.equal(snapshot.currency, countryCurrencies[country]);
+    assert.equal(snapshot.items.length, country === "GB" ? 15 : 11);
+    assert.ok(snapshot.items.every(p => p.verification === "registry" && p.countryCode === country && p.currency === countryCurrencies[country]));
+  }
+});
+
+test("every existing market retains every baseline fallback service plan price and billing route", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => { throw new Error("offline"); });
+  for (const market of audit.markets.filter((m: any) => m.mobileSupported)) {
+    const current = await fetchProviderLocalPrices(market.country, market.currency);
+    for (const [service, rows] of Object.entries(market.fallback) as [string, any[]][]) {
+      for (const row of rows) {
+        assert.ok(current.some(p => p.serviceSlug === service && p.planName === row.plan &&
+          p.billingProviderSlug === row.route && p.monthlyPriceMinor === row.minor), `${market.country} ${service} ${row.plan} ${row.route}`);
+      }
+    }
   }
 });

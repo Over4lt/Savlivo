@@ -596,6 +596,309 @@ export const verifiedProviderRegistry: Record<
     billingProviderSlug?: BillingProviderSlug;
   }>
 > = {
+  // Official launch-market snapshots verified 2026-09-08. Live adapters remain preferred.
+  "GB": [
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "50 GB",
+      "currency": "GBP",
+      "monthlyPriceMinor": 99,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "200 GB",
+      "currency": "GBP",
+      "monthlyPriceMinor": 299,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "2 TB",
+      "currency": "GBP",
+      "monthlyPriceMinor": 899,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "6 TB",
+      "currency": "GBP",
+      "monthlyPriceMinor": 2699,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "12 TB",
+      "currency": "GBP",
+      "monthlyPriceMinor": 5499,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-music",
+      "planName": "Individual",
+      "currency": "GBP",
+      "monthlyPriceMinor": 1199,
+      "sourceUrl": "https://www.apple.com/uk/apple-music/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-music",
+      "planName": "Family",
+      "currency": "GBP",
+      "monthlyPriceMinor": 1999,
+      "sourceUrl": "https://www.apple.com/uk/apple-music/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-music",
+      "planName": "Student",
+      "currency": "GBP",
+      "monthlyPriceMinor": 599,
+      "sourceUrl": "https://www.apple.com/uk/apple-music/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-tv-plus",
+      "planName": "Apple TV",
+      "currency": "GBP",
+      "monthlyPriceMinor": 999,
+      "sourceUrl": "https://www.apple.com/uk/apple-tv/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "google-one",
+      "planName": "Storage 100 GB",
+      "currency": "GBP",
+      "monthlyPriceMinor": 159,
+      "sourceUrl": "https://one.google.com/intl/ALL_gb/about/feeds/pricing_2026_07_28.json",
+      "billingProviderSlug": "direct"
+    },
+    {
+      "serviceSlug": "google-one",
+      "planName": "Storage 200 GB",
+      "currency": "GBP",
+      "monthlyPriceMinor": 249,
+      "sourceUrl": "https://one.google.com/intl/ALL_gb/about/feeds/pricing_2026_07_28.json",
+      "billingProviderSlug": "direct"
+    },
+    {
+      "serviceSlug": "spotify",
+      "planName": "Individual",
+      "currency": "GBP",
+      "monthlyPriceMinor": 1299,
+      "sourceUrl": "https://www.spotify.com/gb/premium/",
+      "billingProviderSlug": "direct"
+    },
+    {
+      "serviceSlug": "spotify",
+      "planName": "Student",
+      "currency": "GBP",
+      "monthlyPriceMinor": 599,
+      "sourceUrl": "https://www.spotify.com/gb/premium/",
+      "billingProviderSlug": "direct"
+    },
+    {
+      "serviceSlug": "spotify",
+      "planName": "Duo",
+      "currency": "GBP",
+      "monthlyPriceMinor": 1799,
+      "sourceUrl": "https://www.spotify.com/gb/premium/",
+      "billingProviderSlug": "direct"
+    },
+    {
+      "serviceSlug": "spotify",
+      "planName": "Family",
+      "currency": "GBP",
+      "monthlyPriceMinor": 2199,
+      "sourceUrl": "https://www.spotify.com/gb/premium/",
+      "billingProviderSlug": "direct"
+    }
+  ],
+  "AU": [
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "50 GB",
+      "currency": "AUD",
+      "monthlyPriceMinor": 149,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "200 GB",
+      "currency": "AUD",
+      "monthlyPriceMinor": 449,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "2 TB",
+      "currency": "AUD",
+      "monthlyPriceMinor": 1499,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "6 TB",
+      "currency": "AUD",
+      "monthlyPriceMinor": 4499,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "12 TB",
+      "currency": "AUD",
+      "monthlyPriceMinor": 8999,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-music",
+      "planName": "Individual",
+      "currency": "AUD",
+      "monthlyPriceMinor": 1499,
+      "sourceUrl": "https://www.apple.com/au/apple-music/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-music",
+      "planName": "Family",
+      "currency": "AUD",
+      "monthlyPriceMinor": 2399,
+      "sourceUrl": "https://www.apple.com/au/apple-music/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-music",
+      "planName": "Student",
+      "currency": "AUD",
+      "monthlyPriceMinor": 799,
+      "sourceUrl": "https://www.apple.com/au/apple-music/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-tv-plus",
+      "planName": "Apple TV",
+      "currency": "AUD",
+      "monthlyPriceMinor": 1599,
+      "sourceUrl": "https://www.apple.com/au/apple-tv/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "google-one",
+      "planName": "Storage 100 GB",
+      "currency": "AUD",
+      "monthlyPriceMinor": 299,
+      "sourceUrl": "https://one.google.com/intl/ALL_au/about/feeds/pricing_2026_07_28.json",
+      "billingProviderSlug": "direct"
+    },
+    {
+      "serviceSlug": "google-one",
+      "planName": "Storage 200 GB",
+      "currency": "AUD",
+      "monthlyPriceMinor": 449,
+      "sourceUrl": "https://one.google.com/intl/ALL_au/about/feeds/pricing_2026_07_28.json",
+      "billingProviderSlug": "direct"
+    }
+  ],
+  "NZ": [
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "50 GB",
+      "currency": "NZD",
+      "monthlyPriceMinor": 199,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "200 GB",
+      "currency": "NZD",
+      "monthlyPriceMinor": 599,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "2 TB",
+      "currency": "NZD",
+      "monthlyPriceMinor": 1999,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "6 TB",
+      "currency": "NZD",
+      "monthlyPriceMinor": 5999,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "icloud-plus",
+      "planName": "12 TB",
+      "currency": "NZD",
+      "monthlyPriceMinor": 11999,
+      "sourceUrl": "https://support.apple.com/en-us/108047",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-music",
+      "planName": "Individual",
+      "currency": "NZD",
+      "monthlyPriceMinor": 1849,
+      "sourceUrl": "https://www.apple.com/nz/apple-music/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-music",
+      "planName": "Family",
+      "currency": "NZD",
+      "monthlyPriceMinor": 2999,
+      "sourceUrl": "https://www.apple.com/nz/apple-music/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-music",
+      "planName": "Student",
+      "currency": "NZD",
+      "monthlyPriceMinor": 1049,
+      "sourceUrl": "https://www.apple.com/nz/apple-music/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "apple-tv-plus",
+      "planName": "Apple TV",
+      "currency": "NZD",
+      "monthlyPriceMinor": 1799,
+      "sourceUrl": "https://www.apple.com/nz/apple-tv/",
+      "billingProviderSlug": "apple"
+    },
+    {
+      "serviceSlug": "google-one",
+      "planName": "Storage 100 GB",
+      "currency": "NZD",
+      "monthlyPriceMinor": 349,
+      "sourceUrl": "https://one.google.com/intl/ALL_nz/about/feeds/pricing_2026_07_28.json",
+      "billingProviderSlug": "direct"
+    },
+    {
+      "serviceSlug": "google-one",
+      "planName": "Storage 200 GB",
+      "currency": "NZD",
+      "monthlyPriceMinor": 499,
+      "sourceUrl": "https://one.google.com/intl/ALL_nz/about/feeds/pricing_2026_07_28.json",
+      "billingProviderSlug": "direct"
+    }
+  ],
   NO: [
     /*
      * VERIFIED NORWAY PRICES

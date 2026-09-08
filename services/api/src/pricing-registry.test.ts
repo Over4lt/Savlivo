@@ -6,6 +6,9 @@ import {
 } from "./pricing-adapters.js";
 
 const expectedCurrencyByCountry: Record<string, string> = {
+  GB: "GBP",
+  AU: "AUD",
+  NZ: "NZD",
   US: "USD",
   NO: "NOK",
   SE: "SEK",

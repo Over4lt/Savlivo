@@ -1,5 +1,5 @@
 import {
-  countryCurrencyData, subscriptionsForMarket, formatMarketMinor, isCurrentMarketPricing
+  countryCurrencyData, subscriptionsForMarket, formatMarketMinor, isCurrentMarketPricing, expansionServiceAvailable
 } from "../../../packages/contracts/src/markets";
 import {
   useEffect,
@@ -919,6 +919,9 @@ function serviceAvailableInMarket(
   serviceSlug: string,
   countryCode: string
 ) {
+  const expansionAvailability = expansionServiceAvailable(serviceSlug, countryCode);
+  if (expansionAvailability !== undefined) return expansionAvailability;
+
   if (countryCode === "CN") {
     return mainlandChinaServiceSlugs.has(serviceSlug);
   }

@@ -106,3 +106,67 @@ Full per-service/plan/route fallback records and evidence counts: [readiness-bef
 - Previous batch found Microsoft blocked pages, Netflix German context mixed with NOK prices, Disney no usable recurring rows, Spotify AU/CA bare-dollar ambiguity. No weakening of validation to activate these markets.
 - JP/KR/VND and other zero-decimal markets need explicit minor-unit and formatting review; not activated. CL/CO need API currencies plus multi-service evidence. No new currency mappings are justified just by ISO validity.
 - Backend database integration and simulator/device UI verification are separate from offline logic checks; report their actual verification status rather than claiming production readiness from parser tests.
+
+## Completed activation
+
+GB, AU and NZ are READY under the threshold above. Mobile selection grows from 15 to 18 countries, and from six to nine currencies. The API mapping remains exactly 61 countries / 41 currencies. Full final classifications: [readiness-after.json](readiness-after.json).
+
+| Market | Services | Monthly plans | Live authoritative rows checked | Registry fallback rows |
+|---|---:|---:|---:|---:|
+| GB | 5 | 15 | 15 | 15 |
+| AU | 4 | 11 | 11 | 11 |
+| NZ | 4 | 11 | 11 | 11 |
+
+All launch service/plan identities come from official sources. No US plans are copied into other countries. Only the advertised service allowlists apply to new markets; all existing market rules remain unchanged. Existing saved subscriptions remain visible and editable regardless of launch catalog inclusion. Apple services use Apple billing; Google One and Spotify use direct billing.
+
+| Market | Service | Plan | Monthly minor units | Currency | Billing route |
+|---|---|---|---:|---|---|
+| GB | icloud-plus | 50 GB | 99 | GBP | apple |
+| GB | icloud-plus | 200 GB | 299 | GBP | apple |
+| GB | icloud-plus | 2 TB | 899 | GBP | apple |
+| GB | icloud-plus | 6 TB | 2699 | GBP | apple |
+| GB | icloud-plus | 12 TB | 5499 | GBP | apple |
+| GB | apple-music | Individual | 1199 | GBP | apple |
+| GB | apple-music | Family | 1999 | GBP | apple |
+| GB | apple-music | Student | 599 | GBP | apple |
+| GB | apple-tv-plus | Apple TV | 999 | GBP | apple |
+| GB | google-one | Storage 100 GB | 159 | GBP | direct |
+| GB | google-one | Storage 200 GB | 249 | GBP | direct |
+| GB | spotify | Individual | 1299 | GBP | direct |
+| GB | spotify | Student | 599 | GBP | direct |
+| GB | spotify | Duo | 1799 | GBP | direct |
+| GB | spotify | Family | 2199 | GBP | direct |
+| AU | icloud-plus | 50 GB | 149 | AUD | apple |
+| AU | icloud-plus | 200 GB | 449 | AUD | apple |
+| AU | icloud-plus | 2 TB | 1499 | AUD | apple |
+| AU | icloud-plus | 6 TB | 4499 | AUD | apple |
+| AU | icloud-plus | 12 TB | 8999 | AUD | apple |
+| AU | apple-music | Individual | 1499 | AUD | apple |
+| AU | apple-music | Family | 2399 | AUD | apple |
+| AU | apple-music | Student | 799 | AUD | apple |
+| AU | apple-tv-plus | Apple TV | 1599 | AUD | apple |
+| AU | google-one | Storage 100 GB | 299 | AUD | direct |
+| AU | google-one | Storage 200 GB | 449 | AUD | direct |
+| NZ | icloud-plus | 50 GB | 199 | NZD | apple |
+| NZ | icloud-plus | 200 GB | 599 | NZD | apple |
+| NZ | icloud-plus | 2 TB | 1999 | NZD | apple |
+| NZ | icloud-plus | 6 TB | 5999 | NZD | apple |
+| NZ | icloud-plus | 12 TB | 11999 | NZD | apple |
+| NZ | apple-music | Individual | 1849 | NZD | apple |
+| NZ | apple-music | Family | 2999 | NZD | apple |
+| NZ | apple-music | Student | 1049 | NZD | apple |
+| NZ | apple-tv-plus | Apple TV | 1799 | NZD | apple |
+| NZ | google-one | Storage 100 GB | 349 | NZD | direct |
+| NZ | google-one | Storage 200 GB | 499 | NZD | direct |
+
+## Verification and limits
+
+- API tests: 190 passed. Mobile library tests: 71 passed. Both API and mobile typechecks passed.
+- New integration checks are offline: repository SQL calls use a mocked pool, and pricing persistence recovery uses the actual merge function. No production or development database writes were needed. Real database round-trip tests were not run.
+- All 37 advertised rows were returned as authoritative-provider by the actual adapters during the final live probe. Full provider outage tests return all 37 registry rows. Every existing market retains its baseline fallback plan/route/price rows.
+- iOS production JavaScript/Hermes export passed (1,283 modules), written only to /tmp/savlivo-market-expansion-ios. This caught and resolved missing Metro visibility for the shared contracts directory; the minimal watch-folder addition preserves Expo defaults. See https://docs.expo.dev/guides/customizing-metro/.
+- No native simulator/device interaction or visual PDF inspection was performed. Onboarding/Settings share the same tested market list; reports and AI consume the tested selected-market scope. Actual device acceptance remains appropriate before a future release.
+- Registry snapshots can become stale; authoritative live data and persisted verified values remain stronger. Network failure does not discard fallback rows. API unreachable on first install is not an offline catalog mode.
+- GBP/AUD/NZD are compatible with the existing minor/100 representation; no general zero-decimal currency redesign is claimed. English is the supported UI language for the new markets.
+- Only a small verified catalog is advertised in each new market. Broad Netflix/Disney/Microsoft and additional Spotify market support needs stronger country/currency/product proof. CA is the highest-value next candidate; iCloud-covered Asia/Europe/LatAm markets need more services before activation.
+- No push, deployment, build-number, IAP, privacy/legal or App Store configuration changes. The unrelated .htaccess file remains untracked and untouched.

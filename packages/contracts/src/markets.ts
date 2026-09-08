@@ -28,7 +28,10 @@ export const countryCurrencyData = [
   ["AT", "Austria", "EUR"],
   ["IE", "Ireland", "EUR"],
   ["FI", "Finland", "EUR"],
-  ["CN", "China", "CNY"]
+  ["CN", "China", "CNY"],
+  ["GB", "United Kingdom", "GBP"],
+  ["AU", "Australia", "AUD"],
+  ["NZ", "New Zealand", "NZD"]
 ] as const;
 
 
@@ -71,4 +74,17 @@ export function formatMarketMinor(minor: number, currency: string, locale?: stri
   } catch {
     return `${currency} ${(minor / 100).toFixed(2)}`;
   }
+}
+
+
+// Only independently verified launch services are offered in newly activated markets.
+// Existing market availability rules are left unchanged.
+export const expansionMarketServices: Record<string, readonly string[]> = {
+  GB: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one", "spotify"],
+  AU: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
+  NZ: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"]
+};
+
+export function expansionServiceAvailable(serviceSlug: string, countryCode: string): boolean | undefined {
+  return expansionMarketServices[countryCode]?.includes(serviceSlug);
 }
