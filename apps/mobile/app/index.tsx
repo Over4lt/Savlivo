@@ -3882,7 +3882,14 @@ export default function Home() {
           : "Premium is active. Autopilot recommendations are unlocked."
       );
     } catch (err: any) {
-      Alert.alert("Purchase failed", err.message);
+      const purchaseErrorMessage =
+        typeof err?.message === "string" &&
+        err.message.trim() &&
+        err.message.toLowerCase() !== "unknown error"
+          ? err.message
+          : "Apple could not complete this purchase. Check that your App Store account country matches the selected Savlivo market, then try again.";
+
+      Alert.alert("Purchase failed", purchaseErrorMessage);
     } finally {
       setLoading(false);
     }
