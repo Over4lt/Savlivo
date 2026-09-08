@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://savlivo-api.onrender.com http://localhost:3000; base-uri 'none'; form-action 'none'">
+<title>Savlivo Internal Analytics</title><link rel="stylesheet" href="admin.css"></head>
+<body><main><h1>Savlivo Internal Analytics</h1><p>Private aggregate reporting. Access requires an explicitly authorized admin account.</p>
+<form id="login"><label>Email <input id="email" type="email" autocomplete="username" required maxlength="254"></label>
+<label>Password <input id="password" type="password" autocomplete="current-password" required maxlength="256"></label>
+<button type="submit">Sign in for 15 minutes</button></form>
+<p id="message" role="status" aria-live="polite"></p>
+<section id="dashboard" hidden><form id="filters"><label>Event/new-account window <select id="days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></label>
+<label>Market <select id="market"><option value="">All markets</option></select></label><button>Refresh</button><button id="logout" type="button">Sign out</button></form>
+<p>Empty tables mean no reportable cohort (minimum 10 users), not necessarily zero activity. Subscription and entitlement counts are stored snapshots, not time-window totals or effective-date-adjusted current access.</p>
+<div id="results"></div></section></main><script type="module" src="admin.js"></script></body></html>

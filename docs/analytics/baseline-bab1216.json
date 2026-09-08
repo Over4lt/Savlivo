@@ -1,0 +1,136 @@
+{
+  "startingHead": "bab1216905d5b9b153e9614112ce774d457a8a02",
+  "branch": "build10-final",
+  "startingStatus": [
+    "?? apps/web/.well-known/.htaccess"
+  ],
+  "markets": [
+    [
+      "US",
+      "USD"
+    ],
+    [
+      "NO",
+      "NOK"
+    ],
+    [
+      "SE",
+      "SEK"
+    ],
+    [
+      "DK",
+      "DKK"
+    ],
+    [
+      "DE",
+      "EUR"
+    ],
+    [
+      "ES",
+      "EUR"
+    ],
+    [
+      "FR",
+      "EUR"
+    ],
+    [
+      "IT",
+      "EUR"
+    ],
+    [
+      "PT",
+      "EUR"
+    ],
+    [
+      "NL",
+      "EUR"
+    ],
+    [
+      "BE",
+      "EUR"
+    ],
+    [
+      "AT",
+      "EUR"
+    ],
+    [
+      "IE",
+      "EUR"
+    ],
+    [
+      "FI",
+      "EUR"
+    ],
+    [
+      "CN",
+      "CNY"
+    ],
+    [
+      "GB",
+      "GBP"
+    ],
+    [
+      "AU",
+      "AUD"
+    ],
+    [
+      "NZ",
+      "NZD"
+    ],
+    [
+      "CH",
+      "CHF"
+    ],
+    [
+      "PL",
+      "PLN"
+    ],
+    [
+      "BR",
+      "BRL"
+    ],
+    [
+      "CZ",
+      "CZK"
+    ],
+    [
+      "MY",
+      "MYR"
+    ],
+    [
+      "IN",
+      "INR"
+    ],
+    [
+      "SG",
+      "SGD"
+    ],
+    [
+      "HK",
+      "HKD"
+    ],
+    [
+      "TW",
+      "TWD"
+    ],
+    [
+      "AE",
+      "AED"
+    ],
+    [
+      "TH",
+      "THB"
+    ],
+    [
+      "PH",
+      "PHP"
+    ]
+  ],
+  "catalogServices": 43,
+  "registryRows": 364,
+  "offlinePrices": 757,
+  "managementDestinations": 6300,
+  "protectedTrackedFileCount": 142,
+  "protectedGroupSha256": "f9b898234efc86d49c6a787cbc0793e6284fd6e7c3b62aa19e89ef9fda6a7820",
+  "preservation": "All listed protected path groups byte-identical to bab1216; existing API/mobile regression tests also compare pricing and management baselines."
+}
