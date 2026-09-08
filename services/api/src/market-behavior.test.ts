@@ -6,7 +6,7 @@ import {
   subscriptionCountry, isCurrentMarketPricing, formatMarketMinor, expansionMarketServices, expansionServiceAvailable
 } from "../../../packages/contracts/src/markets.js";
 import { pool } from "./db.js";
-import { addSubscription } from "./repositories.js";
+import { addSubscription, updateSubscription } from "./repositories.js";
 import { reminderInstantForRenewal } from "./notification-logic.js";
 import { getRegionalPricing, mergeFreshAndPersistedPricing } from "./pricing.js";
 import { fetchProviderLocalPrices, verifiedProviderRegistry, type AdapterPrice } from "./pricing-adapters.js";
@@ -91,7 +91,7 @@ test("notifications retain user timezone independently of the subscription marke
 
 
 test("only evidence-ready expansion markets are selectable and their catalogs are bounded", () => {
-  assert.deepEqual(countryCurrencyData.filter(([cc]) => !audit.mobileMarkets.includes(cc)).map(([cc]) => cc), ["GB", "AU", "NZ", "CH", "PL", "BR", "CZ"]);
+  assert.deepEqual(countryCurrencyData.filter(([cc]) => !audit.mobileMarkets.includes(cc)).map(([cc]) => cc), ["GB", "AU", "NZ", "CH", "PL", "BR", "CZ", "MY"]);
   for (const cc of ["GB", "AU", "NZ"]) {
     const services = expansionMarketServices[cc];
     assert.ok(services.length >= 4);
@@ -136,7 +136,7 @@ test("every existing market retains every baseline fallback service plan price a
 });
 
 const previousExpansion = JSON.parse(readFileSync(new URL("../../../docs/markets/readiness-after.json", import.meta.url), "utf8"));
-const nextWave = [["CH", "CHF", "de-CH", "Europe/Zurich"], ["PL", "PLN", "pl-PL", "Europe/Warsaw"], ["BR", "BRL", "pt-BR", "America/Sao_Paulo"], ["CZ", "CZK", "cs-CZ", "Europe/Prague"]];
+const nextWave = [["CH", "CHF", "de-CH", "Europe/Zurich"], ["PL", "PLN", "pl-PL", "Europe/Warsaw"], ["BR", "BRL", "pt-BR", "America/Sao_Paulo"], ["CZ", "CZK", "cs-CZ", "Europe/Prague"], ["MY", "MYR", "en-MY", "Asia/Kuala_Lumpur"]];
 
 test("next-wave selection filtering integer amounts savings and reminders remain market scoped", () => {
   const items = nextWave.map(([countryCode,currency], i) => ({id:countryCode,countryCode,currency,monthlyPriceMinor:1299+i}));
@@ -162,7 +162,7 @@ test("next-wave selection filtering integer amounts savings and reminders remain
   assert.deepEqual(items,before);
 });
 
-test("regional pricing retains all 52 next-wave registry rows during total provider outage", async(t)=>{
+test("regional pricing retains all 65 next-wave registry rows during total provider outage", async(t)=>{
   t.mock.method(globalThis,"fetch",async()=>{throw new Error("offline");});
   t.mock.method(pool,"query",(async()=>({rows:[]})) as any);
   for(const [cc,currency] of nextWave){
@@ -181,4 +181,34 @@ test("all 18 pre-wave markets remain selectable with their existing catalogs and
     const prices=await fetchProviderLocalPrices(market.country,market.currency);
     for(const row of market.launchPlans) assert.ok(prices.some(p=>p.serviceSlug===row.serviceSlug&&p.planName===row.planName&&p.monthlyPriceMinor===row.monthlyPriceMinor&&p.billingProviderSlug===row.billingProviderSlug&&p.currency===row.currency));
   }
+});
+
+test("next-wave subscriptions can be created and edited without moving another market or account",async(t)=>{
+  const saved=new Map<string,any>();
+  t.mock.method(pool,"query",(async(sql:string,params:any[])=>{
+    if(sql.includes("INSERT INTO subscriptions")){
+      const id=String(saved.size+1);
+      saved.set(id,{id,userId:params[0],countryCode:params[3],currency:params[5],monthlyPriceMinor:params[4]});
+      return {rows:[{id}]};
+    }
+    const row=saved.get(params[1]);
+    return {rows:row?.userId===params[0]?[row]:[]};
+  }) as any);
+  t.mock.method(pool,"connect",(async()=>({release(){},async query(sql:string,params:any[]){
+    if(!sql.includes("UPDATE subscriptions"))return {rows:[]};
+    assert.doesNotMatch(sql,/country_code\s*=/i);
+    const row=saved.get(params[1]);
+    if(row?.userId!==params[0])return {rows:[]};
+    row.monthlyPriceMinor=params[4];row.currency=params[5];return {rows:[{id:row.id}]};
+  }})) as any);
+  for(const [countryCode,currency] of nextWave)await addSubscription({userId:"one-account",serviceSlug:"apple-music",billingProviderSlug:"apple",countryCode,currency,monthlyPriceMinor:1299,planName:"Individual"});
+  for(const item of [...saved.values()]){
+    const otherMarkets=structuredClone([...saved.values()].filter(p=>p.id!==item.id));
+    const updated=await updateSubscription({userId:"one-account",subscriptionId:item.id,serviceSlug:"apple-music",billingProviderSlug:"apple",currency:item.currency,monthlyPriceMinor:1499,planName:"Individual"});
+    assert.equal(updated.countryCode,item.countryCode);
+    assert.equal(updated.monthlyPriceMinor,1499);
+    assert.deepEqual([...saved.values()].filter(p=>p.id!==item.id),otherMarkets);
+  }
+  assert.equal(saved.size,5);
+  await assert.rejects(updateSubscription({userId:"other-account",subscriptionId:"1",serviceSlug:"apple-music",billingProviderSlug:"apple",currency:"CHF",monthlyPriceMinor:1}),/SUBSCRIPTION_NOT_FOUND/);
 });

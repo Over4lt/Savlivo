@@ -596,6 +596,21 @@ export const verifiedProviderRegistry: Record<
     billingProviderSlug?: BillingProviderSlug;
   }>
 > = {
+  MY: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "MYR", "monthlyPriceMinor": 390, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "MYR", "monthlyPriceMinor": 1190, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "MYR", "monthlyPriceMinor": 4490, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "MYR", "monthlyPriceMinor": 12990, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "MYR", "monthlyPriceMinor": 26990, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "MYR", "monthlyPriceMinor": 1790, "sourceUrl": "https://www.apple.com/my/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "MYR", "monthlyPriceMinor": 2790, "sourceUrl": "https://www.apple.com/my/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "MYR", "monthlyPriceMinor": 950, "sourceUrl": "https://www.apple.com/my/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "MYR", "monthlyPriceMinor": 2990, "sourceUrl": "https://www.apple.com/my/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "spotify", "planName": "Individual", "currency": "MYR", "monthlyPriceMinor": 1750, "sourceUrl": "https://www.spotify.com/my-en/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Student", "currency": "MYR", "monthlyPriceMinor": 950, "sourceUrl": "https://www.spotify.com/my-en/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Duo", "currency": "MYR", "monthlyPriceMinor": 2450, "sourceUrl": "https://www.spotify.com/my-en/premium/", "billingProviderSlug": "direct"},
+    {"serviceSlug": "spotify", "planName": "Family", "currency": "MYR", "monthlyPriceMinor": 2790, "sourceUrl": "https://www.spotify.com/my-en/premium/", "billingProviderSlug": "direct"},
+  ],
   // Next-wave official monthly snapshots verified 2026-09-08; all prior fallbacks retained.
   CH: [
     {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "CHF", "monthlyPriceMinor": 100, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
@@ -6511,6 +6526,7 @@ function appleMusicCurrencyPatterns(
    * never infer a price through FX conversion.
    */
   const patterns: Record<string, RegExp[]> = {
+    MYR: [/RM\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
     CHF: [/CHF\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*Monat|pro\s+Monat)/gi],
     PLN: [/([0-9]+(?:,[0-9]{1,2})?)\s*zł\s*(?:\/\s*miesiąc|za\s+miesiąc)/gi],
     BRL: [/R\$\s*([0-9]+(?:,[0-9]{1,2})?)\s*por\s+mês/gi],
@@ -6806,7 +6822,7 @@ function appleMusicStorefrontPath(
   countryCode: string
 ): string | null {
   const storefronts: Record<string, string> = {
-    CH: "chde", PL: "pl", BR: "br", CZ: "cz",
+    CH: "chde", PL: "pl", BR: "br", CZ: "cz", MY: "my",
     GB: "uk",
     AU: "au",
     NZ: "nz",
@@ -6878,8 +6894,8 @@ async function appleMusicAdapter(
             "/apple-music/"
           );
 
-  const addedCurrencies: Record<string, string> = { GB: "GBP", AU: "AUD", NZ: "NZD", CH: "CHF", PL: "PLN", BR: "BRL", CZ: "CZK" };
-  const addedLocales: Record<string, string> = { CH: "de_CH", PL: "pl_PL", BR: "pt_BR", CZ: "cs_CZ" };
+  const addedCurrencies: Record<string, string> = { GB: "GBP", AU: "AUD", NZ: "NZD", CH: "CHF", PL: "PLN", BR: "BRL", CZ: "CZK", MY: "MYR" };
+  const addedLocales: Record<string, string> = { CH: "de_CH", PL: "pl_PL", BR: "pt_BR", CZ: "cs_CZ", MY: "en_MY" };
   const addedCurrency = addedCurrencies[ctx.countryCode];
   if (addedCurrency && addedCurrency !== ctx.currency) {
     return resolvePriceCandidates(ctx, candidates);
@@ -7273,6 +7289,7 @@ function appleTvInternationalCurrencyPatterns(
     string,
     RegExp[]
   > = {
+    MYR: [/RM\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
     CHF: [/CHF\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:pro\s+Monat|im\s+Monat|\/\s*Monat)/gi],
     PLN: [/([0-9]+(?:,[0-9]{1,2})?)\s*zł\s*(?:miesięcznie|\/\s*miesiąc)/gi],
     BRL: [/R\$\s*([0-9]+(?:,[0-9]{1,2})?)\s*por\s+mês/gi],
@@ -7359,6 +7376,16 @@ export function parseAppleTvPlusInternationalPrice(
 
   if (!patterns.length) {
     return null;
+  }
+
+  // Malaysia's standalone offer is an explicit provider price card. Page-wide
+  // windows also reach the separate Music Student offer, so require this card.
+  if (currency === "MYR") {
+    const cards = [...html.matchAll(/<p\b[^>]*class=["'][^"']*\btile-copy\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi)]
+      .map(match => match[1])
+      .filter(card => /^Get Apple\s*TV for just\s+RM\s/.test(htmlToText(card)));
+    if (cards.length !== 1) return null;
+    html = cards[0];
   }
 
   const text =
@@ -7516,7 +7543,7 @@ function appleTvStorefrontPath(
     string,
     string
   > = {
-    CH: "chde", PL: "pl", BR: "br", CZ: "cz",
+    CH: "chde", PL: "pl", BR: "br", CZ: "cz", MY: "my",
     GB: "uk",
     AU: "au",
     NZ: "nz",
@@ -8060,7 +8087,7 @@ async function appleTvAdapter(
   }
 
   const addedMarkets: Record<string, [string, string]> = {
-    CH: ["CHF", "de_CH"], PL: ["PLN", "pl_PL"], BR: ["BRL", "pt_BR"], CZ: ["CZK", "cs_CZ"],
+    CH: ["CHF", "de_CH"], PL: ["PLN", "pl_PL"], BR: ["BRL", "pt_BR"], CZ: ["CZK", "cs_CZ"], MY: ["MYR", "en_MY"],
     GB: ["GBP", "en_GB"], AU: ["AUD", "en_AU"],
     NZ: ["NZD", "en_NZ"], BE: ["EUR", "fr_BE"]
   };

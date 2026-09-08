@@ -170,3 +170,7 @@ All launch service/plan identities come from official sources. No US plans are c
 - GBP/AUD/NZD are compatible with the existing minor/100 representation; no general zero-decimal currency redesign is claimed. English is the supported UI language for the new markets.
 - Only a small verified catalog is advertised in each new market. Broad Netflix/Disney/Microsoft and additional Spotify market support needs stronger country/currency/product proof. CA is the highest-value next candidate; iCloud-covered Asia/Europe/LatAm markets need more services before activation.
 - No push, deployment, build-number, IAP, privacy/legal or App Store configuration changes. The unrelated .htaccess file remains untracked and untouched.
+
+## Subsequent next-wave expansion
+
+The preceding tables are historical audit snapshots. Current next-wave activation and remaining blockers are in [next-wave-expansion.md](next-wave-expansion.md) and [readiness-next-wave.json](readiness-next-wave.json). The original readiness-after.json is retained unchanged as the regression baseline for all 18 pre-wave markets.

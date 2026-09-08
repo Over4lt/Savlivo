@@ -6,6 +6,7 @@ import {
 } from "./pricing-adapters.js";
 
 const expectedCurrencyByCountry: Record<string, string> = {
+  MY: "MYR",
   CH: "CHF", PL: "PLN", BR: "BRL", CZ: "CZK",
   GB: "GBP",
   AU: "AUD",

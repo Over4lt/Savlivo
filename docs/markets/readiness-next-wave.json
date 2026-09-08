@@ -1,0 +1,1506 @@
+{
+  "date": "2026-09-08",
+  "mobileMarkets": [
+    "US",
+    "NO",
+    "SE",
+    "DK",
+    "DE",
+    "ES",
+    "FR",
+    "IT",
+    "PT",
+    "NL",
+    "BE",
+    "AT",
+    "IE",
+    "FI",
+    "CN",
+    "GB",
+    "AU",
+    "NZ",
+    "CH",
+    "PL",
+    "BR",
+    "CZ",
+    "MY"
+  ],
+  "newCurrencies": [
+    "CHF",
+    "PLN",
+    "BRL",
+    "CZK",
+    "MYR"
+  ],
+  "markets": [
+    {
+      "country": "US",
+      "currency": "USD",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "CA",
+      "currency": "CAD",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Bare $ on Apple Music/TV and Spotify; CAD iCloud alone does not meet service breadth."
+    },
+    {
+      "country": "MX",
+      "currency": "MXN",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Apple Music and Spotify probes lack explicit MXN tokens; bare $ rejected."
+    },
+    {
+      "country": "BR",
+      "currency": "BRL",
+      "readiness": "READY",
+      "mobileSupported": true,
+      "launchServices": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "spotify"
+      ],
+      "launchPlans": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "BRL",
+          "monthlyPriceMinor": 590,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "BRL",
+          "monthlyPriceMinor": 1990,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "BRL",
+          "monthlyPriceMinor": 6690,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "BRL",
+          "monthlyPriceMinor": 19990,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "BRL",
+          "monthlyPriceMinor": 39990,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "BRL",
+          "monthlyPriceMinor": 2390,
+          "sourceUrl": "https://www.apple.com/br/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "BRL",
+          "monthlyPriceMinor": 4090,
+          "sourceUrl": "https://www.apple.com/br/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "BRL",
+          "monthlyPriceMinor": 1290,
+          "sourceUrl": "https://www.apple.com/br/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "BRL",
+          "monthlyPriceMinor": 3490,
+          "sourceUrl": "https://www.apple.com/br/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Individual",
+          "currency": "BRL",
+          "monthlyPriceMinor": 2390,
+          "sourceUrl": "https://www.spotify.com/br/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Student",
+          "currency": "BRL",
+          "monthlyPriceMinor": 1290,
+          "sourceUrl": "https://www.spotify.com/br/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Duo",
+          "currency": "BRL",
+          "monthlyPriceMinor": 3190,
+          "sourceUrl": "https://www.spotify.com/br/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Family",
+          "currency": "BRL",
+          "monthlyPriceMinor": 4090,
+          "sourceUrl": "https://www.spotify.com/br/premium/",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "13 authoritative live monthly prices checked; all 13 registry fallbacks; compatible two-decimal storage and scoped app behavior tested."
+    },
+    {
+      "country": "AR",
+      "currency": "ARS",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "GB",
+      "currency": "GBP",
+      "readiness": "READY",
+      "mobileSupported": true,
+      "launchServices": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "google-one",
+        "spotify"
+      ],
+      "launchPlans": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "GBP",
+          "monthlyPriceMinor": 99,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "GBP",
+          "monthlyPriceMinor": 299,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "GBP",
+          "monthlyPriceMinor": 899,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "GBP",
+          "monthlyPriceMinor": 2699,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "GBP",
+          "monthlyPriceMinor": 5499,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "GBP",
+          "monthlyPriceMinor": 1199,
+          "sourceUrl": "https://www.apple.com/uk/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "GBP",
+          "monthlyPriceMinor": 1999,
+          "sourceUrl": "https://www.apple.com/uk/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "GBP",
+          "monthlyPriceMinor": 599,
+          "sourceUrl": "https://www.apple.com/uk/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "GBP",
+          "monthlyPriceMinor": 999,
+          "sourceUrl": "https://www.apple.com/uk/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 100 GB",
+          "currency": "GBP",
+          "monthlyPriceMinor": 159,
+          "sourceUrl": "https://one.google.com/intl/ALL_gb/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 200 GB",
+          "currency": "GBP",
+          "monthlyPriceMinor": 249,
+          "sourceUrl": "https://one.google.com/intl/ALL_gb/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Individual",
+          "currency": "GBP",
+          "monthlyPriceMinor": 1299,
+          "sourceUrl": "https://www.spotify.com/gb/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Student",
+          "currency": "GBP",
+          "monthlyPriceMinor": 599,
+          "sourceUrl": "https://www.spotify.com/gb/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Duo",
+          "currency": "GBP",
+          "monthlyPriceMinor": 1799,
+          "sourceUrl": "https://www.spotify.com/gb/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Family",
+          "currency": "GBP",
+          "monthlyPriceMinor": 2199,
+          "sourceUrl": "https://www.spotify.com/gb/premium/",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "Live adapter verified; complete launch registry fallback; scoped app integration tested"
+    },
+    {
+      "country": "NO",
+      "currency": "NOK",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "SE",
+      "currency": "SEK",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "DK",
+      "currency": "DKK",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "IS",
+      "currency": "ISK",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "CH",
+      "currency": "CHF",
+      "readiness": "READY",
+      "mobileSupported": true,
+      "launchServices": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "spotify"
+      ],
+      "launchPlans": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "CHF",
+          "monthlyPriceMinor": 100,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "CHF",
+          "monthlyPriceMinor": 300,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "CHF",
+          "monthlyPriceMinor": 1000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "CHF",
+          "monthlyPriceMinor": 3000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "CHF",
+          "monthlyPriceMinor": 6000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "CHF",
+          "monthlyPriceMinor": 1490,
+          "sourceUrl": "https://www.apple.com/chde/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "CHF",
+          "monthlyPriceMinor": 2490,
+          "sourceUrl": "https://www.apple.com/chde/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "CHF",
+          "monthlyPriceMinor": 890,
+          "sourceUrl": "https://www.apple.com/chde/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "CHF",
+          "monthlyPriceMinor": 1090,
+          "sourceUrl": "https://www.apple.com/chde/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Individual",
+          "currency": "CHF",
+          "monthlyPriceMinor": 1595,
+          "sourceUrl": "https://www.spotify.com/ch-de/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Student",
+          "currency": "CHF",
+          "monthlyPriceMinor": 895,
+          "sourceUrl": "https://www.spotify.com/ch-de/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Duo",
+          "currency": "CHF",
+          "monthlyPriceMinor": 2195,
+          "sourceUrl": "https://www.spotify.com/ch-de/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Family",
+          "currency": "CHF",
+          "monthlyPriceMinor": 2695,
+          "sourceUrl": "https://www.spotify.com/ch-de/premium/",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "13 authoritative live monthly prices checked; all 13 registry fallbacks; compatible two-decimal storage and scoped app behavior tested."
+    },
+    {
+      "country": "PL",
+      "currency": "PLN",
+      "readiness": "READY",
+      "mobileSupported": true,
+      "launchServices": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "spotify"
+      ],
+      "launchPlans": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "PLN",
+          "monthlyPriceMinor": 499,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "PLN",
+          "monthlyPriceMinor": 1499,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "PLN",
+          "monthlyPriceMinor": 4999,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "PLN",
+          "monthlyPriceMinor": 14999,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "PLN",
+          "monthlyPriceMinor": 29999,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "PLN",
+          "monthlyPriceMinor": 2699,
+          "sourceUrl": "https://www.apple.com/pl/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "PLN",
+          "monthlyPriceMinor": 4599,
+          "sourceUrl": "https://www.apple.com/pl/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "PLN",
+          "monthlyPriceMinor": 1449,
+          "sourceUrl": "https://www.apple.com/pl/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "PLN",
+          "monthlyPriceMinor": 3499,
+          "sourceUrl": "https://www.apple.com/pl/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Individual",
+          "currency": "PLN",
+          "monthlyPriceMinor": 2699,
+          "sourceUrl": "https://www.spotify.com/pl/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Student",
+          "currency": "PLN",
+          "monthlyPriceMinor": 1449,
+          "sourceUrl": "https://www.spotify.com/pl/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Duo",
+          "currency": "PLN",
+          "monthlyPriceMinor": 3699,
+          "sourceUrl": "https://www.spotify.com/pl/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Family",
+          "currency": "PLN",
+          "monthlyPriceMinor": 4599,
+          "sourceUrl": "https://www.spotify.com/pl/premium/",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "13 authoritative live monthly prices checked; all 13 registry fallbacks; compatible two-decimal storage and scoped app behavior tested."
+    },
+    {
+      "country": "CZ",
+      "currency": "CZK",
+      "readiness": "READY",
+      "mobileSupported": true,
+      "launchServices": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "spotify"
+      ],
+      "launchPlans": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "CZK",
+          "monthlyPriceMinor": 2500,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "CZK",
+          "monthlyPriceMinor": 7900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "CZK",
+          "monthlyPriceMinor": 24900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "CZK",
+          "monthlyPriceMinor": 74900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "CZK",
+          "monthlyPriceMinor": 149000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "CZK",
+          "monthlyPriceMinor": 18500,
+          "sourceUrl": "https://www.apple.com/cz/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "CZK",
+          "monthlyPriceMinor": 29900,
+          "sourceUrl": "https://www.apple.com/cz/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "CZK",
+          "monthlyPriceMinor": 9900,
+          "sourceUrl": "https://www.apple.com/cz/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "CZK",
+          "monthlyPriceMinor": 19900,
+          "sourceUrl": "https://www.apple.com/cz/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Individual",
+          "currency": "CZK",
+          "monthlyPriceMinor": 18500,
+          "sourceUrl": "https://www.spotify.com/cz/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Student",
+          "currency": "CZK",
+          "monthlyPriceMinor": 9700,
+          "sourceUrl": "https://www.spotify.com/cz/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Duo",
+          "currency": "CZK",
+          "monthlyPriceMinor": 24900,
+          "sourceUrl": "https://www.spotify.com/cz/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Family",
+          "currency": "CZK",
+          "monthlyPriceMinor": 29900,
+          "sourceUrl": "https://www.spotify.com/cz/premium/",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "13 authoritative live monthly prices checked; all 13 registry fallbacks; compatible two-decimal storage and scoped app behavior tested."
+    },
+    {
+      "country": "HU",
+      "currency": "HUF",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Prices are provable, but current Intl default HUF formatting rounds 12.99 to 13 Ft while storage uses hundredths; complete formatting/input/report review needed."
+    },
+    {
+      "country": "RO",
+      "currency": "RON",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Apple TV /ro/ returned en_US page identity; no verified local video coverage."
+    },
+    {
+      "country": "DE",
+      "currency": "EUR",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "FR",
+      "currency": "EUR",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "ES",
+      "currency": "EUR",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "IT",
+      "currency": "EUR",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "PT",
+      "currency": "EUR",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "NL",
+      "currency": "EUR",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "BE",
+      "currency": "EUR",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "AT",
+      "currency": "EUR",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "IE",
+      "currency": "EUR",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "FI",
+      "currency": "EUR",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "GR",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "SK",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "SI",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "EE",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "LV",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "LT",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "LU",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "CY",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "MT",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "HR",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "BG",
+      "currency": "EUR",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "AU",
+      "currency": "AUD",
+      "readiness": "READY",
+      "mobileSupported": true,
+      "launchServices": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "google-one"
+      ],
+      "launchPlans": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "AUD",
+          "monthlyPriceMinor": 149,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "AUD",
+          "monthlyPriceMinor": 449,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "AUD",
+          "monthlyPriceMinor": 1499,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "AUD",
+          "monthlyPriceMinor": 4499,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "AUD",
+          "monthlyPriceMinor": 8999,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "AUD",
+          "monthlyPriceMinor": 1499,
+          "sourceUrl": "https://www.apple.com/au/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "AUD",
+          "monthlyPriceMinor": 2399,
+          "sourceUrl": "https://www.apple.com/au/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "AUD",
+          "monthlyPriceMinor": 799,
+          "sourceUrl": "https://www.apple.com/au/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "AUD",
+          "monthlyPriceMinor": 1599,
+          "sourceUrl": "https://www.apple.com/au/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 100 GB",
+          "currency": "AUD",
+          "monthlyPriceMinor": 299,
+          "sourceUrl": "https://one.google.com/intl/ALL_au/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 200 GB",
+          "currency": "AUD",
+          "monthlyPriceMinor": 449,
+          "sourceUrl": "https://one.google.com/intl/ALL_au/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "Live adapter verified; complete launch registry fallback; scoped app integration tested"
+    },
+    {
+      "country": "NZ",
+      "currency": "NZD",
+      "readiness": "READY",
+      "mobileSupported": true,
+      "launchServices": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "google-one"
+      ],
+      "launchPlans": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "NZD",
+          "monthlyPriceMinor": 199,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "NZD",
+          "monthlyPriceMinor": 599,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "NZD",
+          "monthlyPriceMinor": 1999,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "NZD",
+          "monthlyPriceMinor": 5999,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "NZD",
+          "monthlyPriceMinor": 11999,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "NZD",
+          "monthlyPriceMinor": 1849,
+          "sourceUrl": "https://www.apple.com/nz/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "NZD",
+          "monthlyPriceMinor": 2999,
+          "sourceUrl": "https://www.apple.com/nz/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "NZD",
+          "monthlyPriceMinor": 1049,
+          "sourceUrl": "https://www.apple.com/nz/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "NZD",
+          "monthlyPriceMinor": 1799,
+          "sourceUrl": "https://www.apple.com/nz/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 100 GB",
+          "currency": "NZD",
+          "monthlyPriceMinor": 349,
+          "sourceUrl": "https://one.google.com/intl/ALL_nz/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 200 GB",
+          "currency": "NZD",
+          "monthlyPriceMinor": 499,
+          "sourceUrl": "https://one.google.com/intl/ALL_nz/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "Live adapter verified; complete launch registry fallback; scoped app integration tested"
+    },
+    {
+      "country": "JP",
+      "currency": "JPY",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "KR",
+      "currency": "KRW",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "CN",
+      "currency": "CNY",
+      "readiness": "READY_EXISTING",
+      "mobileSupported": true,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Existing support preserved; not re-certified"
+    },
+    {
+      "country": "HK",
+      "currency": "HKD",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Useful official iCloud evidence, but insufficient multi-service launch breadth"
+    },
+    {
+      "country": "TW",
+      "currency": "TWD",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Useful official iCloud evidence, but insufficient multi-service launch breadth"
+    },
+    {
+      "country": "SG",
+      "currency": "SGD",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Three Apple services have useful explicit S$/SGD evidence; Spotify bare $ leaves fourth provider service unproven."
+    },
+    {
+      "country": "IN",
+      "currency": "INR",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Useful official iCloud evidence, but insufficient multi-service launch breadth"
+    },
+    {
+      "country": "ID",
+      "currency": "IDR",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Useful official iCloud evidence, but insufficient multi-service launch breadth"
+    },
+    {
+      "country": "MY",
+      "currency": "MYR",
+      "readiness": "READY",
+      "mobileSupported": true,
+      "launchServices": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "spotify"
+      ],
+      "launchPlans": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "MYR",
+          "monthlyPriceMinor": 390,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "MYR",
+          "monthlyPriceMinor": 1190,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "MYR",
+          "monthlyPriceMinor": 4490,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "MYR",
+          "monthlyPriceMinor": 12990,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "MYR",
+          "monthlyPriceMinor": 26990,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "MYR",
+          "monthlyPriceMinor": 1790,
+          "sourceUrl": "https://www.apple.com/my/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "MYR",
+          "monthlyPriceMinor": 2790,
+          "sourceUrl": "https://www.apple.com/my/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "MYR",
+          "monthlyPriceMinor": 950,
+          "sourceUrl": "https://www.apple.com/my/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "MYR",
+          "monthlyPriceMinor": 2990,
+          "sourceUrl": "https://www.apple.com/my/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Individual",
+          "currency": "MYR",
+          "monthlyPriceMinor": 1750,
+          "sourceUrl": "https://www.spotify.com/my-en/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Student",
+          "currency": "MYR",
+          "monthlyPriceMinor": 950,
+          "sourceUrl": "https://www.spotify.com/my-en/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Duo",
+          "currency": "MYR",
+          "monthlyPriceMinor": 2450,
+          "sourceUrl": "https://www.spotify.com/my-en/premium/",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "spotify",
+          "planName": "Family",
+          "currency": "MYR",
+          "monthlyPriceMinor": 2790,
+          "sourceUrl": "https://www.spotify.com/my-en/premium/",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "13 authoritative live monthly prices checked; all 13 registry fallbacks; compatible two-decimal storage and scoped app behavior tested."
+    },
+    {
+      "country": "TH",
+      "currency": "THB",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Useful official iCloud evidence, but insufficient multi-service launch breadth"
+    },
+    {
+      "country": "PH",
+      "currency": "PHP",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Useful official iCloud evidence, but insufficient multi-service launch breadth"
+    },
+    {
+      "country": "VN",
+      "currency": "VND",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "AE",
+      "currency": "AED",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Apple AED evidence available; Spotify STANDARD/PLATINUM identities do not match existing canonical plans."
+    },
+    {
+      "country": "SA",
+      "currency": "SAR",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Useful official iCloud evidence, but insufficient multi-service launch breadth"
+    },
+    {
+      "country": "IL",
+      "currency": "ILS",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Apple TV /il/ returned 404; insufficient verified video/service breadth."
+    },
+    {
+      "country": "TR",
+      "currency": "TRY",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Useful official iCloud evidence, but insufficient multi-service launch breadth"
+    },
+    {
+      "country": "UA",
+      "currency": "UAH",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "RS",
+      "currency": "RSD",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "BA",
+      "currency": "BAM",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "AL",
+      "currency": "ALL",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "MK",
+      "currency": "MKD",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "MD",
+      "currency": "MDL",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "ZA",
+      "currency": "ZAR",
+      "readiness": "NEAR_READY",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Apple TV /za/ returned 404; Spotify has STANDARD/PLATINUM identities, not current mapped plans."
+    },
+    {
+      "country": "CL",
+      "currency": "CLP",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    },
+    {
+      "country": "CO",
+      "currency": "COP",
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "mobileSupported": false,
+      "launchServices": null,
+      "launchPlans": null,
+      "reason": "Insufficient verified launch evidence; API recognition is not activation"
+    }
+  ],
+  "baseline": "a4a0e6b",
+  "previousMobileMarkets": [
+    "US",
+    "NO",
+    "SE",
+    "DK",
+    "DE",
+    "ES",
+    "FR",
+    "IT",
+    "PT",
+    "NL",
+    "BE",
+    "AT",
+    "IE",
+    "FI",
+    "CN",
+    "GB",
+    "AU",
+    "NZ"
+  ],
+  "independentlyInvestigatedThisWave": [
+    "CA",
+    "CH",
+    "PL",
+    "BR",
+    "CZ",
+    "SG",
+    "AE",
+    "RO",
+    "HU",
+    "MX",
+    "ZA",
+    "IL",
+    "MY"
+  ],
+  "note": "Uninspected market classifications are carried forward from the previous audit, not freshly certified."
+}

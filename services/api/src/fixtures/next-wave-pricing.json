@@ -190,5 +190,53 @@
         }
       }
     }
+  },
+  "MY": {
+    "currency": "MYR",
+    "storefront": "my",
+    "locale": "en_MY",
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/my/apple-music/\" />\n<meta property=\"og:locale\" content=\"en_MY\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Individual</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\tRM 17.90/month, <br />first month free for new subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Family</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\tRM 27.90/month, one month free for new subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Student</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">Extra savings at just\n\t\t\t\t\t\t\t\t\tRM 9.50/month, first month free for new subscribers.</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/my/apple-tv/\" />\n<meta property=\"og:locale\" content=\"en_MY\" />\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\tGet Apple TV for just\n\t\t\t\t\t\t\t\t\tRM 29.90&nbsp;per month after a free seven‑day trial.<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Footnote 1\" data-modal-close>1</a></sup> And share Apple TV with your family.<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Footnote 2\" data-modal-close>2</a></sup>\n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">Students get one month <span class=\"lg-nowrap\">of the Apple Music Student Plan</span> free, <br/>plus access to Apple TV.<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Footnote 3\" data-modal-close>3</a></sup></p>\n<p class=\"tile-copy typography-tout\">Get Apple&nbsp;One and bundle up to five great services for one low monthly price.<sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"Footnote 4\" data-modal-close>4</a></sup> And enjoy more for&nbsp;less.</p>",
+    "spotify": {
+      "props": {
+        "pageProps": {
+          "basePageProps": {
+            "country": "MY"
+          },
+          "components": {
+            "plans": [
+              {
+                "planId": "PREMIUM_INDIVIDUAL",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "RM 9.50 for 3 months",
+                "secondaryPriceDescription": "RM 17.50/month after",
+                "subheaderPrice": "RM 9.50"
+              },
+              {
+                "planId": "PREMIUM_STUDENT",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "RM 9.50 for 2 months",
+                "secondaryPriceDescription": "RM 9.50/month after",
+                "subheaderPrice": "RM 9.50"
+              },
+              {
+                "planId": "PREMIUM_DUO",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "RM 24.50 for 2 months",
+                "secondaryPriceDescription": "RM 24.50/month after",
+                "subheaderPrice": "RM 24.50"
+              },
+              {
+                "planId": "PREMIUM_FAMILY",
+                "isRecurringProduct": true,
+                "primaryPriceDescription": "RM 27.90 / month",
+                "secondaryPriceDescription": null,
+                "subheaderPrice": "RM 27.90"
+              }
+            ]
+          }
+        }
+      }
+    }
   }
 }

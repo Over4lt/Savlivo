@@ -5186,7 +5186,7 @@ function nextWavePage(cc: string, url: string) {
   throw new Error("Unverified fixture URL " + url);
 }
 
-test("next-wave adapters verify 52 monthly prices with exact country currency plan and billing route", async (t) => {
+test("next-wave adapters verify 65 monthly prices with exact country currency plan and billing route", async (t) => {
   for (const [cc, f] of Object.entries(nextWaveFixtures)) {
     t.mock.method(Date, "now", () => 9300000000000);
     t.mock.method(globalThis, "fetch", async (url: any) => new Response(nextWavePage(cc, String(url))));
@@ -5224,8 +5224,8 @@ test("next-wave registry prices survive all provider failures independently", as
           if (failure === "http") return new Response("Unavailable", {status:503});
           if (failure === "empty") return new Response("<html>Provider redesign</html>");
           let html = nextWavePage(cc, String(url));
-          if (failure === "country") html = html.replaceAll(f.locale, "en_US").replaceAll(`"country":"${cc}"`, '"country":"US"').replaceAll(cc === "CH" ? "Switzerland" : cc === "PL" ? "Poland" : cc === "BR" ? "Brazil" : "Czechia", "Unproven country");
-          if (failure === "currency") html = html.replace(/CHF|zł|PLN|R\$|BRL|Kč|CZK/gi, "USD");
+          if (failure === "country") html = html.replaceAll(f.locale, "en_US").replaceAll(`"country":"${cc}"`, '"country":"US"').replaceAll(cc === "CH" ? "Switzerland" : cc === "PL" ? "Poland" : cc === "BR" ? "Brazil" : cc === "CZ" ? "Czechia" : "Malaysia", "Unproven country");
+          if (failure === "currency") html = html.replace(/CHF|zł|PLN|R\$|BRL|Kč|CZK|RM|MYR/gi, "USD");
           if (failure === "identity") html = html.replaceAll('rel="canonical"', 'rel="alternate"').replaceAll('data-analytics-gallery-item-id', 'unknown-id').replaceAll('PREMIUM_', 'UNKNOWN_').replaceAll("iCloud+ plans and pricing", "Unknown product");
           // Reject monthly markers rather than treating annual totals as monthly prices.
           if (failure === "annual") html = "<html>Annual plans only</html>";
@@ -5250,11 +5250,29 @@ test("new Apple patterns reject wrong currency incomplete or conflicting plans a
     assert.deepEqual(parseAppleMusicPrices(f.music.replace('data-analytics-gallery-item-id="student"', 'data-analytics-gallery-item-id="unproven"'), f.currency), []);
     const extraPrice = f.music.match(/<p\b[^>]*>([\s\S]*?)<\/p>/)![1].replace(/[0-9]+(?:[.,][0-9]+)?/, "999");
     assert.deepEqual(parseAppleMusicPrices(f.music.replace("</p>", extraPrice + "</p>"), f.currency), []);
-    const currencyToken = f.currency === "CHF" ? "CHF" : f.currency === "PLN" ? "zł" : f.currency === "BRL" ? "R$" : "Kč";
-    const annualMusic = f.music.replace(/Monat|miesiąc|mês|měsíc/g, "year");
+    const currencyToken = f.currency === "CHF" ? "CHF" : f.currency === "PLN" ? "zł" : f.currency === "BRL" ? "R$" : f.currency === "MYR" ? "RM" : "Kč";
+    const annualMusic = f.music.replace(/Monat|miesiąc|mês|měsíc|month/g, "year");
     assert.deepEqual(parseAppleMusicPrices(annualMusic, f.currency), []);
-    const annualTv = f.tv.replace(/Monat|miesięcznie|miesiąc|mês|měsíčně|měsíc/g, "year");
+    const annualTv = f.tv.replace(/Monat|miesięcznie|miesiąc|mês|měsíčně|měsíc|month/g, "year");
     assert.equal(parseAppleTvPlusInternationalPrice(annualTv, f.currency), null);
     assert.ok(f.music.includes(currencyToken));
+  }
+});
+
+test("Malaysia TV requires one standalone card and cannot promote student bundle or conflicting prices", async(t)=>{
+  const f=nextWaveFixtures.MY;
+  assert.equal(parseAppleTvPlusInternationalPrice(f.tv,"MYR"),29.9);
+  for(const html of [
+    f.tv.replace("Get Apple", "Unknown"),
+    f.tv + f.tv,
+    f.tv.replace("RM 29.90", "RM 29.90 per month or RM 39.90"),
+    f.tv.replaceAll("tile-copy", "unknown-card"),
+    '<p class="tile-copy">Apple Music Student Plan RM 9.50 per month includes Apple TV.</p>',
+    '<p class="tile-copy">Apple One RM 34.90 per month includes Apple TV.</p>'
+  ]) assert.equal(parseAppleTvPlusInternationalPrice(html,"MYR"),null);
+  t.mock.method(globalThis,"fetch",async()=>{throw new Error("wrong currency must not fetch");});
+  for(const cc of Object.keys(nextWaveFixtures)) {
+    assert.deepEqual(await providerAdapters["apple-music"]({countryCode:cc,currency:"USD"}),[]);
+    assert.deepEqual(await providerAdapters["apple-tv-plus"]({countryCode:cc,currency:"USD"}),[]);
   }
 });
