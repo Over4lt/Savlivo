@@ -32,7 +32,7 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
-import { openNetflixNorwayBrowser, usesNetflixNorwayBrowser } from "../lib/netflix-norway-browser";
+import { openSubscriptionManagementBrowser, usesSubscriptionManagementBrowser } from "../lib/subscription-management-browser";
 import { useLocalSearchParams } from "expo-router";
 import { Asset } from "expo-asset";
 import * as FileSystem from "expo-file-system/legacy";
@@ -4005,7 +4005,7 @@ export default function Home() {
       return false;
     }
 
-    return openNetflixNorwayBrowser(url, subscription, selectedCountryCode, {
+    return openSubscriptionManagementBrowser(url, {
       platform: Platform.OS,
       openSystemBrowser: (destination) => WebBrowser.openBrowserAsync(destination, {
         dismissButtonStyle: "done",
@@ -4112,18 +4112,29 @@ export default function Home() {
     const { subscription, action } = actionSheet;
 
     // Safari must be presented after the native action sheet has dismissed.
-    // Keep external-browser timing unchanged outside the iOS Netflix/NO pilot.
+    // Keep external/deep-link timing unchanged for destinations outside the Safari sheet flow.
     if (actionSheetDismissedRef.current) return;
-    const isBrowserPilot = usesNetflixNorwayBrowser(
-      providerManagementFallbackUrl(subscription, action), subscription, selectedCountryCode, Platform.OS
-    );
-    const sheetDismissed = isBrowserPilot
+    const managementUrl = providerManagementFallbackUrl(subscription, action);
+    const usesSystemBrowser = usesSubscriptionManagementBrowser(managementUrl, Platform.OS);
+    const sheetDismissed = usesSystemBrowser
       ? new Promise<void>(resolve => { actionSheetDismissedRef.current = resolve; })
       : null;
     setActionSheet(null);
 
     try {
       if (sheetDismissed) await sheetDismissed;
+
+      if (usesSystemBrowser) {
+        await new Promise<void>((resolve) => {
+          Alert.alert(
+            "Savlivo",
+            "Når du er ferdig med abonnementsendringene, trykk på ✓ øverst til venstre for å gå tilbake til Savlivo.",
+            [{ text: "Fortsett", onPress: () => resolve() }],
+            { cancelable: false }
+          );
+        });
+      }
+
       // Restore the reliable subscription-management flow:
       //
       // 1. Open the known provider/service management destination.
