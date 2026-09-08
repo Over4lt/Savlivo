@@ -6,6 +6,7 @@ import {
 } from "./pricing-adapters.js";
 
 const expectedCurrencyByCountry: Record<string, string> = {
+  IN: "INR", SG: "SGD", HK: "HKD", TW: "TWD", AE: "AED", TH: "THB", PH: "PHP",
   MY: "MYR",
   CH: "CHF", PL: "PLN", BR: "BRL", CZ: "CZK",
   GB: "GBP",

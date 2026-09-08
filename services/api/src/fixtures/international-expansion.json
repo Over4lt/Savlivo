@@ -1,0 +1,786 @@
+{
+  "IN": {
+    "currency": "INR",
+    "path": "in",
+    "locale": "en_IN",
+    "rows": [
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "50 GB",
+        "currency": "INR",
+        "monthlyPriceMinor": 7500,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "200 GB",
+        "currency": "INR",
+        "monthlyPriceMinor": 21900,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "2 TB",
+        "currency": "INR",
+        "monthlyPriceMinor": 74900,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "6 TB",
+        "currency": "INR",
+        "monthlyPriceMinor": 299900,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "12 TB",
+        "currency": "INR",
+        "monthlyPriceMinor": 590000,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Individual",
+        "currency": "INR",
+        "monthlyPriceMinor": 13900,
+        "sourceUrl": "https://www.apple.com/in/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Family",
+        "currency": "INR",
+        "monthlyPriceMinor": 22900,
+        "sourceUrl": "https://www.apple.com/in/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Student",
+        "currency": "INR",
+        "monthlyPriceMinor": 6900,
+        "sourceUrl": "https://www.apple.com/in/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-tv-plus",
+        "planName": "Apple TV",
+        "currency": "INR",
+        "monthlyPriceMinor": 9900,
+        "sourceUrl": "https://www.apple.com/in/apple-tv/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 100 GB",
+        "currency": "INR",
+        "monthlyPriceMinor": 13000,
+        "sourceUrl": "https://one.google.com/intl/ALL_in/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 200 GB",
+        "currency": "INR",
+        "monthlyPriceMinor": 21000,
+        "sourceUrl": "https://one.google.com/intl/ALL_in/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      }
+    ],
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/in/apple-music/\" />\n<meta property=\"og:locale\" content=\"en_IN\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Individual</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t₹139/month, <br />first month free for new&nbsp;subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Family</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t₹229/month, one month free for new&nbsp;subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Student</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">Extra savings at just\n\t\t\t\t\t\t\t\t\t₹69/month, first month free for new\n\t\t\t\t\t\t\t\t\tsubscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/in/apple-tv/\" />\n<meta property=\"og:locale\" content=\"en_IN\" />\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\t Get Apple TV for just ₹99 per month after a free 7-day trial.<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Footnote 1\" data-modal-close>1</a></sup> And share Apple&nbsp;TV with your family.<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Footnote 2\" data-modal-close>2</a></sup>\n\t\t\t\t\t\t\t\t\t \n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">Students get 1 month <span class=\"lg-nowrap\">of the Apple Music Student Plan</span> free, plus access to Apple TV.<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Footnote 3\" data-modal-close>3</a></sup></p>\n<p class=\"tile-copy typography-tout\">Get Apple&nbsp;One and bundle up to four great services for one low monthly price.<sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"Footnote 4\" data-modal-close>4</a></sup> And enjoy more for&nbsp;less.</p>",
+    "google": {
+      "COUNTRY_CODE": "IN",
+      "CURRENCY_CODE": "INR",
+      "PRICE_30_MONTHLY": 59,
+      "PRICE_100_MONTHLY": 130,
+      "PRICE_200_MONTHLY": 210,
+      "PRICE_2048_MONTHLY": 650,
+      "PRICE_5120_MONTHLY": 1625,
+      "PRICE_GEN_AI_PRO_MONTHLY": 1950,
+      "PRICE_GEN_AI_ULTRA_200_MONTHLY": 19500,
+      "PRICE_HOME_PREMIUM_ADVANCED_UPGRADE": null,
+      "PRICE_GEN_AI_ULTRA_100_MONTHLY": 6500,
+      "PRICE_FREE": 0,
+      "PRICE_GEN_AI_PLUS_MONTHLY": 399
+    }
+  },
+  "SG": {
+    "currency": "SGD",
+    "path": "sg",
+    "locale": "en_SG",
+    "rows": [
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "50 GB",
+        "currency": "SGD",
+        "monthlyPriceMinor": 148,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "200 GB",
+        "currency": "SGD",
+        "monthlyPriceMinor": 398,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "2 TB",
+        "currency": "SGD",
+        "monthlyPriceMinor": 1398,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "6 TB",
+        "currency": "SGD",
+        "monthlyPriceMinor": 4298,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "12 TB",
+        "currency": "SGD",
+        "monthlyPriceMinor": 8498,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Individual",
+        "currency": "SGD",
+        "monthlyPriceMinor": 1198,
+        "sourceUrl": "https://www.apple.com/sg/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Family",
+        "currency": "SGD",
+        "monthlyPriceMinor": 2098,
+        "sourceUrl": "https://www.apple.com/sg/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Student",
+        "currency": "SGD",
+        "monthlyPriceMinor": 648,
+        "sourceUrl": "https://www.apple.com/sg/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-tv-plus",
+        "planName": "Apple TV",
+        "currency": "SGD",
+        "monthlyPriceMinor": 1398,
+        "sourceUrl": "https://www.apple.com/sg/apple-tv/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 100 GB",
+        "currency": "SGD",
+        "monthlyPriceMinor": 279,
+        "sourceUrl": "https://one.google.com/intl/ALL_sg/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 200 GB",
+        "currency": "SGD",
+        "monthlyPriceMinor": 399,
+        "sourceUrl": "https://one.google.com/intl/ALL_sg/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      }
+    ],
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/sg/apple-music/\" />\n<meta property=\"og:locale\" content=\"en_SG\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Individual</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\tS$11.98/month, <br />first month free for new subscribers.</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Family</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\tS$20.98/month, one month free for new subscribers.</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Student</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">Extra savings at just\n\t\t\t\t\t\t\t\t\tS$6.48/month, first month free for new subscribers.</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/sg/apple-tv/\" />\n<meta property=\"og:locale\" content=\"en_SG\" />\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\tGet Apple TV for just\n\t\t\t\t\t\t\t\t\tS$13.98&nbsp;per month after a free seven‑day trial.<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Footnote 1\" data-modal-close>1</a></sup> And share Apple&nbsp;TV with your family.<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Footnote 2\" data-modal-close>2</a></sup>\n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">Students get one month <span class=\"lg-nowrap\">of the Apple Music Student Plan</span> free, <br/>plus access to Apple TV.<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Footnote 3\" data-modal-close>3</a></sup></p>\n<p class=\"tile-copy typography-tout\">Get Apple&nbsp;One and bundle four great services for one low monthly price.<sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"Footnote 4\" data-modal-close>4</a></sup> And enjoy more for&nbsp;less.</p>",
+    "google": {
+      "COUNTRY_CODE": "SG",
+      "CURRENCY_CODE": "SGD",
+      "PRICE_30_MONTHLY": null,
+      "PRICE_100_MONTHLY": 2.79,
+      "PRICE_200_MONTHLY": 3.99,
+      "PRICE_2048_MONTHLY": 13.99,
+      "PRICE_5120_MONTHLY": 34.99,
+      "PRICE_GEN_AI_PRO_MONTHLY": 28.99,
+      "PRICE_GEN_AI_ULTRA_200_MONTHLY": 289.98,
+      "PRICE_HOME_PREMIUM_ADVANCED_UPGRADE": null,
+      "PRICE_GEN_AI_ULTRA_100_MONTHLY": 139.99,
+      "PRICE_FREE": 0,
+      "PRICE_GEN_AI_PLUS_MONTHLY": 6.98
+    }
+  },
+  "HK": {
+    "currency": "HKD",
+    "path": "hk/en",
+    "locale": "en_HK",
+    "rows": [
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "50 GB",
+        "currency": "HKD",
+        "monthlyPriceMinor": 800,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "200 GB",
+        "currency": "HKD",
+        "monthlyPriceMinor": 2300,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "2 TB",
+        "currency": "HKD",
+        "monthlyPriceMinor": 7800,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "6 TB",
+        "currency": "HKD",
+        "monthlyPriceMinor": 23800,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "12 TB",
+        "currency": "HKD",
+        "monthlyPriceMinor": 46800,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Individual",
+        "currency": "HKD",
+        "monthlyPriceMinor": 7800,
+        "sourceUrl": "https://www.apple.com/hk/en/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Family",
+        "currency": "HKD",
+        "monthlyPriceMinor": 12800,
+        "sourceUrl": "https://www.apple.com/hk/en/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Student",
+        "currency": "HKD",
+        "monthlyPriceMinor": 4800,
+        "sourceUrl": "https://www.apple.com/hk/en/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-tv-plus",
+        "planName": "Apple TV",
+        "currency": "HKD",
+        "monthlyPriceMinor": 6800,
+        "sourceUrl": "https://www.apple.com/hk/en/apple-tv/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 100 GB",
+        "currency": "HKD",
+        "monthlyPriceMinor": 1500,
+        "sourceUrl": "https://one.google.com/intl/ALL_hk/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 200 GB",
+        "currency": "HKD",
+        "monthlyPriceMinor": 2300,
+        "sourceUrl": "https://one.google.com/intl/ALL_hk/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      }
+    ],
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/hk/en/apple-music/\" />\n<meta property=\"og:locale\" content=\"en_HK\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Individual</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\tHK$78/month, <br />first month free for new&nbsp;subscribers.</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Family</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\tHK$128/month, one month free for new&nbsp;subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Student</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">Extra savings at just\n\t\t\t\t\t\t\t\t\tHK$48/month, first month free for\n\t\t\t\t\t\t\t\t\tnew&nbsp;subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/hk/en/apple-tv/\" />\n<meta property=\"og:locale\" content=\"en_HK\" />\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\tGet Apple TV for just\n\t\t\t\t\t\t\t\t\tHK$68&nbsp;per month after a free 7-day trial.<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Footnote 1\" data-modal-close>1</a></sup> And share Apple&nbsp;TV with your family.<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Footnote 2\" data-modal-close>2</a></sup>\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">Students get 1 month <span class=\"lg-nowrap\">of the Apple Music Student Plan</span> free, plus access to Apple TV.<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Footnote 3\" data-modal-close>3</a></sup></p>",
+    "google": {
+      "COUNTRY_CODE": "HK",
+      "CURRENCY_CODE": "HKD",
+      "PRICE_30_MONTHLY": null,
+      "PRICE_100_MONTHLY": 15,
+      "PRICE_200_MONTHLY": 23,
+      "PRICE_2048_MONTHLY": 79,
+      "PRICE_5120_MONTHLY": 199,
+      "PRICE_GEN_AI_PRO_MONTHLY": 158,
+      "PRICE_GEN_AI_ULTRA_200_MONTHLY": 1588,
+      "PRICE_HOME_PREMIUM_ADVANCED_UPGRADE": null,
+      "PRICE_GEN_AI_ULTRA_100_MONTHLY": 799,
+      "PRICE_FREE": 0,
+      "PRICE_GEN_AI_PLUS_MONTHLY": 38
+    }
+  },
+  "TW": {
+    "currency": "TWD",
+    "path": "tw",
+    "locale": "zh-TW",
+    "rows": [
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "50 GB",
+        "currency": "TWD",
+        "monthlyPriceMinor": 3000,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "200 GB",
+        "currency": "TWD",
+        "monthlyPriceMinor": 9000,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "2 TB",
+        "currency": "TWD",
+        "monthlyPriceMinor": 30000,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "6 TB",
+        "currency": "TWD",
+        "monthlyPriceMinor": 90000,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "12 TB",
+        "currency": "TWD",
+        "monthlyPriceMinor": 179000,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Individual",
+        "currency": "TWD",
+        "monthlyPriceMinor": 16500,
+        "sourceUrl": "https://www.apple.com/tw/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Family",
+        "currency": "TWD",
+        "monthlyPriceMinor": 29500,
+        "sourceUrl": "https://www.apple.com/tw/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Student",
+        "currency": "TWD",
+        "monthlyPriceMinor": 9000,
+        "sourceUrl": "https://www.apple.com/tw/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-tv-plus",
+        "planName": "Apple TV",
+        "currency": "TWD",
+        "monthlyPriceMinor": 25000,
+        "sourceUrl": "https://www.apple.com/tw/apple-tv/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 100 GB",
+        "currency": "TWD",
+        "monthlyPriceMinor": 6500,
+        "sourceUrl": "https://one.google.com/intl/ALL_tw/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 200 GB",
+        "currency": "TWD",
+        "monthlyPriceMinor": 9000,
+        "sourceUrl": "https://one.google.com/intl/ALL_tw/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      }
+    ],
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/tw/apple-music/\" />\n<meta property=\"og:locale\" content=\"zh-TW\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">個人方案</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">每月 NT$165，新訂戶可享<span class=\"nowrap\">首月</span>免費試用。</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">家庭方案</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">每月 NT$295，新訂戶可享首月免費試用。</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">學生方案</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">每月 NT$90，新訂戶可享<span class=\"nowrap\">首月</span>免費試用，超值省<span class=\"nowrap\">多多。</span></p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/tw/apple-tv/\" />\n<meta property=\"og:locale\" content=\"zh-TW\" />\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\t免費 7 天試用期結束後<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"註腳 1\" data-modal-close>1</a></sup>，訂閱 Apple TV 每月只需 NT$250，還能與家人共享 Apple TV<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"註腳 2\" data-modal-close>2</a></sup>。\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">學生可享 Apple Music 免費試用 1 個月，<br class=\"large-show medium-hide small-hide\">並隨附 Apple TV 服務<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"註腳 3\" data-modal-close>3</a></sup>。</p>\n<p class=\"tile-copy typography-tout\">訂閱 Apple One 每月只要付出少許，一次擁有多達四種精彩服務，<span class=\"nowrap\">獲得更多，</span><span class=\"nowrap\">付出更少<sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"註腳 4\" data-modal-close>4</a></sup>。</span></p>",
+    "google": {
+      "COUNTRY_CODE": "TW",
+      "CURRENCY_CODE": "TWD",
+      "PRICE_30_MONTHLY": null,
+      "PRICE_100_MONTHLY": 65,
+      "PRICE_200_MONTHLY": 90,
+      "PRICE_2048_MONTHLY": 330,
+      "PRICE_5120_MONTHLY": 825,
+      "PRICE_GEN_AI_PRO_MONTHLY": 650,
+      "PRICE_GEN_AI_ULTRA_200_MONTHLY": 6500,
+      "PRICE_HOME_PREMIUM_ADVANCED_UPGRADE": null,
+      "PRICE_GEN_AI_ULTRA_100_MONTHLY": 3300,
+      "PRICE_FREE": 0,
+      "PRICE_GEN_AI_PLUS_MONTHLY": 165
+    }
+  },
+  "AE": {
+    "currency": "AED",
+    "path": "ae",
+    "locale": "en_AE",
+    "rows": [
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "50 GB",
+        "currency": "AED",
+        "monthlyPriceMinor": 399,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "200 GB",
+        "currency": "AED",
+        "monthlyPriceMinor": 1199,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "2 TB",
+        "currency": "AED",
+        "monthlyPriceMinor": 3999,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "6 TB",
+        "currency": "AED",
+        "monthlyPriceMinor": 11999,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "12 TB",
+        "currency": "AED",
+        "monthlyPriceMinor": 23999,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Individual",
+        "currency": "AED",
+        "monthlyPriceMinor": 2399,
+        "sourceUrl": "https://www.apple.com/ae/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Family",
+        "currency": "AED",
+        "monthlyPriceMinor": 3999,
+        "sourceUrl": "https://www.apple.com/ae/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Student",
+        "currency": "AED",
+        "monthlyPriceMinor": 1299,
+        "sourceUrl": "https://www.apple.com/ae/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-tv-plus",
+        "planName": "Apple TV",
+        "currency": "AED",
+        "monthlyPriceMinor": 2799,
+        "sourceUrl": "https://www.apple.com/ae/apple-tv/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 100 GB",
+        "currency": "AED",
+        "monthlyPriceMinor": 749,
+        "sourceUrl": "https://one.google.com/intl/ALL_ae/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 200 GB",
+        "currency": "AED",
+        "monthlyPriceMinor": 1099,
+        "sourceUrl": "https://one.google.com/intl/ALL_ae/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      }
+    ],
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/ae/apple-music/\" />\n<meta property=\"og:locale\" content=\"en_AE\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Individual</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\tAED 23.99/month, <br />first month free for new&nbsp;subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Family</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\tAED 39.99/month, one month free for new&nbsp;subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Student</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">Extra savings at just\n\t\t\t\t\t\t\t\t\tAED 12.99/month, first month free for\n\t\t\t\t\t\t\t\t\tnew subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/ae/apple-tv/\" />\n<meta property=\"og:locale\" content=\"en_AE\" />\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\tGet Apple TV for just\n\t\t\t\t\t\t\t\t\tAED 27.99&nbsp;per month after a free 7-day trial.<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Footnote 1\" data-modal-close>1</a></sup> And share Apple&nbsp;TV with your family.<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Footnote 2\" data-modal-close>2</a></sup>\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">Students get 1 month <span class=\"lg-nowrap\">of the Apple Music Student Plan</span> free, plus access to Apple TV.<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Footnote 3\" data-modal-close>3</a></sup></p>\n<p class=\"tile-copy typography-tout\">Get Apple&nbsp;One and bundle up to six great services for one low monthly price.<sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"Footnote 4\" data-modal-close>4</a></sup> And enjoy more for&nbsp;less.</p>",
+    "google": {
+      "COUNTRY_CODE": "AE",
+      "CURRENCY_CODE": "AED",
+      "PRICE_30_MONTHLY": null,
+      "PRICE_100_MONTHLY": 7.49,
+      "PRICE_200_MONTHLY": 10.99,
+      "PRICE_2048_MONTHLY": 36.99,
+      "PRICE_5120_MONTHLY": 91.99,
+      "PRICE_GEN_AI_PRO_MONTHLY": 76.99,
+      "PRICE_GEN_AI_ULTRA_200_MONTHLY": 769.99,
+      "PRICE_HOME_PREMIUM_ADVANCED_UPGRADE": null,
+      "PRICE_GEN_AI_ULTRA_100_MONTHLY": 369.99,
+      "PRICE_FREE": 0,
+      "PRICE_GEN_AI_PLUS_MONTHLY": 18.99
+    }
+  },
+  "TH": {
+    "currency": "THB",
+    "path": "th",
+    "locale": "th_TH",
+    "rows": [
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "50 GB",
+        "currency": "THB",
+        "monthlyPriceMinor": 3500,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "200 GB",
+        "currency": "THB",
+        "monthlyPriceMinor": 9900,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "2 TB",
+        "currency": "THB",
+        "monthlyPriceMinor": 39900,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "6 TB",
+        "currency": "THB",
+        "monthlyPriceMinor": 119000,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "12 TB",
+        "currency": "THB",
+        "monthlyPriceMinor": 239000,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Individual",
+        "currency": "THB",
+        "monthlyPriceMinor": 14900,
+        "sourceUrl": "https://www.apple.com/th/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Family",
+        "currency": "THB",
+        "monthlyPriceMinor": 24900,
+        "sourceUrl": "https://www.apple.com/th/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Student",
+        "currency": "THB",
+        "monthlyPriceMinor": 7900,
+        "sourceUrl": "https://www.apple.com/th/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-tv-plus",
+        "planName": "Apple TV",
+        "currency": "THB",
+        "monthlyPriceMinor": 24900,
+        "sourceUrl": "https://www.apple.com/th/apple-tv/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 100 GB",
+        "currency": "THB",
+        "monthlyPriceMinor": 7000,
+        "sourceUrl": "https://one.google.com/intl/ALL_th/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 200 GB",
+        "currency": "THB",
+        "monthlyPriceMinor": 9900,
+        "sourceUrl": "https://one.google.com/intl/ALL_th/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      }
+    ],
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/th/apple-music/\" />\n<meta property=\"og:locale\" content=\"th_TH\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">แบบบุคคล</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t฿149/เดือน <wbr><span class=\"nowrap\">และใช้ฟรี</span><wbr><span class=\"nowrap\">ในเดือนแรก</span><wbr><span class=\"nowrap\">สำหรับ</span><wbr><span class=\"nowrap\">สมาชิกใหม่</span>\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">แบบครอบครัว</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t฿249/เดือน และ<wbr><span class=\"nowrap\">ใช้ฟรี</span> <wbr><span class=\"nowrap\">1 เดือน</span>สำหรับ<wbr><span class=\"nowrap\">สมาชิกใหม่</span>\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">แบบนักศึกษา</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">ประหยัดเพิ่ม<wbr><span class=\"nowrap\">มากขึ้น</span><wbr><span class=\"nowrap\">ในราคาเพียง</span>\n\t\t\t\t\t\t\t\t\t฿79/เดือน <wbr><span class=\"nowrap\">และใช้ฟรี</span><wbr><span class=\"nowrap\">ในเดือนแรก</span><br class=\"ag-lg\" />สำหรับ<wbr><span class=\"nowrap\">สมาชิกใหม่</span>\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/th/apple-tv/\" />\n<meta property=\"og:locale\" content=\"th_TH\" />\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\tใช้ Apple TV ในราคาเพียง ฿249 ต่อเดือน หลังหมดช่วง<wbr><span class=\"nowrap\">ทดลองใช้ฟรี</span> 7 วัน<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Footnote 1\" data-modal-close>1</a></sup> <wbr><span class=\"nowrap\">และแชร์</span> Apple TV กับ<wbr><span class=\"nowrap\">ครอบครัว</span><wbr><span class=\"nowrap\">ของคุณ</span><wbr><span class=\"nowrap\">ได้อีกด้วย</span><sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Footnote 2\" data-modal-close>2</a></sup>\n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">นักศึกษาสามารถใช้งานแผนบริการ Apple Music <wbr><span class=\"nowrap\">แบบนักศึกษา</span><wbr><span class=\"nowrap\">ได้ฟรี</span> 1 เดือน <wbr><span class=\"nowrap\">พร้อมรับสิทธิ์</span>ในการใช้ Apple TV<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Footnote 3\" data-modal-close>3</a></sup></p>\n<p class=\"tile-copy typography-tout\">ใช้ Apple One พร้อมทั้งรวมบริการเยี่ยมๆ สูงสุด <wbr><span class=\"nowrap\">3 บริการ</span><wbr><span class=\"nowrap\">เข้าเป็น</span><wbr><span class=\"nowrap\">ชุดเดียวกัน</span><wbr><span class=\"nowrap\">ในราคา</span><wbr><span class=\"nowrap\">ต่อเดือน</span><wbr><span class=\"nowrap\">แบบเบาๆ</span><sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"Footnote 4\" data-modal-close>4</a></sup> <wbr><span class=\"nowrap\">และเพลิดเพลิน</span><wbr><span class=\"nowrap\">ได้มากขึ้น</span><wbr><span class=\"nowrap\">ในราคาที่คุ้มค่า</span></p>",
+    "google": {
+      "COUNTRY_CODE": "TH",
+      "CURRENCY_CODE": "THB",
+      "PRICE_30_MONTHLY": null,
+      "PRICE_100_MONTHLY": 70,
+      "PRICE_200_MONTHLY": 99,
+      "PRICE_2048_MONTHLY": 350,
+      "PRICE_5120_MONTHLY": 875,
+      "PRICE_GEN_AI_PRO_MONTHLY": 750,
+      "PRICE_GEN_AI_ULTRA_200_MONTHLY": 7500,
+      "PRICE_HOME_PREMIUM_ADVANCED_UPGRADE": null,
+      "PRICE_GEN_AI_ULTRA_100_MONTHLY": 3500,
+      "PRICE_FREE": 0,
+      "PRICE_GEN_AI_PLUS_MONTHLY": 189
+    }
+  },
+  "PH": {
+    "currency": "PHP",
+    "path": "ph",
+    "locale": "en_PH",
+    "rows": [
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "50 GB",
+        "currency": "PHP",
+        "monthlyPriceMinor": 5900,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "200 GB",
+        "currency": "PHP",
+        "monthlyPriceMinor": 19900,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "2 TB",
+        "currency": "PHP",
+        "monthlyPriceMinor": 69900,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "6 TB",
+        "currency": "PHP",
+        "monthlyPriceMinor": 199000,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "icloud-plus",
+        "planName": "12 TB",
+        "currency": "PHP",
+        "monthlyPriceMinor": 399000,
+        "sourceUrl": "https://support.apple.com/en-us/108047",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Individual",
+        "currency": "PHP",
+        "monthlyPriceMinor": 16900,
+        "sourceUrl": "https://www.apple.com/ph/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Family",
+        "currency": "PHP",
+        "monthlyPriceMinor": 27900,
+        "sourceUrl": "https://www.apple.com/ph/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-music",
+        "planName": "Student",
+        "currency": "PHP",
+        "monthlyPriceMinor": 8500,
+        "sourceUrl": "https://www.apple.com/ph/apple-music/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "apple-tv-plus",
+        "planName": "Apple TV",
+        "currency": "PHP",
+        "monthlyPriceMinor": 36900,
+        "sourceUrl": "https://www.apple.com/ph/apple-tv/",
+        "billingProviderSlug": "apple"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 100 GB",
+        "currency": "PHP",
+        "monthlyPriceMinor": 11900,
+        "sourceUrl": "https://one.google.com/intl/ALL_ph/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      },
+      {
+        "serviceSlug": "google-one",
+        "planName": "Storage 200 GB",
+        "currency": "PHP",
+        "monthlyPriceMinor": 17900,
+        "sourceUrl": "https://one.google.com/intl/ALL_ph/about/feeds/pricing_2026_07_28.json",
+        "billingProviderSlug": "direct"
+      }
+    ],
+    "music": "<link rel=\"canonical\" href=\"https://www.apple.com/ph/apple-music/\" />\n<meta property=\"og:locale\" content=\"en_PH\" />\n<li data-analytics-gallery-item-id=\"individual\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Individual</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t₱169/month, <br />first month free for new&nbsp;subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"family\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Family</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t\t₱279/month, one month free for new subscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>\n<li data-analytics-gallery-item-id=\"student\" role=\"listitem\">\n\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t<div class=\"tile-content\">\n\t\t\t\t\t\t\t\t<h3 class=\"tile-eyebrow typography-eyebrow-elevated\">Student</h3>\n\t\t\t\t\t\t\t\t<p class=\"tile-headline typography-eyebrow-elevated\">Extra savings at just\n\t\t\t\t\t\t\t\t\t₱85/month, first month free for new\n\t\t\t\t\t\t\t\t\tsubscribers.\n\t\t\t\t\t\t\t\t\t\n\t\t\t\t\t\t\t\t</p></div></li>",
+    "tv": "<link rel=\"canonical\" href=\"https://www.apple.com/ph/apple-tv/\" />\n<meta property=\"og:locale\" content=\"en_PH\" />\n<p class=\"tile-copy typography-tout\">\n\t\t\t\t\t\t\t\t\tGet Apple TV for just\n\t\t\t\t\t\t\t\t\t₱369&nbsp;per month after a free seven-day trial.<sup class=\"footnote footnote-number\"><a href=\"#footnote-1\" aria-label=\"Footnote 1\" data-modal-close>1</a></sup> And share Apple&nbsp;TV with your family.<sup class=\"footnote footnote-number\"><a href=\"#footnote-2\" aria-label=\"Footnote 2\" data-modal-close>2</a></sup>\n\t\t\t\t\t\t\t\t</p>\n<p class=\"tile-copy typography-tout\">Students get one month of the Apple Music Student Plan free, <br class=\"large\">plus&nbsp;access to Apple TV.<sup class=\"footnote footnote-number\"><a href=\"#footnote-3\" aria-label=\"Footnote 3\" data-modal-close>3</a></sup></p>\n<p class=\"tile-copy typography-tout\">Get Apple&nbsp;One and bundle four great services for one low monthly price.<sup class=\"footnote footnote-number\"><a href=\"#footnote-4\" aria-label=\"Footnote 4\" data-modal-close>4</a></sup> And enjoy more for&nbsp;less.</p>",
+    "google": {
+      "COUNTRY_CODE": "PH",
+      "CURRENCY_CODE": "PHP",
+      "PRICE_30_MONTHLY": 49,
+      "PRICE_100_MONTHLY": 119,
+      "PRICE_200_MONTHLY": 179,
+      "PRICE_2048_MONTHLY": 599,
+      "PRICE_5120_MONTHLY": 1490,
+      "PRICE_GEN_AI_PRO_MONTHLY": 1100,
+      "PRICE_GEN_AI_ULTRA_200_MONTHLY": 11900,
+      "PRICE_HOME_PREMIUM_ADVANCED_UPGRADE": null,
+      "PRICE_GEN_AI_ULTRA_100_MONTHLY": 5999,
+      "PRICE_FREE": 0,
+      "PRICE_GEN_AI_PLUS_MONTHLY": 285
+    }
+  }
+}

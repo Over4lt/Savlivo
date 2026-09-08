@@ -5276,3 +5276,79 @@ test("Malaysia TV requires one standalone card and cannot promote student bundle
     assert.deepEqual(await providerAdapters["apple-tv-plus"]({countryCode:cc,currency:"USD"}),[]);
   }
 });
+
+// Provider-owned extracts fetched 2026-09-08; full pages independently live-probed.
+const internationalFixtures: Record<string, {currency:string;path:string;locale:string;music:string;tv:string;google:any;rows:any[]}> =
+  JSON.parse(readFileSync(new URL("./fixtures/international-expansion.json",import.meta.url),"utf8"));
+const internationalCloud = readFileSync(new URL("./fixtures/international-icloud.html",import.meta.url),"utf8");
+const internationalServices = ["icloud-plus","apple-music","apple-tv-plus","google-one"] as const;
+function internationalPage(cc:string,url:string) {
+  const f=internationalFixtures[cc];
+  if(url==="https://support.apple.com/en-us/108047")return internationalCloud;
+  if(url===`https://www.apple.com/${f.path}/apple-music/`)return f.music;
+  if(url===`https://www.apple.com/${f.path}/apple-tv/`)return f.tv;
+  if(url===`https://one.google.com/intl/ALL_${cc.toLowerCase()}/about/feeds/pricing_2026_07_28.json`)return JSON.stringify(f.google);
+  throw new Error("No fixture for "+url); // Google discovery deliberately fails; pinned feed remains available.
+}
+
+test("international launch adapters return all 77 independently verified monthly prices on proven routes",async(t)=>{
+  let now=9600000000000;
+  for(const [cc,f]of Object.entries(internationalFixtures)){
+    t.mock.method(Date,"now",()=>now+=600001);
+    t.mock.method(globalThis,"fetch",async(url:any)=>new Response(internationalPage(cc,String(url))));
+    assert.deepEqual(verifiedProviderRegistry[cc],f.rows);
+    for(const service of internationalServices){
+      const rows=await providerAdapters[service]({countryCode:cc,currency:f.currency});
+      const expected=f.rows.filter(r=>r.serviceSlug===service);
+      assert.equal(rows.length,expected.length,`${cc} ${service}`);
+      for(const r of rows){
+        const e=expected.find(p=>p.planName===r.planName)!;
+        assert.ok(e,r.planName);assert.equal(r.monthlyPriceMinor,e.monthlyPriceMinor);
+        assert.equal(r.billingProviderSlug,e.billingProviderSlug);
+        assert.equal(r.countryCode,cc);assert.equal(r.currency,f.currency);
+        assert.equal(r.verification,"authoritative-provider",`${cc} ${service}`);
+      }
+    }
+    t.mock.restoreAll();
+  }
+});
+
+test("each international source failure retains every launch fallback without promoting wrong evidence",async(t)=>{
+  let now=9700000000000;
+  for(const [cc,f]of Object.entries(internationalFixtures))for(const failure of ["network","timeout","http","empty","country","currency","identity","annual"]){
+    await t.test(`${cc} ${failure}`,async(t)=>{
+      t.mock.method(Date,"now",()=>now+=600001);
+      t.mock.method(globalThis,"fetch",async(url:any)=>{
+        if(failure==="network")throw new Error("offline");
+        if(failure==="timeout")throw new DOMException("timeout","TimeoutError");
+        if(failure==="http")return new Response("unavailable",{status:503});
+        let page=internationalPage(cc,String(url));
+        if(failure==="empty")page="";
+        if(failure==="country")page=page.replaceAll(f.locale,"en_US").replaceAll(`(${f.currency})`,"(USD)").replace(`"COUNTRY_CODE":"${cc}"`,'"COUNTRY_CODE":"US"');
+        if(failure==="currency")page=page.replace(/INR|SGD|HKD|TWD|AED|THB|PHP|₹|S\$|HK\$|NT\$|฿|₱|Rs/g,"USD");
+        if(failure==="identity")page=page.replaceAll('rel="canonical"','rel="unknown"').replaceAll("50 GB","Unknown").replaceAll('PRICE_100_MONTHLY','UNKNOWN_100').replaceAll('PRICE_200_MONTHLY','UNKNOWN_200');
+        if(failure==="annual")page=page.replace(/month|每月|เดือน/g,"year").replaceAll("MONTHLY","YEARLY");
+        return new Response(page);
+      });
+      for(const service of internationalServices){
+        const rows=await providerAdapters[service]({countryCode:cc,currency:f.currency});
+        const expected=f.rows.filter(r=>r.serviceSlug===service);
+        for(const e of expected){const r=rows.find(r=>r.planName===e.planName&&r.billingProviderSlug===e.billingProviderSlug)!;assert.ok(r,`${cc} ${service}`);assert.equal(r.monthlyPriceMinor,e.monthlyPriceMinor);assert.equal(r.verification,"registry",`${cc} ${service} ${failure}`);}
+        assert.equal(rows.length,expected.length);
+      }
+    });
+  }
+});
+
+test("new Apple cards reject missing duplicate conflicting annual and malformed pricing evidence",()=>{
+  for(const f of Object.values(internationalFixtures)){
+    assert.equal(parseAppleMusicPrices(f.music,f.currency).length,3);
+    assert.equal(parseAppleTvPlusInternationalPrice(f.tv,f.currency),f.rows.find(r=>r.serviceSlug==="apple-tv-plus").monthlyPriceMinor/100);
+    for(const html of ["",f.music.replace('data-analytics-gallery-item-id="student"','data-analytics-gallery-item-id="other"'),f.music+f.music,f.music.replace(/month|每月|เดือน/g,"year"),f.music.replace(/₹|S\$|HK\$|NT\$|AED|฿|₱/g,"$")])assert.deepEqual(parseAppleMusicPrices(html,f.currency),[]);
+    for(const html of ["",f.tv+f.tv,f.tv.replaceAll("tile-copy","unknown"),f.tv.replace(/month|每月|เดือน/g,"year"),f.tv.replace(/Apple\s*TV/g,"Apple One"),f.tv.replace(/₹|S\$|HK\$|NT\$|AED|฿|₱/g,"$")])assert.equal(parseAppleTvPlusInternationalPrice(html,f.currency),null);
+    // A second price in the same card is ambiguous, even if the first one looks valid.
+    const tvCard=[...f.tv.matchAll(/<p\b[^>]*class="[^"]*tile-copy[^"]*"[^>]*>([\s\S]*?)<\/p>/g)].find(m=>! /Apple\s*(Music|One)/.test(m[1]))!;
+    if(tvCard)assert.equal(parseAppleTvPlusInternationalPrice(f.tv.replace(tvCard[0],tvCard[0].replace('</p>',tvCard[1]+'</p>')),f.currency),null);
+  }
+  assert.equal(parseAppleTvPlusInternationalPrice('<p class="tile-copy">Apple TV 每月 NT$250.999</p>',"TWD"),null);
+});

@@ -36,7 +36,14 @@ export const countryCurrencyData = [
   ["PL", "Poland", "PLN"],
   ["BR", "Brazil", "BRL"],
   ["CZ", "Czechia", "CZK"],
-  ["MY", "Malaysia", "MYR"]
+  ["MY", "Malaysia", "MYR"],
+  ["IN", "India", "INR"],
+  ["SG", "Singapore", "SGD"],
+  ["HK", "Hong Kong", "HKD"],
+  ["TW", "Taiwan", "TWD"],
+  ["AE", "United Arab Emirates", "AED"],
+  ["TH", "Thailand", "THB"],
+  ["PH", "Philippines", "PHP"]
 ] as const;
 
 
@@ -85,6 +92,13 @@ export function formatMarketMinor(minor: number, currency: string, locale?: stri
 // Only independently verified launch services are offered in newly activated markets.
 // Existing market availability rules are left unchanged.
 export const expansionMarketServices: Record<string, readonly string[]> = {
+  IN: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
+  SG: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
+  HK: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
+  TW: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
+  AE: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
+  TH: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
+  PH: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
   MY: ["icloud-plus", "apple-music", "apple-tv-plus", "spotify"],
   CH: ["icloud-plus", "apple-music", "apple-tv-plus", "spotify"],
   PL: ["icloud-plus", "apple-music", "apple-tv-plus", "spotify"],

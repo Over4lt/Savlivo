@@ -1,0 +1,1029 @@
+{
+  "baseline": "f2340dc",
+  "researchDate": "2026-09-08",
+  "previousSelectableMarkets": 23,
+  "currentSelectableMarkets": 30,
+  "russiaExcluded": true,
+  "candidates": [
+    {
+      "country": "IN",
+      "name": "India",
+      "currency": "INR",
+      "baselineRegistryRows": 0,
+      "status": "READY",
+      "googleEvidence": {
+        "country": "IN",
+        "currency": "INR",
+        "storage100": 130,
+        "storage200": 210,
+        "url": "https://one.google.com/intl/ALL_in/about/feeds/pricing_2026_07_28.json"
+      },
+      "services": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "google-one"
+      ],
+      "monthlyPlans": 11,
+      "providerOrganizations": [
+        "Apple",
+        "Google"
+      ],
+      "billingRoutes": [
+        "apple",
+        "direct"
+      ],
+      "launchRows": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "INR",
+          "monthlyPriceMinor": 7500,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "INR",
+          "monthlyPriceMinor": 21900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "INR",
+          "monthlyPriceMinor": 74900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "INR",
+          "monthlyPriceMinor": 299900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "INR",
+          "monthlyPriceMinor": 590000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "INR",
+          "monthlyPriceMinor": 13900,
+          "sourceUrl": "https://www.apple.com/in/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "INR",
+          "monthlyPriceMinor": 22900,
+          "sourceUrl": "https://www.apple.com/in/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "INR",
+          "monthlyPriceMinor": 6900,
+          "sourceUrl": "https://www.apple.com/in/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "INR",
+          "monthlyPriceMinor": 9900,
+          "sourceUrl": "https://www.apple.com/in/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 100 GB",
+          "currency": "INR",
+          "monthlyPriceMinor": 13000,
+          "sourceUrl": "https://one.google.com/intl/ALL_in/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 200 GB",
+          "currency": "INR",
+          "monthlyPriceMinor": 21000,
+          "sourceUrl": "https://one.google.com/intl/ALL_in/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "4 services, 11 monthly plans, 2 organizations, music/video/cloud, strict country/currency/plan identity, route-specific fallback, compatible two-decimal formatting. All 11 actual adapter rows live-verified."
+    },
+    {
+      "country": "JP",
+      "name": "Japan",
+      "currency": "JPY",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "JP",
+        "currency": "JPY",
+        "storage100": 290,
+        "storage200": 440,
+        "url": "https://one.google.com/intl/ALL_jp/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Official Apple ja_JP Music/TV recurring cards and Google JP/JPY feed exist. JPY has zero-decimal formatting; iCloud parser does not support JP. Currency/storage/PDF review and localized parser proof are required before launch."
+    },
+    {
+      "country": "KR",
+      "name": "South Korea",
+      "currency": "KRW",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "KR",
+        "currency": "KRW",
+        "storage100": 2400,
+        "storage200": 3700,
+        "url": "https://one.google.com/intl/ALL_kr/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Official Apple ko_KR Music/TV and Google KR/KRW exist. Music has Individual/Family but no Student gallery; do not invent Student. KRW is zero-decimal; iCloud parser lacks KR. Spotify has Individual/Basic/Student/Duo, requiring separate identity/locale proof."
+    },
+    {
+      "country": "MX",
+      "name": "Mexico",
+      "currency": "MXN",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "MX",
+        "currency": "MXN",
+        "storage100": 39,
+        "storage200": 59,
+        "url": "https://one.google.com/intl/ALL_mx/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Google MX/MXN and iCloud Mexico (MXN) are explicit. Local Apple Music/TV and Spotify MX records still use bare $. Music/video currency proof remains insufficient."
+    },
+    {
+      "country": "SG",
+      "name": "Singapore",
+      "currency": "SGD",
+      "baselineRegistryRows": 0,
+      "status": "READY",
+      "googleEvidence": {
+        "country": "SG",
+        "currency": "SGD",
+        "storage100": 2.79,
+        "storage200": 3.99,
+        "url": "https://one.google.com/intl/ALL_sg/about/feeds/pricing_2026_07_28.json"
+      },
+      "services": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "google-one"
+      ],
+      "monthlyPlans": 11,
+      "providerOrganizations": [
+        "Apple",
+        "Google"
+      ],
+      "billingRoutes": [
+        "apple",
+        "direct"
+      ],
+      "launchRows": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "SGD",
+          "monthlyPriceMinor": 148,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "SGD",
+          "monthlyPriceMinor": 398,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "SGD",
+          "monthlyPriceMinor": 1398,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "SGD",
+          "monthlyPriceMinor": 4298,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "SGD",
+          "monthlyPriceMinor": 8498,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "SGD",
+          "monthlyPriceMinor": 1198,
+          "sourceUrl": "https://www.apple.com/sg/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "SGD",
+          "monthlyPriceMinor": 2098,
+          "sourceUrl": "https://www.apple.com/sg/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "SGD",
+          "monthlyPriceMinor": 648,
+          "sourceUrl": "https://www.apple.com/sg/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "SGD",
+          "monthlyPriceMinor": 1398,
+          "sourceUrl": "https://www.apple.com/sg/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 100 GB",
+          "currency": "SGD",
+          "monthlyPriceMinor": 279,
+          "sourceUrl": "https://one.google.com/intl/ALL_sg/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 200 GB",
+          "currency": "SGD",
+          "monthlyPriceMinor": 399,
+          "sourceUrl": "https://one.google.com/intl/ALL_sg/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "4 services, 11 monthly plans, 2 organizations, music/video/cloud, strict country/currency/plan identity, route-specific fallback, compatible two-decimal formatting. All 11 actual adapter rows live-verified."
+    },
+    {
+      "country": "HK",
+      "name": "Hong Kong",
+      "currency": "HKD",
+      "baselineRegistryRows": 0,
+      "status": "READY",
+      "googleEvidence": {
+        "country": "HK",
+        "currency": "HKD",
+        "storage100": 15,
+        "storage200": 23,
+        "url": "https://one.google.com/intl/ALL_hk/about/feeds/pricing_2026_07_28.json"
+      },
+      "services": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "google-one"
+      ],
+      "monthlyPlans": 11,
+      "providerOrganizations": [
+        "Apple",
+        "Google"
+      ],
+      "billingRoutes": [
+        "apple",
+        "direct"
+      ],
+      "launchRows": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "HKD",
+          "monthlyPriceMinor": 800,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "HKD",
+          "monthlyPriceMinor": 2300,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "HKD",
+          "monthlyPriceMinor": 7800,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "HKD",
+          "monthlyPriceMinor": 23800,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "HKD",
+          "monthlyPriceMinor": 46800,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "HKD",
+          "monthlyPriceMinor": 7800,
+          "sourceUrl": "https://www.apple.com/hk/en/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "HKD",
+          "monthlyPriceMinor": 12800,
+          "sourceUrl": "https://www.apple.com/hk/en/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "HKD",
+          "monthlyPriceMinor": 4800,
+          "sourceUrl": "https://www.apple.com/hk/en/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "HKD",
+          "monthlyPriceMinor": 6800,
+          "sourceUrl": "https://www.apple.com/hk/en/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 100 GB",
+          "currency": "HKD",
+          "monthlyPriceMinor": 1500,
+          "sourceUrl": "https://one.google.com/intl/ALL_hk/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 200 GB",
+          "currency": "HKD",
+          "monthlyPriceMinor": 2300,
+          "sourceUrl": "https://one.google.com/intl/ALL_hk/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "4 services, 11 monthly plans, 2 organizations, music/video/cloud, strict country/currency/plan identity, route-specific fallback, compatible two-decimal formatting. All 11 actual adapter rows live-verified."
+    },
+    {
+      "country": "TW",
+      "name": "Taiwan",
+      "currency": "TWD",
+      "baselineRegistryRows": 0,
+      "status": "READY",
+      "googleEvidence": {
+        "country": "TW",
+        "currency": "TWD",
+        "storage100": 65,
+        "storage200": 90,
+        "url": "https://one.google.com/intl/ALL_tw/about/feeds/pricing_2026_07_28.json"
+      },
+      "services": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "google-one"
+      ],
+      "monthlyPlans": 11,
+      "providerOrganizations": [
+        "Apple",
+        "Google"
+      ],
+      "billingRoutes": [
+        "apple",
+        "direct"
+      ],
+      "launchRows": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "TWD",
+          "monthlyPriceMinor": 3000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "TWD",
+          "monthlyPriceMinor": 9000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "TWD",
+          "monthlyPriceMinor": 30000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "TWD",
+          "monthlyPriceMinor": 90000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "TWD",
+          "monthlyPriceMinor": 179000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "TWD",
+          "monthlyPriceMinor": 16500,
+          "sourceUrl": "https://www.apple.com/tw/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "TWD",
+          "monthlyPriceMinor": 29500,
+          "sourceUrl": "https://www.apple.com/tw/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "TWD",
+          "monthlyPriceMinor": 9000,
+          "sourceUrl": "https://www.apple.com/tw/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "TWD",
+          "monthlyPriceMinor": 25000,
+          "sourceUrl": "https://www.apple.com/tw/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 100 GB",
+          "currency": "TWD",
+          "monthlyPriceMinor": 6500,
+          "sourceUrl": "https://one.google.com/intl/ALL_tw/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 200 GB",
+          "currency": "TWD",
+          "monthlyPriceMinor": 9000,
+          "sourceUrl": "https://one.google.com/intl/ALL_tw/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "4 services, 11 monthly plans, 2 organizations, music/video/cloud, strict country/currency/plan identity, route-specific fallback, compatible two-decimal formatting. All 11 actual adapter rows live-verified."
+    },
+    {
+      "country": "AR",
+      "name": "Argentina",
+      "currency": "ARS",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "AR",
+        "currency": "USD",
+        "storage100": 1.99,
+        "storage200": 2.99,
+        "url": "https://one.google.com/intl/ALL_ar/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Google AR feed prices in USD, not ARS. Apple /ar/apple-music/ and /ar/apple-tv/ return 404. Spotify AR recurring records use bare $ and tax footnotes. No currency or tax inference; insufficient service breadth."
+    },
+    {
+      "country": "AE",
+      "name": "United Arab Emirates",
+      "currency": "AED",
+      "baselineRegistryRows": 0,
+      "status": "READY",
+      "googleEvidence": {
+        "country": "AE",
+        "currency": "AED",
+        "storage100": 7.49,
+        "storage200": 10.99,
+        "url": "https://one.google.com/intl/ALL_ae/about/feeds/pricing_2026_07_28.json"
+      },
+      "services": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "google-one"
+      ],
+      "monthlyPlans": 11,
+      "providerOrganizations": [
+        "Apple",
+        "Google"
+      ],
+      "billingRoutes": [
+        "apple",
+        "direct"
+      ],
+      "launchRows": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "AED",
+          "monthlyPriceMinor": 399,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "AED",
+          "monthlyPriceMinor": 1199,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "AED",
+          "monthlyPriceMinor": 3999,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "AED",
+          "monthlyPriceMinor": 11999,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "AED",
+          "monthlyPriceMinor": 23999,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "AED",
+          "monthlyPriceMinor": 2399,
+          "sourceUrl": "https://www.apple.com/ae/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "AED",
+          "monthlyPriceMinor": 3999,
+          "sourceUrl": "https://www.apple.com/ae/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "AED",
+          "monthlyPriceMinor": 1299,
+          "sourceUrl": "https://www.apple.com/ae/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "AED",
+          "monthlyPriceMinor": 2799,
+          "sourceUrl": "https://www.apple.com/ae/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 100 GB",
+          "currency": "AED",
+          "monthlyPriceMinor": 749,
+          "sourceUrl": "https://one.google.com/intl/ALL_ae/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 200 GB",
+          "currency": "AED",
+          "monthlyPriceMinor": 1099,
+          "sourceUrl": "https://one.google.com/intl/ALL_ae/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "4 services, 11 monthly plans, 2 organizations, music/video/cloud, strict country/currency/plan identity, route-specific fallback, compatible two-decimal formatting. All 11 actual adapter rows live-verified."
+    },
+    {
+      "country": "ZA",
+      "name": "South Africa",
+      "currency": "ZAR",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "ZA",
+        "currency": "ZAR",
+        "storage100": 34.99,
+        "storage200": 52.99,
+        "url": "https://one.google.com/intl/ALL_za/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Google ZA/ZAR and iCloud ZAR exist. Apple /za/apple-tv/ returns 404; Spotify ZA uses STANDARD/PLATINUM/STANDARD_STUDENT, not mapped Individual/Student. Local video and product identity gaps remain."
+    },
+    {
+      "country": "VN",
+      "name": "Vietnam",
+      "currency": "VND",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "VN",
+        "currency": "VND",
+        "storage100": 45000,
+        "storage200": 69000,
+        "url": "https://one.google.com/intl/ALL_vn/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Official localized Apple Music/TV and Google VN/VND exist. VND zero-decimal formatting and dot-grouped provider amounts require coordinated amount/formatting review; iCloud parser does not support VN."
+    },
+    {
+      "country": "ID",
+      "name": "Indonesia",
+      "currency": "IDR",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "ID",
+        "currency": "IDR",
+        "storage100": 32000,
+        "storage200": 48000,
+        "url": "https://one.google.com/intl/ALL_id/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Official localized Apple Music/TV, iCloud IDR and Google ID/IDR exist. Scratch proof correctly parsed Rp 59.000 as 59000, but the actual runtime formats IDR with zero decimals. Removed the attempted activation and scoped IDR parser changes; unchanged fraction-preservation regression must pass before launch."
+    },
+    {
+      "country": "TH",
+      "name": "Thailand",
+      "currency": "THB",
+      "baselineRegistryRows": 0,
+      "status": "READY",
+      "googleEvidence": {
+        "country": "TH",
+        "currency": "THB",
+        "storage100": 70,
+        "storage200": 99,
+        "url": "https://one.google.com/intl/ALL_th/about/feeds/pricing_2026_07_28.json"
+      },
+      "services": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "google-one"
+      ],
+      "monthlyPlans": 11,
+      "providerOrganizations": [
+        "Apple",
+        "Google"
+      ],
+      "billingRoutes": [
+        "apple",
+        "direct"
+      ],
+      "launchRows": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "THB",
+          "monthlyPriceMinor": 3500,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "THB",
+          "monthlyPriceMinor": 9900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "THB",
+          "monthlyPriceMinor": 39900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "THB",
+          "monthlyPriceMinor": 119000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "THB",
+          "monthlyPriceMinor": 239000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "THB",
+          "monthlyPriceMinor": 14900,
+          "sourceUrl": "https://www.apple.com/th/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "THB",
+          "monthlyPriceMinor": 24900,
+          "sourceUrl": "https://www.apple.com/th/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "THB",
+          "monthlyPriceMinor": 7900,
+          "sourceUrl": "https://www.apple.com/th/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "THB",
+          "monthlyPriceMinor": 24900,
+          "sourceUrl": "https://www.apple.com/th/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 100 GB",
+          "currency": "THB",
+          "monthlyPriceMinor": 7000,
+          "sourceUrl": "https://one.google.com/intl/ALL_th/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 200 GB",
+          "currency": "THB",
+          "monthlyPriceMinor": 9900,
+          "sourceUrl": "https://one.google.com/intl/ALL_th/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "4 services, 11 monthly plans, 2 organizations, music/video/cloud, strict country/currency/plan identity, route-specific fallback, compatible two-decimal formatting. All 11 actual adapter rows live-verified."
+    },
+    {
+      "country": "PH",
+      "name": "Philippines",
+      "currency": "PHP",
+      "baselineRegistryRows": 0,
+      "status": "READY",
+      "googleEvidence": {
+        "country": "PH",
+        "currency": "PHP",
+        "storage100": 119,
+        "storage200": 179,
+        "url": "https://one.google.com/intl/ALL_ph/about/feeds/pricing_2026_07_28.json"
+      },
+      "services": [
+        "icloud-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "google-one"
+      ],
+      "monthlyPlans": 11,
+      "providerOrganizations": [
+        "Apple",
+        "Google"
+      ],
+      "billingRoutes": [
+        "apple",
+        "direct"
+      ],
+      "launchRows": [
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "50 GB",
+          "currency": "PHP",
+          "monthlyPriceMinor": 5900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "200 GB",
+          "currency": "PHP",
+          "monthlyPriceMinor": 19900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "2 TB",
+          "currency": "PHP",
+          "monthlyPriceMinor": 69900,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "6 TB",
+          "currency": "PHP",
+          "monthlyPriceMinor": 199000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "icloud-plus",
+          "planName": "12 TB",
+          "currency": "PHP",
+          "monthlyPriceMinor": 399000,
+          "sourceUrl": "https://support.apple.com/en-us/108047",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Individual",
+          "currency": "PHP",
+          "monthlyPriceMinor": 16900,
+          "sourceUrl": "https://www.apple.com/ph/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Family",
+          "currency": "PHP",
+          "monthlyPriceMinor": 27900,
+          "sourceUrl": "https://www.apple.com/ph/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-music",
+          "planName": "Student",
+          "currency": "PHP",
+          "monthlyPriceMinor": 8500,
+          "sourceUrl": "https://www.apple.com/ph/apple-music/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "apple-tv-plus",
+          "planName": "Apple TV",
+          "currency": "PHP",
+          "monthlyPriceMinor": 36900,
+          "sourceUrl": "https://www.apple.com/ph/apple-tv/",
+          "billingProviderSlug": "apple"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 100 GB",
+          "currency": "PHP",
+          "monthlyPriceMinor": 11900,
+          "sourceUrl": "https://one.google.com/intl/ALL_ph/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        },
+        {
+          "serviceSlug": "google-one",
+          "planName": "Storage 200 GB",
+          "currency": "PHP",
+          "monthlyPriceMinor": 17900,
+          "sourceUrl": "https://one.google.com/intl/ALL_ph/about/feeds/pricing_2026_07_28.json",
+          "billingProviderSlug": "direct"
+        }
+      ],
+      "reason": "4 services, 11 monthly plans, 2 organizations, music/video/cloud, strict country/currency/plan identity, route-specific fallback, compatible two-decimal formatting. All 11 actual adapter rows live-verified."
+    },
+    {
+      "country": "NG",
+      "name": "Nigeria",
+      "currency": "NGN",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "NG",
+        "currency": "NGN",
+        "storage100": 2950,
+        "storage200": 4400,
+        "url": "https://one.google.com/intl/ALL_ng/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Google NG/NGN and Spotify NG recurring Individual/Student/Duo/Family with ₦ are promising. Apple Music response lacks the expected localized gallery/canonical evidence; Apple TV /ng/ returns 404. No verified video plus four-service launch catalog. NG/NGN is not yet in shared API mapping."
+    },
+    {
+      "country": "EG",
+      "name": "Egypt",
+      "currency": "EGP",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "EG",
+        "currency": "EGP",
+        "storage100": 94.99,
+        "storage200": 144.99,
+        "url": "https://one.google.com/intl/ALL_eg/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Google EG/EGP and Spotify EG recurring records with Arabic EGP amounts exist. Apple product URLs redirect to service pages with en_GB metadata, not the verified localized marketing-card structure. Missing proven multi-service/video launch evidence; no Arabic digit parser added. EG/EGP not in shared API mapping."
+    },
+    {
+      "country": "MA",
+      "name": "Morocco",
+      "currency": "MAD",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "MA",
+        "currency": "MAD",
+        "storage100": 19,
+        "storage200": 28,
+        "url": "https://one.google.com/intl/ALL_ma/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Google MA/MAD and Spotify MA recurring records with explicit MAD exist. Apple Music lacks localized gallery evidence; Apple TV /ma/ returns 404. Missing video/fourth service; MA/MAD not in shared API mapping."
+    },
+    {
+      "country": "QA",
+      "name": "Qatar",
+      "currency": "QAR",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "QA",
+        "currency": "QAR",
+        "storage100": 6.99,
+        "storage200": 10.99,
+        "url": "https://one.google.com/intl/ALL_qa/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Google QA/QAR and Spotify QA recurring records with explicit QAR exist. Apple product URLs lead to service pages with en_GB metadata, not validated local marketing cards. Missing independent Apple Music/TV evidence and four-service catalog; QA/QAR not in API mapping."
+    },
+    {
+      "country": "KW",
+      "name": "Kuwait",
+      "currency": "KWD",
+      "baselineRegistryRows": 0,
+      "status": "DEFERRED",
+      "googleEvidence": {
+        "country": "KW",
+        "currency": "USD",
+        "storage100": 1.99,
+        "storage200": 2.99,
+        "url": "https://one.google.com/intl/ALL_kw/about/feeds/pricing_2026_07_28.json"
+      },
+      "reason": "Google KW and Spotify KW explicitly bill USD, not KWD. Apple Music leads to an en_GB service page; Apple TV /kw/ returns 404. KWD has three decimal minor units, incompatible with unreviewed hundredths storage. No inferred KWD prices or launch mapping."
+    }
+  ]
+}

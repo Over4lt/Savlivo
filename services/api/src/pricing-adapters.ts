@@ -596,6 +596,98 @@ export const verifiedProviderRegistry: Record<
     billingProviderSlug?: BillingProviderSlug;
   }>
 > = {
+  // Official monthly launch snapshots verified 2026-09-08; existing rows unchanged.
+  IN: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "INR", "monthlyPriceMinor": 7500, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "INR", "monthlyPriceMinor": 21900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "INR", "monthlyPriceMinor": 74900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "INR", "monthlyPriceMinor": 299900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "INR", "monthlyPriceMinor": 590000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "INR", "monthlyPriceMinor": 13900, "sourceUrl": "https://www.apple.com/in/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "INR", "monthlyPriceMinor": 22900, "sourceUrl": "https://www.apple.com/in/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "INR", "monthlyPriceMinor": 6900, "sourceUrl": "https://www.apple.com/in/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "INR", "monthlyPriceMinor": 9900, "sourceUrl": "https://www.apple.com/in/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "google-one", "planName": "Storage 100 GB", "currency": "INR", "monthlyPriceMinor": 13000, "sourceUrl": "https://one.google.com/intl/ALL_in/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+    {"serviceSlug": "google-one", "planName": "Storage 200 GB", "currency": "INR", "monthlyPriceMinor": 21000, "sourceUrl": "https://one.google.com/intl/ALL_in/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+  ],
+  SG: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "SGD", "monthlyPriceMinor": 148, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "SGD", "monthlyPriceMinor": 398, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "SGD", "monthlyPriceMinor": 1398, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "SGD", "monthlyPriceMinor": 4298, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "SGD", "monthlyPriceMinor": 8498, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "SGD", "monthlyPriceMinor": 1198, "sourceUrl": "https://www.apple.com/sg/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "SGD", "monthlyPriceMinor": 2098, "sourceUrl": "https://www.apple.com/sg/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "SGD", "monthlyPriceMinor": 648, "sourceUrl": "https://www.apple.com/sg/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "SGD", "monthlyPriceMinor": 1398, "sourceUrl": "https://www.apple.com/sg/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "google-one", "planName": "Storage 100 GB", "currency": "SGD", "monthlyPriceMinor": 279, "sourceUrl": "https://one.google.com/intl/ALL_sg/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+    {"serviceSlug": "google-one", "planName": "Storage 200 GB", "currency": "SGD", "monthlyPriceMinor": 399, "sourceUrl": "https://one.google.com/intl/ALL_sg/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+  ],
+  HK: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "HKD", "monthlyPriceMinor": 800, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "HKD", "monthlyPriceMinor": 2300, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "HKD", "monthlyPriceMinor": 7800, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "HKD", "monthlyPriceMinor": 23800, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "HKD", "monthlyPriceMinor": 46800, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "HKD", "monthlyPriceMinor": 7800, "sourceUrl": "https://www.apple.com/hk/en/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "HKD", "monthlyPriceMinor": 12800, "sourceUrl": "https://www.apple.com/hk/en/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "HKD", "monthlyPriceMinor": 4800, "sourceUrl": "https://www.apple.com/hk/en/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "HKD", "monthlyPriceMinor": 6800, "sourceUrl": "https://www.apple.com/hk/en/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "google-one", "planName": "Storage 100 GB", "currency": "HKD", "monthlyPriceMinor": 1500, "sourceUrl": "https://one.google.com/intl/ALL_hk/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+    {"serviceSlug": "google-one", "planName": "Storage 200 GB", "currency": "HKD", "monthlyPriceMinor": 2300, "sourceUrl": "https://one.google.com/intl/ALL_hk/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+  ],
+  TW: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "TWD", "monthlyPriceMinor": 3000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "TWD", "monthlyPriceMinor": 9000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "TWD", "monthlyPriceMinor": 30000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "TWD", "monthlyPriceMinor": 90000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "TWD", "monthlyPriceMinor": 179000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "TWD", "monthlyPriceMinor": 16500, "sourceUrl": "https://www.apple.com/tw/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "TWD", "monthlyPriceMinor": 29500, "sourceUrl": "https://www.apple.com/tw/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "TWD", "monthlyPriceMinor": 9000, "sourceUrl": "https://www.apple.com/tw/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "TWD", "monthlyPriceMinor": 25000, "sourceUrl": "https://www.apple.com/tw/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "google-one", "planName": "Storage 100 GB", "currency": "TWD", "monthlyPriceMinor": 6500, "sourceUrl": "https://one.google.com/intl/ALL_tw/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+    {"serviceSlug": "google-one", "planName": "Storage 200 GB", "currency": "TWD", "monthlyPriceMinor": 9000, "sourceUrl": "https://one.google.com/intl/ALL_tw/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+  ],
+  AE: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "AED", "monthlyPriceMinor": 399, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "AED", "monthlyPriceMinor": 1199, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "AED", "monthlyPriceMinor": 3999, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "AED", "monthlyPriceMinor": 11999, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "AED", "monthlyPriceMinor": 23999, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "AED", "monthlyPriceMinor": 2399, "sourceUrl": "https://www.apple.com/ae/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "AED", "monthlyPriceMinor": 3999, "sourceUrl": "https://www.apple.com/ae/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "AED", "monthlyPriceMinor": 1299, "sourceUrl": "https://www.apple.com/ae/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "AED", "monthlyPriceMinor": 2799, "sourceUrl": "https://www.apple.com/ae/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "google-one", "planName": "Storage 100 GB", "currency": "AED", "monthlyPriceMinor": 749, "sourceUrl": "https://one.google.com/intl/ALL_ae/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+    {"serviceSlug": "google-one", "planName": "Storage 200 GB", "currency": "AED", "monthlyPriceMinor": 1099, "sourceUrl": "https://one.google.com/intl/ALL_ae/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+  ],
+  TH: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "THB", "monthlyPriceMinor": 3500, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "THB", "monthlyPriceMinor": 9900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "THB", "monthlyPriceMinor": 39900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "THB", "monthlyPriceMinor": 119000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "THB", "monthlyPriceMinor": 239000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "THB", "monthlyPriceMinor": 14900, "sourceUrl": "https://www.apple.com/th/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "THB", "monthlyPriceMinor": 24900, "sourceUrl": "https://www.apple.com/th/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "THB", "monthlyPriceMinor": 7900, "sourceUrl": "https://www.apple.com/th/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "THB", "monthlyPriceMinor": 24900, "sourceUrl": "https://www.apple.com/th/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "google-one", "planName": "Storage 100 GB", "currency": "THB", "monthlyPriceMinor": 7000, "sourceUrl": "https://one.google.com/intl/ALL_th/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+    {"serviceSlug": "google-one", "planName": "Storage 200 GB", "currency": "THB", "monthlyPriceMinor": 9900, "sourceUrl": "https://one.google.com/intl/ALL_th/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+  ],
+  PH: [
+    {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "PHP", "monthlyPriceMinor": 5900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "PHP", "monthlyPriceMinor": 19900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "2 TB", "currency": "PHP", "monthlyPriceMinor": 69900, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "6 TB", "currency": "PHP", "monthlyPriceMinor": 199000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "icloud-plus", "planName": "12 TB", "currency": "PHP", "monthlyPriceMinor": 399000, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Individual", "currency": "PHP", "monthlyPriceMinor": 16900, "sourceUrl": "https://www.apple.com/ph/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Family", "currency": "PHP", "monthlyPriceMinor": 27900, "sourceUrl": "https://www.apple.com/ph/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-music", "planName": "Student", "currency": "PHP", "monthlyPriceMinor": 8500, "sourceUrl": "https://www.apple.com/ph/apple-music/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "PHP", "monthlyPriceMinor": 36900, "sourceUrl": "https://www.apple.com/ph/apple-tv/", "billingProviderSlug": "apple"},
+    {"serviceSlug": "google-one", "planName": "Storage 100 GB", "currency": "PHP", "monthlyPriceMinor": 11900, "sourceUrl": "https://one.google.com/intl/ALL_ph/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+    {"serviceSlug": "google-one", "planName": "Storage 200 GB", "currency": "PHP", "monthlyPriceMinor": 17900, "sourceUrl": "https://one.google.com/intl/ALL_ph/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+  ],
   MY: [
     {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "MYR", "monthlyPriceMinor": 390, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
     {"serviceSlug": "icloud-plus", "planName": "200 GB", "currency": "MYR", "monthlyPriceMinor": 1190, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
@@ -6526,6 +6618,13 @@ function appleMusicCurrencyPatterns(
    * never infer a price through FX conversion.
    */
   const patterns: Record<string, RegExp[]> = {
+    INR: [/₹\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    SGD: [/S\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    HKD: [/HK\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    AED: [/AED\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    PHP: [/₱\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    TWD: [/每月(?:只需)?\s*NT\$\s*([0-9]+(?:\.[0-9]{1,2})?)(?![0-9.,])/gi],
+    THB: [/฿\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*เดือน|ต่อเดือน)/gi],
     MYR: [/RM\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
     CHF: [/CHF\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*Monat|pro\s+Monat)/gi],
     PLN: [/([0-9]+(?:,[0-9]{1,2})?)\s*zł\s*(?:\/\s*miesiąc|za\s+miesiąc)/gi],
@@ -6616,6 +6715,8 @@ export function parseAppleMusicPrices(
     const markerIndex =
       html.indexOf(marker);
 
+    if (["INR", "SGD", "HKD", "AED", "PHP", "TWD", "THB"].includes(currency) && html.split(marker).length !== 2) return [];
+
     if (markerIndex < 0) {
       continue;
     }
@@ -6666,7 +6767,8 @@ export function parseAppleMusicPrices(
      * before the normal boundary. The gallery-card recurring
      * price appears before its nested benefit-list items.
      */
-    if (currency === "CNY") {
+    // New storefronts also require the price inside its own list-item card.
+    if (["CNY", "INR", "SGD", "HKD", "AED", "PHP", "TWD", "THB"].includes(currency)) {
       const closingItemIndex =
         html.indexOf(
           "</li>",
@@ -6822,6 +6924,7 @@ function appleMusicStorefrontPath(
   countryCode: string
 ): string | null {
   const storefronts: Record<string, string> = {
+    IN: "in", SG: "sg", HK: "hk/en", TW: "tw", AE: "ae", TH: "th", PH: "ph",
     CH: "chde", PL: "pl", BR: "br", CZ: "cz", MY: "my",
     GB: "uk",
     AU: "au",
@@ -6894,8 +6997,8 @@ async function appleMusicAdapter(
             "/apple-music/"
           );
 
-  const addedCurrencies: Record<string, string> = { GB: "GBP", AU: "AUD", NZ: "NZD", CH: "CHF", PL: "PLN", BR: "BRL", CZ: "CZK", MY: "MYR" };
-  const addedLocales: Record<string, string> = { CH: "de_CH", PL: "pl_PL", BR: "pt_BR", CZ: "cs_CZ", MY: "en_MY" };
+  const addedCurrencies: Record<string, string> = { IN: "INR", SG: "SGD", HK: "HKD", TW: "TWD", AE: "AED", TH: "THB", PH: "PHP", GB: "GBP", AU: "AUD", NZ: "NZD", CH: "CHF", PL: "PLN", BR: "BRL", CZ: "CZK", MY: "MYR" };
+  const addedLocales: Record<string, string> = { IN: "en_IN", SG: "en_SG", HK: "en_HK", TW: "zh-TW", AE: "en_AE", TH: "th_TH", PH: "en_PH", CH: "de_CH", PL: "pl_PL", BR: "pt_BR", CZ: "cs_CZ", MY: "en_MY" };
   const addedCurrency = addedCurrencies[ctx.countryCode];
   if (addedCurrency && addedCurrency !== ctx.currency) {
     return resolvePriceCandidates(ctx, candidates);
@@ -7289,6 +7392,13 @@ function appleTvInternationalCurrencyPatterns(
     string,
     RegExp[]
   > = {
+    INR: [/₹\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    SGD: [/S\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    HKD: [/HK\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    AED: [/AED\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    PHP: [/₱\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    TWD: [/每月(?:只需)?\s*NT\$\s*([0-9]+(?:\.[0-9]{1,2})?)(?![0-9.,])/gi],
+    THB: [/฿\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*เดือน|ต่อเดือน)/gi],
     MYR: [/RM\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
     CHF: [/CHF\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:pro\s+Monat|im\s+Monat|\/\s*Monat)/gi],
     PLN: [/([0-9]+(?:,[0-9]{1,2})?)\s*zł\s*(?:miesięcznie|\/\s*miesiąc)/gi],
@@ -7376,6 +7486,19 @@ export function parseAppleTvPlusInternationalPrice(
 
   if (!patterns.length) {
     return null;
+  }
+
+  // These newly supported storefronts expose a standalone monthly offer card.
+  // Never search outside that card or borrow the separate Music Student/One offer.
+  if (["INR", "SGD", "HKD", "AED", "PHP", "TWD", "THB"].includes(currency)) {
+    const cards = [...html.matchAll(/<p\b[^>]*class=["'][^"']*\btile-copy\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/gi)]
+      .map(match => htmlToText(match[1]))
+      .filter(card => /Apple\s*TV/.test(card) && !/Apple\s*(?:Music|One)/i.test(card));
+    if (cards.length !== 1) return null;
+    const amounts = patterns.flatMap(pattern => [...cards[0].matchAll(new RegExp(pattern.source, pattern.flags))])
+      .map(match => Number(match[1]));
+    if (amounts.length !== 1 || !Number.isFinite(amounts[0]) || amounts[0] <= 0) return null;
+    return amounts[0];
   }
 
   // Malaysia's standalone offer is an explicit provider price card. Page-wide
@@ -7543,6 +7666,7 @@ function appleTvStorefrontPath(
     string,
     string
   > = {
+    IN: "in", SG: "sg", HK: "hk/en", TW: "tw", AE: "ae", TH: "th", PH: "ph",
     CH: "chde", PL: "pl", BR: "br", CZ: "cz", MY: "my",
     GB: "uk",
     AU: "au",
@@ -8087,6 +8211,7 @@ async function appleTvAdapter(
   }
 
   const addedMarkets: Record<string, [string, string]> = {
+    IN: ["INR", "en_IN"], SG: ["SGD", "en_SG"], HK: ["HKD", "en_HK"], TW: ["TWD", "zh-TW"], AE: ["AED", "en_AE"], TH: ["THB", "th_TH"], PH: ["PHP", "en_PH"],
     CH: ["CHF", "de_CH"], PL: ["PLN", "pl_PL"], BR: ["BRL", "pt_BR"], CZ: ["CZK", "cs_CZ"], MY: ["MYR", "en_MY"],
     GB: ["GBP", "en_GB"], AU: ["AUD", "en_AU"],
     NZ: ["NZD", "en_NZ"], BE: ["EUR", "fr_BE"]
