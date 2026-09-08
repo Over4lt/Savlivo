@@ -20,7 +20,7 @@ const productToPlan: Record<ProductId, "MANUAL" | "PREMIUM"> = {
   "com.thomashodne.savlivo.manual.monthly": "MANUAL",
   "com.thomashodne.savlivo.manual.yearly": "MANUAL",
   "com.thomashodne.savlivo.premium.monthly": "PREMIUM",
-  "com.thomashodne.savlivo.premium.yearly": "PREMIUM"
+  "com.thomashodne.savlivo.premium.annual": "PREMIUM"
 };
 
 const productIds = new Set<ProductId>(

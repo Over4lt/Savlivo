@@ -3,7 +3,7 @@ export type ProductId =
   | "com.thomashodne.savlivo.manual.monthly"
   | "com.thomashodne.savlivo.manual.yearly"
   | "com.thomashodne.savlivo.premium.monthly"
-  | "com.thomashodne.savlivo.premium.yearly";
+  | "com.thomashodne.savlivo.premium.annual";
 
 export interface PurchaseVerificationRequest {
   platform: StorePlatform;
