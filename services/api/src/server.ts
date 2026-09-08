@@ -1,3 +1,4 @@
+import { subscriptionsForMarket, subscriptionCountry } from "../../../packages/contracts/src/markets.js";
 import http from "node:http";
 import crypto from "node:crypto";
 import { URL } from "node:url";
@@ -584,9 +585,12 @@ const server = http.createServer(async (req, res) => {
                   : undefined,
 
               subscriptions:
-                subscriptions.map(
+                (typeof body.context?.countryCode === "string" && /^[A-Z]{2}$/.test(body.context.countryCode.trim().toUpperCase())
+                  ? subscriptionsForMarket(subscriptions, body.context.countryCode.trim().toUpperCase())
+                  : subscriptions).map(
                   (item: any) => ({
                     id: item.id,
+                    countryCode: item.countryCode,
                     serviceName:
                       item.serviceName,
                     serviceSlug:
@@ -657,18 +661,7 @@ const server = http.createServer(async (req, res) => {
         const requestedCountryCode = body.countryCode
           ? String(body.countryCode).trim().toUpperCase()
           : "";
-        const inferredCountryCode = requestCurrency
-          ? ({
-              USD: "US",
-              NOK: "NO",
-              SEK: "SE",
-              DKK: "DK",
-              CNY: "CN"
-            } as Record<string, string>)[requestCurrency]
-          : undefined;
-        const countryCode = /^[A-Z]{2}$/.test(requestedCountryCode)
-          ? requestedCountryCode
-          : inferredCountryCode;
+        const countryCode = subscriptionCountry(requestedCountryCode, requestCurrency);
 
         const created = await addSubscription({
           userId: auth.id,

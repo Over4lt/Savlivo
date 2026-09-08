@@ -1,4 +1,7 @@
 import {
+  countryCurrencyData, subscriptionsForMarket, formatMarketMinor, isCurrentMarketPricing
+} from "../../../packages/contracts/src/markets";
+import {
   useEffect,
   useRef,
   useState } from "react";
@@ -864,23 +867,6 @@ function isBillingProviderAllowed(
   );
 }
 
-const countryCurrencyData = [
-  ["US", "United States", "USD"],
-  ["NO", "Norway", "NOK"],
-  ["SE", "Sweden", "SEK"],
-  ["DK", "Denmark", "DKK"],
-  ["DE", "Germany", "EUR"],
-  ["ES", "Spain", "EUR"],
-  ["FR", "France", "EUR"],
-  ["IT", "Italy", "EUR"],
-  ["PT", "Portugal", "EUR"],
-  ["NL", "Netherlands", "EUR"],
-  ["BE", "Belgium", "EUR"],
-  ["AT", "Austria", "EUR"],
-  ["IE", "Ireland", "EUR"],
-  ["FI", "Finland", "EUR"],
-  ["CN", "China", "CNY"]
-] as const;
 
 const allCurrencies = Array.from(
   new Set(countryCurrencyData.map(([, , currency]) => currency))
@@ -1219,6 +1205,8 @@ export default function Home() {
   const [aiKeyboardHeight, setAiKeyboardHeight] = useState(0);
   const [countrySearch, setCountrySearch] = useState("");
   const [selectedCountryCode, setSelectedCountryCode] = useState("US");
+  const selectedCountryCodeRef = useRef(selectedCountryCode);
+  selectedCountryCodeRef.current = selectedCountryCode;
   const [selectedCountryName, setSelectedCountryName] = useState("United States");
   const [selectedCurrency, setSelectedCurrency] = useState("USD");
   const [selectedLanguage, setSelectedLanguage] =
@@ -4208,22 +4196,7 @@ export default function Home() {
     });
   }
 
-  const legacyCountryByCurrency: Record<string, string> = {
-    USD: "US",
-    NOK: "NO",
-    SEK: "SE",
-    DKK: "DK",
-    CNY: "CN"
-  };
-
-  const marketItems = items.filter(
-    (item) =>
-      item.countryCode === selectedCountryCode ||
-      (
-        !item.countryCode &&
-        legacyCountryByCurrency[item.currency ?? ""] === selectedCountryCode
-      )
-  );
+  const marketItems = subscriptionsForMarket(items, selectedCountryCode);
 
   const activeRegionalPrices = marketItems
     .filter((item) => effectiveSubscriptionStatus(item) === "ACTIVE")
@@ -6768,7 +6741,9 @@ export default function Home() {
           forceRefresh ? "&refresh=1" : ""
         }`
       );
-      setPricingSnapshot(snapshot);
+      if (isCurrentMarketPricing(snapshot, countryCode, selectedCountryCodeRef.current)) {
+        setPricingSnapshot(snapshot);
+      }
 
       if (
         snapshot?.currency &&
@@ -7160,14 +7135,7 @@ export default function Home() {
   }
 
   function formatRegionalMinor(minor: number, currency: string) {
-    try {
-      return new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency
-      }).format(minor / 100);
-    } catch {
-      return `${currency} ${(minor / 100).toFixed(2)}`;
-    }
+    return formatMarketMinor(minor, currency);
   }
 
   function formatStoredSubscriptionPrice(item: Subscription) {
@@ -7277,6 +7245,7 @@ export default function Home() {
   );
 
   function selectCountry(code: string, name: string, currency: string) {
+    selectedCountryCodeRef.current = code;
     setPricingSnapshot(null);
     setSelectedCountryCode(code);
     setSelectedCountryName(name);
@@ -8361,9 +8330,7 @@ export default function Home() {
         };
       };
 
-      const reportItems = items.filter(
-        (item) => item.countryCode === selectedCountryCode
-      );
+      const reportItems = subscriptionsForMarket(items, selectedCountryCode);
 
       const protectedNames =
         aiPreferences.protectedSubscriptionIds

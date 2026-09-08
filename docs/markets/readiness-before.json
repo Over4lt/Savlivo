@@ -1,0 +1,5279 @@
+{
+  "baseline": "766d75d",
+  "date": "2026-09-08",
+  "mobileMarkets": [
+    "US",
+    "NO",
+    "SE",
+    "DK",
+    "DE",
+    "ES",
+    "FR",
+    "IT",
+    "PT",
+    "NL",
+    "BE",
+    "AT",
+    "IE",
+    "FI",
+    "CN"
+  ],
+  "apiCurrencies": {
+    "US": "USD",
+    "CA": "CAD",
+    "MX": "MXN",
+    "BR": "BRL",
+    "AR": "ARS",
+    "GB": "GBP",
+    "NO": "NOK",
+    "SE": "SEK",
+    "DK": "DKK",
+    "IS": "ISK",
+    "CH": "CHF",
+    "PL": "PLN",
+    "CZ": "CZK",
+    "HU": "HUF",
+    "RO": "RON",
+    "DE": "EUR",
+    "FR": "EUR",
+    "ES": "EUR",
+    "IT": "EUR",
+    "PT": "EUR",
+    "NL": "EUR",
+    "BE": "EUR",
+    "AT": "EUR",
+    "IE": "EUR",
+    "FI": "EUR",
+    "GR": "EUR",
+    "SK": "EUR",
+    "SI": "EUR",
+    "EE": "EUR",
+    "LV": "EUR",
+    "LT": "EUR",
+    "LU": "EUR",
+    "CY": "EUR",
+    "MT": "EUR",
+    "HR": "EUR",
+    "BG": "EUR",
+    "AU": "AUD",
+    "NZ": "NZD",
+    "JP": "JPY",
+    "KR": "KRW",
+    "CN": "CNY",
+    "HK": "HKD",
+    "TW": "TWD",
+    "SG": "SGD",
+    "IN": "INR",
+    "ID": "IDR",
+    "MY": "MYR",
+    "TH": "THB",
+    "PH": "PHP",
+    "VN": "VND",
+    "AE": "AED",
+    "SA": "SAR",
+    "IL": "ILS",
+    "TR": "TRY",
+    "UA": "UAH",
+    "RS": "RSD",
+    "BA": "BAM",
+    "AL": "ALL",
+    "MK": "MKD",
+    "MD": "MDL",
+    "ZA": "ZAR"
+  },
+  "globalServiceCatalog": [
+    "netflix",
+    "disney-plus",
+    "max",
+    "prime-video",
+    "amazon-prime",
+    "apple-tv-plus",
+    "youtube-premium",
+    "hulu",
+    "paramount-plus",
+    "peacock",
+    "crunchyroll",
+    "spotify",
+    "apple-music",
+    "amazon-music-unlimited",
+    "tidal",
+    "audible",
+    "xbox-game-pass",
+    "playstation-plus",
+    "ea-play",
+    "ubisoft-plus",
+    "geforce-now",
+    "chatgpt",
+    "claude",
+    "microsoft-365",
+    "adobe-creative-cloud",
+    "canva",
+    "dropbox",
+    "google-one",
+    "icloud-plus",
+    "tencent-video",
+    "iqiyi",
+    "mango-tv",
+    "youku",
+    "bilibili",
+    "qq-music",
+    "netease-cloud-music",
+    "kugou-music",
+    "baidu-netdisk",
+    "wps",
+    "strava",
+    "calm",
+    "headspace"
+  ],
+  "notes": [
+    "Fallback counts are actual offline adapter output, including estimated store rows; these are not all authoritative.",
+    "Documented live evidence counts use prior batch live checks and current GB/AU/NZ Google feeds; no claims about unprobed adapters.",
+    "Existing selectable markets are grandfathered; readiness does not re-certify all existing catalog assumptions."
+  ],
+  "markets": [
+    {
+      "country": "US",
+      "name": "United States",
+      "currency": "USD",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 10,
+      "registryServices": [
+        "amazon-prime",
+        "youtube-premium",
+        "prime-video",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 25,
+      "fallbackPlans": 52,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "single-source"
+          }
+        ],
+        "geforce-now": [
+          {
+            "plan": "Performance",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "ea-play": [
+          {
+            "plan": "EA Play",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "EA Play Pro",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "amazon-music-unlimited": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2499,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "ChatGPT Plus",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Claude Pro",
+            "route": "direct",
+            "minor": 2000,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 5x",
+            "route": "direct",
+            "minor": 12499,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 20x",
+            "route": "direct",
+            "minor": 24999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "calm": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          }
+        ],
+        "paramount-plus": [
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "single-source"
+          }
+        ],
+        "hulu": [
+          {
+            "plan": "Hulu (With Ads)",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          }
+        ],
+        "peacock": [
+          {
+            "plan": "Select",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium Plus",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "audible": [
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium Plus",
+            "route": "direct",
+            "minor": 1495,
+            "verification": "single-source"
+          }
+        ],
+        "playstation-plus": [
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Extra",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 899,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 2699,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Disney+ With Ads",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "registry"
+          },
+          {
+            "plan": "Disney+ Premium",
+            "route": "direct",
+            "minor": 1899,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1849,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 1499,
+            "verification": "registry"
+          }
+        ],
+        "prime-video": [
+          {
+            "plan": "Prime Video",
+            "route": "amazon",
+            "minor": 899,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "CA",
+      "name": "Canada",
+      "currency": "CAD",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "MX",
+      "name": "Mexico",
+      "currency": "MXN",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "BR",
+      "name": "Brazil",
+      "currency": "BRL",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "AR",
+      "name": "Argentina",
+      "currency": "ARS",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "GB",
+      "name": "United Kingdom",
+      "currency": "GBP",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5,
+        "apple-music": 3,
+        "apple-tv-plus": 1,
+        "google-one": 2,
+        "spotify": 4
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "NO",
+      "name": "Norway",
+      "currency": "NOK",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 35,
+      "registryServices": [
+        "spotify",
+        "apple-music",
+        "apple-tv-plus",
+        "microsoft-365",
+        "icloud-plus",
+        "google-one",
+        "youtube-premium",
+        "prime-video",
+        "max",
+        "disney-plus",
+        "netflix"
+      ],
+      "fallbackServices": 20,
+      "fallbackPlans": 55,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 7900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 15500,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 17500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 29900,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 20900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 14900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 10500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 13900,
+            "verification": "single-source"
+          }
+        ],
+        "ea-play": [
+          {
+            "plan": "EA Play",
+            "route": "direct",
+            "minor": 5900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "EA Play Pro",
+            "route": "direct",
+            "minor": 18300,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "ChatGPT Plus",
+            "route": "direct",
+            "minor": 24900,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Claude Pro",
+            "route": "direct",
+            "minor": 24900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 5x",
+            "route": "direct",
+            "minor": 149000,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 20x",
+            "route": "direct",
+            "minor": 299000,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 12900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 19900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 13900,
+            "verification": "single-source"
+          }
+        ],
+        "spotify": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 13900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Duo",
+            "route": "direct",
+            "minor": 18900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 21900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Student",
+            "route": "direct",
+            "minor": 7500,
+            "verification": "registry"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 2400,
+            "verification": "registry"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 3400,
+            "verification": "registry"
+          },
+          {
+            "plan": "Google AI Plus — 400 GB",
+            "route": "direct",
+            "minor": 6400,
+            "verification": "registry"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 12500,
+            "verification": "registry"
+          },
+          {
+            "plan": "Google AI Pro — 5 TB",
+            "route": "direct",
+            "minor": 25900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Google AI Pro — 10 TB",
+            "route": "direct",
+            "minor": 52900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Google AI Ultra 5x — 20 TB",
+            "route": "direct",
+            "minor": 105900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Google AI Ultra 20x — 30 TB",
+            "route": "direct",
+            "minor": 259900,
+            "verification": "registry"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Basic",
+            "route": "direct",
+            "minor": 11900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 14900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 21900,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 6900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 10900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 15900,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 8900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 14900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 18900,
+            "verification": "registry"
+          }
+        ],
+        "microsoft-365": [
+          {
+            "plan": "Basic",
+            "route": "direct",
+            "minor": 2000,
+            "verification": "registry"
+          },
+          {
+            "plan": "Personal",
+            "route": "direct",
+            "minor": 12100,
+            "verification": "registry"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 15500,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 25900,
+            "verification": "registry"
+          }
+        ],
+        "icloud-plus": [
+          {
+            "plan": "50 GB",
+            "route": "apple",
+            "minor": 1200,
+            "verification": "registry"
+          },
+          {
+            "plan": "200 GB",
+            "route": "apple",
+            "minor": 3900,
+            "verification": "registry"
+          },
+          {
+            "plan": "2 TB",
+            "route": "apple",
+            "minor": 12900,
+            "verification": "registry"
+          },
+          {
+            "plan": "12 TB",
+            "route": "apple",
+            "minor": 79900,
+            "verification": "registry"
+          }
+        ],
+        "apple-music": [
+          {
+            "plan": "Individual",
+            "route": "apple",
+            "minor": 13900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Family",
+            "route": "apple",
+            "minor": 21900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Student",
+            "route": "apple",
+            "minor": 7500,
+            "verification": "registry"
+          }
+        ],
+        "prime-video": [
+          {
+            "plan": "Prime Video",
+            "route": "direct",
+            "minor": 7900,
+            "verification": "registry"
+          }
+        ],
+        "apple-tv-plus": [
+          {
+            "plan": "Apple TV",
+            "route": "apple",
+            "minor": 11900,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 16900,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "SE",
+      "name": "Sweden",
+      "currency": "SEK",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 11,
+      "registryServices": [
+        "amazon-prime",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 15,
+      "fallbackPlans": 34,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 8500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 16900,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 16500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 30500,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 21500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 14500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 9500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 13500,
+            "verification": "single-source"
+          }
+        ],
+        "ea-play": [
+          {
+            "plan": "EA Play",
+            "route": "direct",
+            "minor": 5900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "EA Play Pro",
+            "route": "direct",
+            "minor": 20500,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "ChatGPT Plus",
+            "route": "direct",
+            "minor": 24900,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Claude Pro",
+            "route": "direct",
+            "minor": 24900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 5x",
+            "route": "direct",
+            "minor": 149500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 20x",
+            "route": "direct",
+            "minor": 299500,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 13900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 20500,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 13900,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 1900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 2900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Basic",
+            "route": "direct",
+            "minor": 12900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 16900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 21900,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 6900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 10900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 15900,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 8900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 14900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 18900,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 6900,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 14900,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "DK",
+      "name": "Denmark",
+      "currency": "DKK",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 11,
+      "registryServices": [
+        "prime-video",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 15,
+      "fallbackPlans": 34,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 6500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 7900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 11500,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 15500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 27000,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 14900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 6500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 8900,
+            "verification": "single-source"
+          }
+        ],
+        "ea-play": [
+          {
+            "plan": "EA Play",
+            "route": "direct",
+            "minor": 4900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "EA Play Pro",
+            "route": "direct",
+            "minor": 13500,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "ChatGPT Plus",
+            "route": "direct",
+            "minor": 17900,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Claude Pro",
+            "route": "direct",
+            "minor": 17900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 5x",
+            "route": "direct",
+            "minor": 99900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 20x",
+            "route": "direct",
+            "minor": 199900,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 5900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 15900,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 6900,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 1700,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 2500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 7900,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Basic",
+            "route": "direct",
+            "minor": 10900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 14900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 18900,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 5900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 9900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 14900,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 7900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 12900,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 16900,
+            "verification": "registry"
+          }
+        ],
+        "prime-video": [
+          {
+            "plan": "Prime Video",
+            "route": "direct",
+            "minor": 5900,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 13900,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "IS",
+      "name": "Iceland",
+      "currency": "ISK",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "CH",
+      "name": "Switzerland",
+      "currency": "CHF",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "PL",
+      "name": "Poland",
+      "currency": "PLN",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "CZ",
+      "name": "Czechia",
+      "currency": "CZK",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "HU",
+      "name": "Hungary",
+      "currency": "HUF",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "RO",
+      "name": "Romania",
+      "currency": "RON",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "DE",
+      "name": "Germany",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 11,
+      "registryServices": [
+        "amazon-prime",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 19,
+      "fallbackPlans": 44,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Premium Monthly",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2999,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "ea-play": [
+          {
+            "plan": "EA Play",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "EA Play Pro",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "amazon-music-unlimited": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2499,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "ChatGPT Plus",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Claude Pro",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 5x",
+            "route": "direct",
+            "minor": 14999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 20x",
+            "route": "direct",
+            "minor": 29999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2199,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "paramount-plus": [
+          {
+            "plan": "Basic (with ads)",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "audible": [
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 995,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 499,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 599,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 899,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "FR",
+      "name": "France",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 11,
+      "registryServices": [
+        "amazon-prime",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 18,
+      "fallbackPlans": 41,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Premium Monthly",
+            "route": "direct",
+            "minor": 699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1549,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2899,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "ea-play": [
+          {
+            "plan": "EA Play",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "EA Play Pro",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "amazon-music-unlimited": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "ChatGPT Plus",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Claude Pro",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 5x",
+            "route": "direct",
+            "minor": 14999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 20x",
+            "route": "direct",
+            "minor": 29999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2199,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "paramount-plus": [
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 799,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 2199,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 690,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "ES",
+      "name": "Spain",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 11,
+      "registryServices": [
+        "amazon-prime",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 17,
+      "fallbackPlans": 36,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 749,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1549,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2799,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "ea-play": [
+          {
+            "plan": "EA Play",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "EA Play Pro",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "amazon-music-unlimited": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2499,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Pro",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 5x",
+            "route": "direct",
+            "minor": 14999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 20x",
+            "route": "direct",
+            "minor": 29999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 899,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 2199,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 499,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "IT",
+      "name": "Italy",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 11,
+      "registryServices": [
+        "amazon-prime",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 18,
+      "fallbackPlans": 40,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 749,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1549,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2799,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "ea-play": [
+          {
+            "plan": "EA Play",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "EA Play Pro",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "amazon-music-unlimited": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2499,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Pro",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 5x",
+            "route": "direct",
+            "minor": 14999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 20x",
+            "route": "direct",
+            "minor": 29999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "paramount-plus": [
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 499,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "PT",
+      "name": "Portugal",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 10,
+      "registryServices": [
+        "amazon-prime",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 15,
+      "fallbackPlans": 35,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1149,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2349,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Pro",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 5x",
+            "route": "direct",
+            "minor": 14999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 20x",
+            "route": "direct",
+            "minor": 29999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Basic",
+            "route": "direct",
+            "minor": 899,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 599,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 999,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 499,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2599,
+            "verification": "single-source"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "NL",
+      "name": "Netherlands",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 11,
+      "registryServices": [
+        "amazon-prime",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 16,
+      "fallbackPlans": 35,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2999,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "ea-play": [
+          {
+            "plan": "EA Play",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "EA Play Pro",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Pro",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 5x",
+            "route": "direct",
+            "minor": 14999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 20x",
+            "route": "direct",
+            "minor": 29999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 349,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Basic",
+            "route": "direct",
+            "minor": 999,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 599,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 499,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "BE",
+      "name": "Belgium",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 20,
+      "registryServices": [
+        "amazon-prime",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus",
+        "apple-music",
+        "apple-tv-plus",
+        "icloud-plus"
+      ],
+      "fallbackServices": 18,
+      "fallbackPlans": 42,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2999,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Pro",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 5x",
+            "route": "direct",
+            "minor": 14999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 20x",
+            "route": "direct",
+            "minor": 29999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Basic",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 2199,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "icloud-plus": [
+          {
+            "plan": "50 GB",
+            "route": "apple",
+            "minor": 99,
+            "verification": "registry"
+          },
+          {
+            "plan": "200 GB",
+            "route": "apple",
+            "minor": 299,
+            "verification": "registry"
+          },
+          {
+            "plan": "2 TB",
+            "route": "apple",
+            "minor": 999,
+            "verification": "registry"
+          },
+          {
+            "plan": "6 TB",
+            "route": "apple",
+            "minor": 2999,
+            "verification": "registry"
+          },
+          {
+            "plan": "12 TB",
+            "route": "apple",
+            "minor": 5999,
+            "verification": "registry"
+          }
+        ],
+        "apple-music": [
+          {
+            "plan": "Individual",
+            "route": "apple",
+            "minor": 1199,
+            "verification": "registry"
+          },
+          {
+            "plan": "Family",
+            "route": "apple",
+            "minor": 1999,
+            "verification": "registry"
+          },
+          {
+            "plan": "Student",
+            "route": "apple",
+            "minor": 699,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 299,
+            "verification": "registry"
+          }
+        ],
+        "apple-tv-plus": [
+          {
+            "plan": "Apple TV",
+            "route": "apple",
+            "minor": 999,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "AT",
+      "name": "Austria",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 10,
+      "registryServices": [
+        "amazon-prime",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 17,
+      "fallbackPlans": 39,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2999,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "amazon-music-unlimited": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Pro",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 5x",
+            "route": "direct",
+            "minor": 14999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Max 20x",
+            "route": "direct",
+            "minor": 29999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2199,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "paramount-plus": [
+          {
+            "plan": "Basic (with ads)",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Basic",
+            "route": "direct",
+            "minor": 899,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1399,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 599,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 899,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "IE",
+      "name": "Ireland",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 11,
+      "registryServices": [
+        "amazon-prime",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 16,
+      "fallbackPlans": 36,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2999,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "ChatGPT Plus",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Claude Pro",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 5x",
+            "route": "direct",
+            "minor": 14999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 20x",
+            "route": "direct",
+            "minor": 29999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "paramount-plus": [
+          {
+            "plan": "Basic (with ads)",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Basic",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 2399,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 899,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 599,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "amazon-prime": [
+          {
+            "plan": "Amazon Prime",
+            "route": "amazon",
+            "minor": 699,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "FI",
+      "name": "Finland",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 11,
+      "registryServices": [
+        "prime-video",
+        "youtube-premium",
+        "netflix",
+        "max",
+        "disney-plus"
+      ],
+      "fallbackServices": 16,
+      "fallbackPlans": 36,
+      "fallback": {
+        "crunchyroll": [
+          {
+            "plan": "Fan",
+            "route": "direct",
+            "minor": 699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Mega Fan",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Ultimate Fan",
+            "route": "direct",
+            "minor": 1499,
+            "verification": "single-source"
+          }
+        ],
+        "tidal": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Family",
+            "route": "direct",
+            "minor": 2999,
+            "verification": "single-source"
+          }
+        ],
+        "xbox-game-pass": [
+          {
+            "plan": "Ultimate",
+            "route": "direct",
+            "minor": 2099,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Essential",
+            "route": "direct",
+            "minor": 899,
+            "verification": "single-source"
+          },
+          {
+            "plan": "PC Game Pass",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "ea-play": [
+          {
+            "plan": "EA Play",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "EA Play Pro",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "single-source"
+          }
+        ],
+        "ubisoft-plus": [
+          {
+            "plan": "Classics",
+            "route": "direct",
+            "minor": 799,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1799,
+            "verification": "single-source"
+          }
+        ],
+        "chatgpt": [
+          {
+            "plan": "ChatGPT Plus",
+            "route": "direct",
+            "minor": 2299,
+            "verification": "single-source"
+          }
+        ],
+        "claude": [
+          {
+            "plan": "Claude Pro",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 5x",
+            "route": "direct",
+            "minor": 14999,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Claude Max 20x",
+            "route": "direct",
+            "minor": 29999,
+            "verification": "single-source"
+          }
+        ],
+        "dropbox": [
+          {
+            "plan": "Plus",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Simple",
+            "route": "direct",
+            "minor": 599,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Professional",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "single-source"
+          }
+        ],
+        "strava": [
+          {
+            "plan": "Subscription",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "single-source"
+          }
+        ],
+        "headspace": [
+          {
+            "plan": "Monthly",
+            "route": "direct",
+            "minor": 1299,
+            "verification": "single-source"
+          }
+        ],
+        "google-one": [
+          {
+            "plan": "Storage 100 GB",
+            "route": "direct",
+            "minor": 199,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Storage 200 GB",
+            "route": "direct",
+            "minor": 299,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Google AI Plus — 2 TB",
+            "route": "direct",
+            "minor": 999,
+            "verification": "single-source"
+          }
+        ],
+        "netflix": [
+          {
+            "plan": "Basic",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1999,
+            "verification": "registry"
+          }
+        ],
+        "disney-plus": [
+          {
+            "plan": "Standard with Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1099,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1599,
+            "verification": "registry"
+          }
+        ],
+        "max": [
+          {
+            "plan": "Basic With Ads",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          },
+          {
+            "plan": "Standard",
+            "route": "direct",
+            "minor": 1199,
+            "verification": "registry"
+          },
+          {
+            "plan": "Premium",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "registry"
+          }
+        ],
+        "prime-video": [
+          {
+            "plan": "Prime Video",
+            "route": "direct",
+            "minor": 699,
+            "verification": "registry"
+          }
+        ],
+        "youtube-premium": [
+          {
+            "plan": "Individual",
+            "route": "direct",
+            "minor": 1699,
+            "verification": "registry"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "verified registry / existing adapters, not re-probed",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "GR",
+      "name": "Greece",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "SK",
+      "name": "Slovakia",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "SI",
+      "name": "Slovenia",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "EE",
+      "name": "Estonia",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "LV",
+      "name": "Latvia",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "LT",
+      "name": "Lithuania",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "LU",
+      "name": "Luxembourg",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "CY",
+      "name": "Cyprus",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "MT",
+      "name": "Malta",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "HR",
+      "name": "Croatia",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "BG",
+      "name": "Bulgaria",
+      "currency": "EUR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "AU",
+      "name": "Australia",
+      "currency": "AUD",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5,
+        "apple-music": 3,
+        "apple-tv-plus": 1,
+        "google-one": 2
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "NZ",
+      "name": "New Zealand",
+      "currency": "NZD",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5,
+        "apple-music": 3,
+        "apple-tv-plus": 1,
+        "google-one": 2
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "JP",
+      "name": "Japan",
+      "currency": "JPY",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "KR",
+      "name": "South Korea",
+      "currency": "KRW",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "CN",
+      "name": "China",
+      "currency": "CNY",
+      "apiRecognized": true,
+      "mobileSupported": true,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 9,
+      "fallbackPlans": 18,
+      "fallback": {
+        "tencent-video": [
+          {
+            "plan": "Tencent Video VIP",
+            "route": "direct",
+            "minor": 2500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Super Film VIP",
+            "route": "direct",
+            "minor": 3500,
+            "verification": "single-source"
+          }
+        ],
+        "iqiyi": [
+          {
+            "plan": "Gold VIP",
+            "route": "direct",
+            "minor": 2500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Platinum VIP",
+            "route": "direct",
+            "minor": 3500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Star Diamond VIP",
+            "route": "direct",
+            "minor": 4500,
+            "verification": "single-source"
+          }
+        ],
+        "mango-tv": [
+          {
+            "plan": "VIP",
+            "route": "direct",
+            "minor": 2200,
+            "verification": "single-source"
+          },
+          {
+            "plan": "SVIP",
+            "route": "direct",
+            "minor": 2800,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Full-screen VIP",
+            "route": "direct",
+            "minor": 3500,
+            "verification": "single-source"
+          }
+        ],
+        "bilibili": [
+          {
+            "plan": "Big Member",
+            "route": "direct",
+            "minor": 1500,
+            "verification": "single-source"
+          }
+        ],
+        "qq-music": [
+          {
+            "plan": "Green Diamond",
+            "route": "direct",
+            "minor": 1500,
+            "verification": "single-source"
+          }
+        ],
+        "netease-cloud-music": [
+          {
+            "plan": "Black Vinyl VIP",
+            "route": "direct",
+            "minor": 1500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Black Vinyl SVIP",
+            "route": "direct",
+            "minor": 2800,
+            "verification": "single-source"
+          }
+        ],
+        "kugou-music": [
+          {
+            "plan": "Luxury VIP",
+            "route": "direct",
+            "minor": 1500,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Super VIP",
+            "route": "direct",
+            "minor": 3000,
+            "verification": "single-source"
+          }
+        ],
+        "baidu-netdisk": [
+          {
+            "plan": "Member",
+            "route": "direct",
+            "minor": 1900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "Super Member",
+            "route": "direct",
+            "minor": 2500,
+            "verification": "single-source"
+          }
+        ],
+        "wps": [
+          {
+            "plan": "WPS Member",
+            "route": "direct",
+            "minor": 900,
+            "verification": "single-source"
+          },
+          {
+            "plan": "WPS Super Member",
+            "route": "direct",
+            "minor": 2100,
+            "verification": "single-source"
+          }
+        ]
+      },
+      "documentedLiveEvidence": {},
+      "readiness": "READY_EXISTING",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "existing selectable market"
+    },
+    {
+      "country": "HK",
+      "name": "Hong Kong SAR China",
+      "currency": "HKD",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "TW",
+      "name": "Taiwan",
+      "currency": "TWD",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "SG",
+      "name": "Singapore",
+      "currency": "SGD",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "IN",
+      "name": "India",
+      "currency": "INR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "ID",
+      "name": "Indonesia",
+      "currency": "IDR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "MY",
+      "name": "Malaysia",
+      "currency": "MYR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "TH",
+      "name": "Thailand",
+      "currency": "THB",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "PH",
+      "name": "Philippines",
+      "currency": "PHP",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "VN",
+      "name": "Vietnam",
+      "currency": "VND",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "AE",
+      "name": "United Arab Emirates",
+      "currency": "AED",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "SA",
+      "name": "Saudi Arabia",
+      "currency": "SAR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "IL",
+      "name": "Israel",
+      "currency": "ILS",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "TR",
+      "name": "Türkiye",
+      "currency": "TRY",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "UA",
+      "name": "Ukraine",
+      "currency": "UAH",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "RS",
+      "name": "Serbia",
+      "currency": "RSD",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "BA",
+      "name": "Bosnia & Herzegovina",
+      "currency": "BAM",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "AL",
+      "name": "Albania",
+      "currency": "ALL",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "MK",
+      "name": "North Macedonia",
+      "currency": "MKD",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "MD",
+      "name": "Moldova",
+      "currency": "MDL",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "ZA",
+      "name": "South Africa",
+      "currency": "ZAR",
+      "apiRecognized": true,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {
+        "icloud-plus": 5
+      },
+      "readiness": "NEAR_READY",
+      "providerSourceQuality": "official live evidence",
+      "applicationCompatibility": "currency recognized; selector and vetted service allowlist absent"
+    },
+    {
+      "country": "CL",
+      "name": "Chile",
+      "currency": "CLP",
+      "apiRecognized": false,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "API and mobile mapping absent"
+    },
+    {
+      "country": "CO",
+      "name": "Colombia",
+      "currency": "COP",
+      "apiRecognized": false,
+      "mobileSupported": false,
+      "registryPlans": 0,
+      "registryServices": [],
+      "fallbackServices": 0,
+      "fallbackPlans": 0,
+      "fallback": {},
+      "documentedLiveEvidence": {},
+      "readiness": "INSUFFICIENT_EVIDENCE",
+      "providerSourceQuality": "not established for launch",
+      "applicationCompatibility": "API and mobile mapping absent"
+    }
+  ]
+}

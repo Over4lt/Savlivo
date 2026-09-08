@@ -29,8 +29,9 @@ test("understands country typo", () => {
     findSavlivoHelpTopic(
       "how do i chnage cuntry"
     ),
-    "region"
+    "market"
   );
+  assert.match(getSavlivoHelp("how do i chnage cuntry"), /does not delete subscriptions/i);
 });
 
 test("explains reviewable spend", () => {

@@ -6,6 +6,7 @@ export type AssistantHistoryMessage = {
 };
 
 export type AssistantSubscriptionContext = {
+  countryCode?: string;
   id: string;
   serviceName: string;
   serviceSlug?: string;

@@ -1,3 +1,4 @@
+import { countryCurrencies } from "../../../packages/contracts/src/markets.js";
 import {
   fetchProviderLocalPrices,
   verifiedProviderRegistry,
@@ -22,20 +23,6 @@ const memoryCache = new Map<
   { fetchedAt: number; snapshot: PricingSnapshot }
 >();
 
-const countryCurrencies: Record<string, string> = {
-  US:"USD",CA:"CAD",MX:"MXN",BR:"BRL",AR:"ARS",
-  GB:"GBP",NO:"NOK",SE:"SEK",DK:"DKK",IS:"ISK",CH:"CHF",
-  PL:"PLN",CZ:"CZK",HU:"HUF",RO:"RON",
-  DE:"EUR",FR:"EUR",ES:"EUR",IT:"EUR",PT:"EUR",NL:"EUR",
-  BE:"EUR",AT:"EUR",IE:"EUR",FI:"EUR",GR:"EUR",SK:"EUR",
-  SI:"EUR",EE:"EUR",LV:"EUR",LT:"EUR",LU:"EUR",CY:"EUR",
-  MT:"EUR",HR:"EUR",BG:"EUR",
-  AU:"AUD",NZ:"NZD",JP:"JPY",KR:"KRW",CN:"CNY",HK:"HKD",
-  TW:"TWD",SG:"SGD",IN:"INR",ID:"IDR",MY:"MYR",TH:"THB",
-  PH:"PHP",VN:"VND",AE:"AED",SA:"SAR",IL:"ILS",TR:"TRY",
-  UA:"UAH",RS:"RSD",BA:"BAM",AL:"ALL",MK:"MKD",MD:"MDL",
-  ZA:"ZAR"
-};
 
 function dedupe(items: AdapterPrice[]) {
   const map = new Map<string, AdapterPrice>();
