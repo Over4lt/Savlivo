@@ -6114,6 +6114,22 @@ async function icloudPlusAdapter(
 }
 
 
+// Require provider-owned page identity on newly enabled Apple storefronts.
+export function verifyAppleStorefrontIdentity(html: string, expectedUrl: string, locale: string): boolean {
+  const values = (tagName: string, key: string, value: string, field: string) => {
+    const results: string[] = [];
+    for (const tag of html.matchAll(new RegExp(`<${tagName}\\b[^>]*>`, "gi"))) {
+      const attributes = new Map([...tag[0].matchAll(/\s([\w:-]+)=["']([^"']*)["']/g)].map(m => [m[1], m[2]]));
+      if (attributes.get(key) === value) results.push(attributes.get(field) ?? "");
+    }
+    return results;
+  };
+  const canonicals = values("link", "rel", "canonical", "href");
+  const locales = values("meta", "property", "og:locale", "content");
+  return canonicals.length === 1 && canonicals[0] === expectedUrl &&
+    locales.length === 1 && locales[0] === locale;
+}
+
 export type AppleMusicPrice = {
   planName: string;
   amount: number;
@@ -6131,6 +6147,9 @@ function appleMusicCurrencyPatterns(
    * never infer a price through FX conversion.
    */
   const patterns: Record<string, RegExp[]> = {
+    GBP: [/£\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    AUD: [/A\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
+    NZD: [/NZ\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:\/\s*month|per\s+month)/gi],
     NOK: [
       /(?:kr|NOK)\s*([0-9][0-9\s.,]*)\s+(?:per|pr\.?)\s+m[åa]ned/gi,
       /([0-9][0-9\s.,]*)\s*(?:kr|NOK)\s+(?:per|pr\.?)\s+m[åa]ned/gi
@@ -6419,6 +6438,9 @@ function appleMusicStorefrontPath(
   countryCode: string
 ): string | null {
   const storefronts: Record<string, string> = {
+    GB: "uk",
+    AU: "au",
+    NZ: "nz",
     NO: "no",
     US: "apple-music",
     SE: "se",
@@ -6487,9 +6509,19 @@ async function appleMusicAdapter(
             "/apple-music/"
           );
 
+  const addedCurrencies: Record<string, string> = { GB: "GBP", AU: "AUD", NZ: "NZD" };
+  const addedCurrency = addedCurrencies[ctx.countryCode];
+  if (addedCurrency && addedCurrency !== ctx.currency) {
+    return resolvePriceCandidates(ctx, candidates);
+  }
+
   try {
     const html =
       await fetchText(url);
+
+    if (addedCurrency && !verifyAppleStorefrontIdentity(html, url, `en_${ctx.countryCode}`)) {
+      return resolvePriceCandidates(ctx, candidates);
+    }
 
     /*
      * Country-local Apple storefront path + exact requested

@@ -33,6 +33,7 @@ import {
   parseDisneyPlusCurrentPriceFootnote,
   crossCheckDisneyPlusPrices,
   parseAppleMusicPrices,
+  verifyAppleStorefrontIdentity,
   parseYoukuChinaPrices,
   parseYouTubePremiumPrices,
   resolvePriceCandidates
@@ -5058,4 +5059,70 @@ test("iCloud support failures preserve registry prices and never touch establish
   const prices = await providerAdapters["icloud-plus"]({ countryCode: "NO", currency: "NOK" });
   assert.ok(prices.length > 0 && prices.every(p => p.verification === "registry"));
   assert.deepEqual(urls, ["https://www.apple.com/no/icloud/"]);
+});
+
+
+const addedMusicMarkets: Array<[string, string, string, number[]]> = [
+  ["GB", "uk", "GBP", [11.99, 19.99, 5.99]],
+  ["AU", "au", "AUD", [14.99, 23.99, 7.99]],
+  ["NZ", "nz", "NZD", [18.49, 29.99, 10.49]]
+];
+const musicFixture = (path: string) => readFileSync(new URL(`./fixtures/apple-music-${path}.html`, import.meta.url), "utf8");
+
+test("Apple storefront identity requires a unique matching canonical URL and provider locale", () => {
+  const html = musicFixture("uk");
+  const url = "https://www.apple.com/uk/apple-music/";
+  assert.equal(verifyAppleStorefrontIdentity(html, url, "en_GB"), true);
+  for (const value of [
+    "", html.replace("en_GB", "en_US"), html.replace("/uk/", "/us/"),
+    html.replace("www.apple.com", "evil.test"),
+    html.replace(/<link[^>]*>/, ""), html.replace(/<meta[^>]*>/, ""),
+    html + `<link rel="canonical" href="${url}">`,
+    html + '<meta property="og:locale" content="en_US">'
+  ]) assert.equal(verifyAppleStorefrontIdentity(value, url, "en_GB"), false);
+});
+
+test("Apple Music adds nine Apple-billed prices with matching country and currency", async (t) => {
+  for (const [countryCode, path, currency, amounts] of addedMusicMarkets) {
+    await t.test(countryCode, async (t) => {
+      const html = musicFixture(path);
+      assert.deepEqual(parseAppleMusicPrices(html, currency).map(p => p.amount), amounts);
+      assert.deepEqual(parseAppleMusicPrices(html, "EUR"), []);
+      t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+        assert.equal(String(input), `https://www.apple.com/${path}/apple-music/`);
+        return new Response(html);
+      });
+      const prices = await providerAdapters["apple-music"]({ countryCode, currency });
+      assert.deepEqual(prices.map(p => p.monthlyPriceMinor), amounts.map(a => Math.round(a * 100)));
+      assert.ok(prices.every(p => p.verification === "authoritative-provider" && p.billingProviderSlug === "apple"));
+    });
+  }
+});
+
+test("Apple Music new sources fail safely without removing registry fallback", async (t) => {
+  const original = verifiedProviderRegistry.GB;
+  verifiedProviderRegistry.GB = [...(original ?? []), {
+    serviceSlug: "apple-music", planName: "Individual", currency: "GBP",
+    monthlyPriceMinor: 1199, sourceUrl: "https://www.apple.com/uk/apple-music/", billingProviderSlug: "apple"
+  }];
+  t.after(() => { if (original) verifiedProviderRegistry.GB = original; else delete verifiedProviderRegistry.GB; });
+  const html = musicFixture("uk");
+  for (const body of [null, "", html.replace("en_GB", "en_US"),
+    html.replaceAll("£", "€"), html.replace('item-id="family"', 'item-id="other"'),
+    html.replace("£11.99/month", "£11.99/month or £12.99/month"),
+    html.replaceAll("/month", "/year")]) {
+    await t.test(body === null ? "network" : "invalid provider evidence", async (t) => {
+      t.mock.method(globalThis, "fetch", async () => { if (body === null) throw new Error("offline"); return new Response(body); });
+      const prices = await providerAdapters["apple-music"]({ countryCode: "GB", currency: "GBP" });
+      assert.equal(prices.length, 1);
+      assert.equal(prices[0].monthlyPriceMinor, 1199);
+      assert.equal(prices[0].verification, "registry");
+    });
+  }
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => { calls++; throw new Error("offline"); });
+  assert.deepEqual(await providerAdapters["apple-music"]({ countryCode: "GB", currency: "USD" }), []);
+  assert.equal(calls, 0);
+  const no = await providerAdapters["apple-music"]({ countryCode: "NO", currency: "NOK" });
+  assert.ok(no.length > 0 && no.every(p => p.verification === "registry"));
 });
