@@ -1,5 +1,7 @@
 # Controlled migration/deployment review runbook
 
+> Current sequence includes migration 015. Follow [admin-passkeys-ddbd806.md](admin-passkeys-ddbd806.md) for passkey-only authentication and operator bootstrap; earlier password/passkey-deferred descriptions are historical. Production exposure remains disabled.
+
 This is a future, separately authorized procedure. No production command was executed. The security-review-173b743.md activation blockers remain; migration/deployment review is distinct from enabling collection or admin access.
 
 ## Preflight
@@ -50,6 +52,10 @@ On fresh tables index creation is small; FK creation can briefly lock referenced
 
 Apply `db/migrations/014_verified_price_observations.sql` as committed. Verify positive amount and strong-verification constraints plus identity/latest-observation index. Table is initially empty; no existing pricing data is updated or retroactively dated by this migration. No trigger connects history failure to pricing writes. Preserve existing verified_provider_prices values exactly.
 
+## 015 → verify
+
+Apply `db/migrations/015_admin_passkeys.sql` only after 014. See [admin-passkeys-ddbd806.md](admin-passkeys-ddbd806.md) for exact credential/challenge/session/RBAC additions, bootstrap, constraints, lock risks and acceptance. Verify existing operational rows and enrolled credential/session identities survive reruns. Old credential-less sessions must be denied; no role or enrollment is seeded. Audit-check validation and ALTER TABLE/trigger work need reviewed timeouts and a recoverable backup. Stop on mismatched definitions or unexpected access. No production migration was executed.
+
 ## Backend deploy → verify (separate authorization)
 
 Deploy the reviewed backend with all collection/admin/history flags still false. Confirm existing login, subscription reads/writes, manual records/Viaplay, AI general/multilingual/structured actions, selected markets, pricing fallbacks and reminders continue to work. Admin should return 404 while disabled. Existing clients should make zero analytics requests. Optional database pool adds at most two lazy connections per API instance; verify capacity against actual DB limits.
@@ -71,3 +77,7 @@ The guarded disposable PostgreSQL test applies 011/012 twice with a pre-existing
 ## Update after f5530fa
 
 See activation-blockers-f5530fa.md. User-derived reports have been removed; no cohort threshold alone is treated as sufficient. Admin now requires an explicitly non-production development/test runtime in addition to prior flags, and the client is localhost-only. Keep production NODE_ENV=production; never bypass the gate by changing it to development/test. Existing production/unconfigured admin requests return 404. No new migration was added in this batch. Passkey credential/challenge/enrollment and credential-bound session migration is still required before production exposure; prepare and rehearse that follow-up before revising this sequence. No TOTP requirement is imposed in addition to a correctly implemented passkey flow.
+
+## Current passkey follow-up
+
+Order is now 011 → verify → 012 → verify → 013 → verify → 014 → verify → 015 → verify → separately authorized backend deploy → verify. The passkey implementation is complete for controlled host/migration review; production and hosted-client gates remain. Password admin login has been removed everywhere. Do not use the historical password/MFA setup above as an activation procedure. Follow admin-passkeys-ddbd806.md; no TOTP or paid authentication provider is required.

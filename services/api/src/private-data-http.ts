@@ -1,7 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { randomBytes, createHash } from "node:crypto";
 import { privateDataPool as pool } from "./private-data-db.js";
-import { hashPassword, verifyPassword } from "./passwords.js";
 import { getAuthUser } from "./auth.js";
 import { recordAnalytics, retentionDays, collectionPolicy } from "./analytics.js";
 import { parseAnalyticsEvent } from "../../../packages/contracts/src/analytics.js";
@@ -9,7 +7,8 @@ import { countryCurrencyData } from "../../../packages/contracts/src/markets.js"
 import { verifiedProviderRegistry } from "./pricing-adapters.js";
 import { serviceCatalog } from "../../../packages/contracts/src/catalog.js";
 
-export const hashSession = (token: string) => createHash("sha256").update(token).digest("hex");
+import {hashSession, authenticatedAdmin, beginRegistration, finishRegistration, beginAuthentication, finishAuthentication, revokeAdminSessions} from "./admin-passkeys.js";
+export {hashSession, authenticatedAdmin} from "./admin-passkeys.js";
 export function createRateLimit(max: number, capacity = 5000) {
   const entries = new Map<string, {count: number; until: number}>();
   return (key: string, now = Date.now()): boolean => {
@@ -23,9 +22,8 @@ export function createRateLimit(max: number, capacity = 5000) {
     return ++entry.count <= max;
   };
 }
-const dummyPasswordHash = hashPassword(randomBytes(32).toString("hex"));
-const loginLimit = createRateLimit(5);
-const globalLoginLimit = createRateLimit(30, 1);
+const loginLimit = createRateLimit(30);
+const globalLoginLimit = createRateLimit(120, 1);
 const readLimit = createRateLimit(30);
 const eventLimit = createRateLimit(30);
 export async function boundedJson(req: IncomingMessage, maxBytes = 1024): Promise<unknown> {
@@ -47,19 +45,11 @@ export function adminConfiguration(env: NodeJS.ProcessEnv = process.env) {
   const days = retentionDays(env.ADMIN_AUDIT_RETENTION_DAYS, 30, 365);
   let origin: URL;
   try { origin = new URL(env.ADMIN_ALLOWED_ORIGIN ?? ""); } catch { return null; }
-  // Temporary fail-closed boundary: legacy password auth is local rehearsal only.
+  // Hosting review is still pending: passkeys remain rehearsal-only.
   // Do not set a production deployment to development/test to bypass this gate.
-  if (!["development", "test"].includes(env.NODE_ENV ?? "") || env.ADMIN_ENABLED !== "true" || env.ANALYTICS_MAINTENANCE_ENABLED !== "true" || !days || origin.origin !== env.ADMIN_ALLOWED_ORIGIN ||
+  if (!["development", "test"].includes(env.NODE_ENV ?? "") || env.ADMIN_ENABLED !== "true" || env.ANALYTICS_MAINTENANCE_ENABLED !== "true" || !days || env.ADMIN_RP_ID !== origin.hostname || origin.origin !== env.ADMIN_ALLOWED_ORIGIN ||
     (origin.protocol !== "https:" && !(env.NODE_ENV !== "production" && origin.hostname === "localhost" && origin.protocol === "http:"))) return null;
-  return {days, origin: origin.origin};
-}
-export async function authenticatedAdmin(token: string | undefined): Promise<string | null> {
-  if (!token || !/^Bearer adm_[A-Za-z0-9_-]{43}$/.test(token)) return null;
-  const result = await pool.query(`SELECT s.user_id FROM admin_sessions s
-    JOIN admin_roles r ON r.user_id=s.user_id JOIN users u ON u.id=s.user_id
-    WHERE s.token_hash=$1 AND s.expires_at>now() AND r.role='analytics_reader'
-    AND u.deletion_scheduled_for IS NULL`, [hashSession(token.slice(7))]);
-  return result.rows[0]?.user_id ?? null;
+  return {days, origin: origin.origin, rpID:env.ADMIN_RP_ID};
 }
 async function audit(userId: string, action: string, days: number) {
   await pool.query("INSERT INTO admin_audit(user_id,action,expires_at) VALUES($1,$2,now()+$3*interval '1 day')", [userId,action,days]);
@@ -118,29 +108,22 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
       res.setHeader("Access-Control-Allow-Headers","Authorization, Content-Type");
       res.setHeader("Access-Control-Allow-Methods","GET, POST, DELETE");respond(res,204,{});return true;
     }
-    if (url.pathname === "/v1/admin/session" && req.method === "POST") {
-      // Remote address is only an expiring in-memory abuse key. Never trust forwarded headers here.
-      if (!globalLoginLimit("login") || !loginLimit(req.socket.remoteAddress ?? "unknown")) {respond(res,429,{error:"RATE_LIMITED"});return true;}
-      const body = await boundedJson(req,1024) as Record<string,unknown>;
-      if (!body || Array.isArray(body) || Object.keys(body).some(key=>!["email","password"].includes(key)) ||
-        typeof body.email !== "string" || typeof body.password !== "string" || body.email.length>254 || body.password.length>256) throw new Error("INVALID_BODY");
-      const user = await pool.query(`SELECT u.id,u.password_hash FROM users u JOIN admin_roles r ON r.user_id=u.id
-        WHERE u.email=$1 AND r.role='analytics_reader' AND u.deletion_scheduled_for IS NULL`,[body.email.trim().toLowerCase()]);
-      const passwordValid = verifyPassword(body.password,user.rows[0]?.password_hash ?? dummyPasswordHash);
-      if (!user.rows[0] || !passwordValid) {respond(res,401,{error:"UNAUTHORIZED"});return true;}
-      const id = user.rows[0].id;
-      const token = `adm_${randomBytes(32).toString("base64url")}`;
-      await pool.query(`WITH issued AS (
-        INSERT INTO admin_sessions(token_hash,user_id,expires_at)
-        SELECT $1,u.id,now()+interval '15 minutes' FROM users u JOIN admin_roles r ON r.user_id=u.id
-        WHERE u.id=$2 AND r.role='analytics_reader' AND u.deletion_scheduled_for IS NULL
-        AND u.password_hash=$4 RETURNING user_id
-      ) INSERT INTO admin_audit(user_id,action,expires_at)
-        SELECT user_id,'session_created',now()+$3*interval '1 day' FROM issued RETURNING user_id`,
-        [hashSession(token),id,config.days,user.rows[0].password_hash]).then(result=>{
-          if(result.rowCount!==1)throw new Error("ADMIN_SESSION_NOT_ISSUED");
-        });
-      respond(res,200,{token,expiresInSeconds:900});return true;
+    // No password login in any runtime. Bootstrap tokens have enrollment-only scope.
+    if (url.pathname === "/v1/admin/session" && req.method === "POST") {respond(res,404,{error:"NOT_FOUND"});return true;}
+    if (url.pathname.startsWith("/v1/admin/passkeys/") && req.method === "POST") {
+      if (!globalLoginLimit("passkey") || !loginLimit(req.socket.remoteAddress ?? "unknown")) {respond(res,429,{error:"RATE_LIMITED"});return true;}
+      const route=url.pathname.slice("/v1/admin/passkeys/".length);
+      if(!["register/options","register/verify","authenticate/options","authenticate/verify"].includes(route)){respond(res,404,{error:"NOT_FOUND"});return true;}
+      const body=await boundedJson(req,32768) as Record<string,unknown>;
+      const verifying=route.endsWith("/verify");
+      if(!body || typeof body!=="object" || Array.isArray(body) || Object.keys(body).some(key=>!((verifying?["challengeId","response"]:[]) as string[]).includes(key)) ||
+        (verifying && (typeof body.challengeId!=="string" || !body.response || typeof body.response!=="object")))throw new Error("INVALID_BODY");
+      let result;
+      if(route==="register/options")result=await beginRegistration(req.headers.authorization,config);
+      else if(route==="authenticate/options")result=await beginAuthentication(config);
+      else if(route==="register/verify")result=await finishRegistration(body.challengeId as string,body.response as Parameters<typeof finishRegistration>[1],config);
+      else result=await finishAuthentication(body.challengeId as string,body.response as Parameters<typeof finishAuthentication>[1],config);
+      respond(res,200,result);return true;
     }
     const userId = await authenticatedAdmin(req.headers.authorization);
     if (!userId) {respond(res,401,{error:"UNAUTHORIZED"});return true;}
@@ -151,6 +134,11 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
       await audit(userId,"session_closed",config.days);
       respond(res,200,{ok:true});return true;
     }
+    if (url.pathname === "/v1/admin/sessions" && req.method === "DELETE") {
+      await revokeAdminSessions(userId);
+      await audit(userId,"sessions_revoked",config.days);
+      respond(res,200,{ok:true});return true;
+    }
     if (url.pathname === "/v1/admin/overview" && req.method === "GET") {
       const {market} = dashboardFilters(url);
       await audit(userId,"dashboard_read",config.days); // Failure denies the read.
@@ -158,6 +146,7 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
     }
     respond(res,404,{error:"NOT_FOUND"});return true;
   } catch (error) {
+    if(error instanceof Error && error.message==="PASSKEY_DENIED"){respond(res,401,{error:"UNAUTHORIZED"});return true;}
     const invalid = error instanceof Error && ["INVALID_BODY","INVALID_EVENT","INVALID_FILTER"].includes(error.message) || error instanceof SyntaxError;
     respond(res,invalid ? 400 : 503,{error:invalid ? "INVALID_REQUEST" : "TEMPORARILY_UNAVAILABLE"});return true;
   }

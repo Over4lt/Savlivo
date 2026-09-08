@@ -1,5 +1,7 @@
 # Technical activation blockers reviewed from f5530fa
 
+> Passkey follow-up: [admin-passkeys-ddbd806.md](admin-passkeys-ddbd806.md) records the implemented protocol, migration 015 and validation. Older passkey-deferred statements below are historical. Production/host restrictions remain.
+
 Starting branch: build10-final. Starting tracked tree clean; only the unrelated untracked `.htaccess` existed. This file records a **partial blocker-resolution batch**, not completed passkey delivery or approval to expose admin. No production inspection, collection, role grant or migration was performed.
 
 **Verdict: NOT READY — TECHNICAL BLOCKERS REMAIN.**

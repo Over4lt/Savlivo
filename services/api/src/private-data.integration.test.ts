@@ -9,6 +9,8 @@ import {hashPassword} from "./passwords.js";
 import {createToken} from "./auth.js";
 import {authenticatedAdmin, dashboardData, handlePrivateData, hashSession} from "./private-data-http.js";
 import {observeVerifiedPrices} from "./private-data-maintenance.js";
+import {authenticator} from "./admin-passkey-fixtures.js";
+import {beginAuthentication,finishAuthentication} from "./admin-passkeys.js";
 import {expireAnalytics} from "./analytics.js";
 const enabled=process.env.SAVLIVO_DISPOSABLE_DB_TEST==="1";
 test("disposable migration, aggregation, admin HTTP authorization, audit, expiry and deletion",{skip:!enabled},async(t)=>{
@@ -44,6 +46,7 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
     assert.deepEqual((await pool.query("SELECT * FROM subscriptions ORDER BY id")).rows,before);
     const historyMigration=sql("db/migrations/014_verified_price_observations.sql");
     await pool.query(historyMigration);await pool.query(historyMigration);
+    await pool.query(sql("db/migrations/015_admin_passkeys.sql"));await pool.query(sql("db/migrations/015_admin_passkeys.sql"));
     for (const [route,currency,verification,count,agreement] of [
       ["direct","NOK","authoritative-provider",1,false],
       ["apple","NOK","multi-source",1,false],
@@ -77,7 +80,7 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
     assert.equal(JSON.stringify(data).includes("Private manual name"),false);
     assert.equal(JSON.stringify(data).includes("@example.invalid"),false);
     await pool.query("INSERT INTO admin_roles(user_id,role) VALUES($1,'analytics_reader')",[user]);
-    process.env.NODE_ENV="test";process.env.ADMIN_ENABLED="true";process.env.ANALYTICS_MAINTENANCE_ENABLED="true";process.env.ADMIN_ALLOWED_ORIGIN="https://savlivo.com";process.env.ADMIN_AUDIT_RETENTION_DAYS="180";
+    process.env.ADMIN_RP_ID="savlivo.com";process.env.NODE_ENV="test";process.env.ADMIN_ENABLED="true";process.env.ANALYTICS_MAINTENANCE_ENABLED="true";process.env.ADMIN_ALLOWED_ORIGIN="https://savlivo.com";process.env.ADMIN_AUDIT_RETENTION_DAYS="180";
     await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
     const base=`http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
     const headers={Origin:"https://savlivo.com","Content-Type":"application/json"};
@@ -97,10 +100,14 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
 
     assert.equal((await fetch(`${base}/v1/admin/overview`,{headers})).status,401);
     assert.equal((await fetch(`${base}/v1/admin/overview`,{headers:{...headers,Authorization:`Bearer ${createToken({id:user,email:"fixture1@example.invalid"})}`}})).status,401);
-    assert.equal((await fetch(`${base}/v1/admin/session`,{method:"POST",headers,body:JSON.stringify({email:"fixture2@example.invalid",password})})).status,401);
-    assert.equal((await fetch(`${base}/v1/admin/session`,{method:"POST",headers,body:JSON.stringify({email:"fixture1@example.invalid",password,role:"admin"})})).status,400);
-    const login=await fetch(`${base}/v1/admin/session`,{method:"POST",headers,body:JSON.stringify({email:"fixture1@example.invalid",password})});assert.equal(login.status,200);
-    let {token}=await login.json() as {token:string};
+    assert.equal((await fetch(`${base}/v1/admin/session`,{method:"POST",headers,body:JSON.stringify({email:"fixture1@example.invalid",password,role:"admin"})})).status,404);
+    const key=authenticator();
+    await pool.query("INSERT INTO admin_passkeys(id,user_id,rp_id,public_key,counter) VALUES($1,$2,'savlivo.com',$3,0)",[key.id,user,key.publicKey]);
+    const handle=Buffer.from((await pool.query("SELECT webauthn_user_id FROM admin_roles WHERE user_id=$1",[user])).rows[0].webauthn_user_id).toString("base64url");
+    let counter=0;
+    const login=async()=>{const config={origin:"https://savlivo.com",rpID:"savlivo.com",days:180},a=await beginAuthentication(config);
+      return finishAuthentication(a.challengeId,key.assert(a.options.challenge,config.origin,config.rpID,handle,++counter),config);};
+    let {token}=await login();
     assert.equal(await authenticatedAdmin(`Bearer ${token}`),user);
     const authorized={...headers,Authorization:`Bearer ${token}`};
     assert.equal((await fetch(`${base}/v1/admin/overview`,{headers:authorized})).status,200);
@@ -111,7 +118,7 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
     process.env.NODE_ENV="production";
     assert.equal((await fetch(`${base}/v1/admin/overview`,{headers:authorized})).status,404);
     assert.equal((await fetch(`${base}/v1/admin/session`,{method:"POST",headers,body:JSON.stringify({email:"fixture1@example.invalid",password})})).status,404);
-    process.env.NODE_ENV="test";
+    process.env.ADMIN_RP_ID="savlivo.com";process.env.NODE_ENV="test";
     // Audit failure denies data disclosure.
     await pool.query("ALTER TABLE admin_audit RENAME TO unavailable_admin_audit");
     assert.equal((await fetch(`${base}/v1/admin/overview`,{headers:authorized})).status,503);
@@ -123,15 +130,13 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
       assert.ok(Number(saved.seconds)>880 && Number(saved.seconds)<=900);
       const countBefore=(await pool.query("SELECT count(*)::int n FROM admin_sessions")).rows[0].n;
       await pool.query("ALTER TABLE admin_audit RENAME TO unavailable_admin_audit");
-      const failedLogin=await fetch(`${base}/v1/admin/session`,{method:"POST",headers,body:JSON.stringify({email:"fixture1@example.invalid",password})});
-      assert.equal(failedLogin.status,503);
+      await assert.rejects(login());
       assert.equal((await pool.query("SELECT count(*)::int n FROM admin_sessions")).rows[0].n,countBefore);
       assert.equal((await fetch(`${base}/v1/admin/session`,{method:"DELETE",headers:authorized})).status,503);
       assert.equal(await authenticatedAdmin(`Bearer ${token}`),null);
       await pool.query("ALTER TABLE unavailable_admin_audit RENAME TO admin_audit");
       const old=token;
-      const fresh=await fetch(`${base}/v1/admin/session`,{method:"POST",headers,body:JSON.stringify({email:"fixture1@example.invalid",password})});
-      assert.equal(fresh.status,200);token=(await fresh.json() as {token:string}).token;assert.notEqual(token,old);
+      token=(await login()).token;assert.notEqual(token,old);
       assert.equal(await authenticatedAdmin(`Bearer ${old}`),null);assert.equal(await authenticatedAdmin(`Bearer ${token}`),user);
       const auditRecords=(await pool.query("SELECT * FROM admin_audit")).rows;
       assert.equal(JSON.stringify(auditRecords).includes(password),false);assert.equal(JSON.stringify(auditRecords).includes("@"),false);
@@ -154,7 +159,8 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
       const owner=users[2].id;
       await pool.query("INSERT INTO admin_roles(user_id,role) VALUES($1,'analytics_reader')",[owner]);
       const tokens=[`adm_${randomBytes(32).toString('base64url')}`,`adm_${randomBytes(32).toString('base64url')}`];
-      for(const item of tokens)await pool.query("INSERT INTO admin_sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '10 minutes')",[hashSession(item),owner]);
+      const ownerKey=authenticator();await pool.query("INSERT INTO admin_passkeys(id,user_id,rp_id,public_key,counter) VALUES($1,$2,'savlivo.com',$3,0)",[ownerKey.id,owner,ownerKey.publicKey]);
+      for(const item of tokens)await pool.query("INSERT INTO admin_sessions(token_hash,user_id,credential_id,expires_at) VALUES($1,$2,$3,now()+interval '10 minutes')",[hashSession(item),owner,ownerKey.id]);
       const ownerHeaders={...headers,Authorization:`Bearer ${tokens[0]}`};
       assert.equal((await fetch(`${base}/v1/admin/roles`,{method:"POST",headers:ownerHeaders,body:JSON.stringify({role:"analytics_reader"})})).status,404);
       assert.equal((await fetch(`${base}/v1/admin/audit`,{method:"DELETE",headers:ownerHeaders})).status,404);

@@ -2,20 +2,21 @@ const api = "http://localhost:3000";
 let token = null;
 let generation = 0;
 let expiryTimer;
+let browserAbort;
 const $ = id => document.getElementById(id);
 const message = text => {$("message").textContent = text;};
 if (location.protocol !== "https:" && location.hostname !== "localhost") {
-  $("login").hidden=true;message("HTTPS is required for admin access.");
+  $("login").hidden=true;$("register").hidden=true;message("HTTPS is required for admin access.");
   throw new Error("HTTPS_REQUIRED");
 }
-// Local rehearsal only until passkey enrollment and authentication are delivered.
+// Local rehearsal only until production host/RP/origin review.
 // The API independently denies production and unspecified runtimes.
 if (location.hostname !== "localhost") {
-  $("login").hidden=true;message("Production admin access is disabled pending passkey authentication.");
+  $("login").hidden=true;$("register").hidden=true;message("Hosted admin access remains disabled pending host review.");
   throw new Error("ADMIN_PRODUCTION_DISABLED");
 }
 function clearSession() {
-  token = null; clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();
+  token = null; browserAbort?.abort(); clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();
 }
 async function request(path, options = {}) {
   const authorization=options.headers?.Authorization ?? (token ? `Bearer ${token}` : undefined);
@@ -49,14 +50,63 @@ async function refresh() {
     paragraph($("results"),"Savlivo revenue, conversion, retention and named missing-service demand are unavailable. No raw conversation or user portfolio viewer is provided.");message("Loaded.");
   } catch(error) {if(current===generation)message(error.message);}
 }
+function from64(value) {
+  const base=value.replace(/-/g,"+").replace(/_/g,"/");
+  return Uint8Array.from(atob(base+"=".repeat((4-base.length%4)%4)),c=>c.charCodeAt(0));
+}
+function to64(value) {
+  return btoa(String.fromCharCode(...new Uint8Array(value))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+async function credential(options,register) {
+  if(!navigator.credentials || !window.PublicKeyCredential)throw new Error("Passkeys are unavailable in this browser.");
+  const publicKey={...options,challenge:from64(options.challenge)};
+  if(register) {
+    publicKey.user={...options.user,id:from64(options.user.id)};
+    publicKey.excludeCredentials=(options.excludeCredentials??[]).map(c=>({...c,id:from64(c.id)}));
+  } else publicKey.allowCredentials=(options.allowCredentials??[]).map(c=>({...c,id:from64(c.id)}));
+  browserAbort?.abort();browserAbort=new AbortController();
+  const result=await navigator.credentials[register?"create":"get"]({publicKey,signal:browserAbort.signal});
+  if(!result)throw new Error("Passkey operation cancelled.");
+  const response={clientDataJSON:to64(result.response.clientDataJSON)};
+  if(register)response.attestationObject=to64(result.response.attestationObject);
+  else {
+    response.authenticatorData=to64(result.response.authenticatorData);response.signature=to64(result.response.signature);
+    response.userHandle=result.response.userHandle?to64(result.response.userHandle):null;
+  }
+  return {id:result.id,rawId:to64(result.rawId),type:result.type,clientExtensionResults:result.getClientExtensionResults(),response};
+}
 $("login").addEventListener("submit",async event=>{
-  event.preventDefault();message("Signing in…");
+  event.preventDefault();message("Use your passkey to sign in…");
   const current=++generation;
-  const password=$("password").value;$("password").value="";
-  try {const result=await request("session",{method:"POST",body:JSON.stringify({email:$("email").value,password})});
+  try {
+    const options=await request("passkeys/authenticate/options",{method:"POST",body:"{}"});
     if(current!==generation)return;
-    token=result.token;clearTimeout(expiryTimer);expiryTimer=setTimeout(()=>{clearSession();message("Session expired. Sign in again.");},result.expiresInSeconds*1000);$("login").hidden=true;$("dashboard").hidden=false;await refresh();
-  } catch(error) {message(error.message);}
+    const response=await credential(options.options,false);
+    if(current!==generation)return;
+    const result=await request("passkeys/authenticate/verify",{method:"POST",body:JSON.stringify({challengeId:options.challengeId,response})});
+    if(current!==generation) {await request("session",{method:"DELETE",headers:{Authorization:`Bearer ${result.token}`}});return;}
+    token=result.token;clearTimeout(expiryTimer);expiryTimer=setTimeout(()=>{clearSession();message("Session expired. Sign in again.");},result.expiresInSeconds*1000);
+    $("login").hidden=true;$("dashboard").hidden=false;await refresh();
+  } catch {if(current===generation)message("Passkey sign-in was cancelled or unavailable. Try again.");}
+});
+$("register").addEventListener("submit",async event=>{
+  event.preventDefault();const current=++generation;
+  const grant=$("enrollment").value.trim();$("enrollment").value="";
+  message("Register your passkey…");
+  try {
+    const options=await request("passkeys/register/options",{method:"POST",body:"{}",...(grant?{headers:{Authorization:`Bearer ${grant}`}}:{})});
+    if(current!==generation)return;
+    const response=await credential(options.options,true);
+    if(current!==generation)return;
+    await request("passkeys/register/verify",{method:"POST",body:JSON.stringify({challengeId:options.challengeId,response})});
+    if(current!==generation)return;
+    clearSession();message("Passkey registered. Sign in with your passkey; prior sessions were revoked.");
+  }catch{if(current===generation)message("Registration was cancelled or denied. A consumed enrollment grant cannot be reused.");}
+});
+$("revoke").addEventListener("click",async()=>{
+  const previous=token;clearSession();message("Signed out locally.");
+  try{await request("sessions",{method:"DELETE",headers:{Authorization:`Bearer ${previous}`}});if(!token)message("All admin sessions revoked.");}
+  catch{if(!token)message("Server revocation could not be confirmed. Sessions expire within 15 minutes.");}
 });
 $("filters").addEventListener("submit",event=>{event.preventDefault();refresh();});
 $("logout").addEventListener("click",async()=>{

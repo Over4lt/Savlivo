@@ -49,7 +49,7 @@ test("bounded reader rejects oversized and non-JSON payloads",async()=>{
 test("admin fails closed without complete explicit configuration",()=>{
   assert.equal(adminConfiguration({}),null);
   assert.equal(adminConfiguration({NODE_ENV:"test",ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"http://example.org"}),null);
-  assert.equal(adminConfiguration({NODE_ENV:"test",ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"https://savlivo.com"})?.origin,"https://savlivo.com");
+  assert.equal(adminConfiguration({NODE_ENV:"test",ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"https://savlivo.com",ADMIN_RP_ID:"savlivo.com"})?.origin,"https://savlivo.com");
 });
 test("customer tokens and client admin claims cannot become privileged sessions",async()=>{
   assert.equal(await authenticatedAdmin(undefined),null);
@@ -112,7 +112,7 @@ test("malformed request targets cannot reject the shared server callback",async(
 });
 
 test("legacy admin access is disabled in production and unspecified runtimes",()=>{
-  const config={ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"https://savlivo.com"};
+  const config={ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"https://savlivo.com",ADMIN_RP_ID:"savlivo.com"};
   for(const NODE_ENV of [undefined,"production","staging"]) assert.equal(adminConfiguration({...config,NODE_ENV}),null);
 });
 test("dashboard never queries user-derived tables or exposes suppressed measures",async(t)=>{
@@ -125,4 +125,18 @@ test("dashboard never queries user-derived tables or exposes suppressed measures
   assert.ok(queries.every(query=>query.includes("FROM verified_provider_prices")));
   assert.ok(queries.every(query=>!/(analytics_events|analytics_actors|subscriptions|entitlements|FROM users)/.test(query)));
   for(const key of ["events","subscriptions","entitlements","newUsers","serviceDistribution","days","minimumCohort"])assert.equal(key in first,false);
+});
+
+test("passkey RP configuration is explicit and exactly matches the allowed origin hostname",()=>{
+  const config={NODE_ENV:"test",ADMIN_ENABLED:"true",ANALYTICS_MAINTENANCE_ENABLED:"true",ADMIN_AUDIT_RETENTION_DAYS:"180",ADMIN_ALLOWED_ORIGIN:"https://admin.example.org"};
+  for(const ADMIN_RP_ID of [undefined,"example.org","evil.invalid","https://admin.example.org","admin.example.org:443"])assert.equal(adminConfiguration({...config,ADMIN_RP_ID}),null);
+  assert.equal(adminConfiguration({...config,ADMIN_RP_ID:"admin.example.org"})?.rpID,"admin.example.org");
+});
+test("missing passkey migration does not prevent existing analytics retention",async(t)=>{
+  const {privateDataPool}=await import("./private-data-db.js"),{expireAnalytics}=await import("./analytics.js");
+  const queries:string[]=[];
+  t.mock.method(privateDataPool,"query",async(query:string)=>{queries.push(query);if(query.includes("admin_passkey_challenges"))throw new Error("unavailable");return {rows:[]};});
+  await assert.rejects(expireAnalytics());
+  assert.ok(queries.findIndex(q=>q.includes("DELETE FROM analytics_events"))<queries.findIndex(q=>q.includes("admin_passkey_challenges")));
+  assert.ok(queries.some(q=>q.includes("DELETE FROM analytics_actors")));
 });

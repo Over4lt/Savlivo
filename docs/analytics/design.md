@@ -1,5 +1,7 @@
 # Privacy-first data foundation: audit and activation decisions
 
+> Passkey follow-up: [admin-passkeys-ddbd806.md](admin-passkeys-ddbd806.md) records the implemented protocol, migration 015 and validation. Older passkey-deferred statements below are historical. Production/host restrictions remain.
+
 > Current update: [activation-blockers-f5530fa.md](activation-blockers-f5530fa.md) supersedes the historical reporting/auth scope below. User-derived reports are removed; admin is local-rehearsal-only. Passkey delivery and hosting verification remain technical blockers.
 
 Starting HEAD bab1216, build10-final; only unrelated untracked .htaccess. Accepted AI behavior is protected. No production inspection, migration, rollout or privacy-policy publication is authorized here.

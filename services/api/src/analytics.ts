@@ -40,4 +40,6 @@ export async function expireAnalytics() {
   await pool.query("DELETE FROM admin_sessions WHERE token_hash IN (SELECT token_hash FROM admin_sessions WHERE expires_at <= now() LIMIT 5000)");
   await pool.query("DELETE FROM admin_audit WHERE id IN (SELECT id FROM admin_audit WHERE expires_at <= now() LIMIT 5000)");
   await pool.query("DELETE FROM analytics_actors WHERE id IN (SELECT a.id FROM analytics_actors a WHERE NOT EXISTS (SELECT 1 FROM analytics_events e WHERE e.actor_id=a.id) LIMIT 5000)");
+  // An unavailable passkey table must not prevent existing privacy cleanup.
+  await pool.query("DELETE FROM admin_passkey_challenges WHERE id IN (SELECT id FROM admin_passkey_challenges WHERE expires_at <= now() LIMIT 5000)");
 }

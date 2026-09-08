@@ -1,5 +1,7 @@
 # Local review and acceptance
 
+> Passkey follow-up: [admin-passkeys-ddbd806.md](admin-passkeys-ddbd806.md) records the implemented protocol, migration 015 and validation. Older passkey-deferred statements below are historical. Production/host restrictions remain.
+
 > Current update: [activation-blockers-f5530fa.md](activation-blockers-f5530fa.md) supersedes the historical reporting/auth scope below. User-derived reports are removed; admin is local-rehearsal-only. Passkey delivery and hosting verification remain technical blockers.
 
 Starting bab1216 (17 commits ahead of origin/build10-final); only unrelated .htaccess untracked. Reviewed local series from 36d480f through bab1216 and audited auth, schema/migrations, API, static web, mobile identity, purchases, privacy text and pricing persistence. No live production inspection or secret retrieval.
