@@ -6903,6 +6903,9 @@ function appleTvInternationalCurrencyPatterns(
     string,
     RegExp[]
   > = {
+    GBP: [/£\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:per\s+month|\/\s*month)/gi],
+    AUD: [/A\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:per\s+month|\/\s*month)/gi],
+    NZD: [/NZ\$\s*([0-9]+(?:\.[0-9]{1,2})?)\s*(?:per\s+month|\/\s*month)/gi],
     USD: [
       new RegExp(
         "\\$\\s*" +
@@ -7139,6 +7142,10 @@ function appleTvStorefrontPath(
     string,
     string
   > = {
+    GB: "uk",
+    AU: "au",
+    NZ: "nz",
+    BE: "befr",
     US: "",
     SE: "se",
     DK: "dk",
@@ -7663,8 +7670,7 @@ async function appleTvAdapter(
    * official country-local Apple page has been observed to
    * expose an exact recurring monthly Apple TV price.
    *
-   * Belgium is intentionally absent because the verified
-   * /be/apple-tv/ storefront currently returns 404.
+   * Belgium uses the verified French storefront /befr/apple-tv/.
    */
   const storefront =
     appleTvStorefrontPath(
@@ -7676,6 +7682,15 @@ async function appleTvAdapter(
       ctx,
       candidates
     );
+  }
+
+  const addedMarkets: Record<string, [string, string]> = {
+    GB: ["GBP", "en_GB"], AU: ["AUD", "en_AU"],
+    NZ: ["NZD", "en_NZ"], BE: ["EUR", "fr_BE"]
+  };
+  const addedMarket = addedMarkets[ctx.countryCode];
+  if (addedMarket && addedMarket[0] !== ctx.currency) {
+    return resolvePriceCandidates(ctx, candidates);
   }
 
   const path =
@@ -7694,6 +7709,7 @@ async function appleTvAdapter(
     const response =
       await fetch(url, {
         redirect: "follow",
+        ...(addedMarket ? { signal: AbortSignal.timeout(12000) } : {}),
         headers: {
           "user-agent":
             "Mozilla/5.0 (compatible; SavlivoPricing/1.0)",
@@ -7705,6 +7721,10 @@ async function appleTvAdapter(
     if (response.ok) {
       const html =
         await response.text();
+
+      if (addedMarket && !verifyAppleStorefrontIdentity(html, url, addedMarket[1])) {
+        return resolvePriceCandidates(ctx, candidates);
+      }
 
       const amount =
         parseAppleTvPlusInternationalPrice(

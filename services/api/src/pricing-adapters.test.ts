@@ -5126,3 +5126,55 @@ test("Apple Music new sources fail safely without removing registry fallback", a
   const no = await providerAdapters["apple-music"]({ countryCode: "NO", currency: "NOK" });
   assert.ok(no.length > 0 && no.every(p => p.verification === "registry"));
 });
+
+const tvFixture = (path: string) => readFileSync(new URL(`./fixtures/apple-tv-${path}.html`, import.meta.url), "utf8");
+const addedTvMarkets: Array<[string, string, string, number]> = [
+  ["GB", "uk", "GBP", 9.99], ["AU", "au", "AUD", 15.99],
+  ["NZ", "nz", "NZD", 17.99], ["BE", "befr", "EUR", 9.99]
+];
+
+test("Apple TV verifies four localized storefronts and the Apple billing route", async (t) => {
+  for (const [countryCode, path, currency, amount] of addedTvMarkets) {
+    await t.test(countryCode, async (t) => {
+      const html = tvFixture(path);
+      assert.equal(parseAppleTvPlusInternationalPrice(html, currency), amount);
+      t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+        assert.equal(String(input), `https://www.apple.com/${path}/apple-tv/`);
+        assert.ok(init?.signal);
+        return new Response(html);
+      });
+      const prices = await providerAdapters["apple-tv-plus"]({ countryCode, currency });
+      assert.equal(prices.length, 1);
+      assert.equal(prices[0].monthlyPriceMinor, Math.round(amount * 100));
+      assert.equal(prices[0].verification, "authoritative-provider");
+      assert.equal(prices[0].billingProviderSlug, "apple");
+    });
+  }
+});
+
+test("Apple TV Belgian registry price survives every new-source failure", async (t) => {
+  const html = tvFixture("befr");
+  const bodies = [null, "", html.replace("fr_BE", "fr_FR"),
+    html.replace("/befr/", "/fr/"), html.replaceAll("€", "$"),
+    html + '<p>Apple TV 19,99 € par mois</p>', html.replaceAll("par mois", "par an")];
+  for (const body of bodies) {
+    await t.test(body === null ? "network" : "invalid evidence", async (t) => {
+      t.mock.method(globalThis, "fetch", async () => { if (body === null) throw new Error("offline"); return new Response(body); });
+      const prices = await providerAdapters["apple-tv-plus"]({ countryCode: "BE", currency: "EUR" });
+      assert.equal(prices.length, 1);
+      assert.equal(prices[0].monthlyPriceMinor, 999);
+      assert.equal(prices[0].verification, "registry");
+    });
+  }
+  await t.test("HTTP error", async (t) => {
+    t.mock.method(globalThis, "fetch", async () => new Response(html, { status: 503 }));
+    const prices = await providerAdapters["apple-tv-plus"]({ countryCode: "BE", currency: "EUR" });
+    assert.equal(prices[0].verification, "registry");
+  });
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => { calls++; throw new Error("offline"); });
+  assert.deepEqual(await providerAdapters["apple-tv-plus"]({ countryCode: "BE", currency: "USD" }), []);
+  assert.equal(calls, 0);
+  const no = await providerAdapters["apple-tv-plus"]({ countryCode: "NO", currency: "NOK" });
+  assert.ok(no.length > 0 && no.every(p => p.verification === "registry"));
+});
