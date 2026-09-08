@@ -1370,7 +1370,11 @@ export const verifiedProviderRegistry: Record<
       currency: "NOK",
       monthlyPriceMinor: 21900,
       sourceUrl: "https://www.netflix.com/no/"
-    }
+    },
+    // Norway provider bootstrap proves product 1234, monthly billing and NO region;
+    // the matching official offer explicitly states the ordinary 169 NOK/month price.
+    { serviceSlug: "viaplay", planName: "Viaplay Film & Serier", currency: "NOK", monthlyPriceMinor: 16900,
+      sourceUrl: "https://viaplay.no/no-nb/lyko", billingProviderSlug: "direct" },
   ],
   US: [
     {
@@ -11515,6 +11519,8 @@ function regionalStoreEstimatedAdapter(
 }
 
 export const providerAdapters = {
+  // Registry-only launch; use the existing resolver to retain explicit verification metadata.
+  viaplay: async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("viaplay", ctx)),
   "tencent-video": chinaStoreEstimatedAdapter("tencent-video"),
   iqiyi: chinaStoreEstimatedAdapter("iqiyi"),
   "mango-tv": chinaStoreEstimatedAdapter("mango-tv"),

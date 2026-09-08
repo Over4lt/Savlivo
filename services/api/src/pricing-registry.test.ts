@@ -174,3 +174,17 @@ test(
     );
   }
 );
+
+test("Viaplay Norway snapshot matches independent product country currency interval and direct route proof",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const evidence=JSON.parse(readFileSync(new URL("./fixtures/viaplay-no.json",import.meta.url),"utf8"));
+  const row=verifiedProviderRegistry.NO.find(p=>p.serviceSlug==="viaplay")!;
+  assert.equal(evidence.product.region.regionCode,"no");
+  assert.equal(evidence.product.shortProductId,"1234");
+  assert.equal(evidence.product.requiredContractDuration,0);
+  assert.equal(evidence.product.priceDisplayTitle,"{pricePerMonth} kr/mnd");
+  assert.match(evidence.ordinaryPriceExcerpt,/169 NOK\/måned/);
+  assert.equal(row.planName,evidence.product.title);
+  assert.equal(row.monthlyPriceMinor,evidence.product.price*100);
+  assert.equal(row.currency,"NOK");assert.equal(row.billingProviderSlug,"direct");
+});

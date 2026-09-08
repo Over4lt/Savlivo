@@ -239,8 +239,8 @@ test("release review preserves all 23 selectable markets and valid offline prici
 test("all 286 pre-expansion registry records retain their exact values source URLs and billing routes",()=>{
   const baseline=JSON.parse(readFileSync(new URL("./fixtures/registry-f2340dc.json",import.meta.url),"utf8"));
   for(const [cc,entry]of Object.entries(baseline) as [string,{count:number;sha256:string}][]){
-    assert.equal(verifiedProviderRegistry[cc].length,entry.count);
-    assert.equal(createHash("sha256").update(JSON.stringify(verifiedProviderRegistry[cc])).digest("hex"),entry.sha256,cc);
+    assert.ok(verifiedProviderRegistry[cc].length>=entry.count);
+    assert.equal(createHash("sha256").update(JSON.stringify(verifiedProviderRegistry[cc].slice(0,entry.count))).digest("hex"),entry.sha256,cc);
   }
 });
 
@@ -276,4 +276,17 @@ test("seven international markets meet unchanged breadth route fallback and appl
   assert.deepEqual(items,before);
   assert.deepEqual(subscriptionsForMarket(items,"NO").map(p=>p.id),["NO"]);
   for(const cc of ["JP","KR","MX","AR","ZA","VN","ID","NG","EG","MA","QA","KW","RU"])assert.ok(!countryCurrencyData.some(([c])=>c===cc),cc);
+});
+
+test("catalog batch preserves all 363 baseline registry rows and all 756 offline pricing hits",async(t)=>{
+  const baseline=JSON.parse(readFileSync(new URL("../../../docs/catalog/baseline-60362c6.json",import.meta.url),"utf8"));
+  t.mock.method(globalThis,"fetch",async()=>{throw new Error("provider outage");});
+  for(const market of baseline.markets){
+    assert.deepEqual(verifiedProviderRegistry[market.country]?.slice(0,market.registry.length)??[],market.registry);
+    const rows=await fetchProviderLocalPrices(market.country,market.currency);
+    for(const previous of market.offlinePrices)assert.ok(rows.some(p=>p.serviceSlug===previous.serviceSlug&&p.planName===previous.planName&&p.billingProviderSlug===previous.billingProviderSlug&&p.monthlyPriceMinor===previous.monthlyPriceMinor&&p.currency===previous.currency&&p.verification===previous.verification&&p.sourceUrl===previous.sourceUrl),`${market.country} ${previous.serviceSlug} ${previous.planName}`);
+    const viaplay=rows.filter(p=>p.serviceSlug==="viaplay");
+    assert.equal(viaplay.length,market.country==="NO"?1:0);
+    if(viaplay.length){assert.equal(viaplay[0].verification,"registry");assert.equal(viaplay[0].billingProviderSlug,"direct");}
+  }
 });

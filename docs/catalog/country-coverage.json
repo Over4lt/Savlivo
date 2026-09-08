@@ -1,0 +1,1343 @@
+[
+  {
+    "country": "US",
+    "currency": "USD",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "prime-video",
+      "amazon-prime",
+      "youtube-premium",
+      "hulu",
+      "paramount-plus",
+      "peacock",
+      "crunchyroll",
+      "amazon-music-unlimited",
+      "tidal",
+      "audible",
+      "xbox-game-pass",
+      "playstation-plus",
+      "ea-play",
+      "ubisoft-plus",
+      "geforce-now",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "calm",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 52,
+    "candidateRecommendations": {
+      "guardian": "RESEARCH BLOCKED",
+      "nytimes": "RESEARCH BLOCKED",
+      "sling": "RESEARCH BLOCKED",
+      "siriusxm": "ADD LATER",
+      "viki": "ADD LATER",
+      "vix": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "guardian",
+      "nytimes",
+      "sling",
+      "siriusxm",
+      "viki",
+      "vix"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "NO",
+    "currency": "NOK",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "prime-video",
+      "apple-tv-plus",
+      "youtube-premium",
+      "crunchyroll",
+      "spotify",
+      "apple-music",
+      "tidal",
+      "xbox-game-pass",
+      "ea-play",
+      "chatgpt",
+      "claude",
+      "microsoft-365",
+      "dropbox",
+      "google-one",
+      "icloud-plus",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 55,
+    "candidateRecommendations": {
+      "viaplay": "ADD NOW",
+      "tv2-play-no": "RESEARCH BLOCKED",
+      "aftenposten": "RESEARCH BLOCKED",
+      "storytel": "ADD LATER",
+      "podimo": "ADD LATER",
+      "nrk-tv": "NOT SUITABLE",
+      "t-we": "ADD LATER"
+    },
+    "candidates": [
+      "viaplay",
+      "tv2-play-no",
+      "aftenposten",
+      "storytel",
+      "podimo",
+      "nrk-tv",
+      "t-we"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "SE",
+    "currency": "SEK",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "amazon-prime",
+      "youtube-premium",
+      "crunchyroll",
+      "tidal",
+      "xbox-game-pass",
+      "ea-play",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 34,
+    "candidateRecommendations": {
+      "viaplay": "ADD NOW",
+      "storytel": "ADD LATER",
+      "tv4-play": "RESEARCH BLOCKED",
+      "dagens-nyheter": "ADD LATER"
+    },
+    "candidates": [
+      "viaplay",
+      "storytel",
+      "tv4-play",
+      "dagens-nyheter"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "DK",
+    "currency": "DKK",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "prime-video",
+      "youtube-premium",
+      "crunchyroll",
+      "tidal",
+      "xbox-game-pass",
+      "ea-play",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 34,
+    "candidateRecommendations": {
+      "viaplay": "ADD NOW",
+      "storytel": "ADD LATER",
+      "tv2-play-dk": "ADD LATER",
+      "podimo": "ADD LATER"
+    },
+    "candidates": [
+      "viaplay",
+      "storytel",
+      "tv2-play-dk",
+      "podimo"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "DE",
+    "currency": "EUR",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "amazon-prime",
+      "youtube-premium",
+      "paramount-plus",
+      "crunchyroll",
+      "amazon-music-unlimited",
+      "tidal",
+      "audible",
+      "xbox-game-pass",
+      "ea-play",
+      "ubisoft-plus",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 44,
+    "candidateRecommendations": {
+      "podimo": "ADD LATER",
+      "rtl-plus": "ADD LATER",
+      "joyn": "RESEARCH BLOCKED",
+      "wow": "ADD LATER",
+      "deezer": "ADD LATER",
+      "dazn": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "podimo",
+      "rtl-plus",
+      "joyn",
+      "wow",
+      "deezer",
+      "dazn"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "ES",
+    "currency": "EUR",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "amazon-prime",
+      "youtube-premium",
+      "crunchyroll",
+      "amazon-music-unlimited",
+      "tidal",
+      "xbox-game-pass",
+      "ea-play",
+      "ubisoft-plus",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 36,
+    "candidateRecommendations": {
+      "podimo": "ADD LATER",
+      "movistar-plus": "RESEARCH BLOCKED",
+      "filmin": "RESEARCH BLOCKED",
+      "el-pais": "RESEARCH BLOCKED",
+      "dazn": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "podimo",
+      "movistar-plus",
+      "filmin",
+      "el-pais",
+      "dazn"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "FR",
+    "currency": "EUR",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "amazon-prime",
+      "youtube-premium",
+      "paramount-plus",
+      "crunchyroll",
+      "amazon-music-unlimited",
+      "tidal",
+      "xbox-game-pass",
+      "ea-play",
+      "ubisoft-plus",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 41,
+    "candidateRecommendations": {
+      "canal-plus": "RESEARCH BLOCKED",
+      "le-monde": "ADD LATER",
+      "deezer": "ADD LATER",
+      "molotov": "ADD LATER"
+    },
+    "candidates": [
+      "canal-plus",
+      "le-monde",
+      "deezer",
+      "molotov"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "IT",
+    "currency": "EUR",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "amazon-prime",
+      "youtube-premium",
+      "paramount-plus",
+      "crunchyroll",
+      "amazon-music-unlimited",
+      "tidal",
+      "xbox-game-pass",
+      "ea-play",
+      "ubisoft-plus",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 40,
+    "candidateRecommendations": {
+      "dazn": "RESEARCH BLOCKED",
+      "now-it": "RESEARCH BLOCKED",
+      "corriere": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "dazn",
+      "now-it",
+      "corriere"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "PT",
+    "currency": "EUR",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "amazon-prime",
+      "youtube-premium",
+      "crunchyroll",
+      "tidal",
+      "xbox-game-pass",
+      "ubisoft-plus",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 35,
+    "candidateRecommendations": {
+      "filmin": "RESEARCH BLOCKED",
+      "opto": "RESEARCH BLOCKED",
+      "publico": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "filmin",
+      "opto",
+      "publico"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "NL",
+    "currency": "EUR",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "amazon-prime",
+      "youtube-premium",
+      "crunchyroll",
+      "tidal",
+      "xbox-game-pass",
+      "ea-play",
+      "ubisoft-plus",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 35,
+    "candidateRecommendations": {
+      "viaplay": "ADD NOW",
+      "storytel": "ADD LATER",
+      "podimo": "ADD LATER",
+      "videoland": "ADD LATER",
+      "nlziet": "ADD LATER"
+    },
+    "candidates": [
+      "viaplay",
+      "storytel",
+      "podimo",
+      "videoland",
+      "nlziet"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "BE",
+    "currency": "EUR",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "amazon-prime",
+      "apple-tv-plus",
+      "youtube-premium",
+      "crunchyroll",
+      "apple-music",
+      "tidal",
+      "xbox-game-pass",
+      "ubisoft-plus",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "icloud-plus",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 42,
+    "candidateRecommendations": {
+      "streamz": "ADD LATER",
+      "goplay": "NOT SUITABLE"
+    },
+    "candidates": [
+      "streamz",
+      "goplay"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "AT",
+    "currency": "EUR",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "amazon-prime",
+      "youtube-premium",
+      "paramount-plus",
+      "crunchyroll",
+      "amazon-music-unlimited",
+      "tidal",
+      "xbox-game-pass",
+      "ubisoft-plus",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 39,
+    "candidateRecommendations": {
+      "joyn": "RESEARCH BLOCKED",
+      "sky-x": "RESEARCH BLOCKED",
+      "der-standard": "RESEARCH BLOCKED",
+      "dazn": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "joyn",
+      "sky-x",
+      "der-standard",
+      "dazn"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "IE",
+    "currency": "EUR",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "amazon-prime",
+      "youtube-premium",
+      "paramount-plus",
+      "crunchyroll",
+      "tidal",
+      "xbox-game-pass",
+      "ubisoft-plus",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 36,
+    "candidateRecommendations": {
+      "now-ie": "ADD LATER",
+      "irish-times": "ADD LATER"
+    },
+    "candidates": [
+      "now-ie",
+      "irish-times"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "FI",
+    "currency": "EUR",
+    "existingSelectableServices": [
+      "netflix",
+      "disney-plus",
+      "max",
+      "prime-video",
+      "youtube-premium",
+      "crunchyroll",
+      "tidal",
+      "xbox-game-pass",
+      "ea-play",
+      "ubisoft-plus",
+      "chatgpt",
+      "claude",
+      "dropbox",
+      "google-one",
+      "strava",
+      "headspace"
+    ],
+    "existingOfflinePriceCount": 36,
+    "candidateRecommendations": {
+      "viaplay": "ADD NOW",
+      "storytel": "ADD LATER",
+      "podimo": "ADD LATER",
+      "ruutu": "RESEARCH BLOCKED",
+      "helsingin-sanomat": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "viaplay",
+      "storytel",
+      "podimo",
+      "ruutu",
+      "helsingin-sanomat"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "CN",
+    "currency": "CNY",
+    "existingSelectableServices": [
+      "tencent-video",
+      "iqiyi",
+      "mango-tv",
+      "bilibili",
+      "qq-music",
+      "netease-cloud-music",
+      "kugou-music",
+      "baidu-netdisk",
+      "wps"
+    ],
+    "existingOfflinePriceCount": 18,
+    "candidateRecommendations": {
+      "weread": "RESEARCH BLOCKED",
+      "bilibili-manga": "NOT SUITABLE"
+    },
+    "candidates": [
+      "weread",
+      "bilibili-manga"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "GB",
+    "currency": "GBP",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "spotify",
+      "apple-music",
+      "google-one",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 15,
+    "candidateRecommendations": {
+      "deezer": "ADD LATER",
+      "dazn": "RESEARCH BLOCKED",
+      "now-uk": "ADD LATER",
+      "itvx": "RESEARCH BLOCKED",
+      "guardian": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "deezer",
+      "dazn",
+      "now-uk",
+      "itvx",
+      "guardian"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "AU",
+    "currency": "AUD",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "apple-music",
+      "google-one",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 11,
+    "candidateRecommendations": {
+      "guardian": "RESEARCH BLOCKED",
+      "stan": "RESEARCH BLOCKED",
+      "kayo": "RESEARCH BLOCKED",
+      "binge": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "guardian",
+      "stan",
+      "kayo",
+      "binge"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "NZ",
+    "currency": "NZD",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "apple-music",
+      "google-one",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 11,
+    "candidateRecommendations": {
+      "neon": "RESEARCH BLOCKED",
+      "sky-sport-now": "RESEARCH BLOCKED",
+      "tvnz-plus": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "neon",
+      "sky-sport-now",
+      "tvnz-plus"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "CH",
+    "currency": "CHF",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "spotify",
+      "apple-music",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 13,
+    "candidateRecommendations": {
+      "blue-sport": "ADD LATER",
+      "nzz": "ADD LATER",
+      "dazn": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "blue-sport",
+      "nzz",
+      "dazn"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "PL",
+    "currency": "PLN",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "spotify",
+      "apple-music",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 13,
+    "candidateRecommendations": {
+      "viaplay": "ADD NOW",
+      "storytel": "ADD LATER",
+      "canal-plus": "RESEARCH BLOCKED",
+      "go3": "RESEARCH BLOCKED",
+      "player": "RESEARCH BLOCKED",
+      "onet-premium": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "viaplay",
+      "storytel",
+      "canal-plus",
+      "go3",
+      "player",
+      "onet-premium"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "BR",
+    "currency": "BRL",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "spotify",
+      "apple-music",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 13,
+    "candidateRecommendations": {
+      "deezer": "ADD LATER",
+      "globoplay": "RESEARCH BLOCKED",
+      "premiere": "RESEARCH BLOCKED",
+      "uol-play": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "deezer",
+      "globoplay",
+      "premiere",
+      "uol-play"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "CZ",
+    "currency": "CZK",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "spotify",
+      "apple-music",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 13,
+    "candidateRecommendations": {
+      "oneplay": "RESEARCH BLOCKED",
+      "seznam-medium": "NOT SUITABLE",
+      "denik-n": "ADD LATER"
+    },
+    "candidates": [
+      "oneplay",
+      "seznam-medium",
+      "denik-n"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "MY",
+    "currency": "MYR",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "spotify",
+      "apple-music",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 13,
+    "candidateRecommendations": {
+      "viu": "RESEARCH BLOCKED",
+      "sooka": "RESEARCH BLOCKED",
+      "astro": "ADD LATER",
+      "kkbox": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "viu",
+      "sooka",
+      "astro",
+      "kkbox"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "IN",
+    "currency": "INR",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "apple-music",
+      "google-one",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 11,
+    "candidateRecommendations": {
+      "storytel": "ADD LATER",
+      "jiohotstar": "RESEARCH BLOCKED",
+      "sony-liv": "RESEARCH BLOCKED",
+      "zee5": "RESEARCH BLOCKED",
+      "the-hindu": "ADD LATER",
+      "jiofiber": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "storytel",
+      "jiohotstar",
+      "sony-liv",
+      "zee5",
+      "the-hindu",
+      "jiofiber"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "SG",
+    "currency": "SGD",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "apple-music",
+      "google-one",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 11,
+    "candidateRecommendations": {
+      "storytel": "ADD LATER",
+      "singtel-cast": "RESEARCH BLOCKED",
+      "starhub-tv": "RESEARCH BLOCKED",
+      "viu": "RESEARCH BLOCKED",
+      "kkbox": "RESEARCH BLOCKED",
+      "viki": "ADD LATER"
+    },
+    "candidates": [
+      "storytel",
+      "singtel-cast",
+      "starhub-tv",
+      "viu",
+      "kkbox",
+      "viki"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "HK",
+    "currency": "HKD",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "apple-music",
+      "google-one",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 11,
+    "candidateRecommendations": {
+      "viu": "RESEARCH BLOCKED",
+      "mytv-super": "RESEARCH BLOCKED",
+      "now-tv-hk": "RESEARCH BLOCKED",
+      "kkbox": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "viu",
+      "mytv-super",
+      "now-tv-hk",
+      "kkbox"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "TW",
+    "currency": "TWD",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "apple-music",
+      "google-one",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 11,
+    "candidateRecommendations": {
+      "kkbox": "RESEARCH BLOCKED",
+      "hami-video": "RESEARCH BLOCKED",
+      "readmoo": "NOT SUITABLE"
+    },
+    "candidates": [
+      "kkbox",
+      "hami-video",
+      "readmoo"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "AE",
+    "currency": "AED",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "apple-music",
+      "google-one",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 11,
+    "candidateRecommendations": {
+      "viu": "RESEARCH BLOCKED",
+      "shahid": "RESEARCH BLOCKED",
+      "osn-plus": "ADD LATER",
+      "anghami": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "viu",
+      "shahid",
+      "osn-plus",
+      "anghami"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "TH",
+    "currency": "THB",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "apple-music",
+      "google-one",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 11,
+    "candidateRecommendations": {
+      "viu": "RESEARCH BLOCKED",
+      "trueid": "RESEARCH BLOCKED",
+      "ais-play": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "viu",
+      "trueid",
+      "ais-play"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  },
+  {
+    "country": "PH",
+    "currency": "PHP",
+    "existingSelectableServices": [
+      "apple-tv-plus",
+      "apple-music",
+      "google-one",
+      "icloud-plus"
+    ],
+    "existingOfflinePriceCount": 11,
+    "candidateRecommendations": {
+      "viu": "RESEARCH BLOCKED",
+      "iwant": "RESEARCH BLOCKED",
+      "cignal-play": "RESEARCH BLOCKED"
+    },
+    "candidates": [
+      "viu",
+      "iwant",
+      "cignal-play"
+    ],
+    "gaps": [
+      "Local/regional video and sports breadth",
+      "News and magazines",
+      "Local books/audio",
+      "Telecom bundles and effective costs",
+      "Comics recurring-plan proof where relevant"
+    ],
+    "pricingStatusModel": [
+      "verified-authoritative",
+      "verified-registry-fallback",
+      "supported-price-unavailable",
+      "ambiguous-unverified",
+      "unsupported"
+    ],
+    "ranking": "Editorial research priority; no market-share ranking"
+  }
+]

@@ -1,0 +1,48 @@
+{
+  "fetchedAt": "2026-09-08",
+  "productSource": "https://viaplay.no/no-nb/",
+  "currencySource": "https://viaplay.no/no-nb/lyko",
+  "managementSource": "https://help.viaplay.com/nb/cancel-package/",
+  "product": {
+    "attention": null,
+    "campaign": null,
+    "contentGroups": [],
+    "ctaLabel": "Kjøp nå",
+    "disclaimer": "Avslutt når du vil",
+    "disclaimers": null,
+    "includedContentDetails": [
+      "series-movies-kids",
+      "download-to-go"
+    ],
+    "packageOfferDescription": null,
+    "packageOfferTitle": null,
+    "price": 169,
+    "priceDisplayDescription": null,
+    "priceDisplayTitle": "{pricePerMonth} kr/mnd",
+    "readMoreLabel": null,
+    "region": {
+      "_id": "4e262f8a-a52a-4c82-a65f-7ce725c3f466",
+      "allowedLanguages": [
+        "nb"
+      ],
+      "regionCode": "no"
+    },
+    "requiredContractDuration": 0,
+    "shortProductId": "1234",
+    "subtitle": null,
+    "tags": [],
+    "title": "Viaplay Film & Serier",
+    "voucher": null,
+    "tracking": {
+      "packageData": {
+        "name": "Viaplay Film & Serier",
+        "id": "1234",
+        "price": 169,
+        "group": "TM",
+        "types": []
+      }
+    },
+    "urlToCheckout": "https://checkout.viaplay.no/register/1234"
+  },
+  "ordinaryPriceExcerpt": "Etter den kostnadsfrie prøvetiden vil abonnementet fortsette til ordinær pris (169 NOK/måned)."
+}

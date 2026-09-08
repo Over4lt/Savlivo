@@ -1,3 +1,4 @@
+import { catalogManagementDestination } from "../../../packages/contracts/src/catalog";
 import { Linking } from "react-native";
 
 export type SubscriptionAction =
@@ -347,6 +348,9 @@ export function getSubscriptionManagementUrl({
      */
     return "https://www.amazon.com/gp/video/settings/channels";
   }
+
+  const catalogDestination = catalogManagementDestination(serviceSlug, countryCode ?? "", billing);
+  if (catalogDestination) return catalogDestination.url;
 
   /*
    * Direct Prime Video has a regional account URL.
