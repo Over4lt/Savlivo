@@ -1,7 +1,9 @@
+import type { AssistantAction } from "../../../packages/contracts/src/assistant-actions";
 import type { AddSubscriptionIntent } from "../../../packages/contracts/src/discovery";
 import { api } from "../src/api";
 
 export type RemoteAssistantResult = {
+  assistantAction?: AssistantAction;
   catalogAction?: AddSubscriptionIntent;
   answer: string;
   language: string;
@@ -41,6 +43,7 @@ export type RemoteAssistantHistoryMessage = {
 };
 
 export type RemoteAssistantContext = {
+  languageHint?: string;
   countryCode?: string;
   countryName?: string;
   currency?: string;
@@ -61,6 +64,7 @@ export async function askRemoteAssistant(
       method: "POST",
       body: JSON.stringify({
         message,
+        languageHint: context.languageHint,
         history,
         context
       })

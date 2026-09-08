@@ -1,0 +1,293 @@
+export type SavlivoHelpTopic =
+  | "home"
+  | "subscriptions"
+  | "savings"
+  | "autopilot"
+  | "ai"
+  | "settings"
+  | "plans"
+  | "renewals"
+  | "spending"
+  | "saved-so-far"
+  | "reviewable-spend"
+  | "billing-route"
+  | "status"
+  | "notifications"
+  | "region"
+  | "appearance"
+  | "data-health"
+  | "market"
+  | "reports"
+  | "password"
+  | "privacy-data"
+  | "catalog"
+  | "manual-service"
+  | "ai-preferences";
+
+type HelpEntry = {
+  topic: SavlivoHelpTopic;
+  aliases: string[];
+  answer: string;
+};
+
+export const helpEntries: HelpEntry[] = [
+  {topic:"catalog",aliases:["catalog","service search","search services"],answer:"Add Subscription searches the shared service catalog and approved aliases. Results prioritize selected-market availability and use category filters. A global search match is not proof of local availability. Plan and price suggestions must match the selected market and billing route; missing values can be entered manually."},
+  {topic:"manual-service",aliases:["unknown service","manual service","custom service"],answer:"Choose Add manually for a service outside the catalog. Supply its name, optional plan, actual monthly amount and billing route, then review and Save. Manual records are user-provided and do not have verified provider metadata or guessed management links. Zero or unknown effective bundle prices are not currently supported."},
+  {topic:"ai-preferences",aliases:["ai preferences","protected subscriptions","savings goal"],answer:"Assistant preferences can record savings goals and protect subscriptions from recommendations. These preferences guide advice; they do not authorize automatic cancellation, deletion, plan changes or provider actions."},
+  {
+    topic: "home",
+    aliases: [
+      "home",
+      "overview",
+      "dashboard",
+      "at a glance"
+    ],
+    answer:
+      "Home is your subscription overview. It shows current monthly spend, current savings, your next confirmed renewal, annual spend and, on Premium, the next subscription Savlivo thinks is worth reviewing. Tap a card to open the relevant screen."
+  },
+  {
+    topic: "subscriptions",
+    aliases: [
+      "subscription",
+      "subscriptions",
+      "edit subscription",
+      "add subscription",
+      "manage subscription"
+    ],
+    answer:
+      "Subscriptions is where you manage each service for the currently selected subscription market. You can add or edit the service, billing route, plan, actual monthly price and confirmed renewal date. You can also start Pause, Cancel or Reactivate flows from each subscription card. If a subscription seems to disappear after you change country, switch back to the market where it was added."
+  },
+  {
+    topic: "savings",
+    aliases: [
+      "saving",
+      "savings",
+      "saving now"
+    ],
+    answer:
+      "Savings summarizes what your subscription decisions are saving. Saving now reflects subscriptions that are currently paused or cancelled and have taken effect. The page also shows Saved so far and spending that is worth reviewing."
+  },
+  {
+    topic: "saved-so-far",
+    aliases: [
+      "saved so far",
+      "accumulated savings",
+      "already saved"
+    ],
+    answer:
+      "Saved so far is accumulated savings recorded while subscriptions were paused or cancelled. It is different from a forecast: it represents savings Savlivo has already recorded, not hypothetical future savings."
+  },
+  {
+    topic: "reviewable-spend",
+    aliases: [
+      "reviewable spend",
+      "reviewable",
+      "3 month spend",
+      "three month spend",
+      "annualized reviewable spend"
+    ],
+    answer:
+      "Reviewable spend is spending across active subscriptions that Savlivo can help you review. It is not the same as guaranteed savings. For example, a 3-month reviewable-spend figure shows what those active subscriptions would cost over three months if their current monthly prices continue."
+  },
+  {
+    topic: "autopilot",
+    aliases: [
+      "autopilot",
+      "auto pilot",
+      "recommendation",
+      "recommendations",
+      "monthly action plan"
+    ],
+    answer:
+      "Autopilot is Savlivo's Premium review assistant. It uses active prices, subscription statuses and renewal information to prioritize what may be worth reviewing. It does not assume that the highest-cost service should be cancelled, and Savlivo still asks before a subscription change is made."
+  },
+  {
+    topic: "ai",
+    aliases: [
+      "assistant",
+      "savlivo assistant",
+      "ai",
+      "chat"
+    ],
+    answer:
+      "Savlivo Assistant can answer general questions and help with writing as well as your subscriptions, spending, savings, renewals and app features. It can also guide subscription actions. Actions still use Savlivo's normal provider and confirmation flow rather than changing a subscription silently."
+  },
+  {
+    topic: "renewals",
+    aliases: [
+      "renewal",
+      "renewal date",
+      "renews",
+      "next renewal",
+      "confirmed renewal"
+    ],
+    answer:
+      "A renewal date is the next confirmed billing date Savlivo has recorded for a subscription. Savlivo only treats it as an upcoming renewal when the current subscription status and effective date indicate that the service is still expected to renew. If an active subscription's recorded renewal date has already passed, Savlivo asks you to update it."
+  },
+  {
+    topic: "spending",
+    aliases: [
+      "monthly spend",
+      "annual spend",
+      "current spend",
+      "spending",
+      "price"
+    ],
+    answer:
+      "Current monthly spend is based on the actual monthly prices recorded for subscriptions that are effectively active. Current annual spend is the current monthly amount multiplied by 12. Changing the comparison country does not manufacture a different bill through currency conversion."
+  },
+  {
+    topic: "billing-route",
+    aliases: [
+      "billing route",
+      "billing provider",
+      "apple billing",
+      "google play billing",
+      "amazon billing",
+      "carrier billing"
+    ],
+    answer:
+      "The billing route records where a subscription is actually managed, such as directly with the service, Apple, Google Play, Amazon or a carrier/TV provider. Savlivo uses it to choose the correct management flow and to understand which verified pricing evidence is relevant."
+  },
+  {
+    topic: "status",
+    aliases: [
+      "status",
+      "active",
+      "paused",
+      "cancelled",
+      "effective date"
+    ],
+    answer:
+      "Subscription status can be Active, Paused or Cancelled. A pause or cancellation can also have a future effective date. Until that date arrives, Savlivo treats the subscription as effectively active for spend and renewal decisions."
+  },
+  {
+    topic: "settings",
+    aliases: [
+      "setting",
+      "settings"
+    ],
+    answer:
+      "Settings contains your Savlivo plan, appearance, subscription market, language, notification preferences, Premium and Autopilot controls, account security and privacy/data options. Changes to the subscription market affect which country's subscriptions and local currency you are viewing; they do not delete subscriptions saved in another market."
+  },
+  {
+    topic: "region",
+    aliases: [
+      "country",
+      "currency",
+      "region",
+      "currency and region"
+    ],
+    answer:
+      "Savlivo uses the local currency for the selected subscription market, while each recorded subscription keeps the actual price you entered for that market. Savlivo does not simply FX-convert an existing subscription bill to create a different local price. If you want to understand why subscriptions appear or disappear when changing country, ask about the subscription market."
+  },
+
+  {
+    topic: "market",
+    aliases: [
+      "subscription market",
+      "selected market",
+      "market",
+      "change country",
+      "switch country",
+      "different country",
+      "missing subscription",
+      "subscription disappeared",
+      "where is my subscription"
+    ],
+    answer:
+      "A Savlivo account can contain subscriptions from multiple countries, but the app shows the subscriptions for the currently selected subscription market. For example, subscriptions added while Norway is selected are shown in the Norway view, while subscriptions added under the United States are shown in the US view. Switching market changes the view and local currency; it does not delete subscriptions from another market."
+  },
+  {
+    topic: "reports",
+    aliases: [
+      "report",
+      "reports",
+      "pdf",
+      "pdf report",
+      "export report",
+      "subscription report",
+      "export pdf"
+    ],
+    answer:
+      "A Savlivo PDF report is created for the subscription market that is selected when you export it. It includes subscriptions and recorded savings for that market rather than combining subscriptions from different countries or currencies into one total. If you need a report for another country, switch to that subscription market and export a new report."
+  },
+  {
+    topic: "password",
+    aliases: [
+      "password",
+      "forgot password",
+      "reset password",
+      "change password",
+      "new password",
+      "can't log in",
+      "cannot log in"
+    ],
+    answer:
+      "If you forget your password, use the password-reset option on the sign-in screen and follow the secure link sent to your email address. If you are already signed in and want a new password, use the password option in Settings. Password-reset links are time-limited and can only be used once."
+  },
+  {
+    topic: "privacy-data",
+    aliases: [
+      "privacy",
+      "my data",
+      "personal data",
+      "export data",
+      "delete data",
+      "delete account",
+      "account data"
+    ],
+    answer:
+      "Privacy & data settings let you review Savlivo's data controls, export available account information and request account deletion. Account deletion is different from removing an individual subscription: it removes the Savlivo account and associated account data through Savlivo's account-deletion flow."
+  },
+  {
+    topic: "appearance",
+    aliases: [
+      "appearance",
+      "dark mode",
+      "light mode",
+      "day mode",
+      "night mode",
+      "theme"
+    ],
+    answer:
+      "Appearance switches Savlivo between light and dark mode. Open Settings and choose Appearance to change it."
+  },
+  {
+    topic: "notifications",
+    aliases: [
+      "notification",
+      "notifications",
+      "renewal reminder",
+      "renewal reminders",
+      "savings opportunities"
+    ],
+    answer:
+      "Savlivo notifications include renewal reminders and savings-opportunity alerts. Renewal reminders depend on having a valid renewal date and a subscription that is still expected to renew."
+  },
+  {
+    topic: "plans",
+    aliases: [
+      "plan",
+      "plans",
+      "premium",
+      "viewer",
+      "manual",
+      "upgrade"
+    ],
+    answer:
+      "Savlivo has three customer-facing levels: Preview, Manual and Premium. Preview lets you explore the core experience before upgrading. Manual gives you more control over managing subscriptions yourself. Premium adds Savlivo's advanced Assistant and Autopilot recommendations. You can open the plan screen from the badge in the header or from Settings."
+  },
+  {
+    topic: "data-health",
+    aliases: [
+      "data health",
+      "missing information",
+      "needs information",
+      "wrong data",
+      "stale renewal"
+    ],
+    answer:
+      "Savlivo's data-health checks look for missing or stale information that can make reminders or recommendations inaccurate, including renewal dates, billing routes, prices and statuses. Fixing those fields improves the reliability of the rest of the app."
+  }
+];

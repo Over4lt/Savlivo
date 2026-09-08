@@ -290,7 +290,7 @@ export function getSubscriptionManagementUrl({
 }: {
   serviceSlug: string;
   billingProviderSlug: string;
-  action: SubscriptionAction;
+  action: SubscriptionAction | "MANAGE" | "CHANGE_PLAN" | "BILLING";
   countryCode?: string;
 }) {
   const billing =

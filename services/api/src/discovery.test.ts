@@ -1,14 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { askAssistant } from "./assistant.js";
-import { validateAddSubscriptionIntent } from "../../../packages/contracts/src/discovery.js";
+import { parseAddSubscriptionIntent, validateAddSubscriptionIntent } from "../../../packages/contracts/src/discovery.js";
 import { pool } from "./db.js";
 import { addSubscription } from "./repositories.js";
 
 test("assistant catalog navigation requires no model credential or subscription mutation",async(t)=>{
   t.mock.method(pool,"query",(()=>{throw new Error("AI MUST NOT WRITE");}) as any);
   for(const message of ["Legg til Spotify Premium.","Jeg har Netflix.","Legg til Viaplay Film & Serier.","Legg til LokalTV Premium."]){
-    const result=await askAssistant({message,context:{countryCode:"NO",currency:"NOK"}});
+    const extracted=parseAddSubscriptionIntent(message,"NO","NOK")!;
+    const result=await askAssistant({message,context:{countryCode:"NO",currency:"NOK"}},async()=>JSON.stringify({
+      answer:"Review before saving",language:"en",intent:"NAVIGATION",action:null,serviceNames:[],navigationTarget:null,needsExternalResearch:false,
+      actionCandidate:{type:"ADD",serviceQuery:extracted.serviceQuery,planQuery:extracted.planQuery??null,billingProviderSlug:extracted.billingProviderSlug??null,managementAction:null}
+    }));
     assert.equal(result.action,null);assert.equal(result.catalogAction?.requiresConfirmation,true);
     assert.ok(validateAddSubscriptionIntent(result.catalogAction,"NO","NOK",[]));
     assert.equal(validateAddSubscriptionIntent(result.catalogAction,"US","USD",[]),null);

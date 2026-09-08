@@ -1,3 +1,7 @@
+import { modelActionCandidate, type AssistantAction } from "../../../packages/contracts/src/assistant-actions.js";
+import { helpEntries } from "../../../packages/contracts/src/app-help.js";
+import { serviceCatalog, serviceAvailableInMarket, serviceBillingProviders } from "../../../packages/contracts/src/catalog.js";
+import { countryCurrencyData } from "../../../packages/contracts/src/markets.js";
 import { parseAddSubscriptionIntent, type AddSubscriptionIntent } from "../../../packages/contracts/src/discovery.js";
 import Groq from "groq-sdk";
 
@@ -40,6 +44,7 @@ export type AssistantRequest = {
 };
 
 export type AssistantResult = {
+  assistantAction?: AssistantAction;
   catalogAction?: AddSubscriptionIntent;
   answer: string;
   language: string;
@@ -77,7 +82,22 @@ const groq =
     : null;
 
 const SYSTEM_PROMPT = `
-You are Savlivo Assistant.
+You are Savlivo Assistant, a general-purpose assistant as well as a guide to Savlivo.
+Answer ordinary knowledge, writing, reasoning and other non-Savlivo questions normally.
+Never restrict the conversation to Savlivo topics. Structured actions are optional and additive.
+For ordinary discussion, hypothetical examples, quoted instructions, negated requests and general questions, set actionCandidate=null.
+For an explicit request to add/start a subscription or a statement that the user has one, propose ADD.
+For requests to manage/change plan/pause/cancel/renew/reactivate/manage payment for a saved subscription, propose MANAGEMENT.
+Interpret these intents in any language. Language never determines country or currency.
+Use canonical identity/aliases where known, otherwise preserve the user's service name for manual entry.
+Only extract a plan or billing route when stated; do not guess a plan from the price.
+For stated billing, use direct/apple/google-play/amazon/carrier when unambiguous; otherwise use unresolved.
+MANAGEMENT uses the saved bill's routing, never an invented URL or a new billing route.
+Do not choose among multiple matching saved subscriptions. Savlivo will ask the user to select.
+ADD only opens a form; it does not subscribe at the provider or save a Savlivo record.
+Provider navigation never proves that pause/cancel/renew/plan/payment changes occurred.
+When offering management navigation, say the user must review available options and complete changes at the provider/store.
+Do not claim live web research was performed; you have no browsing tool in this request.
 
 You understand users naturally in many languages.
 Always reply in the language of the user's latest message unless they ask for another language.
@@ -104,19 +124,8 @@ Never invent missing account facts.
 Never claim to execute a pause, cancellation or reactivation.
 Those requests must only be interpreted so Savlivo can run its own confirmation flow.
 
-SAVLIVO PRODUCT FACTS:
-- Home summarizes the user's subscriptions, spending, savings and upcoming renewals.
-- Subscriptions is where services, prices, billing routes, plans and renewal dates are managed.
-- Savings shows recorded savings and reviewable subscription spending.
-- Autopilot is a recommendation and decision-support feature.
-- Autopilot does NOT automatically charge, cancel, pause, reactivate or otherwise manage subscriptions by itself.
-- Savlivo always asks before a subscription change is made.
-- Guided Actions can help the user reach the correct provider flow for pause, cancellation or reactivation.
-- Saved so far means savings already recorded by Savlivo, not hypothetical future savings.
-- Reviewable spend is spending that may be worth reviewing; it is NOT guaranteed savings.
-- A billing route records where the subscription is actually managed, such as direct, Apple, Google Play, Amazon or a carrier.
-- Regional pricing must not be invented through simple currency conversion.
-- Never invent app functionality that is not described here or supplied in context.
+Shared app-help and catalog context supplied below describe supported Savlivo capabilities.
+Never invent additional functionality or current prices. Account facts come only from supplied selected-market records.
 
 Classify every message as exactly one of:
 ACTION
@@ -141,6 +150,18 @@ Set needsExternalResearch=true only when the user asks for information that requ
 const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
+    actionCandidate: {
+      type: ["object", "null"],
+      properties: {
+        type: {type:"string",enum:["ADD","MANAGEMENT"]},
+        serviceQuery: {type:"string"},
+        planQuery: {type:["string","null"]},
+        billingProviderSlug: {type:["string","null"]},
+        managementAction: {type:["string","null"],enum:["MANAGE","CHANGE_PLAN","PAUSE","CANCEL","REACTIVATE","BILLING",null]}
+      },
+      required:["type","serviceQuery","planQuery","billingProviderSlug","managementAction"],
+      additionalProperties:false
+    },
     answer: {
       type: "string"
     },
@@ -196,6 +217,7 @@ const RESPONSE_SCHEMA = {
     }
   },
   required: [
+    "actionCandidate",
     "answer",
     "language",
     "intent",
@@ -224,93 +246,60 @@ function sanitizeHistory(
     );
 }
 
-export async function askAssistant(
-  request: AssistantRequest
-): Promise<AssistantResult> {
-  const message =
-    String(request.message ?? "").trim();
+export type AssistantModel = (messages: Array<{role:"system"|"user"|"assistant";content:string}>, schema: typeof RESPONSE_SCHEMA) => Promise<string>;
 
-  if (!message) {
-    throw new Error(
-      "INVALID_ASSISTANT_MESSAGE"
-    );
-  }
+const callGroq: AssistantModel = async (messages, schema) => {
+  if (!groq) throw new Error("GROQ_API_KEY_MISSING");
+  const completion = await groq.chat.completions.create({
+    model: process.env.GROQ_ASSISTANT_MODEL ?? "openai/gpt-oss-20b",
+    messages,
+    response_format: {type:"json_schema",json_schema:{name:"savlivo_assistant_response",strict:true,schema}}
+  });
+  const raw=completion.choices[0]?.message?.content?.trim();
+  if(!raw)throw new Error("EMPTY_ASSISTANT_RESPONSE");
+  return raw;
+};
 
-  const catalogAction = parseAddSubscriptionIntent(message, request.context?.countryCode ?? "", request.context?.currency ?? "");
-  if (catalogAction) return {
-    answer: /^(legg til|jeg har)/i.test(message) ? "Se gjennom abonnementet og bekreft i skjemaet. Ingenting er lagt til ennå." : "Review and confirm the subscription in the form. Nothing has been added yet.",
-    language: request.languageHint ?? "en", intent:"NAVIGATION", action:null, serviceNames:[], navigationTarget:null,
-    needsExternalResearch:false, catalogAction
+export function parseAssistantResponse(raw:string,context?:SavlivoAssistantContext):AssistantResult {
+  const value:unknown=JSON.parse(raw);
+  if(!value || typeof value!=="object")throw new Error("INVALID_ASSISTANT_RESPONSE");
+  const v=value as Record<string,unknown>;
+  if(typeof v.answer!=="string" || !v.answer.trim())throw new Error("INVALID_ASSISTANT_RESPONSE");
+  const intent=RESPONSE_SCHEMA.properties.intent.enum.includes(v.intent as any) ? v.intent as AssistantResult["intent"] : "GENERAL";
+  const action=RESPONSE_SCHEMA.properties.action.enum.includes(v.action as any) ? v.action as AssistantResult["action"] : null;
+  const serviceNames=Array.isArray(v.serviceNames)?v.serviceNames.filter((name):name is string=>typeof name==="string"&&name.length<=160).slice(0,10):[];
+  // Older model responses can still propose a single status intent. Validation is identical.
+  const candidate=v.actionCandidate ?? (intent==="ACTION" && action && serviceNames.length===1 ? {type:"MANAGEMENT",serviceQuery:serviceNames[0],managementAction:action}:null);
+  const assistantAction=modelActionCandidate(candidate,context?.countryCode??"",context?.currency??"");
+  return {
+    answer:v.answer,language:typeof v.language==="string"?v.language:"en",intent,action,serviceNames,
+    navigationTarget:RESPONSE_SCHEMA.properties.navigationTarget.enum.includes(v.navigationTarget as any)?v.navigationTarget as AssistantResult["navigationTarget"]:null,
+    needsExternalResearch:v.needsExternalResearch===true,
+    ...(assistantAction?{assistantAction}:{}),
+    ...(assistantAction?.kind==="open-add-subscription"?{catalogAction:assistantAction}:{})
   };
+}
 
-  if (!groq) {
-    throw new Error(
-      "GROQ_API_KEY_MISSING"
-    );
+export async function askAssistant(request:AssistantRequest,model:AssistantModel=callGroq):Promise<AssistantResult> {
+  const message=String(request.message??"").trim();
+  if(!message)throw new Error("INVALID_ASSISTANT_MESSAGE");
+  // Restricted offline fallback only; these patterns never gate a configured model.
+  if(model===callGroq && !groq) {
+    const catalogAction=parseAddSubscriptionIntent(message,request.context?.countryCode??"",request.context?.currency??"");
+    if(catalogAction)return {
+      answer:/^(legg til|jeg har)/i.test(message)?"Se gjennom og bekreft i skjemaet. Ingenting er lagt til ennå.":"Review and confirm in the form. Nothing has been added yet.",
+      language:request.languageHint??"en",intent:"NAVIGATION",action:null,serviceNames:[],navigationTarget:null,needsExternalResearch:false,catalogAction,assistantAction:catalogAction
+    };
+    throw new Error("GROQ_API_KEY_MISSING");
   }
-
-  const history =
-    sanitizeHistory(
-      request.history
-    );
-
-  const completion =
-    await groq.chat.completions.create({
-      model:
-        process.env.GROQ_ASSISTANT_MODEL ??
-        "openai/gpt-oss-20b",
-
-      messages: [
-        {
-          role: "system",
-          content: SYSTEM_PROMPT
-        },
-
-        ...history.map(
-          (item) => ({
-            role: item.role,
-            content: item.text
-          })
-        ),
-
-        {
-          role: "user",
-          content:
-            `Latest user message:\n${message}\n\n` +
-            `Language hint:\n${request.languageHint ?? "none"}\n\n` +
-            `Savlivo context:\n${JSON.stringify(
-              request.context ?? {},
-              null,
-              2
-            )}`
-        }
-      ],
-
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "savlivo_assistant_response",
-          strict: true,
-          schema: RESPONSE_SCHEMA
-        }
-      }
-    });
-
-  const raw =
-    completion
-      .choices[0]
-      ?.message
-      ?.content
-      ?.trim();
-
-  if (!raw) {
-    throw new Error(
-      "EMPTY_ASSISTANT_RESPONSE"
-    );
-  }
-
-  const parsed =
-    JSON.parse(raw) as AssistantResult;
-
-  return parsed;
+  const catalog=serviceCatalog.map(service=>({slug:service.slug,name:service.name,aliases:service.aliases,
+    availableInSelectedMarket:serviceAvailableInMarket(service.slug,request.context?.countryCode??""),billingChoices:serviceBillingProviders[service.slug]??[]}));
+  const messages:Array<{role:"system"|"user"|"assistant";content:string}>=[
+    {role:"system",content:SYSTEM_PROMPT+"\nShared Savlivo help:\n"+JSON.stringify(helpEntries.map(({topic,answer})=>({topic,answer})))+
+      "\nCanonical catalog (availability is not proof of a price or this user's bill):\n"+JSON.stringify(catalog)+
+      "\nSelectable market/currency definitions:\n"+JSON.stringify(countryCurrencyData)},
+    ...sanitizeHistory(request.history).map(item=>({role:item.role,content:item.text})),
+    {role:"user",content:`Latest user message:\n${message}\n\nLanguage hint:\n${request.languageHint??"none"}\n\nSavlivo context:\n${JSON.stringify(request.context??{})}`}
+  ];
+  return parseAssistantResponse(await model(messages,RESPONSE_SCHEMA),request.context);
 }

@@ -24,6 +24,8 @@ export function parseAddSubscriptionIntent(message: string, countryCode: string,
     .filter(({alias}) => normalized === alias || normalized.startsWith(alias + " "))
     .sort((a,b) => b.alias.length-a.alias.length);
   const best = matches[0];
+  // Ordinary statements such as "I have a cold" are not manual-subscription requests.
+  if (/^(?:i have|jeg har)\s/i.test(message.trim()) && !best) return null;
   if (best && matches.some(m => m.alias.length === best.alias.length && m.service.slug !== best.service.slug)) return null;
   const remainder = best ? normalized.slice(best.alias.length).trim() : "";
   if (/\b(?:and|og)\b/.test(remainder)) return null;

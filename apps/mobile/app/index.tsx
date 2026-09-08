@@ -1,3 +1,4 @@
+import { resolveSavedManagement, type ManagementIntent } from "../../../packages/contracts/src/assistant-actions";
 import { discoveryRequestIsCurrent, parseAddSubscriptionIntent, validateAddSubscriptionIntent, validateManualSubscription } from "../../../packages/contracts/src/discovery";
 import { transitionCatalogDraft, serviceCatalog, searchCatalog, catalogDiscoveryPolicy, catalogCategories, type CatalogCategory, billingProviders, serviceBillingProviders, billingProvidersForService, defaultBillingProviderForService, isBillingProviderAllowed, allCurrencies, serviceAvailableInMarket, type BillingProviderSlug } from "../../../packages/contracts/src/catalog";
 import {
@@ -91,7 +92,7 @@ import {
   setMonthlySavingsGoal
 } from "../lib/ai-preferences";
 import {
-  askRemoteAssistant
+  askRemoteAssistant, type RemoteAssistantResult
 } from "../lib/ai-remote";
 import {
   transcribeSavlivoVoice
@@ -692,7 +693,7 @@ export default function Home() {
     setAiPreferencesLoadedUserId
   ] = useState<string | null>(null);
   const [aiMessages, setAiMessages] = useState<Array<{ role: "assistant" | "user"; text: string }>>([
-    { role: "assistant", text: "Hi — I can help you set up Savlivo, troubleshoot prices and renewal dates, and decide what to keep, pause or cancel." }
+    { role: "assistant", text: "Hi — ask me general questions or get help with Savlivo, your subscriptions, prices and renewal dates. Subscription changes always stay under your control." }
   ]);
   const [aiGuidedAction, setAiGuidedAction] = useState<null | {
     subscription: Subscription;
@@ -3493,7 +3494,7 @@ export default function Home() {
       billingProviderSlug:
         subscription.billingProviderSlug,
       action,
-      countryCode: selectedCountryCode
+      countryCode: subscription.countryCode ?? selectedCountryCode
     });
   }
 
@@ -4935,7 +4936,16 @@ export default function Home() {
     if (!requireActivePlan("Premium actions")) return;
     if (!aiGuidedAction) return;
 
-    const { subscription, action } = aiGuidedAction;
+    const { subscription: requested, action } = aiGuidedAction;
+    const current=resolveSavedManagement({kind:"open-subscription-management",version:1,requiresConfirmation:true,
+      countryCode:selectedCountryCodeRef.current,currency:selectedCountryCurrency(),serviceQuery:requested.serviceName,managementAction:action},
+      items,selectedCountryCodeRef.current,selectedCountryCurrency());
+    if(current.kind!=="subscription" || current.subscription.id!==requested.id) {
+      setAiGuidedAction(null);
+      setScreen("subscriptions");
+      return;
+    }
+    const subscription=current.subscription;
     const currentStatus = effectiveSubscriptionStatus(subscription);
 
     if (action === "PAUSE" && currentStatus === "PAUSED") {
@@ -4982,34 +4992,45 @@ export default function Home() {
       return;
     }
 
-    const opened = await openProviderUrl(destination);
-
-    if (!opened) {
-      Alert.alert(
-        "Could not open provider",
-        `Savlivo could not open ${subscription.serviceName} management.`
-      );
-      return;
-    }
-
-    rememberProviderRedirect(subscription, action);
-
-    setAiMessages((current) => [
-      ...current,
-      {
-        role: "assistant",
-        text:
-          `${subscription.serviceName} management is open. Complete the ${
-            action === "CANCEL"
-              ? "cancellation"
-              : action === "PAUSE"
-                ? "pause"
-                : "reactivation"
-          } there. When you return, Savlivo will ask what happened and the effective date.`
-      }
-    ]);
-
+    // Reuse the same native sheet, URL-capability browser and explicit result confirmation as the subscription card.
     setAiGuidedAction(null);
+    openActionSheet(subscription, action);
+  }
+
+  function routeAssistantManagement(intent: ManagementIntent): string | null {
+    const resolved=resolveSavedManagement(intent,items,selectedCountryCodeRef.current,selectedCountryCurrency());
+    if(resolved.kind!=="subscription") {
+      if(resolved.kind!=="invalid")setScreen("subscriptions");
+      return resolved.kind==="ambiguous" ? "More than one saved subscription matches. Select the exact subscription in Subscriptions; nothing has changed." :
+        "No unique saved subscription matches in this market. Select the subscription in Subscriptions; no management destination was opened.";
+    }
+    const {subscription,action}=resolved;
+    const destination=getSubscriptionManagementUrl({serviceSlug:subscription.serviceSlug,billingProviderSlug:subscription.billingProviderSlug,
+      countryCode:subscription.countryCode??selectedCountryCode,action});
+    if(!destination)return "Savlivo does not have a verified management destination for this saved billing route. Open your provider account yourself; nothing has changed.";
+    if(action==="CANCEL" || (action==="REACTIVATE" && effectiveSubscriptionStatus(subscription)!=="ACTIVE") ||
+      (action==="PAUSE" && supportsSubscriptionAction(subscription.serviceSlug,subscription.billingProviderSlug,"PAUSE"))) {
+      beginAiGuidedAction(subscription,action);
+      return null;
+    }
+    const market=selectedCountryCodeRef.current;
+    const epoch=discoveryEpochRef.current;
+    Alert.alert("Manage subscription",`${subscription.serviceName} · ${subscription.billingProviderSlug}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.`,[
+      {text:"Cancel",style:"cancel"},
+      {text:"Open management",onPress:()=>{ void (async()=>{
+        if(!discoveryRequestIsCurrent({countryCode:market,epoch},{countryCode:selectedCountryCodeRef.current,epoch:discoveryEpochRef.current}))return;
+        if(usesSubscriptionManagementBrowser(destination,Platform.OS))await new Promise<void>(resolve=>Alert.alert("Savlivo",
+          "Når du er ferdig med abonnementsendringene, trykk på ✓ øverst til venstre for å gå tilbake til Savlivo.",
+          [{text:"Fortsett",onPress:()=>resolve()}],{cancelable:false}));
+        if(!discoveryRequestIsCurrent({countryCode:market,epoch},{countryCode:selectedCountryCodeRef.current,epoch:discoveryEpochRef.current}))return;
+        try {
+          const opened=await openSubscriptionManagementBrowser(destination,{platform:Platform.OS,
+            openSystemBrowser:url=>WebBrowser.openBrowserAsync(url,{dismissButtonStyle:"done",presentationStyle:WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET}),openExternal:openProviderUrl});
+          if(!opened)Alert.alert("Savlivo","Could not open management. No subscription was changed.");
+        } catch {Alert.alert("Savlivo","Could not open management. No subscription was changed.");}
+      })();}}
+    ]);
+    return null;
   }
 
   function detectSpeechLanguage(
@@ -5262,13 +5283,39 @@ export default function Home() {
     if (!question) return;
     const requestEpoch=++discoveryEpochRef.current;
 
-    const addIntent=parseAddSubscriptionIntent(question,selectedCountryCode,selectedCountryCurrency());
-    if(addIntent && openCatalogAction(addIntent)) {
-      setAiMessages(current=>[...current,{role:"user",text:question},{role:"assistant",text:/^(legg til|jeg har)/i.test(question)?"Se gjennom og bekreft i skjemaet. Ingenting er lagt til ennå.":"Review and confirm in the form. Nothing has been added yet."}]);
-      setAiInput("");
-      return;
-    }
     const requestMarket=selectedCountryCodeRef.current;
+    let interpretedRemote: RemoteAssistantResult | undefined;
+    setAiGuidedAction(null);
+    try {
+      const remote=await askRemoteAssistant(question,aiMessages.slice(-10),{
+        countryCode:selectedCountryCode,countryName:selectedCountryName,currency:selectedCurrency,languageHint:selectedLanguage,
+        currentMonthlySpendMinor:currentMonthlySpendRegionalMinor,currentAnnualSpendMinor:currentAnnualSpendRegionalMinor,
+        currentMonthlySavingsMinor:currentMonthlySavingsRegionalMinor,savedSoFarMinor:savedSoFarRegionalMinor
+      });
+      if(!discoveryRequestIsCurrent({countryCode:requestMarket,epoch:requestEpoch},{countryCode:selectedCountryCodeRef.current,epoch:discoveryEpochRef.current}))return;
+      if(typeof remote.answer!=="string")throw new Error("INVALID_ASSISTANT_RESPONSE");
+      interpretedRemote=remote;
+      const candidate=remote.assistantAction??remote.catalogAction;
+      let guidance:string|null=null;
+      if(candidate?.kind==="open-add-subscription")openCatalogAction(candidate);
+      else if(candidate?.kind==="open-subscription-management")guidance=routeAssistantManagement(candidate);
+      else if(remote.intent==="NAVIGATION" && ["home","subscriptions","savings","autopilot","ai","settings","plans"].includes(remote.navigationTarget??""))setScreen(remote.navigationTarget as Screen);
+      // Preserve the existing deterministic account calculations and preference handlers where they understand the request.
+      if(candidate || !["GOAL","PREFERENCE","SCENARIO","COMPARISON","SPENDING_INFO","SAVINGS_INFO","RENEWAL_INFO"].includes(remote.intent)) {
+        setAiMessages(current=>[...current,{role:"user",text:question},{role:"assistant",text:guidance ? remote.answer+"\n\n"+guidance:remote.answer}]);
+        setAiInput("");
+        if(!candidate)keepLatestAiMessageVisible(false);
+        return;
+      }
+    } catch {
+      if(!discoveryRequestIsCurrent({countryCode:requestMarket,epoch:requestEpoch},{countryCode:selectedCountryCodeRef.current,epoch:discoveryEpochRef.current}))return;
+      // Offline support remains bounded; the multilingual path above never uses these patterns as a gate.
+      const addIntent=parseAddSubscriptionIntent(question,selectedCountryCode,selectedCountryCurrency());
+      if(addIntent && openCatalogAction(addIntent)) {
+        setAiMessages(current=>[...current,{role:"user",text:question},{role:"assistant",text:"Review and confirm in the form. Nothing has been added yet."}]);
+        setAiInput("");return;
+      }
+    }
 
     const q = question.toLowerCase();
     const subscriptionIntent =
@@ -5915,74 +5962,9 @@ export default function Home() {
     } else if (
       subscriptionIntent.kind === "ACTION"
     ) {
-      const requestedAction =
-        subscriptionIntent.action;
-
-      const namedSubscription = aiFindSubscription(question);
-
-      const fallbackSubscription =
-        requestedAction === "REACTIVATE"
-          ? marketItems.find(
-              (item) => effectiveSubscriptionStatus(item) !== "ACTIVE"
-            )
-          : [...marketItems]
-              .filter(
-                (item) => effectiveSubscriptionStatus(item) === "ACTIVE"
-              )
-              .sort(
-                (a, b) =>
-                  (billedMonthlyMinor(b) ?? 0) -
-                  (billedMonthlyMinor(a) ?? 0)
-              )[0];
-
-      const target = namedSubscription ?? fallbackSubscription;
-
-      if (target) {
-        const currentStatus = effectiveSubscriptionStatus(target);
-
-        if (
-          requestedAction === "PAUSE" &&
-          currentStatus === "PAUSED"
-        ) {
-          answer = `${target.serviceName} is already paused. I can help you reactivate or cancel it instead.`;
-        } else if (
-          requestedAction === "REACTIVATE" &&
-          currentStatus === "ACTIVE"
-        ) {
-          answer = `${target.serviceName} is already active.`;
-        } else {
-          const targetWillRenew =
-            Boolean(target.renewalDate) &&
-            willSubscriptionRenewOn({
-              status: target.status,
-              statusEffectiveDate: target.statusEffectiveDate,
-              renewalDate: target.renewalDate
-            });
-
-          const renewalCopy = targetWillRenew
-            ? ` Its next confirmed renewal is ${formatRenewalDateDisplay(
-                target.renewalDate
-              )}.`
-            : target.renewalDate
-              ? " No further renewal is expected based on its current status."
-              : " No confirmed renewal date is set yet.";
-
-          answer =
-            `I can guide you through ${
-              requestedAction === "CANCEL"
-                ? "cancelling"
-                : requestedAction === "PAUSE"
-                  ? "pausing"
-                  : "reactivating"
-            } ${target.serviceName}.${renewalCopy} ` +
-            "Tap Open provider and continue below. Savlivo will open the same management flow as the subscription button, then ask what happened and when it takes effect when you return.";
-
-          beginAiGuidedAction(target, requestedAction);
-        }
-      } else {
-        answer =
-          "I could not find a matching subscription for that action. Tell me the service name, for example “pause Netflix” or “reactivate Max”.";
-      }
+      // The offline matcher is intentionally not authority for a specific saved bill.
+      setScreen("subscriptions");
+      answer="Select the exact saved subscription in Subscriptions and use its management button. No provider page was opened and nothing was changed.";
     } else if (
       subscriptionIntent.kind === "RENEWAL_INFO"
     ) {
@@ -6027,125 +6009,7 @@ export default function Home() {
     const localFallbackAnswer =
       "I can help with your subscriptions, spending, savings, renewals, app features and subscription decisions.";
 
-    const shouldUseRemoteAssistant =
-      answer === localFallbackAnswer;
-
-    if (shouldUseRemoteAssistant) {
-      try {
-        const remote =
-          await askRemoteAssistant(
-            question,
-            aiMessages.slice(-10),
-            {
-              countryCode:
-                selectedCountryCode,
-              countryName:
-                selectedCountryName,
-              currency:
-                selectedCurrency,
-              currentMonthlySpendMinor:
-                currentMonthlySpendRegionalMinor,
-              currentAnnualSpendMinor:
-                currentAnnualSpendRegionalMinor,
-              currentMonthlySavingsMinor:
-                currentMonthlySavingsRegionalMinor,
-              savedSoFarMinor:
-                savedSoFarRegionalMinor
-            }
-          );
-
-        if(!discoveryRequestIsCurrent({countryCode:requestMarket,epoch:requestEpoch},{countryCode:selectedCountryCodeRef.current,epoch:discoveryEpochRef.current}))return;
-        if(remote.catalogAction && openCatalogAction(remote.catalogAction)) {
-          setAiMessages(current=>[...current,{role:"user",text:question},{role:"assistant",text:remote.answer}]);
-          setAiInput("");
-          return;
-        }
-
-        if (
-          remote.intent === "NAVIGATION" &&
-          remote.navigationTarget
-        ) {
-          setScreen(
-            remote.navigationTarget as Screen
-          );
-        }
-
-        if (
-          remote.intent === "ACTION" &&
-          remote.action &&
-          remote.serviceNames.length
-        ) {
-          const serviceQuestion =
-            remote.serviceNames.join(" ");
-
-          const resolved =
-            resolveSubscriptionEntities(
-              serviceQuestion,
-              marketItems
-            );
-
-          const target =
-            resolved[0]?.item
-              ? marketItems.find(
-                  (item) =>
-                    item.id ===
-                    resolved[0].item.id
-                )
-              : undefined;
-
-          if (target) {
-            const status =
-              effectiveSubscriptionStatus(
-                target
-              );
-
-            if (
-              remote.action === "PAUSE" &&
-              status === "PAUSED"
-            ) {
-              answer =
-                `${target.serviceName} is already paused.`;
-            } else if (
-              remote.action === "REACTIVATE" &&
-              status === "ACTIVE"
-            ) {
-              answer =
-                `${target.serviceName} is already active.`;
-            } else {
-              beginAiGuidedAction(
-                target,
-                remote.action
-              );
-
-              answer =
-                `I understood that you want to ${
-                  remote.action === "PAUSE"
-                    ? "pause"
-                    : remote.action === "CANCEL"
-                      ? "cancel"
-                      : "reactivate"
-                } ${target.serviceName}. Use the guided action below to continue safely.`;
-            }
-          } else {
-            answer = remote.answer;
-          }
-        } else {
-          answer = remote.answer;
-        }
-      } catch (err: any) {
-        console.error(
-          "remote Savlivo assistant failed",
-          err
-        );
-
-        answer =
-          `Remote AI unavailable: ${
-            err?.body?.error ??
-            err?.message ??
-            "unknown error"
-          }`;
-      }
-    }
+    if(answer===localFallbackAnswer)answer=interpretedRemote?.answer ?? "The general assistant is currently unavailable. You can still use Savlivo's local help and subscription forms.";
 
     setAiMessages((current) => [
       ...current,
@@ -6792,6 +6656,7 @@ export default function Home() {
   function selectCountry(code: string, name: string, currency: string) {
     if (code !== selectedCountryCodeRef.current) {
       discoveryEpochRef.current += 1;
+      setAiGuidedAction(null);
       setServiceFormOpen(false);
       setSubscriptionPlanInput("");
       setMonthlyPriceInput("");
