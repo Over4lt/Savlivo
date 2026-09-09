@@ -62,4 +62,4 @@ export interface ActionRecord extends ActionPreview {
   requestedAt: string;
 }
 
-export * from "./billing";
+export * from "./billing.js";

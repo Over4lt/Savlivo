@@ -1,4 +1,4 @@
-import { countryCurrencyData, countryCurrencies, expansionServiceAvailable } from "./markets";
+import { countryCurrencyData, countryCurrencies, expansionServiceAvailable } from "./markets.js";
 
 // Canonical identities shared by existing manual selection and future AI discovery.
 // This module contains no second price table. Plan evidence is supplied from pricing.

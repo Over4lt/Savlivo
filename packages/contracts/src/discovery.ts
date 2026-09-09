@@ -1,5 +1,5 @@
-import { serviceCatalog, billingProviders, catalogPlans, normalizeCatalogText, resolveCatalogCandidate, defaultBillingProviderForService, isBillingProviderAllowed, type CatalogPriceEvidence } from "./catalog";
-import { countryCurrencyData } from "./markets";
+import { serviceCatalog, billingProviders, catalogPlans, normalizeCatalogText, resolveCatalogCandidate, defaultBillingProviderForService, isBillingProviderAllowed, type CatalogPriceEvidence } from "./catalog.js";
+import { countryCurrencyData } from "./markets.js";
 
 // Transport contains user-stated queries, never trusted model prices or provider URLs.
 export type AddSubscriptionIntent = {
