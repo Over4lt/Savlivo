@@ -1,6 +1,6 @@
-import { normalizeCatalogText, serviceCatalog } from "./catalog.js";
-import { countryCurrencyData, subscriptionsForMarket } from "./markets.js";
-import type { AddSubscriptionIntent } from "./discovery.js";
+import { normalizeCatalogText, serviceCatalog } from "./catalog";
+import { countryCurrencyData, subscriptionsForMarket } from "./markets";
+import type { AddSubscriptionIntent } from "./discovery";
 
 export const managementActions = ["MANAGE", "CHANGE_PLAN", "PAUSE", "CANCEL", "REACTIVATE", "BILLING"] as const;
 export type ManagementAction = typeof managementActions[number];

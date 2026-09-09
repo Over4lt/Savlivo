@@ -1,5 +1,5 @@
-import { countryCurrencyData } from "./markets.js";
-import { catalogCategories, serviceCatalog } from "./catalog.js";
+import { countryCurrencyData } from "./markets";
+import { catalogCategories, serviceCatalog } from "./catalog";
 
 // No free-text properties, client identity, timestamp, prices or conversation content.
 export const analyticsEvents = ["app_active", "catalog_search", "catalog_result_selected",

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/fix-contract-imports.mjs",
     "dev": "tsx src/server.ts",
     "start": "node dist/services/api/src/server.js",
     "test": "tsx --test src/pricing-adapters.test.ts src/pricing-registry.test.ts src/notification-logic.test.ts src/market-behavior.test.ts src/discovery.test.ts src/assistant-actions.test.ts src/private-data.test.ts src/subscription-format.test.ts",
