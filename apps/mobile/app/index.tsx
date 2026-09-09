@@ -1,3 +1,6 @@
+import { translateUi, appLocale, appLanguages, type AppLanguage } from "../lib/ui-localization";
+import { browseCatalog } from "../lib/catalog-browse";
+import { configuredSavlivoPrice } from "../lib/savlivo-plan-prices";
 import { resolveSavedManagement, type ManagementIntent } from "../../../packages/contracts/src/assistant-actions";
 import { discoveryRequestIsCurrent, parseAddSubscriptionIntent, validateAddSubscriptionIntent, validateManualSubscription } from "../../../packages/contracts/src/discovery";
 import { transitionCatalogDraft, serviceCatalog, searchCatalog, catalogDiscoveryPolicy, catalogCategories, type CatalogCategory, billingProviders, serviceBillingProviders, billingProvidersForService, defaultBillingProviderForService, isBillingProviderAllowed, allCurrencies, serviceAvailableInMarket, type BillingProviderSlug } from "../../../packages/contracts/src/catalog";
@@ -5,6 +8,7 @@ import {
   countryCurrencyData, subscriptionsForMarket, formatMarketMinor, isCurrentMarketPricing, expansionServiceAvailable
 } from "../../../packages/contracts/src/markets";
 import {
+  Fragment,
   useMemo,
   useEffect,
   useRef,
@@ -125,54 +129,6 @@ type Subscription = {
 };
 
 type Screen = "home" | "subscriptions" | "savings" | "autopilot" | "ai" | "settings" | "plans";
-
-type AppLanguage =
-  | "en"
-  | "no"
-  | "sv"
-  | "da"
-  | "de"
-  | "es"
-  | "fr"
-  | "it"
-  | "pt"
-  | "nl"
-  | "fi"
-  | "zh-CN";
-
-const localLanguagesByMarket: Partial<
-  Record<
-    string,
-    Array<{
-      code: AppLanguage;
-      label: string;
-      detail: string;
-    }>
-  >
-> = {
-  NO: [{ code: "no", label: "Norsk", detail: "Norwegian" }],
-  SE: [{ code: "sv", label: "Svenska", detail: "Swedish" }],
-  DK: [{ code: "da", label: "Dansk", detail: "Danish" }],
-  DE: [{ code: "de", label: "Deutsch", detail: "German" }],
-  AT: [{ code: "de", label: "Deutsch", detail: "German" }],
-  ES: [{ code: "es", label: "Español", detail: "Spanish" }],
-  FR: [{ code: "fr", label: "Français", detail: "French" }],
-  IT: [{ code: "it", label: "Italiano", detail: "Italian" }],
-  PT: [{ code: "pt", label: "Português", detail: "Portuguese" }],
-  NL: [{ code: "nl", label: "Nederlands", detail: "Dutch" }],
-  BE: [
-    { code: "nl", label: "Nederlands", detail: "Dutch" },
-    { code: "fr", label: "Français", detail: "French" }
-  ],
-  FI: [{ code: "fi", label: "Suomi", detail: "Finnish" }],
-  CN: [
-    {
-      code: "zh-CN",
-      label: "简体中文",
-      detail: "Simplified Chinese"
-    }
-  ]
-};
 
 const serviceInitials: Record<string, string> = {
   netflix: "N",
@@ -692,8 +648,8 @@ export default function Home() {
     aiPreferencesLoadedUserId,
     setAiPreferencesLoadedUserId
   ] = useState<string | null>(null);
-  const [aiMessages, setAiMessages] = useState<Array<{ role: "assistant" | "user"; text: string }>>([
-    { role: "assistant", text: "Hi — ask me general questions or get help with Savlivo, your subscriptions, prices and renewal dates. Subscription changes always stay under your control." }
+  const [aiMessages, setAiMessages] = useState<Array<{ role: "assistant" | "user"; text: string; uiKey?: string }>>([
+    { role: "assistant", text: "Hi — ask me general questions or get help with Savlivo, your subscriptions, prices and renewal dates. Subscription changes always stay under your control.", uiKey: "Hi — ask me general questions or get help with Savlivo, your subscriptions, prices and renewal dates. Subscription changes always stay under your control." }
   ]);
   const [aiGuidedAction, setAiGuidedAction] = useState<null | {
     subscription: Subscription;
@@ -823,1368 +779,8 @@ export default function Home() {
 
   const currentNavLabels = navLabels[selectedLanguage];
 
-  const uiTranslations: Partial<
-    Record<AppLanguage, Record<string, string>>
-  > = {
-  "no": {
-    "Settings": "Innstillinger",
-    "Account & plan": "Konto og abonnement",
-    "Preferences": "Innstillinger",
-    "Notifications": "Varsler",
-    "Security": "Sikkerhet",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Change password": "Endre passord",
-    "Update your account password": "Oppdater passordet for kontoen din",
-    "Use biometrics to unlock Savlivo": "Bruk biometri for å låse opp Savlivo",
-    "Biometrics unavailable on this device": "Biometri er ikke tilgjengelig på denne enheten",
-    "Biometric unlock": "Biometrisk opplåsing",
-    "Use Face ID or Touch ID to unlock Savlivo?": "Bruk Face ID eller Touch ID for å låse opp Savlivo?",
-    "Not now": "Ikke nå",
-    "Enable": "Aktiver",
-    "Off": "Av",
-    "Unlock to continue": "Lås opp for å fortsette",
-    "Unlock with Face ID / Touch ID": "Lås opp med Face ID / Touch ID",
-    "Unlock Savlivo": "Lås opp Savlivo",
-    "Use password": "Bruk passord",
-    "Premium & Autopilot": "Premium og Autopilot",
-    "Privacy & data": "Personvern og data",
-    "Email": "E-post",
-    "Savlivo plan": "Savlivo-abonnement",
-    "Appearance": "Utseende",
-    "Language": "Språk",
-    "Subscription market": "Abonnementsmarked",
-    "Renewal reminders": "Påminnelser om fornyelse",
-    "Savings opportunities": "Sparemuligheter",
-    "Ask before changes": "Spør før endringer",
-    "Never pause": "Aldri sett på pause",
-    "Export data": "Eksporter data",
-    "Delete account": "Slett konto",
-    "Dark": "Mørk",
-    "Light": "Lys",
-    "Manage": "Administrer",
-    "Change": "Endre",
-    "On": "På",
-    "Configure": "Konfigurer",
-    "Later": "Senere",
-    "Log out": "Logg ut",
-    "Done": "Ferdig",
-    "Search country": "Søk etter land",
-    "Country / region": "Land / region",
-    "local currency": "lokal valuta",
-    "Prices checked": "Priser sjekket",
-    "Pricing update pending": "Prisoppdatering venter",
-    "OVERVIEW": "OVERSIKT",
-    "Your subscriptions": "Dine abonnementer",
-    "YOU'RE SAVING": "DU SPARER",
-    "/ month": "/ måned",
-    "Annual savings": "Årlig besparelse",
-    "Current monthly spend": "Nåværende månedsforbruk",
-    "AT A GLANCE": "KORT OPPSUMMERT",
-    "Next renewal": "Neste fornyelse",
-    "Annual spend": "Årlig forbruk",
-    "NEXT BEST MOVE": "NESTE BESTE TREKK",
-    "NEEDS ATTENTION": "TRENGER OPPMERKSOMHET",
-    "Ask Savlivo AI": "Spør Savlivo AI",
-    "Subscriptions": "Abonnementer",
-    "+ Add service": "+ Legg til tjeneste",
-    "YOUR PROGRESS": "DIN FREMGANG",
-    "Savings": "Sparing",
-    "SAVED SO FAR": "SPART SÅ LANGT",
-    "Saved so far": "Spart så langt",
-    "Saving now": "Sparer nå",
-    "/ mo": "/ mnd",
-    "Annual pace": "Årlig tempo",
-    "CURRENT POSITION": "NÅVÆRENDE SITUASJON",
-    "Monthly spend": "Månedsforbruk",
-    "REVIEWABLE SPEND · 3 MONTHS": "FORBRUK Å GJENNOMGÅ · 3 MÅNEDER",
-    "WHERE TO LOOK NEXT": "HVOR DU BØR SE NESTE GANG",
-    "Subscriptions to review": "Abonnementer å gjennomgå",
-    "Review": "Gjennomgå",
-    "3-month spend:": "Forbruk siste 3 måneder:",
-    "MONTHLY ACTION PLAN": "MÅNEDLIG HANDLINGSPLAN",
-    "Focus on what matters": "Fokuser på det som betyr mest",
-    "THIS MONTH": "DENNE MÅNEDEN",
-    "REVIEW FIRST": "GJENNOMGÅ FØRST",
-    "Nothing urgent to review right now.": "Ingenting haster å gjennomgå akkurat nå.",
-    "GOOD TO KEEP": "BRA Å BEHOLDE",
-    "Lower-cost active subscription": "Aktivt abonnement med lavere kostnad",
-    "KEEP": "BEHOLD",
-    "SAVLIVO ASSISTANT": "SAVLIVO-ASSISTENT",
-    "What can I help with?": "Hva kan jeg hjelpe med?",
-    "Ask about spending, renewals or subscription actions.": "Spør om forbruk, fornyelser eller abonnementshandlinger.",
-    "What renews next?": "Hva fornyes neste gang?",
-    "How much am I saving?": "Hvor mye sparer jeg?",
-    "What should I review?": "Hva bør jeg gå gjennom?",
-    "Stop": "Stopp",
-    "Listen": "Lytt",
-    "Talk": "Snakk",
-    "Send": "Send",
-    "GUIDED ACTION": "VEILEDET HANDLING",
-    "Cancel": "Kanseller",
-    "Pause": "Sett på pause",
-    "Reactivate": "Aktiver igjen",
-    "Open provider and continue": "Åpne leverandøren og fortsett",
-    "Listening… Tap stop when you're done": "Lytter … Trykk stopp når du er ferdig",
-    "Sending…": "Sender …",
-    "Transcribing…": "Transkriberer …",
-    "Price unavailable": "Pris ikke tilgjengelig",
-    "Renewal": "Fornyes",
-    "Renewal date not set": "Fornyelsesdato er ikke angitt",
-    "Pauses": "Settes på pause",
-    "Cancels": "Kanselleres",
-    "Edit subscription": "Rediger abonnement",
-    "Add service": "Legg til tjeneste",
-    "Service": "Tjeneste",
-    "Billing route": "Betalingsmåte",
-    "Plan": "Abonnementstype",
-    "✓ Verified": "✓ Verifisert",
-    "Estimated current price": "Estimert nåværende pris",
-    "Monthly price": "Månedspris",
-    "Use automatic price": "Bruk automatisk pris",
-    "Verified local catalog price": "Verifisert lokal katalogpris",
-    "Renewal date": "Fornyelsesdato",
-    "Choose renewal date": "Velg fornyelsesdato",
-    "Clear": "Tøm",
-    "Save": "Lagre",
-    "Remove subscription?": "Fjerne abonnement?",
-    "Keep": "Behold",
-    "Remove": "Fjern",
-    "Remove service": "Fjern tjeneste"
-  },
-  "sv": {
-    "Security": "Säkerhet",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Use biometrics to unlock Savlivo": "Använd biometri för att låsa upp Savlivo",
-    "Biometrics unavailable on this device": "Biometri är inte tillgängligt på den här enheten",
-    "Biometric unlock": "Biometrisk upplåsning",
-    "Use Face ID or Touch ID to unlock Savlivo?": "Använd Face ID eller Touch ID för att låsa upp Savlivo?",
-    "Not now": "Inte nu",
-    "Enable": "Aktivera",
-    "Off": "Av",
-    "Unlock to continue": "Lås upp för att fortsätta",
-    "Unlock with Face ID / Touch ID": "Lås upp med Face ID / Touch ID",
-    "Unlock Savlivo": "Lås upp Savlivo",
-    "Use password": "Använd lösenord",
-    "Settings": "Inställningar",
-    "Account & plan": "Konto och abonnemang",
-    "Preferences": "Inställningar",
-    "Notifications": "Aviseringar",
-    "Premium & Autopilot": "Premium och Autopilot",
-    "Privacy & data": "Integritet och data",
-    "Email": "E-post",
-    "Savlivo plan": "Savlivo-plan",
-    "Appearance": "Utseende",
-    "Language": "Språk",
-    "Subscription market": "Abonnemangsmarknad",
-    "Renewal reminders": "Förnyelsepåminnelser",
-    "Savings opportunities": "Sparm möjligheter",
-    "Ask before changes": "Fråga före ändringar",
-    "Never pause": "Pausa aldrig",
-    "Export data": "Exportera data",
-    "Delete account": "Radera konto",
-    "Dark": "Mörkt",
-    "Light": "Ljust",
-    "Manage": "Hantera",
-    "Change": "Ändra",
-    "On": "På",
-    "Configure": "Konfigurera",
-    "Later": "Senare",
-    "Log out": "Logga ut",
-    "Done": "Klar",
-    "Search country": "Sök land",
-    "Country / region": "Land / region",
-    "local currency": "lokal valuta",
-    "Prices checked": "Priser kontrollerade",
-    "Pricing update pending": "Prisuppdatering väntar",
-    "OVERVIEW": "ÖVERSIKT",
-    "Your subscriptions": "Dina abonnemang",
-    "YOU'RE SAVING": "DU SPARAR",
-    "/ month": "/ månad",
-    "Annual savings": "Årligt sparande",
-    "Current monthly spend": "Nuvarande månadsutgift",
-    "AT A GLANCE": "I KORTHET",
-    "Next renewal": "Nästa förnyelse",
-    "Annual spend": "Årlig utgift",
-    "NEXT BEST MOVE": "NÄSTA BÄSTA STEG",
-    "NEEDS ATTENTION": "KRÄVER UPPMÄRKSAMHET",
-    "Ask Savlivo AI": "Fråga Savlivo AI",
-    "Subscriptions": "Abonnemang",
-    "+ Add service": "+ Lägg till tjänst",
-    "YOUR PROGRESS": "DINA FRAMSTEG",
-    "Savings": "Sparande",
-    "SAVED SO FAR": "SPARAT HITTILLS",
-    "Saved so far": "Sparat hittills",
-    "Saving now": "Sparar nu",
-    "/ mo": "/ mån",
-    "Annual pace": "Årstakt",
-    "CURRENT POSITION": "NUVARANDE LÄGE",
-    "Monthly spend": "Månadsutgift",
-    "REVIEWABLE SPEND · 3 MONTHS": "GRANSKNINGSBARA UTGIFTER · 3 MÅNADER",
-    "WHERE TO LOOK NEXT": "VAR DU BÖR TITTA HÄRNÄST",
-    "Subscriptions to review": "Abonnemang att granska",
-    "Review": "Granska",
-    "3-month spend:": "Utgifter senaste 3 månaderna:",
-    "MONTHLY ACTION PLAN": "MÅNATLIG HANDLINGSPLAN",
-    "Focus on what matters": "Fokusera på det som är viktigast",
-    "THIS MONTH": "DEN HÄR MÅNADEN",
-    "REVIEW FIRST": "GRANSKA FÖRST",
-    "Nothing urgent to review right now.": "Inget brådskande att granska just nu.",
-    "GOOD TO KEEP": "BRA ATT BEHÅLLA",
-    "Lower-cost active subscription": "Aktivt abonnemang med lägre kostnad",
-    "KEEP": "BEHÅLL",
-    "SAVLIVO ASSISTANT": "SAVLIVO-ASSISTENT",
-    "What can I help with?": "Vad kan jag hjälpa till med?",
-    "Ask about spending, renewals or subscription actions.": "Fråga om utgifter, förnyelser eller abonnemangsåtgärder.",
-    "What renews next?": "Vad förnyas härnäst?",
-    "How much am I saving?": "Hur mycket sparar jag?",
-    "What should I review?": "Vad bör jag granska?",
-    "Stop": "Stoppa",
-    "Listen": "Lyssna",
-    "Talk": "Prata",
-    "Send": "Skicka",
-    "GUIDED ACTION": "GUIDAD ÅTGÄRD",
-    "Cancel": "Avsluta",
-    "Pause": "Pausa",
-    "Reactivate": "Återaktivera",
-    "Open provider and continue": "Öppna leverantören och fortsätt",
-    "Listening… Tap stop when you're done": "Lyssnar … Tryck på stopp när du är klar",
-    "Sending…": "Skickar…",
-    "Transcribing…": "Transkriberar…",
-    "Price unavailable": "Pris saknas",
-    "Renewal": "Förnyas",
-    "Renewal date not set": "Förnyelsedatum saknas",
-    "Pauses": "Pausas",
-    "Cancels": "Avslutas",
-    "Edit subscription": "Redigera abonnemang",
-    "Add service": "Lägg till tjänst",
-    "Service": "Tjänst",
-    "Billing route": "Betalningssätt",
-    "Plan": "Plan",
-    "✓ Verified": "✓ Verifierad",
-    "Estimated current price": "Uppskattat aktuellt pris",
-    "Monthly price": "Månadspris",
-    "Use automatic price": "Använd automatiskt pris",
-    "Verified local catalog price": "Verifierat lokalt katalogpris",
-    "Renewal date": "Förnyelsedatum",
-    "Choose renewal date": "Välj förnyelsedatum",
-    "Clear": "Rensa",
-    "Save": "Spara",
-    "Remove subscription?": "Ta bort abonnemang?",
-    "Keep": "Behåll",
-    "Remove": "Ta bort",
-    "Remove service": "Ta bort tjänst"
-  },
-  "da": {
-    "Security": "Sikkerhed",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Use biometrics to unlock Savlivo": "Brug biometri til at låse Savlivo op",
-    "Biometrics unavailable on this device": "Biometri er ikke tilgængelig på denne enhed",
-    "Biometric unlock": "Biometrisk oplåsning",
-    "Use Face ID or Touch ID to unlock Savlivo?": "Brug Face ID eller Touch ID til at låse Savlivo op?",
-    "Not now": "Ikke nu",
-    "Enable": "Aktivér",
-    "Off": "Fra",
-    "Unlock to continue": "Lås op for at fortsætte",
-    "Unlock with Face ID / Touch ID": "Lås op med Face ID / Touch ID",
-    "Unlock Savlivo": "Lås Savlivo op",
-    "Use password": "Brug adgangskode",
-    "Settings": "Indstillinger",
-    "Account & plan": "Konto og abonnement",
-    "Preferences": "Indstillinger",
-    "Notifications": "Notifikationer",
-    "Premium & Autopilot": "Premium og Autopilot",
-    "Privacy & data": "Privatliv og data",
-    "Email": "E-mail",
-    "Savlivo plan": "Savlivo-abonnement",
-    "Appearance": "Udseende",
-    "Language": "Sprog",
-    "Subscription market": "Abonnementsmarked",
-    "Renewal reminders": "Påmindelser om fornyelse",
-    "Savings opportunities": "Besparelsesmuligheder",
-    "Ask before changes": "Spørg før ændringer",
-    "Never pause": "Sæt aldrig på pause",
-    "Export data": "Eksportér data",
-    "Delete account": "Slet konto",
-    "Dark": "Mørk",
-    "Light": "Lys",
-    "Manage": "Administrer",
-    "Change": "Skift",
-    "On": "Til",
-    "Configure": "Konfigurer",
-    "Later": "Senere",
-    "Log out": "Log ud",
-    "Done": "Færdig",
-    "Search country": "Søg efter land",
-    "Country / region": "Land / region",
-    "local currency": "lokal valuta",
-    "Prices checked": "Priser kontrolleret",
-    "Pricing update pending": "Prisopdatering afventer",
-    "OVERVIEW": "OVERSIGT",
-    "Your subscriptions": "Dine abonnementer",
-    "YOU'RE SAVING": "DU SPARER",
-    "/ month": "/ måned",
-    "Annual savings": "Årlig besparelse",
-    "Current monthly spend": "Nuværende månedlige forbrug",
-    "AT A GLANCE": "KORT FORTALT",
-    "Next renewal": "Næste fornyelse",
-    "Annual spend": "Årligt forbrug",
-    "NEXT BEST MOVE": "NÆSTE BEDSTE TRÆK",
-    "NEEDS ATTENTION": "KRÆVER OPMÆRKSOMHED",
-    "Ask Savlivo AI": "Spørg Savlivo AI",
-    "Subscriptions": "Abonnementer",
-    "+ Add service": "+ Tilføj tjeneste",
-    "YOUR PROGRESS": "DIN FREMGANG",
-    "Savings": "Besparelser",
-    "SAVED SO FAR": "SPARET INDTIL NU",
-    "Saved so far": "Sparet indtil nu",
-    "Saving now": "Sparer nu",
-    "/ mo": "/ md.",
-    "Annual pace": "Årligt tempo",
-    "CURRENT POSITION": "NUVÆRENDE SITUATION",
-    "Monthly spend": "Månedligt forbrug",
-    "REVIEWABLE SPEND · 3 MONTHS": "FORBRUG TIL GENNEMGANG · 3 MÅNEDER",
-    "WHERE TO LOOK NEXT": "HVOR DU BØR SE NÆSTE GANG",
-    "Subscriptions to review": "Abonnementer at gennemgå",
-    "Review": "Gennemgå",
-    "3-month spend:": "Forbrug sidste 3 måneder:",
-    "MONTHLY ACTION PLAN": "MÅNEDLIG HANDLINGSPLAN",
-    "Focus on what matters": "Fokusér på det vigtigste",
-    "THIS MONTH": "DENNE MÅNED",
-    "REVIEW FIRST": "GENNEMGÅ FØRST",
-    "Nothing urgent to review right now.": "Intet presserende at gennemgå lige nu.",
-    "GOOD TO KEEP": "GODT AT BEHOLDE",
-    "Lower-cost active subscription": "Aktivt abonnement med lavere pris",
-    "KEEP": "BEHOLD",
-    "SAVLIVO ASSISTANT": "SAVLIVO-ASSISTENT",
-    "What can I help with?": "Hvad kan jeg hjælpe med?",
-    "Ask about spending, renewals or subscription actions.": "Spørg om forbrug, fornyelser eller abonnementshandlinger.",
-    "What renews next?": "Hvad fornyes næste gang?",
-    "How much am I saving?": "Hvor meget sparer jeg?",
-    "What should I review?": "Hvad bør jeg gennemgå?",
-    "Stop": "Stop",
-    "Listen": "Lyt",
-    "Talk": "Tal",
-    "Send": "Send",
-    "GUIDED ACTION": "GUIDET HANDLING",
-    "Cancel": "Annuller",
-    "Pause": "Sæt på pause",
-    "Reactivate": "Genaktiver",
-    "Open provider and continue": "Åbn udbyderen og fortsæt",
-    "Listening… Tap stop when you're done": "Lytter … Tryk stop, når du er færdig",
-    "Sending…": "Sender…",
-    "Transcribing…": "Transskriberer…",
-    "Price unavailable": "Pris ikke tilgængelig",
-    "Renewal": "Fornyes",
-    "Renewal date not set": "Fornyelsesdato ikke angivet",
-    "Pauses": "Sættes på pause",
-    "Cancels": "Annulleres",
-    "Edit subscription": "Rediger abonnement",
-    "Add service": "Tilføj tjeneste",
-    "Service": "Tjeneste",
-    "Billing route": "Betalingsmetode",
-    "Plan": "Abonnementstype",
-    "✓ Verified": "✓ Verificeret",
-    "Estimated current price": "Estimeret aktuel pris",
-    "Monthly price": "Månedspris",
-    "Use automatic price": "Brug automatisk pris",
-    "Verified local catalog price": "Verificeret lokal katalogpris",
-    "Renewal date": "Fornyelsesdato",
-    "Choose renewal date": "Vælg fornyelsesdato",
-    "Clear": "Ryd",
-    "Save": "Gem",
-    "Remove subscription?": "Fjerne abonnement?",
-    "Keep": "Behold",
-    "Remove": "Fjern",
-    "Remove service": "Fjern tjeneste"
-  },
-  "de": {
-    "Security": "Sicherheit",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Use biometrics to unlock Savlivo": "Biometrie zum Entsperren von Savlivo verwenden",
-    "Biometrics unavailable on this device": "Biometrie ist auf diesem Gerät nicht verfügbar",
-    "Biometric unlock": "Biometrische Entsperrung",
-    "Use Face ID or Touch ID to unlock Savlivo?": "Face ID oder Touch ID zum Entsperren von Savlivo verwenden?",
-    "Not now": "Nicht jetzt",
-    "Enable": "Aktivieren",
-    "Off": "Aus",
-    "Unlock to continue": "Zum Fortfahren entsperren",
-    "Unlock with Face ID / Touch ID": "Mit Face ID / Touch ID entsperren",
-    "Unlock Savlivo": "Savlivo entsperren",
-    "Use password": "Passwort verwenden",
-    "Settings": "Einstellungen",
-    "Account & plan": "Konto & Tarif",
-    "Preferences": "Einstellungen",
-    "Notifications": "Benachrichtigungen",
-    "Premium & Autopilot": "Premium & Autopilot",
-    "Privacy & data": "Datenschutz & Daten",
-    "Email": "E-Mail",
-    "Savlivo plan": "Savlivo-Tarif",
-    "Appearance": "Darstellung",
-    "Language": "Sprache",
-    "Subscription market": "Abo-Markt",
-    "Renewal reminders": "Verlängerungserinnerungen",
-    "Savings opportunities": "Sparmöglichkeiten",
-    "Ask before changes": "Vor Änderungen fragen",
-    "Never pause": "Nie pausieren",
-    "Export data": "Daten exportieren",
-    "Delete account": "Konto löschen",
-    "Dark": "Dunkel",
-    "Light": "Hell",
-    "Manage": "Verwalten",
-    "Change": "Ändern",
-    "On": "Ein",
-    "Configure": "Konfigurieren",
-    "Later": "Später",
-    "Log out": "Abmelden",
-    "Done": "Fertig",
-    "Search country": "Land suchen",
-    "Country / region": "Land / Region",
-    "local currency": "lokale Währung",
-    "Prices checked": "Preise geprüft",
-    "Pricing update pending": "Preisaktualisierung ausstehend",
-    "OVERVIEW": "ÜBERSICHT",
-    "Your subscriptions": "Deine Abonnements",
-    "YOU'RE SAVING": "DU SPARST",
-    "/ month": "/ Monat",
-    "Annual savings": "Jährliche Ersparnis",
-    "Current monthly spend": "Aktuelle Monatsausgaben",
-    "AT A GLANCE": "AUF EINEN BLICK",
-    "Next renewal": "Nächste Verlängerung",
-    "Annual spend": "Jährliche Ausgaben",
-    "NEXT BEST MOVE": "NÄCHSTER BESTER SCHRITT",
-    "NEEDS ATTENTION": "BRAUCHT AUFMERKSAMKEIT",
-    "Ask Savlivo AI": "Savlivo-KI fragen",
-    "Subscriptions": "Abonnements",
-    "+ Add service": "+ Dienst hinzufügen",
-    "YOUR PROGRESS": "DEIN FORTSCHRITT",
-    "Savings": "Ersparnisse",
-    "SAVED SO FAR": "BISHER GESPART",
-    "Saved so far": "Bisher gespart",
-    "Saving now": "Aktuell gespart",
-    "/ mo": "/ Mon.",
-    "Annual pace": "Jahrestempo",
-    "CURRENT POSITION": "AKTUELLER STAND",
-    "Monthly spend": "Monatsausgaben",
-    "REVIEWABLE SPEND · 3 MONTHS": "PRÜFBARE AUSGABEN · 3 MONATE",
-    "WHERE TO LOOK NEXT": "WO DU ALS NÄCHSTES SCHAUEN SOLLTEST",
-    "Subscriptions to review": "Zu prüfende Abonnements",
-    "Review": "Prüfen",
-    "3-month spend:": "Ausgaben der letzten 3 Monate:",
-    "MONTHLY ACTION PLAN": "MONATLICHER AKTIONSPLAN",
-    "Focus on what matters": "Konzentriere dich auf das Wesentliche",
-    "THIS MONTH": "DIESEN MONAT",
-    "REVIEW FIRST": "ZUERST PRÜFEN",
-    "Nothing urgent to review right now.": "Derzeit gibt es nichts Dringendes zu prüfen.",
-    "GOOD TO KEEP": "GUT ZU BEHALTEN",
-    "Lower-cost active subscription": "Aktives günstigeres Abonnement",
-    "KEEP": "BEHALTEN",
-    "SAVLIVO ASSISTANT": "SAVLIVO-ASSISTENT",
-    "What can I help with?": "Wobei kann ich helfen?",
-    "Ask about spending, renewals or subscription actions.": "Frag nach Ausgaben, Verlängerungen oder Abo-Aktionen.",
-    "What renews next?": "Was wird als Nächstes verlängert?",
-    "How much am I saving?": "Wie viel spare ich?",
-    "What should I review?": "Was sollte ich prüfen?",
-    "Stop": "Stopp",
-    "Listen": "Anhören",
-    "Talk": "Sprechen",
-    "Send": "Senden",
-    "GUIDED ACTION": "GEFÜHRTE AKTION",
-    "Cancel": "Kündigen",
-    "Pause": "Pausieren",
-    "Reactivate": "Reaktivieren",
-    "Open provider and continue": "Anbieter öffnen und fortfahren",
-    "Listening… Tap stop when you're done": "Hört zu … Tippe auf Stopp, wenn du fertig bist",
-    "Sending…": "Wird gesendet…",
-    "Transcribing…": "Wird transkribiert…",
-    "Price unavailable": "Preis nicht verfügbar",
-    "Renewal": "Verlängerung",
-    "Renewal date not set": "Verlängerungsdatum nicht festgelegt",
-    "Pauses": "Wird pausiert",
-    "Cancels": "Wird gekündigt",
-    "Edit subscription": "Abonnement bearbeiten",
-    "Add service": "Dienst hinzufügen",
-    "Service": "Dienst",
-    "Billing route": "Abrechnungsweg",
-    "Plan": "Tarif",
-    "✓ Verified": "✓ Verifiziert",
-    "Estimated current price": "Geschätzter aktueller Preis",
-    "Monthly price": "Monatspreis",
-    "Use automatic price": "Automatischen Preis verwenden",
-    "Verified local catalog price": "Verifizierter lokaler Katalogpreis",
-    "Renewal date": "Verlängerungsdatum",
-    "Choose renewal date": "Verlängerungsdatum wählen",
-    "Clear": "Leeren",
-    "Save": "Speichern",
-    "Remove subscription?": "Abonnement entfernen?",
-    "Keep": "Behalten",
-    "Remove": "Entfernen",
-    "Remove service": "Dienst entfernen"
-  },
-  "es": {
-    "Security": "Seguridad",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Use biometrics to unlock Savlivo": "Usa biometría para desbloquear Savlivo",
-    "Biometrics unavailable on this device": "La biometría no está disponible en este dispositivo",
-    "Biometric unlock": "Desbloqueo biométrico",
-    "Use Face ID or Touch ID to unlock Savlivo?": "¿Usar Face ID o Touch ID para desbloquear Savlivo?",
-    "Not now": "Ahora no",
-    "Enable": "Activar",
-    "Off": "Desactivado",
-    "Unlock to continue": "Desbloquea para continuar",
-    "Unlock with Face ID / Touch ID": "Desbloquear con Face ID / Touch ID",
-    "Unlock Savlivo": "Desbloquear Savlivo",
-    "Use password": "Usar contraseña",
-    "Settings": "Ajustes",
-    "Account & plan": "Cuenta y plan",
-    "Preferences": "Preferencias",
-    "Notifications": "Notificaciones",
-    "Premium & Autopilot": "Premium y Autopilot",
-    "Privacy & data": "Privacidad y datos",
-    "Email": "Correo",
-    "Savlivo plan": "Plan Savlivo",
-    "Appearance": "Apariencia",
-    "Language": "Idioma",
-    "Subscription market": "Mercado de suscripciones",
-    "Renewal reminders": "Recordatorios de renovación",
-    "Savings opportunities": "Oportunidades de ahorro",
-    "Ask before changes": "Preguntar antes de cambios",
-    "Never pause": "No pausar nunca",
-    "Export data": "Exportar datos",
-    "Delete account": "Eliminar cuenta",
-    "Dark": "Oscuro",
-    "Light": "Claro",
-    "Manage": "Gestionar",
-    "Change": "Cambiar",
-    "On": "Activado",
-    "Configure": "Configurar",
-    "Later": "Más tarde",
-    "Log out": "Cerrar sesión",
-    "Done": "Listo",
-    "Search country": "Buscar país",
-    "Country / region": "País / región",
-    "local currency": "moneda local",
-    "Prices checked": "Precios comprobados",
-    "Pricing update pending": "Actualización de precios pendiente",
-    "OVERVIEW": "RESUMEN",
-    "Your subscriptions": "Tus suscripciones",
-    "YOU'RE SAVING": "ESTÁS AHORRANDO",
-    "/ month": "/ mes",
-    "Annual savings": "Ahorro anual",
-    "Current monthly spend": "Gasto mensual actual",
-    "AT A GLANCE": "DE UN VISTAZO",
-    "Next renewal": "Próxima renovación",
-    "Annual spend": "Gasto anual",
-    "NEXT BEST MOVE": "SIGUIENTE MEJOR PASO",
-    "NEEDS ATTENTION": "REQUIERE ATENCIÓN",
-    "Ask Savlivo AI": "Preguntar a Savlivo IA",
-    "Subscriptions": "Suscripciones",
-    "+ Add service": "+ Añadir servicio",
-    "YOUR PROGRESS": "TU PROGRESO",
-    "Savings": "Ahorros",
-    "SAVED SO FAR": "AHORRADO HASTA AHORA",
-    "Saved so far": "Ahorrado hasta ahora",
-    "Saving now": "Ahorrando ahora",
-    "/ mo": "/ mes",
-    "Annual pace": "Ritmo anual",
-    "CURRENT POSITION": "POSICIÓN ACTUAL",
-    "Monthly spend": "Gasto mensual",
-    "REVIEWABLE SPEND · 3 MONTHS": "GASTO A REVISAR · 3 MESES",
-    "WHERE TO LOOK NEXT": "DÓNDE MIRAR DESPUÉS",
-    "Subscriptions to review": "Suscripciones para revisar",
-    "Review": "Revisar",
-    "3-month spend:": "Gasto de 3 meses:",
-    "MONTHLY ACTION PLAN": "PLAN DE ACCIÓN MENSUAL",
-    "Focus on what matters": "Céntrate en lo importante",
-    "THIS MONTH": "ESTE MES",
-    "REVIEW FIRST": "REVISAR PRIMERO",
-    "Nothing urgent to review right now.": "No hay nada urgente que revisar ahora.",
-    "GOOD TO KEEP": "VALE LA PENA MANTENER",
-    "Lower-cost active subscription": "Suscripción activa de menor coste",
-    "KEEP": "MANTENER",
-    "SAVLIVO ASSISTANT": "ASISTENTE SAVLIVO",
-    "What can I help with?": "¿En qué puedo ayudarte?",
-    "Ask about spending, renewals or subscription actions.": "Pregunta sobre gastos, renovaciones o acciones de suscripción.",
-    "What renews next?": "¿Qué se renueva después?",
-    "How much am I saving?": "¿Cuánto estoy ahorrando?",
-    "What should I review?": "¿Qué debería revisar?",
-    "Stop": "Detener",
-    "Listen": "Escuchar",
-    "Talk": "Hablar",
-    "Send": "Enviar",
-    "GUIDED ACTION": "ACCIÓN GUIADA",
-    "Cancel": "Cancelar",
-    "Pause": "Pausar",
-    "Reactivate": "Reactivar",
-    "Open provider and continue": "Abrir proveedor y continuar",
-    "Listening… Tap stop when you're done": "Escuchando… Toca detener cuando termines",
-    "Sending…": "Enviando…",
-    "Transcribing…": "Transcribiendo…",
-    "Price unavailable": "Precio no disponible",
-    "Renewal": "Renovación",
-    "Renewal date not set": "Fecha de renovación no establecida",
-    "Pauses": "Se pausa",
-    "Cancels": "Se cancela",
-    "Edit subscription": "Editar suscripción",
-    "Add service": "Añadir servicio",
-    "Service": "Servicio",
-    "Billing route": "Forma de pago",
-    "Plan": "Plan",
-    "✓ Verified": "✓ Verificado",
-    "Estimated current price": "Precio actual estimado",
-    "Monthly price": "Precio mensual",
-    "Use automatic price": "Usar precio automático",
-    "Verified local catalog price": "Precio de catálogo local verificado",
-    "Renewal date": "Fecha de renovación",
-    "Choose renewal date": "Elegir fecha de renovación",
-    "Clear": "Borrar",
-    "Save": "Guardar",
-    "Remove subscription?": "¿Eliminar suscripción?",
-    "Keep": "Mantener",
-    "Remove": "Eliminar",
-    "Remove service": "Eliminar servicio"
-  },
-  "fr": {
-    "Security": "Sécurité",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Use biometrics to unlock Savlivo": "Utiliser la biométrie pour déverrouiller Savlivo",
-    "Biometrics unavailable on this device": "La biométrie n’est pas disponible sur cet appareil",
-    "Biometric unlock": "Déverrouillage biométrique",
-    "Use Face ID or Touch ID to unlock Savlivo?": "Utiliser Face ID ou Touch ID pour déverrouiller Savlivo ?",
-    "Not now": "Pas maintenant",
-    "Enable": "Activer",
-    "Off": "Désactivé",
-    "Unlock to continue": "Déverrouillez pour continuer",
-    "Unlock with Face ID / Touch ID": "Déverrouiller avec Face ID / Touch ID",
-    "Unlock Savlivo": "Déverrouiller Savlivo",
-    "Use password": "Utiliser le mot de passe",
-    "Settings": "Réglages",
-    "Account & plan": "Compte et offre",
-    "Preferences": "Préférences",
-    "Notifications": "Notifications",
-    "Premium & Autopilot": "Premium et Autopilot",
-    "Privacy & data": "Confidentialité et données",
-    "Email": "E-mail",
-    "Savlivo plan": "Offre Savlivo",
-    "Appearance": "Apparence",
-    "Language": "Langue",
-    "Subscription market": "Marché des abonnements",
-    "Renewal reminders": "Rappels de renouvellement",
-    "Savings opportunities": "Opportunités d’économies",
-    "Ask before changes": "Demander avant les modifications",
-    "Never pause": "Ne jamais mettre en pause",
-    "Export data": "Exporter les données",
-    "Delete account": "Supprimer le compte",
-    "Dark": "Sombre",
-    "Light": "Clair",
-    "Manage": "Gérer",
-    "Change": "Modifier",
-    "On": "Activé",
-    "Configure": "Configurer",
-    "Later": "Plus tard",
-    "Log out": "Se déconnecter",
-    "Done": "Terminé",
-    "Search country": "Rechercher un pays",
-    "Country / region": "Pays / région",
-    "local currency": "devise locale",
-    "Prices checked": "Prix vérifiés",
-    "Pricing update pending": "Mise à jour des prix en attente",
-    "OVERVIEW": "APERÇU",
-    "Your subscriptions": "Vos abonnements",
-    "YOU'RE SAVING": "VOUS ÉCONOMISEZ",
-    "/ month": "/ mois",
-    "Annual savings": "Économies annuelles",
-    "Current monthly spend": "Dépenses mensuelles actuelles",
-    "AT A GLANCE": "EN UN COUP D’ŒIL",
-    "Next renewal": "Prochain renouvellement",
-    "Annual spend": "Dépenses annuelles",
-    "NEXT BEST MOVE": "PROCHAINE MEILLEURE ACTION",
-    "NEEDS ATTENTION": "NÉCESSITE VOTRE ATTENTION",
-    "Ask Savlivo AI": "Demander à Savlivo IA",
-    "Subscriptions": "Abonnements",
-    "+ Add service": "+ Ajouter un service",
-    "YOUR PROGRESS": "VOTRE PROGRESSION",
-    "Savings": "Économies",
-    "SAVED SO FAR": "ÉCONOMISÉ JUSQU’ICI",
-    "Saved so far": "Économisé jusqu’ici",
-    "Saving now": "Économie actuelle",
-    "/ mo": "/ mois",
-    "Annual pace": "Rythme annuel",
-    "CURRENT POSITION": "SITUATION ACTUELLE",
-    "Monthly spend": "Dépenses mensuelles",
-    "REVIEWABLE SPEND · 3 MONTHS": "DÉPENSES À EXAMINER · 3 MOIS",
-    "WHERE TO LOOK NEXT": "OÙ REGARDER ENSUITE",
-    "Subscriptions to review": "Abonnements à examiner",
-    "Review": "Examiner",
-    "3-month spend:": "Dépenses sur 3 mois :",
-    "MONTHLY ACTION PLAN": "PLAN D’ACTION MENSUEL",
-    "Focus on what matters": "Concentrez-vous sur l’essentiel",
-    "THIS MONTH": "CE MOIS-CI",
-    "REVIEW FIRST": "À EXAMINER EN PREMIER",
-    "Nothing urgent to review right now.": "Rien d’urgent à examiner pour le moment.",
-    "GOOD TO KEEP": "BON À CONSERVER",
-    "Lower-cost active subscription": "Abonnement actif moins coûteux",
-    "KEEP": "CONSERVER",
-    "SAVLIVO ASSISTANT": "ASSISTANT SAVLIVO",
-    "What can I help with?": "Comment puis-je vous aider ?",
-    "Ask about spending, renewals or subscription actions.": "Posez des questions sur les dépenses, renouvellements ou actions d’abonnement.",
-    "What renews next?": "Quel abonnement est renouvelé ensuite ?",
-    "How much am I saving?": "Combien est-ce que j’économise ?",
-    "What should I review?": "Que devrais-je examiner ?",
-    "Stop": "Arrêter",
-    "Listen": "Écouter",
-    "Talk": "Parler",
-    "Send": "Envoyer",
-    "GUIDED ACTION": "ACTION GUIDÉE",
-    "Cancel": "Résilier",
-    "Pause": "Mettre en pause",
-    "Reactivate": "Réactiver",
-    "Open provider and continue": "Ouvrir le fournisseur et continuer",
-    "Listening… Tap stop when you're done": "Écoute… Appuyez sur arrêter lorsque vous avez terminé",
-    "Sending…": "Envoi…",
-    "Transcribing…": "Transcription…",
-    "Price unavailable": "Prix indisponible",
-    "Renewal": "Renouvellement",
-    "Renewal date not set": "Date de renouvellement non définie",
-    "Pauses": "Mise en pause",
-    "Cancels": "Résiliation",
-    "Edit subscription": "Modifier l’abonnement",
-    "Add service": "Ajouter un service",
-    "Service": "Service",
-    "Billing route": "Mode de facturation",
-    "Plan": "Offre",
-    "✓ Verified": "✓ Vérifié",
-    "Estimated current price": "Prix actuel estimé",
-    "Monthly price": "Prix mensuel",
-    "Use automatic price": "Utiliser le prix automatique",
-    "Verified local catalog price": "Prix catalogue local vérifié",
-    "Renewal date": "Date de renouvellement",
-    "Choose renewal date": "Choisir la date de renouvellement",
-    "Clear": "Effacer",
-    "Save": "Enregistrer",
-    "Remove subscription?": "Supprimer l’abonnement ?",
-    "Keep": "Conserver",
-    "Remove": "Supprimer",
-    "Remove service": "Supprimer le service"
-  },
-  "it": {
-    "Security": "Sicurezza",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Use biometrics to unlock Savlivo": "Usa la biometria per sbloccare Savlivo",
-    "Biometrics unavailable on this device": "La biometria non è disponibile su questo dispositivo",
-    "Biometric unlock": "Sblocco biometrico",
-    "Use Face ID or Touch ID to unlock Savlivo?": "Usare Face ID o Touch ID per sbloccare Savlivo?",
-    "Not now": "Non ora",
-    "Enable": "Attiva",
-    "Off": "Disattivato",
-    "Unlock to continue": "Sblocca per continuare",
-    "Unlock with Face ID / Touch ID": "Sblocca con Face ID / Touch ID",
-    "Unlock Savlivo": "Sblocca Savlivo",
-    "Use password": "Usa password",
-    "Settings": "Impostazioni",
-    "Account & plan": "Account e piano",
-    "Preferences": "Preferenze",
-    "Notifications": "Notifiche",
-    "Premium & Autopilot": "Premium e Autopilot",
-    "Privacy & data": "Privacy e dati",
-    "Email": "E-mail",
-    "Savlivo plan": "Piano Savlivo",
-    "Appearance": "Aspetto",
-    "Language": "Lingua",
-    "Subscription market": "Mercato abbonamenti",
-    "Renewal reminders": "Promemoria rinnovo",
-    "Savings opportunities": "Opportunità di risparmio",
-    "Ask before changes": "Chiedi prima delle modifiche",
-    "Never pause": "Non mettere mai in pausa",
-    "Export data": "Esporta dati",
-    "Delete account": "Elimina account",
-    "Dark": "Scuro",
-    "Light": "Chiaro",
-    "Manage": "Gestisci",
-    "Change": "Cambia",
-    "On": "Attivo",
-    "Configure": "Configura",
-    "Later": "Più tardi",
-    "Log out": "Esci",
-    "Done": "Fatto",
-    "Search country": "Cerca paese",
-    "Country / region": "Paese / regione",
-    "local currency": "valuta locale",
-    "Prices checked": "Prezzi verificati",
-    "Pricing update pending": "Aggiornamento prezzi in attesa",
-    "OVERVIEW": "PANORAMICA",
-    "Your subscriptions": "I tuoi abbonamenti",
-    "YOU'RE SAVING": "STAI RISPARMIANDO",
-    "/ month": "/ mese",
-    "Annual savings": "Risparmio annuale",
-    "Current monthly spend": "Spesa mensile attuale",
-    "AT A GLANCE": "A COLPO D’OCCHIO",
-    "Next renewal": "Prossimo rinnovo",
-    "Annual spend": "Spesa annuale",
-    "NEXT BEST MOVE": "PROSSIMA MOSSA MIGLIORE",
-    "NEEDS ATTENTION": "RICHIEDE ATTENZIONE",
-    "Ask Savlivo AI": "Chiedi a Savlivo IA",
-    "Subscriptions": "Abbonamenti",
-    "+ Add service": "+ Aggiungi servizio",
-    "YOUR PROGRESS": "I TUOI PROGRESSI",
-    "Savings": "Risparmi",
-    "SAVED SO FAR": "RISPARMIATO FINORA",
-    "Saved so far": "Risparmiato finora",
-    "Saving now": "Risparmio attuale",
-    "/ mo": "/ mese",
-    "Annual pace": "Ritmo annuale",
-    "CURRENT POSITION": "POSIZIONE ATTUALE",
-    "Monthly spend": "Spesa mensile",
-    "REVIEWABLE SPEND · 3 MONTHS": "SPESA DA RIVEDERE · 3 MESI",
-    "WHERE TO LOOK NEXT": "DOVE GUARDARE DOPO",
-    "Subscriptions to review": "Abbonamenti da rivedere",
-    "Review": "Rivedi",
-    "3-month spend:": "Spesa ultimi 3 mesi:",
-    "MONTHLY ACTION PLAN": "PIANO D’AZIONE MENSILE",
-    "Focus on what matters": "Concentrati su ciò che conta",
-    "THIS MONTH": "QUESTO MESE",
-    "REVIEW FIRST": "RIVEDI PRIMA",
-    "Nothing urgent to review right now.": "Niente di urgente da rivedere al momento.",
-    "GOOD TO KEEP": "DA MANTENERE",
-    "Lower-cost active subscription": "Abbonamento attivo a costo inferiore",
-    "KEEP": "MANTIENI",
-    "SAVLIVO ASSISTANT": "ASSISTENTE SAVLIVO",
-    "What can I help with?": "Come posso aiutarti?",
-    "Ask about spending, renewals or subscription actions.": "Chiedi informazioni su spese, rinnovi o azioni sugli abbonamenti.",
-    "What renews next?": "Cosa si rinnova dopo?",
-    "How much am I saving?": "Quanto sto risparmiando?",
-    "What should I review?": "Cosa dovrei rivedere?",
-    "Stop": "Stop",
-    "Listen": "Ascolta",
-    "Talk": "Parla",
-    "Send": "Invia",
-    "GUIDED ACTION": "AZIONE GUIDATA",
-    "Cancel": "Annulla",
-    "Pause": "Metti in pausa",
-    "Reactivate": "Riattiva",
-    "Open provider and continue": "Apri il fornitore e continua",
-    "Listening… Tap stop when you're done": "In ascolto… Tocca stop quando hai finito",
-    "Sending…": "Invio…",
-    "Transcribing…": "Trascrizione…",
-    "Price unavailable": "Prezzo non disponibile",
-    "Renewal": "Rinnovo",
-    "Renewal date not set": "Data di rinnovo non impostata",
-    "Pauses": "Viene messo in pausa",
-    "Cancels": "Viene annullato",
-    "Edit subscription": "Modifica abbonamento",
-    "Add service": "Aggiungi servizio",
-    "Service": "Servizio",
-    "Billing route": "Modalità di pagamento",
-    "Plan": "Piano",
-    "✓ Verified": "✓ Verificato",
-    "Estimated current price": "Prezzo attuale stimato",
-    "Monthly price": "Prezzo mensile",
-    "Use automatic price": "Usa prezzo automatico",
-    "Verified local catalog price": "Prezzo di catalogo locale verificato",
-    "Renewal date": "Data di rinnovo",
-    "Choose renewal date": "Scegli data di rinnovo",
-    "Clear": "Cancella",
-    "Save": "Salva",
-    "Remove subscription?": "Rimuovere l’abbonamento?",
-    "Keep": "Mantieni",
-    "Remove": "Rimuovi",
-    "Remove service": "Rimuovi servizio"
-  },
-  "pt": {
-    "Security": "Segurança",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Use biometrics to unlock Savlivo": "Usar biometria para desbloquear o Savlivo",
-    "Biometrics unavailable on this device": "A biometria não está disponível neste dispositivo",
-    "Biometric unlock": "Desbloqueio biométrico",
-    "Use Face ID or Touch ID to unlock Savlivo?": "Usar Face ID ou Touch ID para desbloquear o Savlivo?",
-    "Not now": "Agora não",
-    "Enable": "Ativar",
-    "Off": "Desativado",
-    "Unlock to continue": "Desbloqueie para continuar",
-    "Unlock with Face ID / Touch ID": "Desbloquear com Face ID / Touch ID",
-    "Unlock Savlivo": "Desbloquear o Savlivo",
-    "Use password": "Usar palavra-passe",
-    "Settings": "Definições",
-    "Account & plan": "Conta e plano",
-    "Preferences": "Preferências",
-    "Notifications": "Notificações",
-    "Premium & Autopilot": "Premium e Autopilot",
-    "Privacy & data": "Privacidade e dados",
-    "Email": "E-mail",
-    "Savlivo plan": "Plano Savlivo",
-    "Appearance": "Aparência",
-    "Language": "Idioma",
-    "Subscription market": "Mercado de subscrições",
-    "Renewal reminders": "Lembretes de renovação",
-    "Savings opportunities": "Oportunidades de poupança",
-    "Ask before changes": "Perguntar antes de alterações",
-    "Never pause": "Nunca pausar",
-    "Export data": "Exportar dados",
-    "Delete account": "Eliminar conta",
-    "Dark": "Escuro",
-    "Light": "Claro",
-    "Manage": "Gerir",
-    "Change": "Alterar",
-    "On": "Ativado",
-    "Configure": "Configurar",
-    "Later": "Mais tarde",
-    "Log out": "Terminar sessão",
-    "Done": "Concluído",
-    "Search country": "Pesquisar país",
-    "Country / region": "País / região",
-    "local currency": "moeda local",
-    "Prices checked": "Preços verificados",
-    "Pricing update pending": "Atualização de preços pendente",
-    "OVERVIEW": "VISÃO GERAL",
-    "Your subscriptions": "As tuas subscrições",
-    "YOU'RE SAVING": "ESTÁS A POUPAR",
-    "/ month": "/ mês",
-    "Annual savings": "Poupança anual",
-    "Current monthly spend": "Despesa mensal atual",
-    "AT A GLANCE": "NUM RELANCE",
-    "Next renewal": "Próxima renovação",
-    "Annual spend": "Despesa anual",
-    "NEXT BEST MOVE": "PRÓXIMO MELHOR PASSO",
-    "NEEDS ATTENTION": "REQUER ATENÇÃO",
-    "Ask Savlivo AI": "Perguntar à IA Savlivo",
-    "Subscriptions": "Subscrições",
-    "+ Add service": "+ Adicionar serviço",
-    "YOUR PROGRESS": "O TEU PROGRESSO",
-    "Savings": "Poupanças",
-    "SAVED SO FAR": "POUPADO ATÉ AGORA",
-    "Saved so far": "Poupado até agora",
-    "Saving now": "A poupar agora",
-    "/ mo": "/ mês",
-    "Annual pace": "Ritmo anual",
-    "CURRENT POSITION": "POSIÇÃO ATUAL",
-    "Monthly spend": "Despesa mensal",
-    "REVIEWABLE SPEND · 3 MONTHS": "DESPESA A REVER · 3 MESES",
-    "WHERE TO LOOK NEXT": "ONDE VER A SEGUIR",
-    "Subscriptions to review": "Subscrições a rever",
-    "Review": "Rever",
-    "3-month spend:": "Despesa de 3 meses:",
-    "MONTHLY ACTION PLAN": "PLANO DE AÇÃO MENSAL",
-    "Focus on what matters": "Foca-te no que importa",
-    "THIS MONTH": "ESTE MÊS",
-    "REVIEW FIRST": "REVER PRIMEIRO",
-    "Nothing urgent to review right now.": "Nada urgente para rever agora.",
-    "GOOD TO KEEP": "BOM PARA MANTER",
-    "Lower-cost active subscription": "Subscrição ativa de menor custo",
-    "KEEP": "MANTER",
-    "SAVLIVO ASSISTANT": "ASSISTENTE SAVLIVO",
-    "What can I help with?": "Em que posso ajudar?",
-    "Ask about spending, renewals or subscription actions.": "Pergunta sobre despesas, renovações ou ações de subscrição.",
-    "What renews next?": "O que é renovado a seguir?",
-    "How much am I saving?": "Quanto estou a poupar?",
-    "What should I review?": "O que devo rever?",
-    "Stop": "Parar",
-    "Listen": "Ouvir",
-    "Talk": "Falar",
-    "Send": "Enviar",
-    "GUIDED ACTION": "AÇÃO GUIADA",
-    "Cancel": "Cancelar",
-    "Pause": "Pausar",
-    "Reactivate": "Reativar",
-    "Open provider and continue": "Abrir fornecedor e continuar",
-    "Listening… Tap stop when you're done": "A ouvir… Toca em parar quando terminares",
-    "Sending…": "A enviar…",
-    "Transcribing…": "A transcrever…",
-    "Price unavailable": "Preço indisponível",
-    "Renewal": "Renovação",
-    "Renewal date not set": "Data de renovação não definida",
-    "Pauses": "É pausado",
-    "Cancels": "É cancelado",
-    "Edit subscription": "Editar subscrição",
-    "Add service": "Adicionar serviço",
-    "Service": "Serviço",
-    "Billing route": "Forma de faturação",
-    "Plan": "Plano",
-    "✓ Verified": "✓ Verificado",
-    "Estimated current price": "Preço atual estimado",
-    "Monthly price": "Preço mensal",
-    "Use automatic price": "Usar preço automático",
-    "Verified local catalog price": "Preço de catálogo local verificado",
-    "Renewal date": "Data de renovação",
-    "Choose renewal date": "Escolher data de renovação",
-    "Clear": "Limpar",
-    "Save": "Guardar",
-    "Remove subscription?": "Remover subscrição?",
-    "Keep": "Manter",
-    "Remove": "Remover",
-    "Remove service": "Remover serviço"
-  },
-  "nl": {
-    "Security": "Beveiliging",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Use biometrics to unlock Savlivo": "Gebruik biometrie om Savlivo te ontgrendelen",
-    "Biometrics unavailable on this device": "Biometrie is niet beschikbaar op dit apparaat",
-    "Biometric unlock": "Biometrische ontgrendeling",
-    "Use Face ID or Touch ID to unlock Savlivo?": "Face ID of Touch ID gebruiken om Savlivo te ontgrendelen?",
-    "Not now": "Niet nu",
-    "Enable": "Inschakelen",
-    "Off": "Uit",
-    "Unlock to continue": "Ontgrendel om door te gaan",
-    "Unlock with Face ID / Touch ID": "Ontgrendel met Face ID / Touch ID",
-    "Unlock Savlivo": "Ontgrendel Savlivo",
-    "Use password": "Gebruik wachtwoord",
-    "Settings": "Instellingen",
-    "Account & plan": "Account en abonnement",
-    "Preferences": "Voorkeuren",
-    "Notifications": "Meldingen",
-    "Premium & Autopilot": "Premium & Autopilot",
-    "Privacy & data": "Privacy en gegevens",
-    "Email": "E-mail",
-    "Savlivo plan": "Savlivo-abonnement",
-    "Appearance": "Weergave",
-    "Language": "Taal",
-    "Subscription market": "Abonnementsmarkt",
-    "Renewal reminders": "Verlengingsherinneringen",
-    "Savings opportunities": "Besparingsmogelijkheden",
-    "Ask before changes": "Vragen vóór wijzigingen",
-    "Never pause": "Nooit pauzeren",
-    "Export data": "Gegevens exporteren",
-    "Delete account": "Account verwijderen",
-    "Dark": "Donker",
-    "Light": "Licht",
-    "Manage": "Beheren",
-    "Change": "Wijzigen",
-    "On": "Aan",
-    "Configure": "Configureren",
-    "Later": "Later",
-    "Log out": "Uitloggen",
-    "Done": "Gereed",
-    "Search country": "Land zoeken",
-    "Country / region": "Land / regio",
-    "local currency": "lokale valuta",
-    "Prices checked": "Prijzen gecontroleerd",
-    "Pricing update pending": "Prijsupdate in behandeling",
-    "OVERVIEW": "OVERZICHT",
-    "Your subscriptions": "Je abonnementen",
-    "YOU'RE SAVING": "JE BESPAART",
-    "/ month": "/ maand",
-    "Annual savings": "Jaarlijkse besparing",
-    "Current monthly spend": "Huidige maanduitgaven",
-    "AT A GLANCE": "IN ÉÉN OOGOPSLAG",
-    "Next renewal": "Volgende verlenging",
-    "Annual spend": "Jaaruitgaven",
-    "NEXT BEST MOVE": "VOLGENDE BESTE STAP",
-    "NEEDS ATTENTION": "VEREIST AANDACHT",
-    "Ask Savlivo AI": "Vraag Savlivo AI",
-    "Subscriptions": "Abonnementen",
-    "+ Add service": "+ Dienst toevoegen",
-    "YOUR PROGRESS": "JE VOORTGANG",
-    "Savings": "Besparingen",
-    "SAVED SO FAR": "TOT NU TOE BESPAARD",
-    "Saved so far": "Tot nu toe bespaard",
-    "Saving now": "Nu besparen",
-    "/ mo": "/ mnd",
-    "Annual pace": "Jaarritme",
-    "CURRENT POSITION": "HUIDIGE POSITIE",
-    "Monthly spend": "Maanduitgaven",
-    "REVIEWABLE SPEND · 3 MONTHS": "TE BEOORDELEN UITGAVEN · 3 MAANDEN",
-    "WHERE TO LOOK NEXT": "WAAR JE HIERNA MOET KIJKEN",
-    "Subscriptions to review": "Te beoordelen abonnementen",
-    "Review": "Beoordelen",
-    "3-month spend:": "Uitgaven afgelopen 3 maanden:",
-    "MONTHLY ACTION PLAN": "MAANDELIJKS ACTIEPLAN",
-    "Focus on what matters": "Focus op wat belangrijk is",
-    "THIS MONTH": "DEZE MAAND",
-    "REVIEW FIRST": "EERST BEOORDELEN",
-    "Nothing urgent to review right now.": "Er is nu niets urgents om te beoordelen.",
-    "GOOD TO KEEP": "GOED OM TE HOUDEN",
-    "Lower-cost active subscription": "Actief goedkoper abonnement",
-    "KEEP": "BEHOUDEN",
-    "SAVLIVO ASSISTANT": "SAVLIVO-ASSISTENT",
-    "What can I help with?": "Waar kan ik mee helpen?",
-    "Ask about spending, renewals or subscription actions.": "Vraag naar uitgaven, verlengingen of abonnementsacties.",
-    "What renews next?": "Wat wordt hierna verlengd?",
-    "How much am I saving?": "Hoeveel bespaar ik?",
-    "What should I review?": "Wat moet ik beoordelen?",
-    "Stop": "Stop",
-    "Listen": "Luisteren",
-    "Talk": "Praten",
-    "Send": "Versturen",
-    "GUIDED ACTION": "BEGELEIDE ACTIE",
-    "Cancel": "Opzeggen",
-    "Pause": "Pauzeren",
-    "Reactivate": "Opnieuw activeren",
-    "Open provider and continue": "Provider openen en doorgaan",
-    "Listening… Tap stop when you're done": "Luistert… Tik op stop wanneer je klaar bent",
-    "Sending…": "Verzenden…",
-    "Transcribing…": "Transcriberen…",
-    "Price unavailable": "Prijs niet beschikbaar",
-    "Renewal": "Verlenging",
-    "Renewal date not set": "Verlengingsdatum niet ingesteld",
-    "Pauses": "Wordt gepauzeerd",
-    "Cancels": "Wordt opgezegd",
-    "Edit subscription": "Abonnement bewerken",
-    "Add service": "Dienst toevoegen",
-    "Service": "Dienst",
-    "Billing route": "Betaalwijze",
-    "Plan": "Abonnement",
-    "✓ Verified": "✓ Geverifieerd",
-    "Estimated current price": "Geschatte huidige prijs",
-    "Monthly price": "Maandprijs",
-    "Use automatic price": "Automatische prijs gebruiken",
-    "Verified local catalog price": "Geverifieerde lokale catalogusprijs",
-    "Renewal date": "Verlengingsdatum",
-    "Choose renewal date": "Verlengingsdatum kiezen",
-    "Clear": "Wissen",
-    "Save": "Opslaan",
-    "Remove subscription?": "Abonnement verwijderen?",
-    "Keep": "Behouden",
-    "Remove": "Verwijderen",
-    "Remove service": "Dienst verwijderen"
-  },
-  "fi": {
-    "Security": "Suojaus",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Use biometrics to unlock Savlivo": "Käytä biometriaa Savlivon avaamiseen",
-    "Biometrics unavailable on this device": "Biometria ei ole käytettävissä tällä laitteella",
-    "Biometric unlock": "Biometrinen avaus",
-    "Use Face ID or Touch ID to unlock Savlivo?": "Käytetäänkö Face ID:tä tai Touch ID:tä Savlivon avaamiseen?",
-    "Not now": "Ei nyt",
-    "Enable": "Ota käyttöön",
-    "Off": "Pois",
-    "Unlock to continue": "Avaa jatkaaksesi",
-    "Unlock with Face ID / Touch ID": "Avaa Face ID:llä / Touch ID:llä",
-    "Unlock Savlivo": "Avaa Savlivo",
-    "Use password": "Käytä salasanaa",
-    "Settings": "Asetukset",
-    "Account & plan": "Tili ja tilaus",
-    "Preferences": "Asetukset",
-    "Notifications": "Ilmoitukset",
-    "Premium & Autopilot": "Premium ja Autopilot",
-    "Privacy & data": "Tietosuoja ja data",
-    "Email": "Sähköposti",
-    "Savlivo plan": "Savlivo-tilaus",
-    "Appearance": "Ulkoasu",
-    "Language": "Kieli",
-    "Subscription market": "Tilausmarkkina",
-    "Renewal reminders": "Uusimismuistutukset",
-    "Savings opportunities": "Säästömahdollisuudet",
-    "Ask before changes": "Kysy ennen muutoksia",
-    "Never pause": "Älä koskaan keskeytä",
-    "Export data": "Vie tiedot",
-    "Delete account": "Poista tili",
-    "Dark": "Tumma",
-    "Light": "Vaalea",
-    "Manage": "Hallinnoi",
-    "Change": "Vaihda",
-    "On": "Päällä",
-    "Configure": "Määritä",
-    "Later": "Myöhemmin",
-    "Log out": "Kirjaudu ulos",
-    "Done": "Valmis",
-    "Search country": "Hae maata",
-    "Country / region": "Maa / alue",
-    "local currency": "paikallinen valuutta",
-    "Prices checked": "Hinnat tarkistettu",
-    "Pricing update pending": "Hintapäivitys odottaa",
-    "OVERVIEW": "YLEISKATSAUS",
-    "Your subscriptions": "Tilauksesi",
-    "YOU'RE SAVING": "SÄÄSTÄT",
-    "/ month": "/ kk",
-    "Annual savings": "Vuosisäästö",
-    "Current monthly spend": "Nykyiset kuukausikulut",
-    "AT A GLANCE": "YHDELLÄ SILMÄYKSELLÄ",
-    "Next renewal": "Seuraava uusiminen",
-    "Annual spend": "Vuosikulut",
-    "NEXT BEST MOVE": "SEURAAVA PARAS SIIRTO",
-    "NEEDS ATTENTION": "VAATII HUOMIOTA",
-    "Ask Savlivo AI": "Kysy Savlivo AI:lta",
-    "Subscriptions": "Tilaukset",
-    "+ Add service": "+ Lisää palvelu",
-    "YOUR PROGRESS": "EDISTYMISESI",
-    "Savings": "Säästöt",
-    "SAVED SO FAR": "SÄÄSTETTY TÄHÄN MENNESSÄ",
-    "Saved so far": "Säästetty tähän mennessä",
-    "Saving now": "Säästät nyt",
-    "/ mo": "/ kk",
-    "Annual pace": "Vuosivauhti",
-    "CURRENT POSITION": "NYKYTILANNE",
-    "Monthly spend": "Kuukausikulut",
-    "REVIEWABLE SPEND · 3 MONTHS": "TARKISTETTAVAT KULUT · 3 KK",
-    "WHERE TO LOOK NEXT": "MITÄ TARKISTAA SEURAAVAKSI",
-    "Subscriptions to review": "Tarkistettavat tilaukset",
-    "Review": "Tarkista",
-    "3-month spend:": "3 kuukauden kulut:",
-    "MONTHLY ACTION PLAN": "KUUKAUSITTAINEN TOIMINTASUUNNITELMA",
-    "Focus on what matters": "Keskity olennaiseen",
-    "THIS MONTH": "TÄSSÄ KUUSSA",
-    "REVIEW FIRST": "TARKISTA ENSIN",
-    "Nothing urgent to review right now.": "Juuri nyt ei ole mitään kiireellistä tarkistettavaa.",
-    "GOOD TO KEEP": "HYVÄ SÄILYTTÄÄ",
-    "Lower-cost active subscription": "Edullisempi aktiivinen tilaus",
-    "KEEP": "PIDÄ",
-    "SAVLIVO ASSISTANT": "SAVLIVO-AVUSTAJA",
-    "What can I help with?": "Miten voin auttaa?",
-    "Ask about spending, renewals or subscription actions.": "Kysy kuluista, uusimisista tai tilaustoiminnoista.",
-    "What renews next?": "Mikä uusiutuu seuraavaksi?",
-    "How much am I saving?": "Kuinka paljon säästän?",
-    "What should I review?": "Mitä minun kannattaa tarkistaa?",
-    "Stop": "Lopeta",
-    "Listen": "Kuuntele",
-    "Talk": "Puhu",
-    "Send": "Lähetä",
-    "GUIDED ACTION": "OHJATTU TOIMINTO",
-    "Cancel": "Peruuta",
-    "Pause": "Keskeytä",
-    "Reactivate": "Aktivoi uudelleen",
-    "Open provider and continue": "Avaa palveluntarjoaja ja jatka",
-    "Listening… Tap stop when you're done": "Kuunnellaan… Paina lopeta, kun olet valmis",
-    "Sending…": "Lähetetään…",
-    "Transcribing…": "Muunnetaan tekstiksi…",
-    "Price unavailable": "Hinta ei saatavilla",
-    "Renewal": "Uusiminen",
-    "Renewal date not set": "Uusimispäivää ei asetettu",
-    "Pauses": "Keskeytyy",
-    "Cancels": "Peruuntuu",
-    "Edit subscription": "Muokkaa tilausta",
-    "Add service": "Lisää palvelu",
-    "Service": "Palvelu",
-    "Billing route": "Laskutustapa",
-    "Plan": "Tilaus",
-    "✓ Verified": "✓ Vahvistettu",
-    "Estimated current price": "Arvioitu nykyhinta",
-    "Monthly price": "Kuukausihinta",
-    "Use automatic price": "Käytä automaattista hintaa",
-    "Verified local catalog price": "Vahvistettu paikallinen luettelohinta",
-    "Renewal date": "Uusimispäivä",
-    "Choose renewal date": "Valitse uusimispäivä",
-    "Clear": "Tyhjennä",
-    "Save": "Tallenna",
-    "Remove subscription?": "Poistetaanko tilaus?",
-    "Keep": "Pidä",
-    "Remove": "Poista",
-    "Remove service": "Poista palvelu"
-  },
-  "zh-CN": {
-    "Security": "安全",
-    "Face ID / Touch ID": "Face ID / Touch ID",
-    "Use biometrics to unlock Savlivo": "使用生物识别解锁 Savlivo",
-    "Biometrics unavailable on this device": "此设备无法使用生物识别",
-    "Biometric unlock": "生物识别解锁",
-    "Use Face ID or Touch ID to unlock Savlivo?": "使用 Face ID 或 Touch ID 解锁 Savlivo？",
-    "Not now": "暂不",
-    "Enable": "启用",
-    "Off": "关闭",
-    "Unlock to continue": "解锁以继续",
-    "Unlock with Face ID / Touch ID": "使用 Face ID / Touch ID 解锁",
-    "Unlock Savlivo": "解锁 Savlivo",
-    "Use password": "使用密码",
-    "Settings": "设置",
-    "Account & plan": "账户与方案",
-    "Preferences": "偏好设置",
-    "Notifications": "通知",
-    "Premium & Autopilot": "Premium 与 Autopilot",
-    "Privacy & data": "隐私与数据",
-    "Email": "电子邮件",
-    "Savlivo plan": "Savlivo 方案",
-    "Appearance": "外观",
-    "Language": "语言",
-    "Subscription market": "订阅市场",
-    "Renewal reminders": "续订提醒",
-    "Savings opportunities": "省钱机会",
-    "Ask before changes": "更改前询问",
-    "Never pause": "永不暂停",
-    "Export data": "导出数据",
-    "Delete account": "删除账户",
-    "Dark": "深色",
-    "Light": "浅色",
-    "Manage": "管理",
-    "Change": "更改",
-    "On": "开启",
-    "Configure": "配置",
-    "Later": "稍后",
-    "Log out": "退出登录",
-    "Done": "完成",
-    "Search country": "搜索国家",
-    "Country / region": "国家 / 地区",
-    "local currency": "当地货币",
-    "Prices checked": "价格已检查",
-    "Pricing update pending": "价格更新待处理",
-    "OVERVIEW": "概览",
-    "Your subscriptions": "你的订阅",
-    "YOU'RE SAVING": "你正在节省",
-    "/ month": "/ 月",
-    "Annual savings": "年度节省",
-    "Current monthly spend": "当前月支出",
-    "AT A GLANCE": "一目了然",
-    "Next renewal": "下次续订",
-    "Annual spend": "年度支出",
-    "NEXT BEST MOVE": "下一步最佳行动",
-    "NEEDS ATTENTION": "需要注意",
-    "Ask Savlivo AI": "询问 Savlivo AI",
-    "Subscriptions": "订阅",
-    "+ Add service": "+ 添加服务",
-    "YOUR PROGRESS": "你的进度",
-    "Savings": "节省",
-    "SAVED SO FAR": "目前已节省",
-    "Saved so far": "目前已节省",
-    "Saving now": "当前节省",
-    "/ mo": "/ 月",
-    "Annual pace": "年度速度",
-    "CURRENT POSITION": "当前位置",
-    "Monthly spend": "月支出",
-    "REVIEWABLE SPEND · 3 MONTHS": "可审查支出 · 3个月",
-    "WHERE TO LOOK NEXT": "接下来查看哪里",
-    "Subscriptions to review": "待审查订阅",
-    "Review": "审查",
-    "3-month spend:": "3个月支出：",
-    "MONTHLY ACTION PLAN": "每月行动计划",
-    "Focus on what matters": "专注重要事项",
-    "THIS MONTH": "本月",
-    "REVIEW FIRST": "优先审查",
-    "Nothing urgent to review right now.": "目前没有紧急需要审查的内容。",
-    "GOOD TO KEEP": "值得保留",
-    "Lower-cost active subscription": "费用较低的有效订阅",
-    "KEEP": "保留",
-    "SAVLIVO ASSISTANT": "SAVLIVO 助手",
-    "What can I help with?": "我能帮你什么？",
-    "Ask about spending, renewals or subscription actions.": "询问支出、续订或订阅操作。",
-    "What renews next?": "接下来续订什么？",
-    "How much am I saving?": "我节省了多少？",
-    "What should I review?": "我应该审查什么？",
-    "Stop": "停止",
-    "Listen": "收听",
-    "Talk": "说话",
-    "Send": "发送",
-    "GUIDED ACTION": "引导操作",
-    "Cancel": "取消",
-    "Pause": "暂停",
-    "Reactivate": "重新激活",
-    "Open provider and continue": "打开提供商并继续",
-    "Listening… Tap stop when you're done": "正在聆听…完成后点停止",
-    "Sending…": "正在发送…",
-    "Transcribing…": "正在转写…",
-    "Price unavailable": "价格不可用",
-    "Renewal": "续订",
-    "Renewal date not set": "未设置续订日期",
-    "Pauses": "将暂停",
-    "Cancels": "将取消",
-    "Edit subscription": "编辑订阅",
-    "Add service": "添加服务",
-    "Service": "服务",
-    "Billing route": "计费方式",
-    "Plan": "方案",
-    "✓ Verified": "✓ 已验证",
-    "Estimated current price": "当前估算价格",
-    "Monthly price": "月价",
-    "Use automatic price": "使用自动价格",
-    "Verified local catalog price": "已验证的本地目录价格",
-    "Renewal date": "续订日期",
-    "Choose renewal date": "选择续订日期",
-    "Clear": "清除",
-    "Save": "保存",
-    "Remove subscription?": "移除订阅？",
-    "Keep": "保留",
-    "Remove": "移除",
-    "Remove service": "移除服务"
-  }
-};
-
-  function tr(english: string) {
-    return uiTranslations[selectedLanguage]?.[english] ?? english;
+  function tr(english: string, values: Record<string, string> = {}) {
+    return translateUi(selectedLanguage, english, values);
   }
 
   function localizedStatus(status: string) {
@@ -2896,7 +1492,7 @@ export default function Home() {
     const amount = convertedMinor / 100;
 
     try {
-      return new Intl.NumberFormat(undefined, {
+      return new Intl.NumberFormat(appLocale(selectedLanguage), {
         style: "currency",
         currency: selectedCurrency,
         maximumFractionDigits: options?.maximumFractionDigits ?? 2
@@ -2907,6 +1503,20 @@ export default function Home() {
       )}`;
     }
   }
+  function savlivoPlanPrice(planName: "manual" | "premium") {
+    const configured = configuredSavlivoPrice(selectedCountryCode, planName, billingPeriod, appLocale(selectedLanguage));
+    const store = planName === "manual"
+      ? billingPeriod === "monthly" ? manualMonthlyPrice : manualAnnualPrice
+      : billingPeriod === "monthly" ? premiumMonthlyPrice : premiumAnnualPrice;
+    const display = configured ?? store;
+    return {
+      display: display ? `${display}${tr(billingPeriod === "monthly" ? "/month" : "/year")}` : tr("Price unavailable"),
+      note: configured
+        ? tr("Configured market price. The App Store confirms the final purchase price.") + (store ? ` ${tr("App Store price")}: ${store}` : "")
+        : tr("App Store price")
+    };
+  }
+
   const [catalogQuery, setCatalogQuery] = useState("");
   const [catalogCategory, setCatalogCategory] = useState<CatalogCategory | undefined>();
   const [customServiceName, setCustomServiceName] = useState("");
@@ -2914,9 +1524,9 @@ export default function Home() {
   const discoveryEpochRef = useRef(0);
   const formMarketRef = useRef(selectedCountryCode);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
-  const catalogResults = useMemo(() => searchCatalog(catalogQuery, selectedCountryCode, {
-    category: catalogCategory, limit: catalogQuery || catalogCategory ? catalogDiscoveryPolicy.searchLimit : catalogDiscoveryPolicy.defaultLimit
-  }), [catalogQuery, selectedCountryCode, catalogCategory]);
+  const catalogResults = useMemo(() => catalogQuery.trim() ? searchCatalog(catalogQuery, selectedCountryCode, {
+    category: catalogCategory, limit: catalogDiscoveryPolicy.searchLimit
+  }) : browseCatalog(selectedCountryCode, catalogCategory), [catalogQuery, selectedCountryCode, catalogCategory]);
   const [serviceSelectionLocked, setServiceSelectionLocked] = useState(false);
   const [serviceFormOpen, setServiceFormOpen] = useState(false);
   const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
@@ -3180,7 +1790,7 @@ export default function Home() {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail.includes("@")) {
-      Alert.alert("Savlivo", "Enter your email address first.");
+      Alert.alert("Savlivo", tr("Enter your email address first."));
       return;
     }
 
@@ -3195,13 +1805,13 @@ export default function Home() {
       });
 
       Alert.alert(
-        "Check your email",
-        "If a Savlivo account exists for that email, we'll send a password reset link."
+        tr("Check your email"),
+        tr("If a Savlivo account exists for that email, we'll send a password reset link.")
       );
     } catch {
       Alert.alert(
         "Savlivo",
-        "We couldn't send the reset request right now. Please try again."
+        tr("We couldn't send the reset request right now. Please try again.")
       );
     } finally {
       setLoading(false);
@@ -3212,7 +1822,7 @@ export default function Home() {
     if (!resetToken) {
       Alert.alert(
         "Savlivo",
-        "This password reset link is invalid or has expired."
+        tr("This password reset link is invalid or has expired.")
       );
       return;
     }
@@ -3220,7 +1830,7 @@ export default function Home() {
     if (resetPassword.length < 8) {
       Alert.alert(
         "Savlivo",
-        "Your new password must be at least 8 characters."
+        tr("Your new password must be at least 8 characters.")
       );
       return;
     }
@@ -3228,7 +1838,7 @@ export default function Home() {
     if (resetPassword !== resetPasswordConfirm) {
       Alert.alert(
         "Savlivo",
-        "The new passwords do not match."
+        tr("The new passwords do not match.")
       );
       return;
     }
@@ -3252,13 +1862,13 @@ export default function Home() {
       setPassword("");
 
       Alert.alert(
-        "Password changed",
-        "Your Savlivo password has been reset. You can now log in with your new password."
+        tr("Password changed"),
+        tr("Your Savlivo password has been reset. You can now log in with your new password.")
       );
     } catch {
       Alert.alert(
-        "Reset link expired",
-        "This password reset link is invalid, expired, or has already been used. Request a new reset link and try again."
+        tr("Reset link expired"),
+        tr("This password reset link is invalid, expired, or has already been used. Request a new reset link and try again.")
       );
     } finally {
       setLoading(false);
@@ -3269,7 +1879,7 @@ export default function Home() {
     if (!currentPasswordInput) {
       Alert.alert(
         "Savlivo",
-        "Enter your current password."
+        tr("Enter your current password.")
       );
       return;
     }
@@ -3277,7 +1887,7 @@ export default function Home() {
     if (newPasswordInput.length < 8) {
       Alert.alert(
         "Savlivo",
-        "Your new password must be at least 8 characters."
+        tr("Your new password must be at least 8 characters.")
       );
       return;
     }
@@ -3285,7 +1895,7 @@ export default function Home() {
     if (newPasswordInput !== confirmNewPasswordInput) {
       Alert.alert(
         "Savlivo",
-        "The new passwords do not match."
+        tr("The new passwords do not match.")
       );
       return;
     }
@@ -3307,8 +1917,8 @@ export default function Home() {
       setConfirmNewPasswordInput("");
 
       Alert.alert(
-        "Password changed",
-        "Your Savlivo password has been updated."
+        tr("Password changed"),
+        tr("Your Savlivo password has been updated.")
       );
     } catch (err) {
       const message =
@@ -3318,13 +1928,13 @@ export default function Home() {
 
       if (message.includes("CURRENT_PASSWORD_INCORRECT")) {
         Alert.alert(
-          "Incorrect password",
-          "Your current password is incorrect."
+          tr("Incorrect password"),
+          tr("Your current password is incorrect.")
         );
       } else {
         Alert.alert(
           "Savlivo",
-          message || "We couldn't change your password right now. Please try again."
+          message || tr("We couldn't change your password right now. Please try again.")
         );
       }
     } finally {
@@ -3352,12 +1962,12 @@ export default function Home() {
     }
 
     Alert.alert(
-      "Preview mode",
-      `You're previewing ${previewPlan === "PREMIUM" ? "Premium" : "Manual"}. Choose a plan to use ${feature} with your own data.`,
+      tr("Preview mode"),
+      tr("You're previewing {plan}. Choose a plan to use these features with your own data.", {plan:previewPlan === "PREMIUM" ? "Premium" : "Manual"}),
       [
-        { text: "Not now", style: "cancel" },
+        { text: tr("Not now"), style: "cancel" },
         {
-          text: "View plans",
+          text: tr("View plans"),
           onPress: () => setScreen("plans")
         }
       ]
@@ -3375,8 +1985,8 @@ export default function Home() {
       Alert.alert(
         "Savlivo",
         planName === "manual"
-          ? "Manual is active. You control each subscription yourself."
-          : "Premium is active. Autopilot recommendations are unlocked."
+          ? tr("Manual is active. You control each subscription yourself.")
+          : tr("Premium is active. Autopilot recommendations are unlocked.")
       );
     } catch (err: any) {
       const purchaseErrorMessage =
@@ -3386,7 +1996,7 @@ export default function Home() {
           ? err.message
           : "Apple could not complete this purchase. Check that your App Store account country matches the selected Savlivo market, then try again.";
 
-      Alert.alert("Purchase failed", purchaseErrorMessage);
+      Alert.alert(tr("Purchase failed"), purchaseErrorMessage);
     } finally {
       setLoading(false);
     }
@@ -3426,7 +2036,7 @@ export default function Home() {
       }
       await refresh();
     } catch (err: any) {
-      Alert.alert("Could not add subscriptions", err.message);
+      Alert.alert(tr("Could not add subscriptions"), err.message);
     } finally {
       setLoading(false);
     }
@@ -3441,7 +2051,7 @@ export default function Home() {
 
   function getActionSheetCopy() {
     if (!actionSheet) {
-      return { title: "", body: "", confirm: "Continue" };
+      return { title: "", body: "", confirm: tr("Continue") };
     }
 
     const { subscription, action } = actionSheet;
@@ -3456,32 +2066,32 @@ export default function Home() {
 
     if (provider === "apple") {
       return {
-        title: `Manage ${subscription.serviceName}`,
-        body: `This subscription is billed through Apple. Savlivo will take you to Apple subscription settings to ${actionLabel.toLowerCase()} it.`,
-        confirm: "Open Apple"
+        title: tr("Manage {service}", {service: subscription.serviceName}),
+        body: tr("This subscription is billed through Apple. Savlivo will take you to Apple subscription settings to {action} it.", {action: selectedLanguage === "en" ? actionLabel.toLowerCase() : tr(actionLabel)}),
+        confirm: tr("Open {provider}", {provider:"Apple"})
       };
     }
 
     if (provider === "google-play") {
       return {
-        title: `Manage ${subscription.serviceName}`,
-        body: `This subscription is billed through Google Play. Savlivo will take you to Google Play to ${actionLabel.toLowerCase()} it.`,
-        confirm: "Open Google Play"
+        title: tr("Manage {service}", {service: subscription.serviceName}),
+        body: tr("This subscription is billed through Google Play. Savlivo will take you to Google Play to {action} it.", {action: selectedLanguage === "en" ? actionLabel.toLowerCase() : tr(actionLabel)}),
+        confirm: tr("Open {provider}", {provider:"Google Play"})
       };
     }
 
     if (provider === "amazon") {
       return {
-        title: `Manage ${subscription.serviceName}`,
-        body: `This subscription is billed through Amazon. Savlivo will take you to the correct Amazon subscription page to ${actionLabel.toLowerCase()} it.`,
-        confirm: "Open Amazon"
+        title: tr("Manage {service}", {service: subscription.serviceName}),
+        body: tr("This subscription is billed through Amazon. Savlivo will take you to the correct Amazon subscription page to {action} it.", {action: selectedLanguage === "en" ? actionLabel.toLowerCase() : tr(actionLabel)}),
+        confirm: tr("Open {provider}", {provider:"Amazon"})
       };
     }
 
     return {
-      title: `${actionLabel} ${subscription.serviceName}?`,
-      body: `Savlivo will help you ${actionLabel.toLowerCase()} this subscription. You can review the final provider step before anything changes.`,
-      confirm: actionLabel
+      title: `${tr(actionLabel)} ${subscription.serviceName}?`,
+      body: tr("Savlivo will help you {action} this subscription. You can review the final provider step before anything changes.", {action: selectedLanguage === "en" ? actionLabel.toLowerCase() : tr(actionLabel)}),
+      confirm: tr(actionLabel)
     };
   }
 
@@ -3571,7 +2181,7 @@ export default function Home() {
     } catch (err: any) {
       Alert.alert(
         "Savlivo",
-        err?.body?.error ?? "Could not update subscription status."
+        err?.body?.error ?? tr("Could not update subscription status.")
       );
     } finally {
       setStatusConfirmOpen(false);
@@ -3603,7 +2213,7 @@ export default function Home() {
     } catch (err: any) {
       Alert.alert(
         "Savlivo",
-        err?.body?.error ?? "Could not remove subscription."
+        err?.body?.error ?? tr("Could not remove subscription.")
       );
     }
   }
@@ -3708,14 +2318,14 @@ export default function Home() {
       }
 
       Alert.alert(
-        "Action unavailable",
-        "Savlivo could not open a verified management page for this subscription."
+        tr("Action unavailable"),
+        tr("Savlivo could not open a verified management page for this subscription.")
       );
     } catch (err: any) {
       Alert.alert(
         "Savlivo",
         err?.message ??
-          "Could not open the provider management page."
+          tr("Could not open the provider management page.")
       );
     }
   }
@@ -3859,7 +2469,7 @@ export default function Home() {
     ? `${nextRenewal.serviceName} · ${formatRenewalDateDisplay(
         nextRenewal.renewalDate
       )}`
-    : "Renewal date not set";
+    : tr("Renewal date not set");
 
   const upcomingRenewals = [...marketItems]
     .filter(
@@ -3927,8 +2537,8 @@ export default function Home() {
     dataHealthIssue
       ? {
           key: `data-health-${dataHealthIssue.item.id}`,
-          title: `${dataHealthIssue.item.serviceName} needs more information`,
-          detail: `Missing ${dataHealthIssue.missing.join(", ")}. Fix this so reminders and recommendations stay accurate.`,
+          title: tr("{service} needs more information", {service: dataHealthIssue.item.serviceName}),
+          detail: tr("Missing {fields}. Fix this so reminders and recommendations stay accurate.", {fields: dataHealthIssue.missing.map(field => tr(field)).join(tr(", "))}),
           action: "Fix now" as const,
           subscription: dataHealthIssue.item,
           fixData: true
@@ -3937,9 +2547,9 @@ export default function Home() {
     nextRenewal
       ? {
           key: "renewal",
-          title: `${nextRenewal.serviceName} renews soon`,
+          title: tr("{service} renews soon", {service: nextRenewal.serviceName}),
           detail: nextRenewal.renewalDate
-            ? `Renews ${nextRenewal.renewalDate}`
+            ? tr("Renews {date}", {date: formatRenewalDateDisplay(nextRenewal.renewalDate)})
             : "Renewal date available",
           action: "Review" as const,
           subscription: nextRenewal
@@ -3952,8 +2562,8 @@ export default function Home() {
           )!;
           return {
             key: "paused",
-            title: `${item.serviceName} is paused`,
-            detail: "You are not currently paying for this service.",
+            title: tr("{service} is paused", {service: item.serviceName}),
+            detail: tr("You are not currently paying for this service."),
             action: "Manage" as const,
             subscription: item
           };
@@ -3962,8 +2572,8 @@ export default function Home() {
     recommendationCandidates[0]
       ? {
           key: "saving",
-          title: `Review ${recommendationCandidates[0].serviceName}`,
-          detail: `3-month spend: ${formatRegionalAggregate(
+          title: reviewServiceLabel(recommendationCandidates[0].serviceName),
+          detail: `${tr("3-month spend:")} ${formatRegionalAggregate(
             (selectedCountryCatalogMonthlyMinor(
               recommendationCandidates[0]
             ) ?? 0) * 3
@@ -4020,7 +2630,7 @@ export default function Home() {
                   { color: visual.greenText }
                 ]}
               >
-                {" — Smart money stays with you"}
+                {` — ${tr("Smart money stays with you")}`}
               </Text>
             </Text>
           </View>
@@ -4032,9 +2642,7 @@ export default function Home() {
               fontWeight: "700",
               marginBottom: 8
             }}
-          >
-            Reset password
-          </Text>
+          >{tr("Reset password")}</Text>
 
           <Text
             style={{
@@ -4043,9 +2651,7 @@ export default function Home() {
               lineHeight: 20,
               marginBottom: 18
             }}
-          >
-            Choose a new password for your Savlivo account.
-          </Text>
+          >{tr("Choose a new password for your Savlivo account.")}</Text>
 
           <View style={styles.passwordInputWrap}>
             <TextInput
@@ -4064,7 +2670,7 @@ export default function Home() {
               value={resetPassword}
               onChangeText={setResetPassword}
               secureTextEntry={!showResetPassword}
-              placeholder="New password"
+              placeholder={tr("New password")}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -4110,7 +2716,7 @@ export default function Home() {
               value={resetPasswordConfirm}
               onChangeText={setResetPasswordConfirm}
               secureTextEntry={!showResetPasswordConfirm}
-              placeholder="Confirm new password"
+              placeholder={tr("Confirm new password")}
               autoCapitalize="none"
               autoCorrect={false}
               onSubmitEditing={() => {
@@ -4153,9 +2759,7 @@ export default function Home() {
               marginTop: -2,
               marginBottom: 14
             }}
-          >
-            Minimum 8 characters
-          </Text>
+          >{tr("Minimum 8 characters")}</Text>
 
           <Pressable
             style={[
@@ -4171,9 +2775,7 @@ export default function Home() {
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.primaryText}>
-                Set new password
-              </Text>
+              <Text style={styles.primaryText}>{tr("Set new password")}</Text>
             )}
           </Pressable>
 
@@ -4195,9 +2797,7 @@ export default function Home() {
                 fontSize: 12,
                 fontWeight: "600"
               }}
-            >
-              Back to login
-            </Text>
+            >{tr("Back to login")}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -4209,18 +2809,7 @@ export default function Home() {
     preferencesHydrated &&
     registrationOnboarding
   ) {
-    const languageOptions: Array<{
-      code: AppLanguage;
-      label: string;
-      detail: string;
-    }> = [
-      {
-        code: "en",
-        label: "English",
-        detail: "English"
-      },
-      ...(localLanguagesByMarket[selectedCountryCode] ?? [])
-    ];
+    const languageOptions = appLanguages;
 
     if (onboardingStep === "language") {
       return (
@@ -4254,9 +2843,7 @@ export default function Home() {
                   marginBottom: 8
                 }
               ]}
-            >
-              Choose your language
-            </Text>
+            >{tr("Choose your language")}</Text>
 
             <Text
               style={[
@@ -4267,9 +2854,7 @@ export default function Home() {
                   marginBottom: 20
                 }
               ]}
-            >
-              You can change this later in Settings.
-            </Text>
+            >{tr("You can change this later in Settings.")}</Text>
 
             {languageOptions.map((option) => {
               const selected =
@@ -4350,9 +2935,7 @@ export default function Home() {
               }}
               disabled={loading}
             >
-              <Text style={styles.primaryText}>
-                Create my account
-              </Text>
+              <Text style={styles.primaryText}>{tr("Create my account")}</Text>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -4398,9 +2981,7 @@ export default function Home() {
                 marginBottom: 8
               }
             ]}
-          >
-            Choose your subscription market
-          </Text>
+          >{tr("Choose your subscription market")}</Text>
 
           <Text
             style={[
@@ -4411,9 +2992,7 @@ export default function Home() {
                 marginBottom: 16
               }
             ]}
-          >
-            This controls which services, plans and local prices Savlivo shows you.
-          </Text>
+          >{tr("This controls which services, plans and local prices Savlivo shows you.")}</Text>
 
           <ScrollView
             style={{
@@ -4506,25 +3085,10 @@ export default function Home() {
               { marginTop: 12 }
             ]}
             onPress={() => {
-              const availableLanguages: AppLanguage[] = [
-                "en",
-                ...(
-                  localLanguagesByMarket[selectedCountryCode] ?? []
-                ).map((option) => option.code)
-              ];
-
-              if (
-                !availableLanguages.includes(selectedLanguage)
-              ) {
-                setSelectedLanguage("en");
-              }
-
               setOnboardingStep("language");
             }}
           >
-            <Text style={styles.primaryText}>
-              Continue
-            </Text>
+            <Text style={styles.primaryText}>{tr("Continue")}</Text>
           </Pressable>
 
 
@@ -4559,7 +3123,7 @@ export default function Home() {
                   { color: visual.greenText }
                 ]}
               >
-                {" — Smart money stays with you"}
+                {` — ${tr("Smart money stays with you")}`}
               </Text>
             </Text>
           </View>
@@ -4579,7 +3143,7 @@ export default function Home() {
             autoCapitalize="none"
             value={email}
             onChangeText={setEmail}
-            placeholder="Email"
+            placeholder={tr("Email")}
           />
 
           <View style={styles.passwordInputWrap}>
@@ -4599,7 +3163,7 @@ export default function Home() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
-              placeholder="Password"
+              placeholder={tr("Password")}
             />
             <Pressable
               style={styles.passwordVisibilityButton}
@@ -4656,9 +3220,7 @@ export default function Home() {
                 styles.rememberMeText,
                 { color: theme.text }
               ]}
-            >
-              Remember me
-            </Text>
+            >{tr("Remember me")}</Text>
           </Pressable>
 
           <Pressable
@@ -4669,7 +3231,7 @@ export default function Home() {
             onPress={() => loginOrRegister(false)}
             disabled={loading}
           >
-            <Text style={styles.primaryText}>Log in</Text>
+            <Text style={styles.primaryText}>{tr("Log in")}</Text>
           </Pressable>
 
           <Pressable
@@ -4688,16 +3250,14 @@ export default function Home() {
             }}
             disabled={loading}
           >
-            <Text style={[styles.secondaryText, { color: theme.text }]}>
-              Create account
-            </Text>
+            <Text style={[styles.secondaryText, { color: theme.text }]}>{tr("Create account")}</Text>
           </Pressable>
 
           <Pressable
             onPress={() => void requestPasswordReset()}
             disabled={loading}
             accessibilityRole="button"
-            accessibilityLabel="Forgot password?"
+            accessibilityLabel={tr("Forgot password?")}
             style={{
               alignSelf: "flex-end",
               marginTop: 8,
@@ -4711,9 +3271,7 @@ export default function Home() {
                 fontWeight: "600",
                 letterSpacing: -0.1
               }}
-            >
-              Forgot password?
-            </Text>
+            >{tr("Forgot password?")}</Text>
           </Pressable>
 
           {loading ? <ActivityIndicator style={{ marginTop: 16 }} /> : null}
@@ -5001,13 +3559,13 @@ export default function Home() {
     const resolved=resolveSavedManagement(intent,items,selectedCountryCodeRef.current,selectedCountryCurrency());
     if(resolved.kind!=="subscription") {
       if(resolved.kind!=="invalid")setScreen("subscriptions");
-      return resolved.kind==="ambiguous" ? "More than one saved subscription matches. Select the exact subscription in Subscriptions; nothing has changed." :
-        "No unique saved subscription matches in this market. Select the subscription in Subscriptions; no management destination was opened.";
+      return resolved.kind==="ambiguous" ? tr("More than one saved subscription matches. Select the exact subscription in Subscriptions; nothing has changed.") :
+        tr("No unique saved subscription matches in this market. Select the subscription in Subscriptions; no management destination was opened.");
     }
     const {subscription,action}=resolved;
     const destination=getSubscriptionManagementUrl({serviceSlug:subscription.serviceSlug,billingProviderSlug:subscription.billingProviderSlug,
       countryCode:subscription.countryCode??selectedCountryCode,action});
-    if(!destination)return "Savlivo does not have a verified management destination for this saved billing route. Open your provider account yourself; nothing has changed.";
+    if(!destination)return tr("Savlivo does not have a verified management destination for this saved billing route. Open your provider account yourself; nothing has changed.");
     if(action==="CANCEL" || (action==="REACTIVATE" && effectiveSubscriptionStatus(subscription)!=="ACTIVE") ||
       (action==="PAUSE" && supportsSubscriptionAction(subscription.serviceSlug,subscription.billingProviderSlug,"PAUSE"))) {
       beginAiGuidedAction(subscription,action);
@@ -5015,9 +3573,9 @@ export default function Home() {
     }
     const market=selectedCountryCodeRef.current;
     const epoch=discoveryEpochRef.current;
-    Alert.alert("Manage subscription",`${subscription.serviceName} · ${subscription.billingProviderSlug}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.`,[
-      {text:"Cancel",style:"cancel"},
-      {text:"Open management",onPress:()=>{ void (async()=>{
+    Alert.alert(tr("Manage subscription"),tr("{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.", {service:subscription.serviceName,billing:tr(billingProviders.find(provider=>provider.slug===subscription.billingProviderSlug)?.name ?? subscription.billingProviderSlug)}),[
+      {text:tr("Cancel"),style:"cancel"},
+      {text:tr("Open management"),onPress:()=>{ void (async()=>{
         if(!discoveryRequestIsCurrent({countryCode:market,epoch},{countryCode:selectedCountryCodeRef.current,epoch:discoveryEpochRef.current}))return;
         if(usesSubscriptionManagementBrowser(destination,Platform.OS))await new Promise<void>(resolve=>Alert.alert("Savlivo",
           "Når du er ferdig med abonnementsendringene, trykk på ✓ øverst til venstre for å gå tilbake til Savlivo.",
@@ -5026,8 +3584,8 @@ export default function Home() {
         try {
           const opened=await openSubscriptionManagementBrowser(destination,{platform:Platform.OS,
             openSystemBrowser:url=>WebBrowser.openBrowserAsync(url,{dismissButtonStyle:"done",presentationStyle:WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET}),openExternal:openProviderUrl});
-          if(!opened)Alert.alert("Savlivo","Could not open management. No subscription was changed.");
-        } catch {Alert.alert("Savlivo","Could not open management. No subscription was changed.");}
+          if(!opened)Alert.alert("Savlivo",tr("Could not open management. No subscription was changed."));
+        } catch {Alert.alert("Savlivo",tr("Could not open management. No subscription was changed."));}
       })();}}
     ]);
     return null;
@@ -5114,7 +3672,8 @@ export default function Home() {
 
   async function speakAiMessage(
     text: string,
-    index: number
+    index: number,
+    uiLocale?: string
   ) {
     void logAvailableSpeechVoices();
     try {
@@ -5128,7 +3687,7 @@ export default function Home() {
         text,
         {
           language:
-            detectSpeechLanguage(
+            uiLocale ?? detectSpeechLanguage(
               text
             ),
           rate: 0.95,
@@ -5161,8 +3720,8 @@ export default function Home() {
       );
 
       Alert.alert(
-        "Could not play reply",
-        "Please try again."
+        tr("Could not play reply"),
+        tr("Please try again.")
       );
     }
   }
@@ -5175,8 +3734,8 @@ export default function Home() {
 
       if (!permission.granted) {
         Alert.alert(
-          "Microphone access",
-          "Savlivo needs microphone permission so you can dictate a message."
+          tr("Microphone access"),
+          tr("Savlivo needs microphone permission so you can dictate a message.")
         );
         return;
       }
@@ -5199,9 +3758,9 @@ export default function Home() {
       );
 
       Alert.alert(
-        "Could not start microphone",
+        tr("Could not start microphone"),
         err?.message ??
-          "Please try again."
+          tr("Please try again.")
       );
     }
   }
@@ -5257,10 +3816,10 @@ export default function Home() {
       );
 
       Alert.alert(
-        "Could not understand recording",
+        tr("Could not understand recording"),
         err?.body?.error ??
           err?.message ??
-          "Please try again."
+          tr("Please try again.")
       );
     } finally {
       setAiVoiceSending(false);
@@ -5287,7 +3846,7 @@ export default function Home() {
     let interpretedRemote: RemoteAssistantResult | undefined;
     setAiGuidedAction(null);
     try {
-      const remote=await askRemoteAssistant(question,aiMessages.slice(-10),{
+      const remote=await askRemoteAssistant(question,aiMessages.slice(-10).map(({role,text})=>({role,text})),{
         countryCode:selectedCountryCode,countryName:selectedCountryName,currency:selectedCurrency,languageHint:selectedLanguage,
         currentMonthlySpendMinor:currentMonthlySpendRegionalMinor,currentAnnualSpendMinor:currentAnnualSpendRegionalMinor,
         currentMonthlySavingsMinor:currentMonthlySavingsRegionalMinor,savedSoFarMinor:savedSoFarRegionalMinor
@@ -5312,7 +3871,7 @@ export default function Home() {
       // Offline support remains bounded; the multilingual path above never uses these patterns as a gate.
       const addIntent=parseAddSubscriptionIntent(question,selectedCountryCode,selectedCountryCurrency());
       if(addIntent && openCatalogAction(addIntent)) {
-        setAiMessages(current=>[...current,{role:"user",text:question},{role:"assistant",text:"Review and confirm in the form. Nothing has been added yet."}]);
+        setAiMessages(current=>[...current,{role:"user",text:question},{role:"assistant",text:tr("Review and confirm in the form. Nothing has been added yet."),uiKey:"Review and confirm in the form. Nothing has been added yet."}]);
         setAiInput("");return;
       }
     }
@@ -6218,11 +4777,11 @@ export default function Home() {
       `Enter the monthly ${currency} price for ${item.serviceName}. This correction only applies on this device for ${selectedCountryName}.`,
       [
         {
-          text: "Cancel",
+          text: tr("Cancel"),
           style: "cancel"
         },
         {
-          text: "Reset",
+          text: tr("Reset"),
           style: "destructive",
           onPress: () => {
             const key = regionalOverrideKey(
@@ -6241,7 +4800,7 @@ export default function Home() {
           }
         },
         {
-          text: "Save",
+          text: tr("Save"),
           onPress: (value?: string) => {
             const normalized =
               String(value ?? "")
@@ -6257,7 +4816,7 @@ export default function Home() {
             ) {
               Alert.alert(
                 "Savlivo",
-                "Enter a valid monthly price."
+                tr("Enter a valid monthly price.")
               );
               return;
             }
@@ -6540,7 +5099,7 @@ export default function Home() {
     const currency = selectedCountryCurrency();
 
     if (minor == null || !currency) {
-      return "Price unavailable";
+      return tr("Price unavailable");
     }
 
     // The amount is already a verified local amount for this country.
@@ -6551,14 +5110,14 @@ export default function Home() {
   }
 
   function formatRegionalMinor(minor: number, currency: string) {
-    return formatMarketMinor(minor, currency);
+    return formatMarketMinor(minor, currency, appLocale(selectedLanguage));
   }
 
   function formatStoredSubscriptionPrice(item: Subscription) {
     const minor = item.monthlyPriceMinor ?? 0;
     const storedCurrency = item.currency || "USD";
 
-    return formatMarketMinor(minor, storedCurrency);
+    return formatMarketMinor(minor, storedCurrency, appLocale(selectedLanguage));
   }
 
   function regionalDisplayRange(
@@ -6670,14 +5229,7 @@ export default function Home() {
     setSelectedCountryName(name);
     setSelectedCurrency(currency);
 
-    const validLanguages = new Set<AppLanguage>([
-      "en",
-      ...(localLanguagesByMarket[code] ?? []).map((option) => option.code)
-    ]);
-
-    if (!validLanguages.has(selectedLanguage)) {
-      setSelectedLanguage("en");
-    }
+    // Language remains independent of subscription market.
   }
 
   function dateOnlyToLocalDate(value?: string | null) {
@@ -6728,12 +5280,12 @@ export default function Home() {
 
   function formatRenewalDateDisplay(value?: string | null) {
     const dateOnly = normalizeDateOnly(value);
-    if (!dateOnly) return "Renewal date not set";
+    if (!dateOnly) return tr("Renewal date not set");
 
     const [year, month, day] = dateOnly.split("-").map(Number);
     const parsed = new Date(year, month - 1, day);
 
-    return new Intl.DateTimeFormat("en", {
+    return new Intl.DateTimeFormat(appLocale(selectedLanguage), {
       year: "numeric",
       month: "short",
       day: "numeric"
@@ -6909,12 +5461,12 @@ export default function Home() {
     if (!requireActivePlan("subscription management")) return;
 
     if(saveServiceBusyRef.current || formMarketRef.current !== selectedCountryCodeRef.current) return;
-    if(!billingProviderInput) { Alert.alert("Billing route required", "Select how you actually pay for this subscription."); return; }
+    if(!billingProviderInput) { Alert.alert(tr("Billing route required"), tr("Select how you actually pay for this subscription.")); return; }
     const monthly = Number(monthlyPriceInput.trim().replace(",", "."));
     if (!Number.isFinite(monthly) || monthly <= 0) {
       Alert.alert(
-        "Monthly price required",
-        "Savlivo does not have a verified price for every service and billing route yet. Enter the amount you actually pay each month."
+        tr("Monthly price required"),
+        tr("Savlivo does not have a verified price for every service and billing route yet. Enter the amount you actually pay each month.")
       );
       return;
     }
@@ -6994,7 +5546,7 @@ export default function Home() {
     } catch (err: any) {
       Alert.alert(
         "Savlivo",
-        err?.body?.error ?? err?.message ?? "Could not save subscription."
+        err?.body?.error ?? err?.message ?? tr("Could not save subscription.")
       );
     } finally { saveServiceBusyRef.current=false; }
   }
@@ -7165,7 +5717,7 @@ export default function Home() {
               ]}
               numberOfLines={1}
             >
-              {item.customServiceName ? "Manual · " : ""}{item.billingProviderSlug}
+              {item.customServiceName ? `${tr("Manual subscription")} · ` : ""}{item.billingProviderSlug}
               {item.planName
                 ? ` · ${item.planName}`
                 : ""}
@@ -7478,23 +6030,19 @@ export default function Home() {
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.planHeader}>
             <Pressable style={styles.backButton} onPress={() => setScreen("home")}>
-              <Text style={[styles.backText, { color: theme.text }]}>← Home</Text>
+              <Text style={[styles.backText, { color: theme.text }]}>{tr("← Home")}</Text>
             </Pressable>
-            <Text style={[styles.planHeaderTitle, { color: theme.text }]}>Plans</Text>
+            <Text style={[styles.planHeaderTitle, { color: theme.text }]}>{tr("Plans")}</Text>
             <View style={styles.headerSpacer} />
           </View>
 
           <View style={[styles.planIntro, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.planPageTitle, { color: theme.text }]}>Choose your Savlivo plan</Text>
-            <Text style={[styles.muted, { color: theme.muted }]}>
-              Preview Savlivo before subscribing. Manual unlocks the self-service tools. Premium adds Savlivo AI, Autopilot and advanced insights.
-            </Text>
+            <Text style={[styles.planPageTitle, { color: theme.text }]}>{tr("Choose your Savlivo plan")}</Text>
+            <Text style={[styles.muted, { color: theme.muted }]}>{tr("Preview Savlivo before subscribing. Manual unlocks the self-service tools. Premium adds Savlivo AI, Autopilot and advanced insights.")}</Text>
 
             {plan === "VIEWER" ? (
               <View style={{ marginTop: 14 }}>
-                <Text style={[styles.planCopy, { color: theme.muted, marginBottom: 8 }]}>
-                  Preview mode
-                </Text>
+                <Text style={[styles.planCopy, { color: theme.muted, marginBottom: 8 }]}>{tr("Preview mode")}</Text>
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <Pressable
                     onPress={() => setPreviewPlan("MANUAL")}
@@ -7516,9 +6064,7 @@ export default function Home() {
                       }
                     ]}
                   >
-                    <Text style={[styles.backText, { color: theme.text }]}>
-                      Manual Preview
-                    </Text>
+                    <Text style={[styles.backText, { color: theme.text }]}>{tr("Manual Preview")}</Text>
                   </Pressable>
 
                   <Pressable
@@ -7541,15 +6087,11 @@ export default function Home() {
                       }
                     ]}
                   >
-                    <Text style={[styles.backText, { color: theme.text }]}>
-                      Premium Preview
-                    </Text>
+                    <Text style={[styles.backText, { color: theme.text }]}>{tr("Premium Preview")}</Text>
                   </Pressable>
                 </View>
 
-                <Text style={[styles.planCopy, { color: theme.muted, marginTop: 10 }]}>
-                  You are previewing {previewPlan === "PREMIUM" ? "Premium" : "Manual"}. Upgrade to use these features with your own data.
-                </Text>
+                <Text style={[styles.planCopy, { color: theme.muted, marginTop: 10 }]}>{tr("You are previewing")}{previewPlan === "PREMIUM" ? "Premium" : "Manual"}{tr(". Upgrade to use these features with your own data.")}</Text>
               </View>
             ) : null}
           </View>
@@ -7570,14 +6112,10 @@ export default function Home() {
             ]}
           >
             <Text style={[styles.planName, { color: theme.text }]}>Preview</Text>
-            <Text style={[styles.planPrice, { color: theme.text }]}>Preview mode</Text>
-            <Text style={[styles.planCopy, { color: theme.muted }]}>
-              Explore the Manual and Premium experiences before subscribing. Real actions require an active plan.
-            </Text>
+            <Text style={[styles.planPrice, { color: theme.text }]}>{tr("Preview mode")}</Text>
+            <Text style={[styles.planCopy, { color: theme.muted }]}>{tr("Explore the Manual and Premium experiences before subscribing. Real actions require an active plan.")}</Text>
             {plan === "VIEWER" ? (
-              <Text style={[styles.planCopy, { color: theme.muted }]}>
-                Current plan
-              </Text>
+              <Text style={[styles.planCopy, { color: theme.muted }]}>{tr("Current plan")}</Text>
             ) : null}
           </View>
           <View
@@ -7608,9 +6146,7 @@ export default function Home() {
                 }
               ]}
             >
-              <Text style={[styles.backText, { color: theme.text }]}>
-                Monthly
-              </Text>
+              <Text style={[styles.backText, { color: theme.text }]}>{tr("Monthly")}</Text>
             </Pressable>
 
             <Pressable
@@ -7633,9 +6169,7 @@ export default function Home() {
                 }
               ]}
             >
-              <Text style={[styles.backText, { color: theme.text }]}>
-                Annual
-              </Text>
+              <Text style={[styles.backText, { color: theme.text }]}>{tr("Annual")}</Text>
             </Pressable>
           </View>
 
@@ -7657,13 +6191,10 @@ export default function Home() {
           >
             <Text style={[styles.planName, { color: theme.text }]}>Manual</Text>
             <Text style={[styles.planPrice, { color: theme.text }]}>
-              {billingPeriod === "monthly"
-                ? manualMonthlyPrice ? `${manualMonthlyPrice}/month` : "—"
-                : manualAnnualPrice ? `${manualAnnualPrice}/year` : "—"}
+              {savlivoPlanPrice("manual").display}
             </Text>
-            <Text style={[styles.planCopy, { color: theme.muted }]}>
-              Self-service toolbox: manage subscriptions, renewal dates and savings yourself.
-            </Text>
+            <Text style={[styles.formHint, {color: theme.muted}]}>{savlivoPlanPrice("manual").note}</Text>
+            <Text style={[styles.planCopy, { color: theme.muted }]}>{tr("Self-service toolbox: manage subscriptions, renewal dates and savings yourself.")}</Text>
           </Pressable>
 
           <Pressable
@@ -7697,10 +6228,9 @@ export default function Home() {
                 { color: theme.text }
               ]}
             >
-              {billingPeriod === "monthly"
-                ? premiumMonthlyPrice ? `${premiumMonthlyPrice}/month` : "—"
-                : premiumAnnualPrice ? `${premiumAnnualPrice}/year` : "—"}
+              {savlivoPlanPrice("premium").display}
             </Text>
+            <Text style={[styles.formHint, {color: theme.muted}]}>{savlivoPlanPrice("premium").note}</Text>
             <Text
               style={[
                 styles.planCopy,
@@ -7708,9 +6238,7 @@ export default function Home() {
                     ? "#D7E9DF"
                     : theme.muted }
               ]}
-            >
-              Decision engine + AI assistant: monthly optimization plans, renewal timing alerts, what-if savings, Autopilot recommendations, setup help and troubleshooting.
-            </Text>
+            >{tr("Decision engine + AI assistant: monthly optimization plans, renewal timing alerts, what-if savings, Autopilot recommendations, setup help and troubleshooting.")}</Text>
           </Pressable>
         </ScrollView>
       </SafeAreaView>
@@ -7736,7 +6264,7 @@ export default function Home() {
         const code = currency || selectedCurrency || "USD";
 
         try {
-          return new Intl.NumberFormat(undefined, {
+          return new Intl.NumberFormat(appLocale(selectedLanguage), {
             style: "currency",
             currency: code,
             maximumFractionDigits: 2
@@ -8373,7 +6901,7 @@ export default function Home() {
               <strong>Exported from Savlivo</strong>
               ·
               ${escapeHtml(
-                exportedAt.toLocaleString()
+                exportedAt.toLocaleString(appLocale(selectedLanguage))
               )}
               · Smart money stays with you
             </div>
@@ -8401,7 +6929,7 @@ export default function Home() {
       if (!sharingAvailable) {
         Alert.alert(
           "Savlivo",
-          "Your data export was created, but sharing is not available on this device."
+          tr("Your data export was created, but sharing is not available on this device.")
         );
         return;
       }
@@ -8415,7 +6943,7 @@ export default function Home() {
       Alert.alert(
         "Savlivo",
         err?.message ??
-          "Could not export your data."
+          tr("Could not export your data.")
       );
     }
   }
@@ -8448,7 +6976,7 @@ export default function Home() {
             >
               <Text style={styles.modernBrandName}>Savlivo</Text>
               <Text style={[styles.modernBrandSlogan, { color: visual.greenText }]}>
-                {" — Smart money stays with you"}
+                {` — ${tr("Smart money stays with you")}`}
               </Text>
             </Text>
           </View>
@@ -8644,7 +7172,7 @@ export default function Home() {
                     ]}
                   >
                     <Text style={[styles.aiMessageText, { color: theme.text }]}>
-                      {message.text}
+                      {message.uiKey ? tr(message.uiKey) : message.text}
                     </Text>
 
                     {message.role === "assistant" ? (
@@ -8662,8 +7190,9 @@ export default function Home() {
                             void stopAiSpeech();
                           } else {
                             void speakAiMessage(
-                              message.text,
-                              index
+                              message.uiKey ? tr(message.uiKey) : message.text,
+                              index,
+                              message.uiKey ? appLocale(selectedLanguage) : undefined
                             );
                           }
                         }}
@@ -8715,7 +7244,7 @@ export default function Home() {
                       {aiGuidedAction.subscription.serviceName}
                     </Text>
                     <Text style={[styles.aiGuideCopy, { color: theme.muted }]}>
-                      {aiGuidedAction.stepText}
+                      {tr(aiGuidedAction.stepText)}
                     </Text>
 
                     <Pressable
@@ -8876,7 +7405,7 @@ export default function Home() {
                   ]}
                   onPress={askSavlivo}
                 >
-                  <Text style={styles.aiAssistantButtonText}>Send</Text>
+                  <Text style={styles.aiAssistantButtonText}>{tr("Send")}</Text>
                 </Pressable>
               </View>
             </View>
@@ -10262,7 +8791,7 @@ export default function Home() {
                             tr("Prices checked")
                           } ${new Date(
                             pricingSnapshot.updatedAt
-                          ).toLocaleDateString()}`
+                          ).toLocaleDateString(appLocale(selectedLanguage))}`
                         : ` · ${tr("Pricing update pending")}`
                     }`,
                     "Change"
@@ -10675,7 +9204,7 @@ export default function Home() {
                 value={currentPasswordInput}
                 onChangeText={setCurrentPasswordInput}
                 secureTextEntry={!showCurrentPasswordInput}
-                placeholder="Current password"
+                placeholder={tr("Current password")}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
@@ -10717,7 +9246,7 @@ export default function Home() {
                 value={newPasswordInput}
                 onChangeText={setNewPasswordInput}
                 secureTextEntry={!showNewPasswordInput}
-                placeholder="New password"
+                placeholder={tr("New password")}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
@@ -10759,7 +9288,7 @@ export default function Home() {
                 value={confirmNewPasswordInput}
                 onChangeText={setConfirmNewPasswordInput}
                 secureTextEntry={!showConfirmNewPasswordInput}
-                placeholder="Confirm new password"
+                placeholder={tr("Confirm new password")}
                 autoCapitalize="none"
                 autoCorrect={false}
                 onSubmitEditing={() => {
@@ -10797,9 +9326,7 @@ export default function Home() {
                   marginBottom: 14
                 }
               ]}
-            >
-              Minimum 8 characters
-            </Text>
+            >{tr("Minimum 8 characters")}</Text>
 
             <Pressable
               style={[
@@ -10815,9 +9342,7 @@ export default function Home() {
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.primaryText}>
-                  Change password
-                </Text>
+                <Text style={styles.primaryText}>{tr("Change password")}</Text>
               )}
             </Pressable>
           </View>
@@ -11014,9 +9539,7 @@ export default function Home() {
                     styles.actionSheetTitle,
                     { color: theme.text }
                   ]}
-                >
-                  Language
-                </Text>
+                >{tr("Language")}</Text>
                 <Text
                   style={[
                     styles.formHint,
@@ -11054,14 +9577,7 @@ export default function Home() {
               contentContainerStyle={styles.countryListContent}
               showsVerticalScrollIndicator
             >
-              {[
-                {
-                  code: "en" as AppLanguage,
-                  label: "English",
-                  detail: "English"
-                },
-                ...(localLanguagesByMarket[selectedCountryCode] ?? [])
-              ].map((option) => {
+              {appLanguages.map((option) => {
                 const selected =
                   selectedLanguage === option.code;
 
@@ -11273,9 +9789,7 @@ export default function Home() {
                     styles.actionSheetTitle,
                     { color: theme.text }
                   ]}
-                >
-                  Choose service
-                </Text>
+                >{tr("Choose service")}</Text>
 
                 <Text
                   style={[
@@ -11285,13 +9799,11 @@ export default function Home() {
                       marginTop: 4
                     }
                   ]}
-                >
-                  Select the subscription service you want to add.
-                </Text>
+                >{tr("Select the subscription service you want to add.")}</Text>
               </View>
 
               <Pressable
-                accessibilityLabel="Close service picker"
+                accessibilityLabel={tr("Close service picker")}
                 style={[
                   styles.servicePickerClose,
                   {
@@ -11327,8 +9839,8 @@ export default function Home() {
               showsVerticalScrollIndicator={false}
             >
               <TextInput
-                accessibilityLabel="Search subscription catalog"
-                placeholder="Search services"
+                accessibilityLabel={tr("Search subscription catalog")}
+                placeholder={tr("Search services")}
                 placeholderTextColor={theme.muted}
                 autoCorrect={false}
                 value={catalogQuery}
@@ -11337,32 +9849,36 @@ export default function Home() {
                 onSubmitEditing={()=>Keyboard.dismiss()}
                 style={[styles.input,{color:theme.text,backgroundColor:theme.surfaceSoft,borderColor:theme.border}]}
               />
-              {catalogQuery ? <Pressable accessibilityLabel="Clear catalog search" onPress={()=>setCatalogQuery("")} style={{padding:12}}><Text style={{color:theme.text}}>Clear search</Text></Pressable> : null}
+              {catalogQuery ? <Pressable accessibilityLabel={tr("Clear catalog search")} onPress={()=>setCatalogQuery("")} style={{padding:12}}><Text style={{color:theme.text}}>{tr("Clear search")}</Text></Pressable> : null}
+              <Pressable accessibilityRole="button" onPress={()=>beginManualService(catalogQuery)} style={[styles.servicePickerRow,{borderColor:theme.border}]}>
+                <Text style={{color:theme.text}}>{tr("Add manually")}</Text>
+              </Pressable>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {[{id:undefined,name:"All categories"},...catalogCategories].map(category=>(
                   <Pressable key={category.id??"all"} accessibilityRole="button" accessibilityState={{selected:catalogCategory===category.id}}
                     onPress={()=>setCatalogCategory(category.id)} style={[styles.choiceChip,{borderColor:theme.border,backgroundColor:catalogCategory===category.id?theme.pill:theme.surface}]}>
-                    <Text style={{color:theme.text}}>{category.name}</Text>
+                    <Text style={{color:theme.text}}>{tr(category.name)}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
-              <Text style={[styles.formHint,{color:theme.muted}]}>{catalogQuery?"Catalog results — select a service":"Available in this market · alphabetical suggestions"}</Text>
-              {catalogResults.length===0 ? <Text style={[styles.formHint,{color:theme.muted}]}>No matching services. You can add your subscription manually.</Text> : null}
-              {catalogResults.map(service=>(
-                <Pressable key={service.slug} accessibilityRole="button" accessibilityLabel={`Add ${service.name}`}
+              <Text style={[styles.formHint,{color:theme.muted}]}>{tr(catalogQuery?"Catalog results — select a service":"All available services in this market")}</Text>
+              {catalogResults.length===0 ? <Text style={[styles.formHint,{color:theme.muted}]}>{tr("No matching services. You can add your subscription manually.")}</Text> : null}
+              {catalogResults.map((service, index)=>(
+                <Fragment key={service.slug}>
+                {!catalogQuery.trim() && !catalogCategory && (index === 0 || catalogResults[index-1].categories[0] !== service.categories[0]) ? <Text accessibilityRole="header" style={[styles.formHint,{color:theme.text,fontWeight:"700",marginTop:12}]}>{tr(catalogCategories.find(category=>category.id===service.categories[0])?.name ?? "Other")}</Text> : null}
+                <Pressable key={service.slug} accessibilityRole="button" accessibilityLabel={tr("Add {service}", {service:service.name})}
                   style={[styles.servicePickerRow,{borderBottomWidth:1,borderBottomColor:theme.border}]} onPress={()=>beginAddService(service.slug)}>
                   <ServiceLogo serviceSlug={service.slug} serviceName={service.name} size={38}/>
                   <View style={{flex:1,marginLeft:12}}>
                     <Text style={[styles.servicePickerName,{color:theme.text}]}>{service.name}</Text>
-                    {!serviceAvailableInMarket(service.slug,selectedCountryCode) ? <Text style={{color:theme.muted}}>Local availability unverified · enter your actual bill</Text> : null}
-                    {marketItems.some(item=>item.serviceSlug===service.slug) ? <Text style={{color:theme.muted}}>Already in this market — review before adding another</Text> : null}
+                    {!serviceAvailableInMarket(service.slug,selectedCountryCode) ? <Text style={{color:theme.muted}}>{tr("Local availability unverified · enter your actual bill")}</Text> : null}
+                    {marketItems.some(item=>item.serviceSlug===service.slug) ? <Text style={{color:theme.muted}}>{tr("Already in this market — review before adding another")}</Text> : null}
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={visual.greenMuted}/>
                 </Pressable>
+                </Fragment>
               ))}
-              <Pressable accessibilityRole="button" onPress={()=>beginManualService(catalogQuery)} style={[styles.servicePickerRow,{borderColor:theme.border}]}>
-                <Text style={{color:theme.text}}>Legg til manuelt · Add manually</Text>
-              </Pressable>
+
             </ScrollView>
           </View>
         </View>
@@ -11424,8 +9940,8 @@ export default function Home() {
 
             <Text style={[styles.formHint,{color:theme.muted}]}>{selectedCountryName} · {selectedCountryCurrency()}</Text>
             {serviceSlugInput === "manual" ? <>
-              <Text style={[styles.formHint,{color:theme.muted}]}>Manual subscription · details are supplied by you, not verified provider metadata. Choose your actual billing route.</Text>
-              <TextInput accessibilityLabel="Manual service name" placeholder="Service name" maxLength={100} value={customServiceName} onChangeText={setCustomServiceName} style={[styles.input,{color:theme.text,borderColor:theme.border,backgroundColor:theme.surfaceSoft}]} />
+              <Text style={[styles.formHint,{color:theme.muted}]}>{tr("Manual subscription · details are supplied by you, not verified provider metadata. Choose your actual billing route.")}</Text>
+              <TextInput accessibilityLabel={tr("Manual service name")} placeholder={tr("Service name")} maxLength={100} value={customServiceName} onChangeText={setCustomServiceName} style={[styles.input,{color:theme.text,borderColor:theme.border,backgroundColor:theme.surfaceSoft}]} />
             </> : null}
             <Text style={[styles.fieldLabel, { color: theme.muted }]}>
               {tr("Service")}
@@ -11548,7 +10064,7 @@ export default function Home() {
                   }}
                 >
                   <Text style={[styles.choiceChipText, { color: theme.text }]}>
-                    {provider.name}
+                    {tr(provider.name)}
                   </Text>
                 </Pressable>
               ))}
@@ -11993,17 +10509,11 @@ export default function Home() {
               }
             ]}
           >
-            <Text style={[styles.actionSheetTitle, { color: theme.text }]}>
-              What changed at the provider?
-            </Text>
+            <Text style={[styles.actionSheetTitle, { color: theme.text }]}>{tr("What changed at the provider?")}</Text>
 
-            <Text style={[styles.actionSheetBody, { color: theme.muted }]}>
-              Tell Savlivo what actually happened so spending and savings stay accurate.
-            </Text>
+            <Text style={[styles.actionSheetBody, { color: theme.muted }]}>{tr("Tell Savlivo what actually happened so spending and savings stay accurate.")}</Text>
 
-            <Text style={[styles.fieldLabel, { color: theme.muted }]}>
-              Effective date
-            </Text>
+            <Text style={[styles.fieldLabel, { color: theme.muted }]}>{tr("Effective date")}</Text>
             <TextInput
               style={[
                 styles.input,
@@ -12036,9 +10546,7 @@ export default function Home() {
                       styles.sheetButtonText,
                       { color: theme.text }
                     ]}
-                  >
-                    Yes, it was paused
-                  </Text>
+                  >{tr("Yes, it was paused")}</Text>
                 </Pressable>
               ) : null}
 
@@ -12057,9 +10565,7 @@ export default function Home() {
                       styles.sheetButtonText,
                       { color: theme.text }
                     ]}
-                  >
-                    Yes, it was cancelled
-                  </Text>
+                  >{tr("Yes, it was cancelled")}</Text>
                 </Pressable>
               ) : null}
 
@@ -12078,9 +10584,7 @@ export default function Home() {
                       styles.sheetButtonText,
                       { color: theme.text }
                     ]}
-                  >
-                    Yes, it is active
-                  </Text>
+                  >{tr("Yes, it is active")}</Text>
                 </Pressable>
               ) : null}
 
@@ -12098,9 +10602,7 @@ export default function Home() {
                     styles.sheetButtonText,
                     { color: theme.muted }
                   ]}
-                >
-                  No change
-                </Text>
+                >{tr("No change")}</Text>
               </Pressable>
             </View>
           </View>
@@ -12126,13 +10628,9 @@ export default function Home() {
               }
             ]}
           >
-            <Text style={[styles.actionSheetTitle, { color: theme.text }]}>
-              Upcoming renewals
-            </Text>
+            <Text style={[styles.actionSheetTitle, { color: theme.text }]}>{tr("Upcoming renewals")}</Text>
 
-            <Text style={[styles.actionSheetBody, { color: theme.muted }]}>
-              Confirmed renewal dates for your active subscriptions.
-            </Text>
+            <Text style={[styles.actionSheetBody, { color: theme.muted }]}>{tr("Confirmed renewal dates for your active subscriptions.")}</Text>
 
             <ScrollView
               style={styles.renewalListScroll}
@@ -12185,9 +10683,7 @@ export default function Home() {
                     { borderColor: theme.border }
                   ]}
                 >
-                  <Text style={[styles.muted, { color: theme.muted }]}>
-                    No confirmed renewal dates yet.
-                  </Text>
+                  <Text style={[styles.muted, { color: theme.muted }]}>{tr("No confirmed renewal dates yet.")}</Text>
                 </View>
               )}
             </ScrollView>
@@ -12200,9 +10696,7 @@ export default function Home() {
               ]}
               onPress={() => setRenewalsSheetOpen(false)}
             >
-              <Text style={[styles.sheetButtonText, { color: theme.text }]}>
-                Done
-              </Text>
+              <Text style={[styles.sheetButtonText, { color: theme.text }]}>{tr("Done")}</Text>
             </Pressable>
           </View>
         </View>
@@ -12247,9 +10741,7 @@ export default function Home() {
                 ]}
                 onPress={() => setActionSheet(null)}
               >
-                <Text style={[styles.sheetButtonText, { color: theme.text }]}>
-                  Not now
-                </Text>
+                <Text style={[styles.sheetButtonText, { color: theme.text }]}>{tr("Not now")}</Text>
               </Pressable>
 
               <Pressable
