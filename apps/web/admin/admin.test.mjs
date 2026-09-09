@@ -10,13 +10,13 @@ class Element {
   addEventListener(name,handler){this.listeners[name]=handler;}
   set innerHTML(_){throw new Error("HTML injection");}
 }
-function harness(fetch, credentials) {
+function harness(fetch, credentials, page={hostname:"localhost",protocol:"http:",origin:"http://localhost:8080"}) {
   const nodes=Object.fromEntries(["login","register","enrollment","revoke","message","dashboard","filters","market","logout","results"].map(id=>[id,new Element()]));
   nodes.market.options=[new Element()];
   const mockCredential={id:"AA",rawId:new Uint8Array([0]).buffer,type:"public-key",getClientExtensionResults:()=>({}),response:{clientDataJSON:new Uint8Array([0]).buffer,authenticatorData:new Uint8Array([0]).buffer,signature:new Uint8Array([0]).buffer,userHandle:new Uint8Array([0]).buffer,attestationObject:new Uint8Array([0]).buffer}};
-  const context={location:{hostname:"localhost"},document:{getElementById:id=>nodes[id],createElement:()=>new Element()},
+  const context={location:page,document:{getElementById:id=>nodes[id],createElement:()=>new Element()},
     window:{addEventListener:()=>{},PublicKeyCredential:function(){}},navigator:{credentials:credentials??{get:async()=>mockCredential,create:async()=>mockCredential}},
-    fetch:async(url,options)=>url.endsWith("authenticate/options")?response({challengeId:"test",options:{challenge:"AA",rpId:"localhost",userVerification:"required"}}):fetch(url,options),
+    fetch:async(url,options)=>url.endsWith("authenticate/options")?response({challengeId:"test",options:{challenge:"AA",rpId:page.hostname,userVerification:"required"}}):fetch(url,options),
     atob,btoa,AbortController,AbortSignal,setTimeout:()=>1,clearTimeout:()=>{},encodeURIComponent};
   vm.runInNewContext(source,context);return nodes;
 }
@@ -24,6 +24,29 @@ const response=(data,status=200)=>({ok:status===200,status,json:async()=>data});
 const overview={markets:[["NO","Norway","NOK"]],collectionEnabled:false,catalogServices:43,newUsers:123456,notes:["<script>bad()</script>"],
   dataQuality:{selectableMarkets:30,registryRows:364,persistedPrices:[]},serviceDistribution:[],events:[{event:"PRIVATE_EVENT_SENTINEL",count:10,actors:10}],entitlements:[],subscriptions:[]};
 const submit={preventDefault(){}};
+test("production client has only the fixed API target, including reads and logout",async()=>{
+  const requests=[];const page={hostname:"admin.savlivo.com",protocol:"https:",origin:"https://admin.savlivo.com",search:"?api=https://evil.invalid"};
+  const nodes=harness(async(url,options)=>{requests.push({url,options});return response(url.endsWith("authenticate/verify")?{token:"adm_test",expiresInSeconds:900}:overview);},undefined,page);
+  await nodes.login.listeners.submit(submit);await nodes.logout.listeners.click();
+  assert.ok(requests.length>=3);
+  assert.ok(requests.every(({url,options})=>url.startsWith("https://savlivo-api.onrender.com/v1/admin/")&&options.credentials==="omit"&&options.cache==="no-store"));
+  assert.equal(nodes.dashboard.hidden,true);
+});
+test("production hostname variants and non-HTTPS origins are rejected before network access",()=>{
+  for(const origin of ["http://admin.savlivo.com","https://admin.savlivo.com:444","https://admin.savlivo.com.evil.invalid","https://savlivo.com"]) {
+    const url=new URL(origin);let calls=0;
+    assert.throws(()=>harness(async()=>{calls++;},undefined,{origin,hostname:url.hostname,protocol:url.protocol}),/HTTPS_REQUIRED|ADMIN_ORIGIN_DENIED/);
+    assert.equal(calls,0);
+  }
+});
+test("admin-only deployment headers restrict production connections and prohibit framing/caching",()=>{
+  const headers=readFileSync(new URL("deploy/webhuset-admin.htaccess",import.meta.url),"utf8");
+  for(const value of ["connect-src https://savlivo-api.onrender.com;","frame-ancestors 'none'","X-Frame-Options \"DENY\"","X-Content-Type-Options \"nosniff\"","Referrer-Policy \"no-referrer\"","Cache-Control \"no-store\"","publickey-credentials-get=(self)","publickey-credentials-create=(self)","Options -Indexes"])assert.ok(headers.includes(value),value);
+  assert.doesNotMatch(headers.split("\n").filter(line=>!line.startsWith("#")).join("\n"),/http:\/\/localhost|<IfModule|includeSubDomains|preload/);
+  const html=readFileSync(new URL("index.html",import.meta.url),"utf8");
+  assert.match(html,/connect-src https:\/\/savlivo-api\.onrender\.com http:\/\/localhost:3000/);
+  assert.doesNotMatch(source,/localStorage|sessionStorage|URLSearchParams|innerHTML/);
+});
 test("admin client uses memory token, uses native passkey, renders data as text, and sends bounded filters",async()=>{
   const requests=[];const nodes=harness(async(url,options)=>{requests.push({url,options});return response(url.endsWith("authenticate/verify")?{token:"adm_test",expiresInSeconds:900}:overview);});
   await nodes.login.listeners.submit(submit);
@@ -81,7 +104,7 @@ test("admin refuses a non-local insecure page before accepting credentials",()=>
 test("hosted HTTPS admin page refuses legacy password entry before any request",()=>{
   let calls=0;const nodes={login:new Element(),register:new Element(),message:new Element()};
   assert.throws(()=>vm.runInNewContext(source,{location:{protocol:"https:",hostname:"savlivo.com"},
-    document:{getElementById:id=>nodes[id]},fetch:()=>{calls++;}}),/ADMIN_PRODUCTION_DISABLED/);
+    document:{getElementById:id=>nodes[id]},fetch:()=>{calls++;}}),/ADMIN_ORIGIN_DENIED/);
   assert.equal(nodes.login.hidden,true);assert.equal(calls,0);
 });
 

@@ -7,6 +7,46 @@ import { collectionPolicy, createEventRecorder } from "./analytics.js";
 import { adminConfiguration, authenticatedAdmin, boundedJson, createRateLimit, dashboardFilters, hashSession, handlePrivateData } from "./private-data-http.js";
 import { createToken } from "./auth.js";
 const valid = {event:"catalog_search",market:"NO",platform:"ios"};
+const productionAdmin = {NODE_ENV:"production", ADMIN_ENABLED:"true", ANALYTICS_MAINTENANCE_ENABLED:"true",
+  ADMIN_AUDIT_RETENTION_DAYS:"180", ADMIN_ALLOWED_ORIGIN:"https://admin.savlivo.com", ADMIN_RP_ID:"admin.savlivo.com"}; // 180 is a fixture, not policy.
+test("production admin requires every explicit flag and exact HTTPS origin/RP identity",()=>{
+  assert.deepEqual(adminConfiguration(productionAdmin),{days:180,origin:"https://admin.savlivo.com",rpID:"admin.savlivo.com"});
+  for(const key of Object.keys(productionAdmin)) {
+    const config:NodeJS.ProcessEnv={...productionAdmin};delete config[key];assert.equal(adminConfiguration(config),null,key);
+  }
+  for(const origin of ["http://admin.savlivo.com","https://savlivo.com","https://admin.savlivo.com/","https://admin.savlivo.com:444","https://admin.savlivo.com.evil.invalid","https://admin.savlivo.com?x=1","https://user@admin.savlivo.com","https://admin.savlivo.com.","https://localhost"]) {
+    assert.equal(adminConfiguration({...productionAdmin,ADMIN_ALLOWED_ORIGIN:origin}),null,origin);
+  }
+  for(const rp of ["savlivo.com","localhost","https://admin.savlivo.com","admin.savlivo.com:443"])assert.equal(adminConfiguration({...productionAdmin,ADMIN_RP_ID:rp}),null);
+  for(const key of ["ADMIN_ENABLED","ANALYTICS_MAINTENANCE_ENABLED"])for(const value of ["false","TRUE","1",""])assert.equal(adminConfiguration({...productionAdmin,[key]:value}),null);
+  for(const days of ["0","29","366","NaN","180 days"])assert.equal(adminConfiguration({...productionAdmin,ADMIN_AUDIT_RETENTION_DAYS:days}),null);
+  assert.equal(collectionPolicy(productionAdmin),null);
+  assert.equal(collectionPolicy({...productionAdmin,ANALYTICS_COLLECTION_ENABLED:"false",ANALYTICS_PRIVACY_REVIEWED:"false"}),null);
+  assert.ok(adminConfiguration({...productionAdmin,NODE_ENV:"development",ADMIN_ALLOWED_ORIGIN:"http://localhost:8080",ADMIN_RP_ID:"localhost"}));
+});
+test("production admin CORS is exact and request payloads cannot override server WebAuthn identity",async()=>{
+  const old={...process.env};Object.assign(process.env,productionAdmin);
+  async function request(method:string, origin:string|undefined, body:unknown={}, path="passkeys/authenticate/options") {
+    const req=Readable.from([JSON.stringify(body)]) as IncomingMessage;
+    req.url=`/v1/admin/${path}`;req.method=method;req.headers={"content-type":"application/json",...(origin?{origin}:{}),"access-control-request-method":"POST","access-control-request-headers":"authorization,content-type"};
+    Object.defineProperty(req,"socket",{value:{remoteAddress:"production-fixture"}});
+    let status=0;const headers:Record<string,unknown>={};
+    await handlePrivateData(req,{setHeader:(k:string,v:unknown)=>{headers[k]=v;},writeHead:(s:number,h:Record<string,unknown>)=>{status=s;Object.assign(headers,h);},end:()=>{}} as any);
+    return {status,headers};
+  }
+  try {
+    const allowed=await request("OPTIONS",productionAdmin.ADMIN_ALLOWED_ORIGIN);
+    assert.equal(allowed.status,204);assert.equal(allowed.headers["Access-Control-Allow-Origin"],productionAdmin.ADMIN_ALLOWED_ORIGIN);
+    assert.equal(allowed.headers.Vary,"Origin");assert.equal(allowed.headers["Access-Control-Allow-Headers"],"Authorization, Content-Type");
+    assert.equal(allowed.headers["Cache-Control"],"no-store");assert.equal(allowed.headers["Access-Control-Allow-Credentials"],undefined);
+    for(const origin of [undefined,"null","https://savlivo.com","https://admin.savlivo.com.evil.invalid","http://localhost:8080"]) {
+      for(const method of ["OPTIONS","POST"]) {const denied=await request(method,origin);assert.equal(denied.status,403);assert.equal(denied.headers["Access-Control-Allow-Origin"],undefined);}
+    }
+    for(const field of ["origin","rpID","expectedOrigin","role","userId"])assert.equal((await request("POST",productionAdmin.ADMIN_ALLOWED_ORIGIN,{[field]:"override"})).status,400);
+    assert.equal((await request("POST",productionAdmin.ADMIN_ALLOWED_ORIGIN,{},"session")).status,404);
+    process.env.ADMIN_ENABLED="false";assert.equal((await request("OPTIONS",productionAdmin.ADMIN_ALLOWED_ORIGIN)).status,404);
+  } finally {for(const key of Object.keys(process.env))if(!(key in old))delete process.env[key];Object.assign(process.env,old);}
+});
 test("all named events accept only enum dimensions",()=>{
   for(const event of analyticsEvents) assert.equal(parseAnalyticsEvent({...valid,event}).event,event);
   assert.equal(parseAnalyticsEvent({...valid,service:"netflix",category:"video"}).service,"netflix");

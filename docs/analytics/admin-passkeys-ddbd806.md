@@ -1,3 +1,5 @@
+> Current production hosting preparation: [production-admin-hosting.md](production-admin-hosting.md). Its exact-host configuration supersedes the historical localhost-only gates below. The operator confirms production migrations 011–015 are already applied; do not rerun them. No activation is authorized.
+
 # Admin passkeys: controlled host/migration review
 
 Starting HEAD: ddbd806 on build10-final. Starting tracked tree clean, with only the unrelated untracked .htaccess. That file was never inspected, modified or staged.

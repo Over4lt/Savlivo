@@ -1,4 +1,8 @@
-const api = "http://localhost:3000";
+// Closed deployment map. Query strings, storage and browser payloads cannot set an API URL.
+const api = location.origin === "https://admin.savlivo.com"
+  ? "https://savlivo-api.onrender.com"
+  : location.hostname === "localhost" && ["http:", "https:"].includes(location.protocol)
+    ? "http://localhost:3000" : null;
 let token = null;
 let generation = 0;
 let expiryTimer;
@@ -9,11 +13,9 @@ if (location.protocol !== "https:" && location.hostname !== "localhost") {
   $("login").hidden=true;$("register").hidden=true;message("HTTPS is required for admin access.");
   throw new Error("HTTPS_REQUIRED");
 }
-// Local rehearsal only until production host/RP/origin review.
-// The API independently denies production and unspecified runtimes.
-if (location.hostname !== "localhost") {
-  $("login").hidden=true;$("register").hidden=true;message("Hosted admin access remains disabled pending host review.");
-  throw new Error("ADMIN_PRODUCTION_DISABLED");
+if (!api) {
+  $("login").hidden=true;$("register").hidden=true;message("This origin is not configured for Savlivo Admin.");
+  throw new Error("ADMIN_ORIGIN_DENIED");
 }
 function clearSession() {
   token = null; browserAbort?.abort(); clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();

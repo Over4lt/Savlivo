@@ -58,6 +58,33 @@ test("passkey protocol, migration, RBAC and session integration",{skip:process.e
       assert.equal(login.status,200);assert.equal(await authenticatedAdmin(`Bearer ${(await login.json() as {token:string}).token}`),id);
       process.env.NODE_ENV="production";assert.equal((await post("authenticate/options",{})).status,404);assert.equal((await fetch(`${base}/v1/admin/session`,{method:"POST",headers,body:"{}"})).status,404);process.env.NODE_ENV="test";
     });
+    await t.test("production origin/RP registration and authentication are server-controlled, with logout",async()=>{
+      const production={...config,origin:"https://admin.savlivo.com",rpID:"admin.savlivo.com"};
+      process.env.NODE_ENV="production";process.env.ADMIN_ALLOWED_ORIGIN=production.origin;process.env.ADMIN_RP_ID=production.rpID;
+      try {
+        const id=await user(),key=authenticator();
+        for(const [origin,rpID] of [["https://savlivo.com",production.rpID],[production.origin,"savlivo.com"]]) {
+          const r=await beginRegistration(`Bearer ${await issueEnrollmentGrant(id,production)}`,production);
+          await assert.rejects(finishRegistration(r.challengeId,key.register(r.options.challenge,origin,rpID),production),/PASSKEY_DENIED/);
+        }
+        const post=async(path:string,body:unknown,token?:string)=>fetch(`${base}/v1/admin/passkeys/${path}`,{method:"POST",headers:{Origin:production.origin,"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify(body)});
+        const r=await (await post("register/options",{},await issueEnrollmentGrant(id,production))).json() as Awaited<ReturnType<typeof beginRegistration>>;
+        assert.equal(r.options.rp.id,production.rpID);
+        assert.equal((await post("register/verify",{challengeId:r.challengeId,response:key.register(r.options.challenge,production.origin,production.rpID)})).status,200);
+        for(const [origin,rpID] of [["http://localhost:8080",production.rpID],[production.origin,"localhost"]]) {
+          const a=await beginAuthentication(production);
+          await assert.rejects(finishAuthentication(a.challengeId,key.assert(a.options.challenge,origin,rpID,r.options.user.id),production),/PASSKEY_DENIED/);
+        }
+        const a=await (await post("authenticate/options",{})).json() as Awaited<ReturnType<typeof beginAuthentication>>;
+        assert.equal(a.options.rpId,production.rpID);
+        const response=await post("authenticate/verify",{challengeId:a.challengeId,response:key.assert(a.options.challenge,production.origin,production.rpID,r.options.user.id)});
+        assert.equal(response.status,200);
+        const session=await response.json() as {token:string;expiresInSeconds:number};
+        assert.equal(session.expiresInSeconds,900);assert.equal(await authenticatedAdmin(`Bearer ${session.token}`),id);
+        assert.equal((await fetch(`${base}/v1/admin/session`,{method:"DELETE",headers:{Origin:production.origin,Authorization:`Bearer ${session.token}`}})).status,200);
+        assert.equal(await authenticatedAdmin(`Bearer ${session.token}`),null);
+      } finally {process.env.NODE_ENV="test";process.env.ADMIN_ALLOWED_ORIGIN=config.origin;process.env.ADMIN_RP_ID=config.rpID;}
+    });
     await t.test("expired or wrong-origin bootstrap and legacy sessions cannot enroll or read; audit failure issues no grant",async()=>{
       const id=await user(),grant=await issueEnrollmentGrant(id,config);
       await assert.rejects(beginRegistration(`Bearer ${grant}`,{...config,origin:"http://localhost:9999"}),/PASSKEY_DENIED/);

@@ -1,3 +1,5 @@
+> Current production hosting preparation: [production-admin-hosting.md](production-admin-hosting.md). Its exact-host configuration supersedes the historical localhost-only gates below. The operator confirms production migrations 011–015 are already applied; do not rerun them. No activation is authorized.
+
 # Privacy-first data foundation: audit and activation decisions
 
 > Passkey follow-up: [admin-passkeys-ddbd806.md](admin-passkeys-ddbd806.md) records the implemented protocol, migration 015 and validation. Older passkey-deferred statements below are historical. Production/host restrictions remain.

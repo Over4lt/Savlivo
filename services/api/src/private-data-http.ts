@@ -45,10 +45,13 @@ export function adminConfiguration(env: NodeJS.ProcessEnv = process.env) {
   const days = retentionDays(env.ADMIN_AUDIT_RETENTION_DAYS, 30, 365);
   let origin: URL;
   try { origin = new URL(env.ADMIN_ALLOWED_ORIGIN ?? ""); } catch { return null; }
-  // Hosting review is still pending: passkeys remain rehearsal-only.
-  // Do not set a production deployment to development/test to bypass this gate.
-  if (!["development", "test"].includes(env.NODE_ENV ?? "") || env.ADMIN_ENABLED !== "true" || env.ANALYTICS_MAINTENANCE_ENABLED !== "true" || !days || env.ADMIN_RP_ID !== origin.hostname || origin.origin !== env.ADMIN_ALLOWED_ORIGIN ||
-    (origin.protocol !== "https:" && !(env.NODE_ENV !== "production" && origin.hostname === "localhost" && origin.protocol === "http:"))) return null;
+  if (env.ADMIN_ENABLED !== "true" || env.ANALYTICS_MAINTENANCE_ENABLED !== "true" || !days ||
+    env.ADMIN_RP_ID !== origin.hostname || origin.origin !== env.ADMIN_ALLOWED_ORIGIN) return null;
+  // Exact deployment identity, with no production defaults or alternate host aliases.
+  if (env.NODE_ENV === "production") {
+    if (origin.origin !== "https://admin.savlivo.com" || env.ADMIN_RP_ID !== "admin.savlivo.com") return null;
+  } else if (!["development", "test"].includes(env.NODE_ENV ?? "") ||
+    (origin.protocol !== "https:" && !(origin.hostname === "localhost" && origin.protocol === "http:"))) return null;
   return {days, origin: origin.origin, rpID:env.ADMIN_RP_ID};
 }
 async function audit(userId: string, action: string, days: number) {

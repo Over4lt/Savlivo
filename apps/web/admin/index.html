@@ -2,7 +2,8 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src http://localhost:3000; base-uri 'none'; form-action 'none'">
+<!-- Production response headers further restrict connect-src to the production API only. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://savlivo-api.onrender.com http://localhost:3000; base-uri 'none'; form-action 'none'">
 <title>Savlivo Internal Analytics</title><link rel="stylesheet" href="admin.css"></head>
 <body><main><h1>Savlivo Internal Analytics</h1><p>Private aggregate reporting. Access requires an explicitly authorized admin account.</p>
 <form id="login"><button type="submit">Sign in with a passkey</button></form>
@@ -12,5 +13,5 @@
 <button type="submit">Register passkey</button></details></form>
 <p id="message" role="status" aria-live="polite"></p>
 <section id="dashboard" hidden><form id="filters"><label>Market <select id="market"><option value="">All markets</option></select></label><button>Refresh</button><button id="logout" type="button">Sign out</button><button id="revoke" type="button">Sign out all admin sessions</button></form>
-<p>Only non-personal catalog and provider-price coverage is available. User-derived reports are deferred. Production admin access is disabled pending host review.</p>
+<p>Only non-personal catalog and provider-price coverage is available. User-derived reports are deferred. Access requires server-authorized passkey enrollment.</p>
 <div id="results"></div></section></main><script type="module" src="admin.js"></script></body></html>
