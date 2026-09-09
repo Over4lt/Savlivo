@@ -10,7 +10,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.thomashodne.savlivo",
       "icon": "./assets/logo.png",
-      "buildNumber": "12",
+      "buildNumber": "13",
       "associatedDomains": [
         "applinks:savlivo.com"
       ]
