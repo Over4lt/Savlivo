@@ -6980,15 +6980,8 @@ export default function Home() {
               </Text>
             </Text>
           </View>
-          <View
-            style={[
-              styles.modernPlanSlot,
-              {
-                width: plan === "PREMIUM" ? "16.6667%" : "25%"
-              }
-            ]}
-          >
-            <Pressable
+          <View style={styles.modernPlanSlot}>
+            <View
               style={[
                 styles.modernPlanBadge,
                 {
@@ -7002,7 +6995,6 @@ export default function Home() {
                       : visual.greenMuted
                 }
               ]}
-              onPress={() => setScreen("plans")}
             >
               <Text
                 style={[
@@ -7019,7 +7011,7 @@ export default function Home() {
               >
                 {planDisplayName}
               </Text>
-            </Pressable>
+            </View>
           </View>
         </View>
         <Nav />
@@ -7420,31 +7412,27 @@ export default function Home() {
       >
         {screen === "home" ? (
           <>
-            <View style={styles.compactHomeHeading}>
-              <View>
-                <Text style={[styles.compactHomeEyebrow, { color: visual.greenText }]}>
-                  {tr("OVERVIEW")}
-                </Text>
-                <Text style={[styles.compactHomeTitle, { color: theme.text }]}>
-                  {tr("Your subscriptions")}
+            <Text style={[styles.compactHomeEyebrow, { color: visual.greenText }]}>
+              {tr("OVERVIEW")}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${tr("Your Savlivo plan")}. ${planDisplayName}. ${tr("Choose/change")}`}
+              style={[styles.savlivoPlanCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+              onPress={() => setScreen("plans")}
+            >
+              <Text style={[styles.savlivoPlanCardTitle, { color: theme.text }]}>
+                {tr("Your Savlivo plan")}
+              </Text>
+              <View style={[styles.compactPlanPill, { backgroundColor: theme.surface, borderColor: visual.greenMuted }]}>
+                <Text style={[styles.compactPlanPillText, { color: theme.text }]}>
+                  {tr("Choose/change")}
                 </Text>
               </View>
-
-              <Pressable
-                style={[
-                  styles.compactPlanPill,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: visual.greenMuted
-                  }
-                ]}
-                onPress={() => setScreen("plans")}
-              >
-                <Text style={[styles.compactPlanPillText, { color: theme.text }]}>
-                  {plan} ›
-                </Text>
-              </Pressable>
-            </View>
+            </Pressable>
+            <Text style={[styles.compactHomeTitle, { color: theme.text }]}>
+              {tr("Your subscriptions")}
+            </Text>
 
             <Pressable
               style={[
@@ -10814,6 +10802,21 @@ const styles = StyleSheet.create({
     marginTop: 2
   },
 
+  savlivoPlanCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    minHeight: 64
+  },
+  savlivoPlanCardTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "700"
+  },
+
   modernBrandLockup: {
     flexDirection: "row",
     alignItems: "center",
@@ -10822,11 +10825,11 @@ const styles = StyleSheet.create({
   },
 
   modernHeaderLogo: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 39.6,
+    height: 39.6,
+    borderRadius: 11,
     marginLeft: 6,
-    marginRight: 3
+    marginRight: 4
   } as import("react-native").ImageStyle,
 
   modernBrandLine: {
@@ -10834,12 +10837,12 @@ const styles = StyleSheet.create({
     minWidth: 0
   },
   modernBrandName: {
-    fontSize: 22,
+    fontSize: 24.2,
     fontWeight: "900",
     letterSpacing: -0.7
   },
   modernBrandSlogan: {
-    fontSize: 12,
+    fontSize: 13.2,
     fontWeight: "600",
     letterSpacing: -0.1,
     position: "relative",
@@ -10850,19 +10853,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    transform: [{ translateX: -4 }, { translateY: 4 }]
+    marginLeft: 8
   },
   modernPlanBadge: {
     marginLeft: 0,
-    width: 72,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    width: 79.2,
+    paddingHorizontal: 8.8,
+    paddingVertical: 4.4,
     borderRadius: 999,
     borderWidth: 1
   },
 
   modernPlanBadgeText: {
-    fontSize: 9,
+    fontSize: 9.9,
     fontWeight: "900",
     letterSpacing: 0.6,
     textAlign: "center"

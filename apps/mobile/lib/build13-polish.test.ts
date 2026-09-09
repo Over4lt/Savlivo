@@ -190,3 +190,23 @@ test("language changes formatting only: market currency, hundredths and multi-co
   assert.deepEqual(records, before);
   assert.match(source, /formatMarketMinor\(minor, currency, appLocale\(selectedLanguage\)\)/);
 });
+
+test("global plan badge is status-only and Overview has one accessible plan action", () => {
+  const badge = nodes.find(n => ts.isJsxElement(n) && n.openingElement.attributes.getText(ast).includes("styles.modernPlanBadge,")) as ts.JsxElement;
+  assert.ok(badge);
+  assert.equal(badge.openingElement.tagName.getText(ast), "View");
+  assert.doesNotMatch(badge.getText(ast), /onPress|setScreen/);
+  assert.match(badge.getText(ast), /planDisplayName/);
+  const card = nodes.find(n => ts.isJsxElement(n) && n.openingElement.attributes.getText(ast).includes("styles.savlivoPlanCard,")) as ts.JsxElement;
+  assert.ok(card);
+  assert.equal(card.openingElement.tagName.getText(ast), "Pressable");
+  assert.match(card.openingElement.getText(ast), /accessibilityRole="button"/);
+  const tap = card.openingElement.attributes.properties.find(p => ts.isJsxAttribute(p) && p.name.getText(ast) === "onPress") as ts.JsxAttribute;
+  let screen = "";
+  const handler = (tap.initializer as ts.JsxExpression).expression!;
+  new Function("setScreen", "return (" + handler.getText(ast) + ")")((next:string) => {screen=next;})();
+  assert.equal(screen, "plans");
+  assert.equal(descendants(card).filter(n => ts.isJsxOpeningElement(n) && n.tagName.getText(ast) === "Pressable").length, 1);
+  assert.equal(translateUi("no", "Your Savlivo plan"), "Din Savlivo-plan");
+  assert.equal(translateUi("no", "Choose/change"), "Velg/endre");
+});

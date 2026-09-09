@@ -15,6 +15,8 @@ export type AppLanguage =
 // Existing UI dictionary, shared with regression tests. English keys remain the fallback.
 export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>> = {
   "no": {
+    "Your Savlivo plan": "Din Savlivo-plan",
+    "Choose/change": "Velg/endre",
     "Settings": "Innstillinger",
     "Account & plan": "Konto og abonnement",
     "Preferences": "Innstillinger",
@@ -324,6 +326,8 @@ export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>
     "{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.": "{service} · {billing}. Savlivo kan åpne administrasjonssiden. Velg ønsket handling der hvis tilgjengelig. Åpning eller lukking endrer ikke det lagrede abonnementet."
   },
   "sv": {
+    "Your Savlivo plan": "Din Savlivo-plan",
+    "Choose/change": "Välj/ändra",
     "Security": "Säkerhet",
     "Face ID / Touch ID": "Face ID / Touch ID",
     "Use biometrics to unlock Savlivo": "Använd biometri för att låsa upp Savlivo",
@@ -633,6 +637,8 @@ export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>
     "{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.": "{service} · {billing}. Savlivo kan öppna hanteringssidan. Välj önskad åtgärd där om den finns. Att öppna eller stänga sidan ändrar inte abonnemanget."
   },
   "da": {
+    "Your Savlivo plan": "Din Savlivo-plan",
+    "Choose/change": "Vælg/skift",
     "Security": "Sikkerhed",
     "Face ID / Touch ID": "Face ID / Touch ID",
     "Use biometrics to unlock Savlivo": "Brug biometri til at låse Savlivo op",
@@ -942,6 +948,8 @@ export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>
     "{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.": "{service} · {billing}. Savlivo kan åbne administrationssiden. Vælg handlingen der hvis tilgængelig. Åbning eller lukning ændrer ikke abonnementet."
   },
   "de": {
+    "Your Savlivo plan": "Dein Savlivo-Tarif",
+    "Choose/change": "Wählen/ändern",
     "Security": "Sicherheit",
     "Face ID / Touch ID": "Face ID / Touch ID",
     "Use biometrics to unlock Savlivo": "Biometrie zum Entsperren von Savlivo verwenden",
@@ -1251,6 +1259,8 @@ export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>
     "{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.": "{service} · {billing}. Savlivo kann die Verwaltungsseite öffnen. Wähle dort die gewünschte Option, falls verfügbar. Öffnen oder Schließen ändert dein gespeichertes Abonnement nicht."
   },
   "es": {
+    "Your Savlivo plan": "Tu plan de Savlivo",
+    "Choose/change": "Elegir/cambiar",
     "Security": "Seguridad",
     "Face ID / Touch ID": "Face ID / Touch ID",
     "Use biometrics to unlock Savlivo": "Usa biometría para desbloquear Savlivo",
@@ -1560,6 +1570,8 @@ export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>
     "{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.": "{service} · {billing}. Savlivo puede abrir la gestión. Elige allí la opción si está disponible. Abrir o cerrar la página no cambia tu suscripción guardada."
   },
   "fr": {
+    "Your Savlivo plan": "Votre offre Savlivo",
+    "Choose/change": "Choisir/modifier",
     "Security": "Sécurité",
     "Face ID / Touch ID": "Face ID / Touch ID",
     "Use biometrics to unlock Savlivo": "Utiliser la biométrie pour déverrouiller Savlivo",
@@ -1869,6 +1881,8 @@ export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>
     "{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.": "{service} · {billing}. Savlivo peut ouvrir la gestion. Choisissez l’option si elle existe. Ouvrir ou fermer la page ne modifie pas l’abonnement enregistré."
   },
   "it": {
+    "Your Savlivo plan": "Il tuo piano Savlivo",
+    "Choose/change": "Scegli/modifica",
     "Security": "Sicurezza",
     "Face ID / Touch ID": "Face ID / Touch ID",
     "Use biometrics to unlock Savlivo": "Usa la biometria per sbloccare Savlivo",
@@ -2178,6 +2192,8 @@ export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>
     "{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.": "{service} · {billing}. Savlivo può aprire la gestione. Scegli l’opzione se disponibile. Aprire o chiudere la pagina non modifica l’abbonamento salvato."
   },
   "pt": {
+    "Your Savlivo plan": "O teu plano Savlivo",
+    "Choose/change": "Escolher/alterar",
     "Security": "Segurança",
     "Face ID / Touch ID": "Face ID / Touch ID",
     "Use biometrics to unlock Savlivo": "Usar biometria para desbloquear o Savlivo",
@@ -2487,6 +2503,8 @@ export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>
     "{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.": "{service} · {billing}. Savlivo pode abrir a gestão. Escolha a opção se disponível. Abrir ou fechar a página não altera a subscrição guardada."
   },
   "nl": {
+    "Your Savlivo plan": "Je Savlivo-abonnement",
+    "Choose/change": "Kiezen/wijzigen",
     "Security": "Beveiliging",
     "Face ID / Touch ID": "Face ID / Touch ID",
     "Use biometrics to unlock Savlivo": "Gebruik biometrie om Savlivo te ontgrendelen",
@@ -2796,6 +2814,8 @@ export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>
     "{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.": "{service} · {billing}. Savlivo kan de beheerpagina openen. Kies daar de optie indien beschikbaar. Openen of sluiten verandert je opgeslagen abonnement niet."
   },
   "fi": {
+    "Your Savlivo plan": "Savlivo-tilauksesi",
+    "Choose/change": "Valitse/vaihda",
     "Security": "Suojaus",
     "Face ID / Touch ID": "Face ID / Touch ID",
     "Use biometrics to unlock Savlivo": "Käytä biometriaa Savlivon avaamiseen",
@@ -3105,6 +3125,8 @@ export const uiTranslations: Partial<Record<AppLanguage, Record<string, string>>
     "{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.": "{service} · {billing}. Savlivo voi avata hallintasivun. Valitse haluamasi toiminto, jos se on saatavilla. Sivun avaaminen tai sulkeminen ei muuta tallennettua tilausta."
   },
   "zh-CN": {
+    "Your Savlivo plan": "你的Savlivo方案",
+    "Choose/change": "选择/更改",
     "Security": "安全",
     "Face ID / Touch ID": "Face ID / Touch ID",
     "Use biometrics to unlock Savlivo": "使用生物识别解锁 Savlivo",
