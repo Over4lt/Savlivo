@@ -408,6 +408,8 @@ export async function updateSubscription(args: {
   subscriptionId: string;
   serviceSlug: string;
   customServiceName?: string;
+  /** Internal compatibility decision; never populated from arbitrary request properties. */
+  preserveManualIdentity?: boolean;
   billingProviderSlug: string;
   monthlyPriceMinor?: number;
   currency?: string;
@@ -417,12 +419,12 @@ export async function updateSubscription(args: {
   if(args.serviceSlug === "manual") {
     const existing = await getSubscription(args.userId,args.subscriptionId);
     if(!existing || existing.serviceSlug !== "manual")throw new Error("SUBSCRIPTION_NOT_FOUND_OR_INVALID_ROUTE");
-    const name=validateManualSubscription({...args,countryCode:existing.countryCode,currency:existing.currency});
+    const name=validateManualSubscription({...args,customServiceName:args.preserveManualIdentity ? existing.customServiceName : args.customServiceName,countryCode:existing.countryCode,currency:existing.currency});
     if(args.currency!==existing.currency)throw new Error("INVALID_MANUAL_SUBSCRIPTION");
-    const result=await pool.query(`UPDATE subscriptions s SET custom_service_name=$3, billing_provider_id=bp.id,
+    const result=await pool.query(`UPDATE subscriptions s SET custom_service_name=CASE WHEN $8 THEN s.custom_service_name ELSE $3 END, billing_provider_id=bp.id,
       monthly_price_minor=$5, renewal_date=$6, plan_name=$7, updated_at=now()
       FROM billing_providers bp WHERE s.user_id=$1 AND s.id=$2 AND s.service_id IS NULL AND bp.slug=$4 RETURNING s.id`,
-      [args.userId,args.subscriptionId,name,args.billingProviderSlug,args.monthlyPriceMinor,args.renewalDate??null,args.planName??null]);
+      [args.userId,args.subscriptionId,name,args.billingProviderSlug,args.monthlyPriceMinor,args.renewalDate??null,args.planName??null,Boolean(args.preserveManualIdentity)]);
     if(!result.rows[0])throw new Error("SUBSCRIPTION_NOT_FOUND_OR_INVALID_ROUTE");
     return getSubscription(args.userId,args.subscriptionId);
   }

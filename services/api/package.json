@@ -6,7 +6,7 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/server.ts",
     "start": "node dist/services/api/src/server.js",
-    "test": "tsx --test src/pricing-adapters.test.ts src/pricing-registry.test.ts src/notification-logic.test.ts src/market-behavior.test.ts src/discovery.test.ts src/assistant-actions.test.ts src/private-data.test.ts",
+    "test": "tsx --test src/pricing-adapters.test.ts src/pricing-registry.test.ts src/notification-logic.test.ts src/market-behavior.test.ts src/discovery.test.ts src/assistant-actions.test.ts src/private-data.test.ts src/subscription-format.test.ts",
     "test:integration": "tsx --test src/notifications.integration.test.ts",
     "typecheck": "tsc --noEmit",
     "migrate:production": "tsx src/migrate-production.ts"

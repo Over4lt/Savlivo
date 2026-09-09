@@ -1,5 +1,7 @@
 # Production preflight: cb3f182
 
+> Follow-up: [Build 12 manual compatibility](../reviews/build12-manual-compatibility.md) adds negotiated legacy response identities and safe manual edits. The manual-row limitation below describes cb3f182 before that fix. Production schema/recovery verification and physical acceptance remain separate prerequisites; rollback to an older backend still restores the limitation.
+
 Reviewed 2026-09-09. Starting branch `build10-final`, 23 commits ahead of the locally recorded remote, clean tracked tree. Only the unrelated untracked `.htaccess` was present. No production connection, migration, deployment, bootstrap or activation was performed. This document supplements the [migration runbook](migration-runbook.md); it does not authorize execution.
 
 **Verdict: NOT READY — BLOCKERS REMAIN.** Local validation passes. Actual production schema/deployed revision, recoverability, database permissions/volume/locks, runtime configuration and actual Build 12 compatibility have not been established. These are operator evidence gates, not claims of observed production defects.

@@ -1,4 +1,5 @@
 import { maintainPrivateData } from "./private-data-maintenance.js";
+import { supportsManualSubscriptions, subscriptionForClient, subscriptionEditIdentity } from "./subscription-format.js";
 import { handlePrivateData } from "./private-data-http.js";
 import { subscriptionsForMarket, subscriptionCountry } from "../../../packages/contracts/src/markets.js";
 import http from "node:http";
@@ -58,7 +59,7 @@ function send(res: http.ServerResponse, status: number, body: unknown) {
   res.writeHead(status, {
     "content-type": "application/json",
     "access-control-allow-origin": "*",
-    "access-control-allow-headers": "authorization,content-type",
+    "access-control-allow-headers": "authorization,content-type,x-savlivo-subscription-format",
     "access-control-allow-methods": "GET,POST,PATCH,DELETE,OPTIONS"
   });
   res.end(JSON.stringify(body));
@@ -78,6 +79,10 @@ const server = http.createServer(async (req, res) => {
   if (await handlePrivateData(req, res)) return;
   if (req.method === "OPTIONS") return send(res, 204, {});
   const url = new URL(req.url ?? "/", "http://localhost");
+  if (url.pathname.startsWith("/v1/subscriptions")) {
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("Vary", "Authorization, X-Savlivo-Subscription-Format");
+  }
 
   try {
     if (req.method === "GET" && url.pathname === "/health") {
@@ -651,7 +656,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/v1/subscriptions") {
-      return send(res, 200, { items: await listSubscriptions(auth.id) });
+      return send(res, 200, { items: (await listSubscriptions(auth.id)).map(item => subscriptionForClient(item, supportsManualSubscriptions(req.headers))) });
     }
 
     if (req.method === "POST" && url.pathname === "/v1/subscriptions") {
@@ -687,7 +692,7 @@ const server = http.createServer(async (req, res) => {
               : undefined
         });
 
-        return send(res, 201, created);
+        return send(res, 201, subscriptionForClient(created, supportsManualSubscriptions(req.headers)));
       } catch (err) {
         const message =
           err instanceof Error
@@ -716,7 +721,7 @@ const server = http.createServer(async (req, res) => {
         const updated = await updateSubscription({
           userId: auth.id,
           subscriptionId: subscriptionMatch[1],
-          serviceSlug: String(body.serviceSlug ?? ""),
+          ...subscriptionEditIdentity(String(body.serviceSlug ?? ""), subscriptionMatch[1], supportsManualSubscriptions(req.headers)),
           customServiceName: body.customServiceName == null ? undefined : String(body.customServiceName),
           billingProviderSlug: String(body.billingProviderSlug ?? ""),
           monthlyPriceMinor:
@@ -726,7 +731,7 @@ const server = http.createServer(async (req, res) => {
           planName: body.planName ? String(body.planName) : undefined
         });
 
-        return send(res, 200, updated);
+        return send(res, 200, subscriptionForClient(updated, supportsManualSubscriptions(req.headers)));
       } catch (err) {
         const message = err instanceof Error ? err.message : "UNKNOWN_ERROR";
         if (message === "INVALID_MANUAL_SUBSCRIPTION") return send(res, 400, { error: message });

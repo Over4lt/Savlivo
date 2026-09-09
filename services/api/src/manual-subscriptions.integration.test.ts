@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { pool } from "./db.js";
 import { addSubscription, getSubscription, listSubscriptions, updateSubscription, updateSubscriptionStatus, listSavingsEvents, deleteSubscription } from "./repositories.js";
 import { queueRenewalReminders } from "./notifications.js";
+import { subscriptionEditIdentity, subscriptionForClient } from "./subscription-format.js";
 
 // Explicit disposable test database only. Never inherit a developer/production DB URL.
 const enabled=process.env.SAVLIVO_DISPOSABLE_DB_TEST==="1";
@@ -29,6 +30,25 @@ test("additive migration preserves known bills and manual records round-trip wit
     assert.equal(created.serviceSlug,"manual");assert.equal(created.serviceName,"LokalTV");assert.equal(created.customServiceName,"LokalTV");assert.equal(created.monthlyPriceMinor,12345);assert.equal(created.countryCode,"NO");
     assert.equal((await pool.query("SELECT service_id FROM subscriptions WHERE id=$1",[created.id])).rows[0].service_id,null);
     assert.equal((await pool.query("SELECT count(*)::int n FROM services WHERE name='LokalTV'")).rows[0].n,0);
+    const legacy = subscriptionForClient(created, false);
+    const legacyEdited = await updateSubscription({userId:user,subscriptionId:created.id,
+      ...subscriptionEditIdentity(legacy.serviceSlug,created.id,false),billingProviderSlug:"carrier",currency:"NOK",monthlyPriceMinor:13000,planName:"Legacy edit",renewalDate:renewal});
+    assert.equal(legacyEdited.customServiceName,"LokalTV");
+    assert.equal(legacyEdited.serviceSlug,"manual");
+    assert.equal(legacyEdited.monthlyPriceMinor,13000);
+    const preserved = await updateSubscription({userId:user,subscriptionId:created.id,
+      ...subscriptionEditIdentity(legacy.serviceSlug,created.id,false),customServiceName:"Untrusted replacement",billingProviderSlug:"carrier",currency:"NOK",monthlyPriceMinor:13000,renewalDate:renewal});
+    assert.equal(preserved.customServiceName,"LokalTV");
+    const disposable = await addSubscription({userId:user,serviceSlug:"manual",customServiceName:"Legacy status/delete",billingProviderSlug:"carrier",countryCode:"NO",currency:"NOK",monthlyPriceMinor:100});
+    const legacyDisposable = subscriptionForClient(disposable,false);
+    await updateSubscriptionStatus({userId:user,subscriptionId:legacyDisposable.id,status:"PAUSED",effectiveDate:renewal});
+    assert.equal((await getSubscription(user,legacyDisposable.id)).status,"PAUSED");
+    assert.equal(await deleteSubscription(other,legacyDisposable.id),false);
+    assert.equal(await deleteSubscription(user,legacyDisposable.id),true);
+    await assert.rejects(updateSubscription({userId:other,subscriptionId:created.id,
+      ...subscriptionEditIdentity(legacy.serviceSlug,created.id,false),billingProviderSlug:"carrier",currency:"NOK",monthlyPriceMinor:1}),/NOT_FOUND/);
+    await assert.rejects(updateSubscription({userId:user,subscriptionId:known.id,
+      ...subscriptionEditIdentity(`manual:${known.id}`,known.id,false),billingProviderSlug:"direct",currency:"NOK",monthlyPriceMinor:1}),/NOT_FOUND/);
     assert.equal(await getSubscription(other,created.id),null);
     await assert.rejects(updateSubscription({userId:other,subscriptionId:created.id,serviceSlug:"manual",customServiceName:"Wrong owner",billingProviderSlug:"direct",monthlyPriceMinor:1,currency:"NOK"}),/NOT_FOUND/);
     const updated=await updateSubscription({userId:user,subscriptionId:created.id,serviceSlug:"manual",customServiceName:"Local TV renamed",billingProviderSlug:"apple",currency:"NOK",monthlyPriceMinor:11900,planName:"Updated",renewalDate:renewal});

@@ -44,6 +44,7 @@ export async function api<T>(
     ...init,
     headers: {
       "content-type": "application/json",
+      "x-savlivo-subscription-format": "manual-v1",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(init.headers ?? {})
     }
