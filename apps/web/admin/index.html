@@ -3,9 +3,9 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
 <!-- Production response headers further restrict connect-src to the production API only. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://savlivo-api.onrender.com http://localhost:3000; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://savlivo-api.onrender.com http://localhost:3000; base-uri 'none'; form-action 'none'">
 <title>Savlivo Internal Analytics</title><link rel="stylesheet" href="admin.css"></head>
-<body><main><h1>Savlivo Internal Analytics</h1><p>Private aggregate reporting. Access requires an explicitly authorized admin account.</p>
+<body><main><h1 class="brand-heading"><img src="logo.png" alt="" width="40" height="40"><span>Savlivo Internal Analytics</span></h1><p>Private aggregate reporting. Access requires an explicitly authorized admin account.</p>
 <form id="login"><button type="submit">Sign in with a passkey</button></form>
 <form id="register"><details><summary>Register an admin passkey</summary>
 <p>Requires an existing passkey session or a five-minute operator-issued enrollment grant. This does not grant an admin role.</p>

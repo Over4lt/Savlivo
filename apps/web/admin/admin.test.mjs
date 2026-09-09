@@ -122,3 +122,20 @@ test("cancelled native authentication sends no assertion and opens no dashboard"
   nodes.dashboard.hidden=true;await nodes.login.listeners.submit(submit);
   assert.equal(writes,0);assert.equal(nodes.dashboard.hidden,true);assert.match(nodes.message.textContent,/cancelled/);
 });
+
+test("brand heading uses the unchanged official logo and narrowly permits its static path",()=>{
+  const html=readFileSync(new URL("index.html",import.meta.url),"utf8");
+  assert.match(html,/<h1 class="brand-heading"><img src="logo\.png" alt="" width="40" height="40"><span>Savlivo Internal Analytics<\/span><\/h1>/);
+  assert.deepEqual(readFileSync(new URL("logo.png",import.meta.url)),readFileSync(new URL("../assets/logo.png",import.meta.url)));
+  const headers=readFileSync(new URL("deploy/webhuset-admin.htaccess",import.meta.url),"utf8");
+  const rule=headers.match(/^RewriteRule !([^ ]+) - \[F,L\]$/m);
+  assert.ok(rule);
+  const allowed=new RegExp(rule[1]);
+  for(const path of ["","index.html","admin.js","admin.css","logo.png"])assert.ok(allowed.test(path),path);
+  for(const path of ["other.png","logo.png/private","assets/logo.png","admin.test.mjs",".env"])assert.equal(allowed.test(path),false,path);
+  for(const policy of [headers,html])assert.ok(policy.includes("img-src 'self';"));
+  assert.ok(headers.includes("default-src 'none';"));
+  const css=readFileSync(new URL("admin.css",import.meta.url),"utf8");
+  assert.match(css,/\.brand-heading\{display:flex;align-items:center;gap:\.4em\}/);
+  assert.match(css,/width:1\.25em;height:1\.25em;object-fit:contain;flex-shrink:0/);
+});

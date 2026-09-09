@@ -77,6 +77,7 @@ After separate approval, upload exactly:
 | apps/web/admin/index.html | /subdomener/admin/index.html |
 | apps/web/admin/admin.js | /subdomener/admin/admin.js |
 | apps/web/admin/admin.css | /subdomener/admin/admin.css |
+| apps/web/admin/logo.png (byte-for-byte copy of apps/web/assets/logo.png) | /subdomener/admin/logo.png |
 | apps/web/admin/deploy/webhuset-admin.htaccess | /subdomener/admin/.htaccess |
 
 Do not upload tests, source maps, documentation, server code or the whole apps/web
@@ -87,9 +88,9 @@ The artifact requires Apache 2.4 mod_rewrite/mod_headers and AllowOverride permi
 for Options, DirectoryIndex, rewrite and Header directives. Unsupported directives
 must fail closed, not be silently omitted. Confirm with Webhuset before exposure.
 It denies directory listings, alternate Host values and all files except the three
-client assets/root; redirects HTTP to the fixed HTTPS hostname; and sets:
+client assets, the unchanged logo and root; redirects HTTP to the fixed HTTPS hostname; and sets:
 
-- CSP: default-src 'none'; script-src 'self'; style-src 'self';
+- CSP: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self';
   connect-src https://savlivo-api.onrender.com; base-uri 'none'; form-action 'none';
   frame-ancestors 'none'; object-src 'none'.
 - X-Frame-Options: DENY; X-Content-Type-Options: nosniff.
