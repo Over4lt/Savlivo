@@ -1,3 +1,4 @@
+import { recordV2 } from "./analytics-v2.js";
 import { parseAnalyticsEvent, type AnalyticsEvent } from "../../../packages/contracts/src/analytics.js";
 import { privateDataPool as pool } from "./private-data-db.js";
 
@@ -32,6 +33,7 @@ export const recordAnalytics = createEventRecorder(async (userId, event, days) =
   ) INSERT INTO analytics_events(actor_id,event,market,service,category,platform,expires_at)
     SELECT id,$2,$3,$4,$5,$6,now()+$7*interval '1 day' FROM actor`,
     values: [userId,event.event,event.market,event.service ?? null,event.category ?? null,event.platform,days], query_timeout: 1500} as import("pg").QueryConfig & {query_timeout: number});
+  if(event.event==="catalog_no_result")recordV2(userId,{kind:"no_result"});
 });
 
 // Run independently after migration, including when collection has subsequently been disabled.

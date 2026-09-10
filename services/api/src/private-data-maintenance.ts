@@ -1,3 +1,4 @@
+import { maintainV2 } from "./analytics-v2.js";
 import { privateDataPool as pool } from "./private-data-db.js";
 import { expireAnalytics, retentionDays } from "./analytics.js";
 import { countryCurrencies } from "../../../packages/contracts/src/markets.js";
@@ -41,6 +42,8 @@ export async function maintainPrivateData() {
       await expireAnalytics();
     }
   } catch {console.warn("Private data retention unavailable; operator attention required.");}
+  try {await maintainV2();}
+  catch {console.warn("Analytics v2 maintenance unavailable; customer operations remain independent.");}
   try {if(process.env.PRICING_HISTORY_ENABLED==="true")await observeVerifiedPrices();}
   catch {console.warn("Verified price observation unavailable; current pricing remains unchanged.");}
   finally {running=false;}

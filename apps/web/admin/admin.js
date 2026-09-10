@@ -5,6 +5,7 @@ const api = location.origin === "https://admin.savlivo.com"
     ? "http://localhost:3000" : null;
 let token = null;
 let generation = 0;
+let analyticsRange="30d", analyticsMonth="", analyticsSegment="top-services";
 let expiryTimer;
 let browserAbort;
 const $ = id => document.getElementById(id);
@@ -29,8 +30,8 @@ async function request(path, options = {}) {
   return response.json();
 }
 function paragraph(parent,text) {const p=document.createElement("p");p.textContent=text;parent.append(p);}
-function table(title, columns, rows) {
-  const parent=$("results"); const heading=document.createElement("h2");heading.textContent=title;parent.append(heading);
+function table(title, columns, rows, parent=$("results")) {
+  const heading=document.createElement("h2");heading.textContent=title;parent.append(heading);
   if (!rows.length) {paragraph(parent,"No reportable data.");return;}
   const wrap=document.createElement("div");wrap.className="table-wrap";
   const element=document.createElement("table"), head=document.createElement("thead"), body=document.createElement("tbody");
@@ -49,7 +50,15 @@ async function refresh() {
     for(const note of data.notes)paragraph($("results"),note);
     paragraph($("results"),`Data quality: ${data.dataQuality.selectableMarkets} selectable markets; ${data.dataQuality.registryRows} registry fallbacks in scope.`);
     table("Persisted provider-price records (not user spending)",[["verification","Verification"],["prices","Prices"]],data.dataQuality.persistedPrices);
-    paragraph($("results"),"Savlivo revenue, conversion, retention and named missing-service demand are unavailable. No raw conversation or user portfolio viewer is provided.");message("Loaded.");
+    if(data.analyticsV2Enabled) {
+      const analytics=await request(`analytics?range=${encodeURIComponent(analyticsRange)}`);
+      if(current!==generation || !token)return;
+      if(!analytics.months.includes(analyticsMonth))analyticsMonth=analytics.months[0];
+      const segments=await request(`analytics/segments?report=${encodeURIComponent(analyticsSegment)}&month=${encodeURIComponent(analyticsMonth)}`);
+      if(current!==generation || !token)return;
+      renderAnalytics(analytics,segments);
+    } else paragraph($("results"),"Analytics v2 is disabled. No user-level viewer is provided.");
+    message("Loaded.");
   } catch(error) {if(current===generation)message(error.message);}
 }
 function from64(value) {
@@ -117,3 +126,82 @@ $("logout").addEventListener("click",async()=>{
   catch {if(!token)message("Signed out locally. Any unreachable server session expires within 15 minutes.");}
 });
 window.addEventListener("pagehide",clearSession);
+
+function analyticsSection(title) {
+  const section=document.createElement("section"),heading=document.createElement("h2");heading.textContent=title;section.append(heading);$("results").append(section);return section;
+}
+function renderAnalytics(data,segments) {
+  const controls=document.createElement("form");controls.className="analytics-controls";
+  function select(labelText,values,value,onChange) {
+    const label=document.createElement("label"),select=document.createElement("select");label.textContent=labelText;
+    for(const value of values){const option=document.createElement("option");option.value=value;option.textContent=value;select.append(option);}
+    select.value=value;select.addEventListener("change",()=>onChange(select.value));label.append(select);controls.append(label);
+  }
+  select("Global range",["7d","30d","90d","12m"],analyticsRange,value=>{analyticsRange=value;});
+  select("Closed month (Product only)",data.months,analyticsMonth,value=>{analyticsMonth=value;});
+  select("Segment report",["top-services","selected-markets"],analyticsSegment,value=>{analyticsSegment=value;});
+  const button=document.createElement("button");button.textContent="Update analytics";controls.append(button);
+  controls.addEventListener("submit",event=>{event.preventDefault();refresh();});$("results").append(controls);
+  const growth=analyticsSection("Growth");
+  paragraph(growth,`Current accounts: ${data.current.total}. Excludes accounts scheduled for deletion; not active users.`);
+  paragraph(growth,`Active users: unavailable. ${data.unavailable.activeUsers}`);
+  paragraph(growth,`D7 / D30 retention: unavailable. ${data.unavailable.retention}`);
+  const flow=(metric)=>data.history.some(bucket=>bucket.flows?.[metric]!==undefined)
+    ? data.history.reduce((sum,bucket)=>sum+(bucket.flows?.[metric]??0),0) : "Unavailable";
+  paragraph(growth,`Recorded new accounts in range: ${flow("new_account")}. Forward-only; gaps are not reconstructed.`);
+  table("Recorded account creation",[["period","Period"],["count","Accounts created"]],data.history.map(bucket=>({period:bucket.period,count:bucket.flows?.new_account??"Unavailable"})),growth);
+  const plans=analyticsSection("Plans");
+  if(data.current.state==="data-quality-issue")paragraph(plans,`Data-quality issue: ${data.current.unclassified} unclassified entitlement states. Percentages unavailable.`);
+  table("Current plan membership",[["plan","Plan"],["count","Accounts"],["share","Share"]],
+    ["preview","manual","premium"].map(key=>({plan:key==="preview"?"Preview":key==="manual"?"Manual":"Premium",count:data.current[key],
+      share:data.current.percentages?.[key]==null?"Unavailable":`${data.current.percentages[key].toFixed(1)}%`})),plans);
+  paragraph(plans,`Paid-plan membership: ${data.current.paid}. Paid share: ${data.current.paidPercentage==null?"Unavailable":`${data.current.paidPercentage.toFixed(1)}%`}. This is not revenue or payment collection.`);
+  paragraph(plans,"Plan history: actual observed stocks, not daily sums. Gaps are unavailable; no interpolation. Monthly points use only the last calendar day's recorded observation.");
+  planGraph(plans,data.history);
+  table("Plan history values",[["period","Period"],["observedAt","Observed at"],["preview","Preview"],["manual","Manual"],["premium","Premium"]],
+    data.history.map(bucket=>({period:bucket.period,observedAt:bucket.plans.observedAt??"Unavailable",...Object.fromEntries(["preview","manual","premium"].map(key=>[key,bucket.plans[key]??"Unavailable"]))})),plans);
+  table("Recorded entitlement changes",[["transition","Transition"],["count","Changes"]],[
+    ["VIEWER_MANUAL","Preview → Manual"],["VIEWER_PREMIUM","Preview → Premium"],["MANUAL_PREMIUM","Manual → Premium"],
+    ["PREMIUM_MANUAL","Premium → Manual"],["MANUAL_VIEWER","Manual → Preview"],["PREMIUM_VIEWER","Premium → Preview"]
+  ].map(([metric,transition])=>({transition,count:flow(metric)})),plans);
+  paragraph(plans,"Only authoritative changes at verified purchase persistence are observed. Automatic expiry/end-of-paid-status has no authoritative history hook and is unavailable.");
+  const product=analyticsSection("Product");
+  paragraph(product,`Collection ${data.collectionEnabled?"enabled":"disabled"}. History: ${data.historyState??"forward-only"}. ${data.semantics}`);
+  paragraph(product,`Recorded no-result searches: ${flow("no_result")}. ${data.unavailable.noResult}`);
+  const aiCount=metric=>{
+    const values=data.history.map(bucket=>bucket.flows?.[metric]).filter(value=>value!==undefined&&value!==null);
+    if(!values.length||values.some(value=>!Number.isSafeInteger(value)||value<0))return "Unavailable";
+    const total=values.reduce((sum,value)=>sum+value,0);
+    return Number.isSafeInteger(total)?total:"Unavailable";
+  };
+  const successes=aiCount("ai_success"),failures=aiCount("ai_failure"),fallbacks=aiCount("ai_fallback");
+  const outcomes=[successes,failures,fallbacks];
+  const total=outcomes.every(Number.isSafeInteger)?outcomes.reduce((sum,value)=>sum+value,0):null;
+  const requests=Number.isSafeInteger(total)?total:null;
+  const rate=count=>Number.isSafeInteger(count)&&requests!==null&&requests>0
+    ? `${(count/requests*100).toFixed(1)}%`:"Unavailable";
+  paragraph(product,`AI route completions: ${successes}; AI route failures: ${failures}. Counts measure endpoint outcomes, not conversation quality or device sessions. Missing observations are unavailable.`);
+  paragraph(product,`Recorded AI requests: ${requests??"Unavailable"}; offline navigation fallbacks: ${fallbacks}. Recorded failure rate: ${rate(failures)}; recorded fallback rate: ${rate(fallbacks)}. These rates use captured outcomes only; queue loss may bias them.`);
+  paragraph(product,`Registered enabled push endpoints: ${data.push?.state==="available"?data.push.registeredEnabledEndpoints:"Unavailable"}. Endpoint rows are not distinct people, OS permission or device delivery. ${data.unavailable.push}`);
+  paragraph(product,`Technical health: unavailable beyond recorded AI route failures. ${data.unavailable.technicalHealth}`);
+  paragraph(product,`Selected-market activity means the selected Savlivo view, not location. Accounts may use multiple markets; these are not an additive geography breakdown.`);
+  if(segments.state==="available") {
+    paragraph(product,`${segments.month}: ${segments.semantics} Suppressed cells include zero and are never shown as a numeric range.`);
+    paragraph(product,"Remaining service rows are suppressed / unavailable; no exact remainder or percentage is exposed.");
+    table("Global canonical services added",[["service","Service"],["contributors","Distinct contributors"]],segments.cells.filter(cell=>cell.state==="available").map(cell=>({service:cell.service,contributors:cell.contributors})),product);
+  } else paragraph(product,`${segments.report} (${segments.month}): unavailable — ${segments.reason}`);
+}
+function planGraph(parent,history) {
+  if(!history.some(bucket=>bucket.plans.state==="available")) {paragraph(parent,"Insufficient plan history. Collection starts forward-only after explicit activation.");return;}
+  const ns="http://www.w3.org/2000/svg",svg=document.createElementNS(ns,"svg");
+  svg.setAttribute("viewBox","0 0 800 220");svg.setAttribute("role","img");svg.setAttribute("aria-label","Plan membership observations. Preview, Manual and Premium. Exact values and timestamps follow in the table.");svg.setAttribute("class","plan-graph");
+  const keys=["preview","manual","premium"],max=Math.max(1,...history.flatMap(b=>keys.map(k=>b.plans[k]??0)));
+  for(const [i,bucket] of history.entries())for(const key of keys) {
+    if(bucket.plans.state!=="available")continue;
+    const point=document.createElementNS(ns,"circle"),title=document.createElementNS(ns,"title");
+    point.setAttribute("cx",String(20+i*760/Math.max(1,history.length-1)));point.setAttribute("cy",String(200-bucket.plans[key]/max*180));
+    point.setAttribute("r",key==="preview"?"6":key==="manual"?"4":"2");point.setAttribute("class",key);
+    title.textContent=`${bucket.period}: ${key} ${bucket.plans[key]}`;point.append(title);svg.append(point);
+  }
+  parent.append(svg);paragraph(parent,"Legend: Preview — mint, large dot; Manual — blue, medium dot; Premium — amber, small dot. Vertical scale: 0 to "+max+" accounts. Dots are not connected across missing history.");
+}

@@ -8,13 +8,14 @@ class Element {
   append(...children){this.children.push(...children);this.options.push(...children);}
   replaceChildren(...children){this.children=children;}
   addEventListener(name,handler){this.listeners[name]=handler;}
+  setAttribute(key,value){this[key]=value;}
   set innerHTML(_){throw new Error("HTML injection");}
 }
 function harness(fetch, credentials, page={hostname:"localhost",protocol:"http:",origin:"http://localhost:8080"}) {
   const nodes=Object.fromEntries(["login","register","enrollment","revoke","message","dashboard","filters","market","logout","results"].map(id=>[id,new Element()]));
   nodes.market.options=[new Element()];
   const mockCredential={id:"AA",rawId:new Uint8Array([0]).buffer,type:"public-key",getClientExtensionResults:()=>({}),response:{clientDataJSON:new Uint8Array([0]).buffer,authenticatorData:new Uint8Array([0]).buffer,signature:new Uint8Array([0]).buffer,userHandle:new Uint8Array([0]).buffer,attestationObject:new Uint8Array([0]).buffer}};
-  const context={location:page,document:{getElementById:id=>nodes[id],createElement:()=>new Element()},
+  const context={location:page,document:{getElementById:id=>nodes[id],createElement:()=>new Element(),createElementNS:()=>new Element()},
     window:{addEventListener:()=>{},PublicKeyCredential:function(){}},navigator:{credentials:credentials??{get:async()=>mockCredential,create:async()=>mockCredential}},
     fetch:async(url,options)=>url.endsWith("authenticate/options")?response({challengeId:"test",options:{challenge:"AA",rpId:page.hostname,userVerification:"required"}}):fetch(url,options),
     atob,btoa,AbortController,AbortSignal,setTimeout:()=>1,clearTimeout:()=>{},encodeURIComponent};
@@ -138,4 +139,56 @@ test("brand heading uses the unchanged official logo and narrowly permits its st
   const css=readFileSync(new URL("admin.css",import.meta.url),"utf8");
   assert.match(css,/\.brand-heading\{display:flex;align-items:center;gap:\.4em\}/);
   assert.match(css,/width:1\.25em;height:1\.25em;object-fit:contain;flex-shrink:0/);
+});
+
+const analytics={range:"30d",months:["2026-08"],collectionEnabled:false,semantics:"Best effort",current:{state:"available",total:1,preview:0,manual:0,premium:1,paid:1,paidPercentage:100,percentages:{preview:0,manual:0,premium:100}},
+ history:[{period:"2026-09-09",plans:{state:"available",preview:0,manual:0,premium:1,observedAt:"2026-09-09T01:00:00Z"},flows:{ai_success:1}}],
+ unavailable:{activeUsers:"No foreground signal",retention:"No D7/D30 signal",noResult:"Not instrumented",push:"No delivery receipts",technicalHealth:"No request logging"}};
+test("v2 renders exact global one, native graph and honest unavailable states without cross-filters",async()=>{
+  const requests=[];const nodes=harness(async(url)=>{requests.push(url);if(url.endsWith("authenticate/verify"))return response({token:"adm_test",expiresInSeconds:900});
+    if(url.includes("analytics/segments"))return response({state:"unavailable",report:"top-services",month:"2026-08",reason:"insufficient history"});
+    if(url.includes("analytics?"))return response(analytics);return response({...overview,analyticsV2Enabled:true});});
+  await nodes.login.listeners.submit(submit);
+  const texts=e=>[e.textContent,...e.children.flatMap(texts)];const all=texts(nodes.results).join(" ");
+  assert.match(all,/Current accounts: 1/);assert.match(all,/Paid-plan membership: 1/);assert.match(all,/D7 \/ D30 retention: unavailable/);
+  assert.ok(requests.includes("http://localhost:3000/v1/admin/analytics?range=30d"));assert.ok(requests.some(url=>url.endsWith("segments?report=top-services&month=2026-08")));
+  assert.equal(requests.filter(url=>url.includes("analytics")).some(url=>url.includes("market=")),false);
+  assert.doesNotMatch(source,/innerHTML|localStorage|sessionStorage|https:\/\/.*chart/);
+  assert.ok(all.includes("Plan history values"));assert.ok(all.includes("insufficient history"));
+});
+test("logout rejects late v2 response and preserves existing memory-only session behavior",async()=>{
+  let finish;const nodes=harness(async(url,options)=>{
+    if(options.method==="DELETE")return response({ok:true});
+    if(url.endsWith("authenticate/verify"))return response({token:"adm_test",expiresInSeconds:900});
+    if(url.includes("analytics?"))return new Promise(resolve=>{finish=()=>resolve(response(analytics));});
+    return response({...overview,analyticsV2Enabled:true});});
+  const login=nodes.login.listeners.submit(submit);await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(finish);await nodes.logout.listeners.click();finish();await login;
+  assert.equal(nodes.results.children.length,0);assert.equal(nodes.dashboard.hidden,true);
+});
+
+for(const [name,flows,expected] of [
+  ["missing outcomes",{ai_success:7},["7","Unavailable","Unavailable","Unavailable","Unavailable","Unavailable"]],
+  ["observed zero",{ai_success:7,ai_failure:0,ai_fallback:0},["7","0","0","7","0.0%","0.0%"]],
+  ["observed failure",{ai_success:7,ai_failure:1,ai_fallback:0},["7","1","0","8","12.5%","0.0%"]],
+  ["all unavailable",{},["Unavailable","Unavailable","Unavailable","Unavailable","Unavailable","Unavailable"]],
+  ["zero denominator",{ai_success:0,ai_failure:0,ai_fallback:0},["0","0","0","0","Unavailable","Unavailable"]],
+  ["incomplete denominator",{ai_failure:1,ai_fallback:0},["Unavailable","1","0","Unavailable","Unavailable","Unavailable"]],
+  ["null is unavailable",{ai_success:7,ai_failure:null,ai_fallback:null},["7","Unavailable","Unavailable","Unavailable","Unavailable","Unavailable"]],
+  ["nonfinite rejected",{ai_success:Infinity,ai_failure:0,ai_fallback:0},["Unavailable","0","0","Unavailable","Unavailable","Unavailable"]],
+  ["NaN rejected",{ai_success:NaN,ai_failure:0,ai_fallback:0},["Unavailable","0","0","Unavailable","Unavailable","Unavailable"]],
+  ["overflow denominator",{ai_success:Number.MAX_SAFE_INTEGER,ai_failure:1,ai_fallback:0},[String(Number.MAX_SAFE_INTEGER),"1","0","Unavailable","Unavailable","Unavailable"]]
+])test(`AI outcome presentation: ${name}`,async()=>{
+  const data={...analytics,history:[{...analytics.history[0],flows}]};
+  const nodes=harness(async url=>{
+    if(url.endsWith("authenticate/verify"))return response({token:"adm_test",expiresInSeconds:900});
+    if(url.includes("analytics/segments"))return response({state:"unavailable",report:"top-services",month:"2026-08",reason:"insufficient history"});
+    if(url.includes("analytics?"))return response(data);
+    return response({...overview,analyticsV2Enabled:true});
+  });
+  await nodes.login.listeners.submit(submit);
+  const texts=e=>[e.textContent,...e.children.flatMap(texts)],all=texts(nodes.results).join(" ");
+  const [success,failure,fallback,total,failureRate,fallbackRate]=expected;
+  for(const text of [`AI route completions: ${success};`,`AI route failures: ${failure}.`,`Recorded AI requests: ${total};`,`offline navigation fallbacks: ${fallback}.`,`Recorded failure rate: ${failureRate};`,`recorded fallback rate: ${fallbackRate}.`])assert.ok(all.includes(text),text);
+  assert.doesNotMatch(all,/NaN%|Infinity%/);
 });

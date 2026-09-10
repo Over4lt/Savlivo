@@ -1,3 +1,4 @@
+import { recordV2 } from "./analytics-v2.js";
 import { maintainPrivateData } from "./private-data-maintenance.js";
 import { supportsManualSubscriptions, subscriptionForClient, subscriptionEditIdentity } from "./subscription-format.js";
 import { handlePrivateData } from "./private-data-http.js";
@@ -620,14 +621,14 @@ const server = http.createServer(async (req, res) => {
                   })
                 )
             }
-          });
-
+          }, undefined, outcome=>recordV2(auth.id,{kind:outcome==="fallback"?"ai_fallback":"ai_success"}));
         return send(
           res,
           200,
           result
         );
       } catch (err) {
+        recordV2(auth.id,{kind:"ai_failure"});
         const message =
           err instanceof Error
             ? err.message

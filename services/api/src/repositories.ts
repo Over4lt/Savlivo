@@ -1,3 +1,4 @@
+import { recordV2 } from "./analytics-v2.js";
 import { validateManualSubscription } from "../../../packages/contracts/src/discovery.js";
 import { pool } from "./db.js";
 import type { SavlivoPlan, ActionType } from "../../../packages/contracts/src/index.js";
@@ -20,6 +21,7 @@ export async function createUser(email: string, passwordHash: string) {
     );
 
     await client.query("COMMIT");
+    recordV2(user.id,{kind:"new_account"});
     return user;
   } catch (err) {
     await client.query("ROLLBACK");
@@ -399,6 +401,7 @@ export async function addSubscription(args: {
     throw new Error("UNKNOWN_SERVICE_OR_BILLING_PROVIDER");
   }
 
+  recordV2(args.userId,{kind:"service_added",service:args.serviceSlug});
   return getSubscription(args.userId, result.rows[0].id);
 }
 

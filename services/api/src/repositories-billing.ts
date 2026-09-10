@@ -1,3 +1,4 @@
+import { captureTransitionPlan, recordV2 } from "./analytics-v2.js";
 import { pool } from "./db.js";
 
 import type { SavlivoPlan } from "../../../packages/contracts/src/index.js";
@@ -14,6 +15,7 @@ export async function applyVerifiedPurchase(args: {
 
   try {
     await client.query("BEGIN");
+    const previousPlan = await captureTransitionPlan(client,args.userId);
 
     const inserted = await client.query(
       `INSERT INTO purchase_events (
@@ -72,6 +74,7 @@ export async function applyVerifiedPurchase(args: {
     );
 
     await client.query("COMMIT");
+    if(previousPlan && previousPlan!==args.plan)recordV2(args.userId,{kind:"plan_transition",oldPlan:previousPlan,newPlan:args.plan});
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;

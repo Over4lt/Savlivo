@@ -12,6 +12,6 @@
 <label>Enrollment grant (first setup only) <input id="enrollment" type="password" autocomplete="off" maxlength="47"></label>
 <button type="submit">Register passkey</button></details></form>
 <p id="message" role="status" aria-live="polite"></p>
-<section id="dashboard" hidden><form id="filters"><label>Market <select id="market"><option value="">All markets</option></select></label><button>Refresh</button><button id="logout" type="button">Sign out</button><button id="revoke" type="button">Sign out all admin sessions</button></form>
-<p>Only non-personal catalog and provider-price coverage is available. User-derived reports are deferred. Access requires server-authorized passkey enrollment.</p>
+<section id="dashboard" hidden><form id="filters"><label>Provider coverage market <select id="market"><option value="">All markets</option></select></label><button>Refresh</button><button id="logout" type="button">Sign out</button><button id="revoke" type="button">Sign out all admin sessions</button></form>
+<p>Catalog/provider coverage is separate from explicitly enabled aggregate Analytics v2. No individual accounts or portfolios are exposed. Access requires server-authorized passkey enrollment.</p>
 <div id="results"></div></section></main><script type="module" src="admin.js"></script></body></html>

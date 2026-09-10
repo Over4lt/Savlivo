@@ -1,3 +1,4 @@
+import { reportingEnabled, reportFilters, globalReport, segmentReport } from "./analytics-v2.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { privateDataPool as pool } from "./private-data-db.js";
 import { getAuthUser } from "./auth.js";
@@ -58,7 +59,7 @@ async function audit(userId: string, action: string, days: number) {
   await pool.query("INSERT INTO admin_audit(user_id,action,expires_at) VALUES($1,$2,now()+$3*interval '1 day')", [userId,action,days]);
 }
 export function dashboardFilters(url: URL): {market: string | null} {
-  // No time windows or user-derived drilldowns: overlapping queries permit subtraction.
+  // Provider-coverage filters are independent of the closed v2 report surface.
   if ([...url.searchParams.keys()].some(key => key !== "market") ||
     url.searchParams.getAll("market").length > 1) throw new Error("INVALID_FILTER");
   const market = url.searchParams.get("market") || null;
@@ -66,19 +67,18 @@ export function dashboardFilters(url: URL): {market: string | null} {
   return {market};
 }
 export async function dashboardData(market: string | null) {
-  // Deliberately query no accounts, portfolios, actors or events. Suppression alone
-  // cannot protect live aggregates against repeated/overlapping queries.
+  // This original endpoint remains provider-only. V2 aggregates use a separately gated route.
   const storedPrices = await pool.query(`SELECT verification,count(*)::int AS prices FROM verified_provider_prices
     WHERE ($1::text IS NULL OR country_code=$1) GROUP BY verification ORDER BY verification`, [market]);
   return {markets: countryCurrencyData, catalogServices: serviceCatalog.length,
     dataQuality: {selectableMarkets: countryCurrencyData.length, catalogServices: serviceCatalog.length,
       registryRows: Object.entries(verifiedProviderRegistry).filter(([country]) => !market || country === market)
         .reduce((sum,[,rows]) => sum + rows.length,0), persistedPrices: storedPrices.rows},
-    market, collectionEnabled: collectionPolicy() !== null, rawRetentionDays: collectionPolicy(),
+    analyticsV2Enabled: reportingEnabled(), market, collectionEnabled: collectionPolicy() !== null, rawRetentionDays: collectionPolicy(),
     disclosureModel: "non-personal-provider-coverage-only",
     notes: ["Only catalog and provider-price coverage is reported. These are not user spending or Savlivo revenue.",
-      "User-derived events, accounts, entitlements, portfolios, spending and funnels are deferred because overlapping reports can disclose small changes.",
-      "No user-level drilldowns or rolling time windows are available. No anonymity guarantee is claimed."]};
+      "Aggregate Analytics v2 requires separate explicit reporting configuration; provider market filters never apply to it.",
+      "No user-level drilldowns are available. No anonymity guarantee is claimed."]};
 }
 export async function handlePrivateData(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
   let url: URL;
@@ -141,6 +141,13 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
       await revokeAdminSessions(userId);
       await audit(userId,"sessions_revoked",config.days);
       respond(res,200,{ok:true});return true;
+    }
+    if (["/v1/admin/analytics", "/v1/admin/analytics/segments"].includes(url.pathname) && req.method === "GET") {
+      if (!reportingEnabled()) {respond(res,404,{error:"NOT_FOUND"});return true;}
+      const segmented=url.pathname.endsWith("/segments");
+      const filters=reportFilters(url.searchParams,segmented);
+      await audit(userId,"dashboard_read",config.days); // Mandatory before any operational/aggregate read.
+      respond(res,200,segmented ? await segmentReport(filters.report!,filters.month!) : await globalReport(filters.range!));return true;
     }
     if (url.pathname === "/v1/admin/overview" && req.method === "GET") {
       const {market} = dashboardFilters(url);

@@ -70,3 +70,9 @@ li {margin:.4rem 0;color:var(--muted)}
   #filters > button {flex:1 1 100%}
   th,td {padding:.65rem .75rem}
 }
+
+.analytics-controls {display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end;margin-top:1.5rem}
+.plan-graph {display:block;width:100%;height:auto;background:var(--bg);border:1px solid var(--border);border-radius:12px}
+.plan-graph .preview {fill:#d5f4e3}
+.plan-graph .manual {fill:#8fb7e5}
+.plan-graph .premium {fill:#f1c879}

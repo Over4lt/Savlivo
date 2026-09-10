@@ -1,3 +1,5 @@
+> 2026-09-10 superseding product decision: [Analytics v2 policy](analytics-v2-policy.md) permits exact global first-party aggregates and restricted closed-month segments. Older zero-inference prohibitions below are preserved as historical decisions, not the current v2 policy. Passkey, audit, retention and explicit activation safeguards remain. No production activation is authorized.
+
 > Current production hosting preparation: [production-admin-hosting.md](production-admin-hosting.md). Its exact-host configuration supersedes the historical localhost-only gates below. The operator confirms production migrations 011–015 are already applied; do not rerun them. No activation is authorized.
 
 # Privacy-first data foundation: audit and activation decisions
