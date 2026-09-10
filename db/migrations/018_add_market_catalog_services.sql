@@ -1,0 +1,35 @@
+-- Canonical identities only; no user records, prices or management routes.
+BEGIN;
+INSERT INTO services (slug, name) VALUES
+  ('apple-arcade', 'Apple Arcade'),
+  ('u-next', 'U-NEXT'),
+  ('hulu-japan', 'Hulu Japan'),
+  ('dmm-tv', 'DMM TV'),
+  ('tving', 'TVING'),
+  ('melon', 'Melon'),
+  ('crave', 'Crave'),
+  ('tsn', 'TSN'),
+  ('sportsnet-plus', 'Sportsnet+'),
+  ('siriusxm-canada', 'SiriusXM Canada'),
+  ('shahid', 'Shahid'),
+  ('anghami', 'Anghami'),
+  ('stc-tv', 'stc tv'),
+  ('tod', 'TOD'),
+  ('vix', 'ViX'),
+  ('vidio', 'Vidio'),
+  ('vision-plus', 'VISION+'),
+  ('gain', 'GAİN'),
+  ('exxen', 'Exxen'),
+  ('dstv-stream', 'DStv Stream'),
+  ('sting-plus', 'STING+'),
+  ('yes-plus', 'yes+'),
+  ('watch-it', 'WATCH IT'),
+  ('fpt-play', 'FPT Play'),
+  ('voyo-ro', 'VOYO Romania'),
+  ('antenaplay', 'AntenaPLAY'),
+  ('magenta-tv-gr', 'MagentaTV Greece'),
+  ('cinobo', 'Cinobo'),
+  ('zapping', 'Zapping'),
+  ('win-play', 'Win Play')
+ON CONFLICT (slug) DO NOTHING;
+COMMIT;

@@ -1,4 +1,4 @@
-import { catalogManagementDestination } from "../../../packages/contracts/src/catalog";
+import { catalogManagementDestination, catalogWebManagementDestination } from "../../../packages/contracts/src/catalog";
 import { Linking } from "react-native";
 
 export type SubscriptionAction =
@@ -365,7 +365,7 @@ export function getSubscriptionManagementUrl({
     serviceManagement[serviceSlug];
 
   if (!config) {
-    return null;
+    return catalogWebManagementDestination(serviceSlug, countryCode ?? "", billing);
   }
 
   if (

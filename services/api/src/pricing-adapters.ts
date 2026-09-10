@@ -1,3 +1,4 @@
+import { verifiedExpansionPrices } from "./verified-expansion-prices.js";
 export type BillingProviderSlug =
   | "direct"
   | "apple"
@@ -661,6 +662,9 @@ export const verifiedProviderRegistry: Record<
     {"serviceSlug": "apple-tv-plus", "planName": "Apple TV", "currency": "AED", "monthlyPriceMinor": 2799, "sourceUrl": "https://www.apple.com/ae/apple-tv/", "billingProviderSlug": "apple"},
     {"serviceSlug": "google-one", "planName": "Storage 100 GB", "currency": "AED", "monthlyPriceMinor": 749, "sourceUrl": "https://one.google.com/intl/ALL_ae/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
     {"serviceSlug": "google-one", "planName": "Storage 200 GB", "currency": "AED", "monthlyPriceMinor": 1099, "sourceUrl": "https://one.google.com/intl/ALL_ae/about/feeds/pricing_2026_07_28.json", "billingProviderSlug": "direct"},
+    // Official UAE recurring amounts, excluding trial and prepaid offers (2026-09-10).
+    {serviceSlug:"spotify",planName:"Standard",currency:"AED",monthlyPriceMinor:2399,sourceUrl:"https://www.spotify.com/ae-en/premium/",billingProviderSlug:"direct"},
+    {serviceSlug:"spotify",planName:"Platinum",currency:"AED",monthlyPriceMinor:5999,sourceUrl:"https://www.spotify.com/ae-en/premium/",billingProviderSlug:"direct"},
   ],
   TH: [
     {"serviceSlug": "icloud-plus", "planName": "50 GB", "currency": "THB", "monthlyPriceMinor": 3500, "sourceUrl": "https://support.apple.com/en-us/108047", "billingProviderSlug": "apple"},
@@ -1375,6 +1379,12 @@ export const verifiedProviderRegistry: Record<
     // the matching official offer explicitly states the ordinary 169 NOK/month price.
     { serviceSlug: "viaplay", planName: "Viaplay Film & Serier", currency: "NOK", monthlyPriceMinor: 16900,
       sourceUrl: "https://viaplay.no/no-nb/lyko", billingProviderSlug: "direct" },
+    // Official NO/NOK ordinary recurring prices; promotions excluded (2026-09-09).
+    {"serviceSlug": "storytel", "planName": "Unlimited", "currency": "NOK", "monthlyPriceMinor": 21900, "sourceUrl": "https://www.storytel.com/no/subscriptions", "billingProviderSlug": "direct"},
+    {"serviceSlug": "storytel", "planName": "Premium", "currency": "NOK", "monthlyPriceMinor": 18900, "sourceUrl": "https://www.storytel.com/no/subscriptions", "billingProviderSlug": "direct"},
+    {"serviceSlug": "storytel", "planName": "Family Unlimited (3 kontoer)", "currency": "NOK", "monthlyPriceMinor": 34900, "sourceUrl": "https://www.storytel.com/no/subscriptions", "billingProviderSlug": "direct"},
+    {"serviceSlug": "storytel", "planName": "Family Unlimited (2 kontoer)", "currency": "NOK", "monthlyPriceMinor": 28900, "sourceUrl": "https://www.storytel.com/no/subscriptions", "billingProviderSlug": "direct"},
+    {"serviceSlug": "storytel", "planName": "Basic", "currency": "NOK", "monthlyPriceMinor": 14900, "sourceUrl": "https://www.storytel.com/no/subscriptions", "billingProviderSlug": "direct"},
   ],
   US: [
     {
@@ -2538,6 +2548,11 @@ export const verifiedProviderRegistry: Record<
     }
   ]
 };
+
+// Append only: every pre-existing registry row and resolver remains unchanged.
+for (const { countryCode, verifiedAt: _observedAt, ...row } of verifiedExpansionPrices) {
+  (verifiedProviderRegistry[countryCode] ??= []).push(row);
+}
 
 function registryPrices(
   serviceSlug: string,
@@ -11519,7 +11534,18 @@ function regionalStoreEstimatedAdapter(
 }
 
 export const providerAdapters = {
+  "dmm-tv": async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("dmm-tv", ctx)),
+  "zapping": async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("zapping", ctx)),
+  "dstv-stream": async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("dstv-stream", ctx)),
+  "rtl-plus": async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("rtl-plus", ctx)),
+  "u-next": async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("u-next", ctx)),
+  "videoland": async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("videoland", ctx)),
+  "vix": async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("vix", ctx)),
+  "watch-it": async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("watch-it", ctx)),
+  "win-play": async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("win-play", ctx)),
+
   // Registry-only launch; use the existing resolver to retain explicit verification metadata.
+  storytel: async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("storytel", ctx)),
   viaplay: async (ctx: AdapterContext) => resolvePriceCandidates(ctx, registryCandidates("viaplay", ctx)),
   "tencent-video": chinaStoreEstimatedAdapter("tencent-video"),
   iqiyi: chinaStoreEstimatedAdapter("iqiyi"),

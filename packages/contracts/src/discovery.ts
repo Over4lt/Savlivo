@@ -45,6 +45,9 @@ export function validateAddSubscriptionIntent(value: unknown, countryCode: strin
   const service=resolveCatalogCandidate({serviceQuery:v.serviceQuery,countryCode,currency},[]);
   if(service.kind==="ambiguous")return null;
   if(service.kind==="unknown")return {kind:"manual" as const,customServiceName:v.serviceQuery.trim().slice(0,100),countryCode,currency,requiresConfirmation:true as const};
+  if (!service.availableForSelection) return {kind:"manual" as const,
+    customServiceName:serviceCatalog.find(entry=>entry.slug===service.serviceSlug)!.name,
+    countryCode,currency,requiresConfirmation:true as const};
   const requestedRoute=typeof v.billingProviderSlug==="string" ? v.billingProviderSlug : undefined;
   const route=requestedRoute && isBillingProviderAllowed(service.serviceSlug,requestedRoute) ? requestedRoute : undefined;
   // An explicit unsupported route stays unresolved, rather than silently becoming direct.

@@ -1,3 +1,4 @@
+import { webEvidenceFor } from "./catalog-web-management";
 import { countryCurrencyData, countryCurrencies, expansionServiceAvailable } from "./markets";
 
 // Canonical identities shared by existing manual selection and future AI discovery.
@@ -49,12 +50,15 @@ export type CatalogService = {
   slug: string; name: string; aliases: readonly string[];
   categories: readonly CatalogCategory[]; legacyGroup: string;
   launchMarkets?: readonly string[];
+  additionalAvailability?: {markets:readonly string[];sourceUrl:string;verifiedAt:string};
   management?: {countryCode:string;billingProviderSlug:string;url:string;kind:"instructions"}[];
 };
 export const serviceCatalog: readonly CatalogService[] = [
   {
     "slug": "netflix",
     "name": "Netflix",
+    additionalAvailability: {markets:["GB","AU","NZ","CH","PL","BR","CZ","MY","IN","SG","HK","TW","AE","TH","PH"],
+      sourceUrl:"https://help.netflix.com/en/node/14164",verifiedAt:"2026-09-10"},
     "aliases": [],
     "categories": [
       "video"
@@ -167,6 +171,8 @@ export const serviceCatalog: readonly CatalogService[] = [
   {
     "slug": "spotify",
     "name": "Spotify",
+    additionalAvailability:{markets:["IN","SG","HK","TW","AE","TH","PH","AU","NZ"],
+      sourceUrl:"https://support.spotify.com/us/article/where-spotify-is-available/",verifiedAt:"2026-09-10"},
     "aliases": [],
     "categories": [
       "music-audio"
@@ -484,7 +490,50 @@ export const serviceCatalog: readonly CatalogService[] = [
       "kind": "instructions"
     }
   ]
-}
+},
+  {
+    slug: "storytel", name: "Storytel", aliases: ["story tel"],
+    categories: ["books-audio"], legacyGroup: "music-audio", launchMarkets: ["NO"],
+    management: [{ countryCode: "NO", billingProviderSlug: "direct", kind: "instructions",
+      url: "https://support.storytel.com/hc/en-001/articles/360010486719-Cancel-your-subscription" }]
+  },
+  // Availability-only additions: no plan, price or management capability is
+  // inferred. Evidence and narrower-than-provider launch scope: global-47 audit.
+  {slug:"rtl-plus",name:"RTL+",aliases:["rtl plus"],categories:["video","sports","books-audio"],legacyGroup:"video",launchMarkets:["DE"]},
+  {slug:"videoland",name:"Videoland",aliases:[],categories:["video"],legacyGroup:"video",launchMarkets:["NL"]},
+  {slug:"nintendo-switch-online",name:"Nintendo Switch Online",aliases:["switch online","nintendo online"],categories:["gaming"],legacyGroup:"gaming",launchMarkets:["US","BR","JP","CA","MX","CL","CO"]},
+  {slug:"osn-plus",name:"OSN+",aliases:["osn plus"],categories:["video"],legacyGroup:"video",launchMarkets:["AE","SA","QA","EG"]},
+  {"slug": "apple-arcade", "name": "Apple Arcade", "aliases": ["arcade"], "categories": ["gaming"], "legacyGroup": "gaming", "launchMarkets": ["US", "NO", "SE", "DK", "DE", "ES", "FR", "IT", "PT", "NL", "BE", "AT", "IE", "FI", "GB", "AU", "NZ", "CH", "PL", "BR", "CZ", "MY", "IN", "SG", "TW", "AE", "TH", "PH", "JP", "CA", "SA", "KR", "MX", "ID", "TR", "ZA", "IL", "QA", "EG", "VN", "RO", "GR", "CL", "CO"]},
+  {"slug": "u-next", "name": "U-NEXT", "aliases": ["ユーネクスト", "unext"], "categories": ["video", "books-audio"], "legacyGroup": "video", "launchMarkets": ["JP"]},
+  {"slug": "hulu-japan", "name": "Hulu Japan", "aliases": ["フールー", "hulu japan"], "categories": ["video"], "legacyGroup": "video", "launchMarkets": ["JP"]},
+  {"slug": "dmm-tv", "name": "DMM TV", "aliases": ["DMMプレミアム", "dmm premium"], "categories": ["video"], "legacyGroup": "video", "launchMarkets": ["JP"]},
+  {"slug": "tving", "name": "TVING", "aliases": ["티빙"], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["KR"]},
+  {"slug": "melon", "name": "Melon", "aliases": ["멜론"], "categories": ["music-audio"], "legacyGroup": "music-audio", "launchMarkets": ["KR"]},
+  {"slug": "crave", "name": "Crave", "aliases": [], "categories": ["video"], "legacyGroup": "video", "launchMarkets": ["CA"]},
+  {"slug": "tsn", "name": "TSN", "aliases": [], "categories": ["sports"], "legacyGroup": "video", "launchMarkets": ["CA"]},
+  {"slug": "sportsnet-plus", "name": "Sportsnet+", "aliases": ["sportsnet plus"], "categories": ["sports"], "legacyGroup": "video", "launchMarkets": ["CA"]},
+  {"slug": "siriusxm-canada", "name": "SiriusXM Canada", "aliases": ["sirius xm canada"], "categories": ["music-audio"], "legacyGroup": "music-audio", "launchMarkets": ["CA"]},
+  {"slug": "shahid", "name": "Shahid", "aliases": ["شاهد"], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["AE", "SA", "QA", "EG"]},
+  {"slug": "anghami", "name": "Anghami", "aliases": ["أنغامي"], "categories": ["music-audio"], "legacyGroup": "music-audio", "launchMarkets": ["AE", "SA", "QA", "EG"]},
+  {"slug": "stc-tv", "name": "stc tv", "aliases": ["jawwy tv"], "categories": ["video", "telecom"], "legacyGroup": "video", "launchMarkets": ["SA"]},
+  {"slug": "tod", "name": "TOD", "aliases": [], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["QA"]},
+  {"slug": "vix", "name": "ViX", "aliases": [], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["MX"]},
+  {"slug": "vidio", "name": "Vidio", "aliases": [], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["ID"]},
+  {"slug": "vision-plus", "name": "VISION+", "aliases": ["vision plus"], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["ID"]},
+  {"slug": "gain", "name": "GAİN", "aliases": ["gain"], "categories": ["video"], "legacyGroup": "video", "launchMarkets": ["TR"]},
+  {"slug": "exxen", "name": "Exxen", "aliases": [], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["TR"]},
+  {"slug": "dstv-stream", "name": "DStv Stream", "aliases": ["dstv"], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["ZA"]},
+  {"slug": "sting-plus", "name": "STING+", "aliases": ["sting plus", "סטינג"], "categories": ["video"], "legacyGroup": "video", "launchMarkets": ["IL"]},
+  {"slug": "yes-plus", "name": "yes+", "aliases": ["yes plus"], "categories": ["video"], "legacyGroup": "video", "launchMarkets": ["IL"]},
+  {"slug": "watch-it", "name": "WATCH IT", "aliases": ["watchit"], "categories": ["video"], "legacyGroup": "video", "launchMarkets": ["EG"]},
+  {"slug": "fpt-play", "name": "FPT Play", "aliases": [], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["VN"]},
+  {"slug": "voyo-ro", "name": "VOYO Romania", "aliases": ["voyo romania", "voyo"], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["RO"]},
+  {"slug": "antenaplay", "name": "AntenaPLAY", "aliases": ["antena play"], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["RO"]},
+  {"slug": "magenta-tv-gr", "name": "MagentaTV Greece", "aliases": ["cosmote tv", "cosmotetv", "magenta tv greece"], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["GR"]},
+  {"slug": "cinobo", "name": "Cinobo", "aliases": [], "categories": ["video"], "legacyGroup": "video", "launchMarkets": ["GR"]},
+  {"slug": "zapping", "name": "Zapping", "aliases": [], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["CL"]},
+  {"slug": "win-play", "name": "Win Play", "aliases": ["win sports", "win sports online", "winplay"], "categories": ["video", "sports"], "legacyGroup": "video", "launchMarkets": ["CO"]},
+
 ];
 
 // Preserve the current Build 12 presentation labels and ordering.
@@ -535,7 +584,43 @@ export const serviceBillingProviders: Record<
   string,
   readonly BillingProviderSlug[]
 > = {
+  // Explicit supported launch routes; no provider management URL is inferred.
+  "apple-arcade": ["apple"],
+  "u-next": ["direct"],
+  "hulu-japan": ["direct"],
+  "dmm-tv": ["direct", "apple", "google-play"],
+  "tving": ["direct"],
+  "melon": ["direct"],
+  "crave": ["direct"],
+  "tsn": ["direct"],
+  "sportsnet-plus": ["direct"],
+  "siriusxm-canada": ["direct"],
+  "shahid": ["direct"],
+  "anghami": ["direct"],
+  "stc-tv": ["direct"],
+  "tod": ["direct"],
+  "vix": ["direct"],
+  "vidio": ["direct"],
+  "vision-plus": ["direct"],
+  "gain": ["direct"],
+  "exxen": ["direct"],
+  "dstv-stream": ["direct"],
+  "sting-plus": ["direct"],
+  "yes-plus": ["direct"],
+  "watch-it": ["direct"],
+  "fpt-play": ["direct"],
+  "voyo-ro": ["direct"],
+  "antenaplay": ["direct"],
+  "magenta-tv-gr": ["direct"],
+  "cinobo": ["direct"],
+  "zapping": ["direct"],
+  "win-play": ["direct"],
   viaplay: ["direct", "apple", "carrier"],
+  storytel: ["direct"],
+  "rtl-plus": ["direct"],
+  videoland: ["direct"],
+  "nintendo-switch-online": ["direct"],
+  "osn-plus": ["direct"],
   // VIDEO
   netflix: [
     "direct",
@@ -864,8 +949,11 @@ export function serviceAvailableInMarket(
   serviceSlug: string,
   countryCode: string
 ) {
+  // Availability fact only; web eligibility is separate. Never filter saved subscriptions here.
+  if (!catalogBySlug.has(serviceSlug) || !countryCurrencyData.some(([code]) => code === countryCode)) return false;
   const launchMarkets = catalogBySlug.get(serviceSlug)?.launchMarkets;
   if (launchMarkets) return launchMarkets.includes(countryCode);
+  if (catalogBySlug.get(serviceSlug)?.additionalAvailability?.markets.includes(countryCode)) return true;
   const expansionAvailability = expansionServiceAvailable(serviceSlug, countryCode);
   if (expansionAvailability !== undefined) return expansionAvailability;
 
@@ -896,18 +984,43 @@ const catalogBySlug = new Map(serviceCatalog.map(service => [service.slug, servi
 export const catalogDiscoveryPolicy = { defaultLimit: 12, searchLimit: 30, rankEvidence: "unranked" } as const;
 
 const searchIndex = serviceCatalog.map(service => ({
-  service, keys: [...new Set([service.name, service.slug, ...service.aliases].map(normalizeCatalogText))]
+  service, name: normalizeCatalogText(service.name), keys: [...new Set([service.name, service.slug, ...service.aliases].map(normalizeCatalogText))]
 }));
+
+// New discovery only. Availability, pricing and saved identities are independent.
+export function serviceEligibleForCatalog(serviceSlug: string, countryCode: string) {
+  const evidence = webEvidenceFor(serviceSlug, countryCode);
+  return serviceAvailableInMarket(serviceSlug, countryCode) &&
+    evidence?.startWeb.status === "VERIFIED" && evidence.cancelWeb.status === "VERIFIED";
+}
+export function catalogManagementEligibility(serviceSlug: string, countryCode: string, verifiedDirectPrice = false) {
+  const evidence = webEvidenceFor(serviceSlug, countryCode);
+  if (evidence?.startWeb.status === "NOT_WEB" || evidence?.cancelWeb.status === "NOT_WEB") return "NOT_CATALOG_ELIGIBLE" as const;
+  if (!serviceEligibleForCatalog(serviceSlug, countryCode)) return "REVIEW_REQUIRED" as const;
+  return verifiedDirectPrice ? "FULLY_VERIFIED" as const : "CATALOG_ELIGIBLE_PRICE_UNVERIFIED" as const;
+}
+// Additive fallback only; existing provider/store destinations take precedence.
+export function catalogWebManagementDestination(serviceSlug: string, countryCode: string, billingProvider: string) {
+  if (billingProvider !== "direct") return null;
+  const evidence = webEvidenceFor(serviceSlug, countryCode);
+  return evidence?.cancelWeb.status === "VERIFIED" ? evidence.cancelWeb.url ?? null : null;
+}
 
 export function searchCatalog(query: string, countryCode: string, options: {limit?: number; category?: CatalogCategory} = {}) {
   const q=normalizeCatalogText(query);
   const limit=Math.max(0,Math.min(50,Math.floor(options.limit ?? 20)));
   return searchIndex.filter(({service,keys}) =>
+    serviceEligibleForCatalog(service.slug,countryCode) &&
     (!options.category || service.categories.includes(options.category)) &&
     (q ? keys.some(key=>key.includes(q)) : serviceAvailableInMarket(service.slug,countryCode)))
     .sort((a,b)=>{
-      const exact=(entry:typeof a)=>q && entry.keys.includes(q) ? 1 : 0;
-      return Number(exact(b))-Number(exact(a)) ||
+      // Names outrank aliases: short prefixes such as "ne" must prefer Netflix.
+      // No fuzzy provider selection. Availability breaks ties, never changes identity.
+      const rank = (entry: typeof a) => !q ? 0 : entry.name === q ? 0
+        : entry.name.startsWith(q) ? 1
+        : entry.name.split(" ").some(word => word.startsWith(q)) ? 2
+        : entry.name.includes(q) ? 3 : 4;
+      return rank(a)-rank(b) ||
         Number(serviceAvailableInMarket(b.service.slug,countryCode))-Number(serviceAvailableInMarket(a.service.slug,countryCode)) ||
         a.service.name.localeCompare(b.service.name);
     }).slice(0,limit).map(({service})=>service);
@@ -942,8 +1055,8 @@ export function resolveCatalogCandidate(input: {
   const proven=identities.size===1 ? matching[0] : undefined;
   return {
     kind:"service" as const,serviceSlug:service.slug,countryCode:input.countryCode,currency:input.currency,
-    availableForSelection:countryCurrencyData.some(([cc,,cur])=>cc===input.countryCode&&cur===input.currency)&&serviceAvailableInMarket(service.slug,input.countryCode),
-    prefill:proven ? {planName:proven.planName,billingProviderSlug:proven.billingProviderSlug,monthlyPriceMinor:proven.monthlyPriceMinor} : {},
+    availableForSelection:countryCurrencyData.some(([cc,,cur])=>cc===input.countryCode&&cur===input.currency)&&serviceEligibleForCatalog(service.slug,input.countryCode),
+    prefill:proven && serviceEligibleForCatalog(service.slug,input.countryCode) ? {planName:proven.planName,billingProviderSlug:proven.billingProviderSlug,monthlyPriceMinor:proven.monthlyPriceMinor} : {},
     requiresConfirmation:true as const
   };
 }

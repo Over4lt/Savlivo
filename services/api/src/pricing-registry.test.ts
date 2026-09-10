@@ -6,6 +6,7 @@ import {
 } from "./pricing-adapters.js";
 
 const expectedCurrencyByCountry: Record<string, string> = {
+  JP: "JPY", CA: "CAD", SA: "SAR", KR: "KRW", MX: "MXN", ID: "IDR", TR: "TRY", ZA: "ZAR", IL: "ILS", QA: "QAR", EG: "EGP", VN: "VND", RO: "RON", GR: "EUR", CL: "CLP", CO: "COP",
   IN: "INR", SG: "SGD", HK: "HKD", TW: "TWD", AE: "AED", TH: "THB", PH: "PHP",
   MY: "MYR",
   CH: "CHF", PL: "PLN", BR: "BRL", CZ: "CZK",
@@ -114,7 +115,7 @@ test(
 );
 
 test(
-  "registry has no duplicate service-plan rows per country",
+  "registry has no duplicate service-plan-billing rows per country",
   () => {
     for (const [countryCode, rows] of Object.entries(
       verifiedProviderRegistry
@@ -123,7 +124,7 @@ test(
 
       for (const row of rows) {
         const key =
-          `${row.serviceSlug}|${row.planName}`;
+          `${row.serviceSlug}|${row.planName}|${row.billingProviderSlug ?? "direct"}`;
 
         assert.equal(
           seen.has(key),

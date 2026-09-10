@@ -1,0 +1,199 @@
+{
+  "sourceUrl": "https://www.storytel.com/no/subscriptions",
+  "sourceType": "official structured provider page",
+  "verifiedAt": "2026-09-09",
+  "htmlSha256": "4aff62640a103ab79daf956ba75fccf3482b19774f46dd27ff7dfcc3b9996b53",
+  "note": "Only ordinary recurring base plans; expired September 7 promotion and trial prices excluded. Page also describes 30-day charge intervals, not a promise of calendar-month charging.",
+  "plans": [
+    {
+      "productId": "7777",
+      "planName": "Unlimited",
+      "countryCode": "NO",
+      "currency": "NOK",
+      "regularPrice": "219",
+      "regularPeriod": "P1M",
+      "baseBilling": {
+        "type": "RECURRING",
+        "currencyCode": "NOK",
+        "basePrice": 219,
+        "proratedPrice": null,
+        "priceType": "GROSS",
+        "cycle": {
+          "duration": {
+            "amount": 1,
+            "timeUnit": "MONTHS"
+          },
+          "chargeInterval": 30,
+          "chargeDate": null
+        },
+        "discount": {
+          "coupon": null,
+          "requiresUniqueCode": null,
+          "expiresAt": null,
+          "type": null,
+          "steps": []
+        },
+        "metadata": null
+      },
+      "entitlement": {
+        "accessType": "UNLIMITED",
+        "seats": 1,
+        "formatLimitation": null,
+        "timeLimitation": 0
+      },
+      "campaignId": null
+    },
+    {
+      "productId": "120014",
+      "planName": "Premium",
+      "countryCode": "NO",
+      "currency": "NOK",
+      "regularPrice": "189",
+      "regularPeriod": "P1M",
+      "baseBilling": {
+        "type": "RECURRING",
+        "currencyCode": "NOK",
+        "basePrice": 189,
+        "proratedPrice": null,
+        "priceType": "GROSS",
+        "cycle": {
+          "duration": {
+            "amount": 1,
+            "timeUnit": "MONTHS"
+          },
+          "chargeInterval": 30,
+          "chargeDate": null
+        },
+        "discount": {
+          "coupon": null,
+          "requiresUniqueCode": null,
+          "expiresAt": null,
+          "type": null,
+          "steps": []
+        },
+        "metadata": null
+      },
+      "entitlement": {
+        "accessType": "TIME_LIMITED",
+        "seats": 1,
+        "formatLimitation": null,
+        "timeLimitation": 50
+      },
+      "campaignId": null
+    },
+    {
+      "productId": "8882",
+      "planName": "Family Unlimited (3 kontoer)",
+      "countryCode": "NO",
+      "currency": "NOK",
+      "regularPrice": "349",
+      "regularPeriod": "P1M",
+      "baseBilling": {
+        "type": "RECURRING",
+        "currencyCode": "NOK",
+        "basePrice": 349,
+        "proratedPrice": null,
+        "priceType": "GROSS",
+        "cycle": {
+          "duration": {
+            "amount": 1,
+            "timeUnit": "MONTHS"
+          },
+          "chargeInterval": 30,
+          "chargeDate": null
+        },
+        "discount": {
+          "coupon": null,
+          "requiresUniqueCode": null,
+          "expiresAt": null,
+          "type": null,
+          "steps": []
+        },
+        "metadata": null
+      },
+      "entitlement": {
+        "accessType": "UNLIMITED",
+        "seats": 3,
+        "formatLimitation": null,
+        "timeLimitation": 0
+      },
+      "campaignId": null
+    },
+    {
+      "productId": "8881",
+      "planName": "Family Unlimited (2 kontoer)",
+      "countryCode": "NO",
+      "currency": "NOK",
+      "regularPrice": "289",
+      "regularPeriod": "P1M",
+      "baseBilling": {
+        "type": "RECURRING",
+        "currencyCode": "NOK",
+        "basePrice": 289,
+        "proratedPrice": null,
+        "priceType": "GROSS",
+        "cycle": {
+          "duration": {
+            "amount": 1,
+            "timeUnit": "MONTHS"
+          },
+          "chargeInterval": 30,
+          "chargeDate": null
+        },
+        "discount": {
+          "coupon": null,
+          "requiresUniqueCode": null,
+          "expiresAt": null,
+          "type": null,
+          "steps": []
+        },
+        "metadata": null
+      },
+      "entitlement": {
+        "accessType": "UNLIMITED",
+        "seats": 2,
+        "formatLimitation": null,
+        "timeLimitation": 0
+      },
+      "campaignId": null
+    },
+    {
+      "productId": "120013",
+      "planName": "Basic",
+      "countryCode": "NO",
+      "currency": "NOK",
+      "regularPrice": "149",
+      "regularPeriod": "P1M",
+      "baseBilling": {
+        "type": "RECURRING",
+        "currencyCode": "NOK",
+        "basePrice": 149,
+        "proratedPrice": null,
+        "priceType": "GROSS",
+        "cycle": {
+          "duration": {
+            "amount": 1,
+            "timeUnit": "MONTHS"
+          },
+          "chargeInterval": 30,
+          "chargeDate": null
+        },
+        "discount": {
+          "coupon": null,
+          "requiresUniqueCode": null,
+          "expiresAt": null,
+          "type": null,
+          "steps": []
+        },
+        "metadata": null
+      },
+      "entitlement": {
+        "accessType": "TIME_LIMITED",
+        "seats": 1,
+        "formatLimitation": null,
+        "timeLimitation": 20
+      },
+      "campaignId": null
+    }
+  ]
+}

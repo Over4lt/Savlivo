@@ -10,7 +10,7 @@ export const countryCurrencies: Record<string, string> = {
   TW:"TWD",SG:"SGD",IN:"INR",ID:"IDR",MY:"MYR",TH:"THB",
   PH:"PHP",VN:"VND",AE:"AED",SA:"SAR",IL:"ILS",TR:"TRY",
   UA:"UAH",RS:"RSD",BA:"BAM",AL:"ALL",MK:"MKD",MD:"MDL",
-  ZA:"ZAR"
+  ZA:"ZAR",QA:"QAR",EG:"EGP",CL:"CLP",CO:"COP",KW:"KWD"
 };
 
 export const countryCurrencyData = [
@@ -43,7 +43,23 @@ export const countryCurrencyData = [
   ["TW", "Taiwan", "TWD"],
   ["AE", "United Arab Emirates", "AED"],
   ["TH", "Thailand", "THB"],
-  ["PH", "Philippines", "PHP"]
+  ["PH", "Philippines", "PHP"],
+  ["JP", "Japan", "JPY"],
+  ["CA", "Canada", "CAD"],
+  ["SA", "Saudi Arabia", "SAR"],
+  ["KR", "South Korea", "KRW"],
+  ["MX", "Mexico", "MXN"],
+  ["ID", "Indonesia", "IDR"],
+  ["TR", "Türkiye", "TRY"],
+  ["ZA", "South Africa", "ZAR"],
+  ["IL", "Israel", "ILS"],
+  ["QA", "Qatar", "QAR"],
+  ["EG", "Egypt", "EGP"],
+  ["VN", "Vietnam", "VND"],
+  ["RO", "Romania", "RON"],
+  ["GR", "Greece", "EUR"],
+  ["CL", "Chile", "CLP"],
+  ["CO", "Colombia", "COP"]
 ] as const;
 
 
@@ -98,6 +114,23 @@ export function formatMarketMinor(minor: number, currency: string, locale?: stri
 // Only independently verified launch services are offered in newly activated markets.
 // Existing market availability rules are left unchanged.
 export const expansionMarketServices: Record<string, readonly string[]> = {
+  // September 2026: explicit availability; unknown prices remain manual.
+  JP: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus", "disney-plus"],
+  CA: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus", "amazon-prime", "playstation-plus", "xbox-game-pass", "disney-plus"],
+  SA: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus"],
+  KR: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus", "disney-plus"],
+  MX: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus", "max", "disney-plus"],
+  ID: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus", "max"],
+  TR: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "max"],
+  ZA: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus"],
+  IL: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus"],
+  QA: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus"],
+  EG: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus"],
+  VN: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus", "max"],
+  RO: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "max", "disney-plus"],
+  GR: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus", "disney-plus", "max"],
+  CL: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus", "max"],
+  CO: ["netflix", "spotify", "apple-music", "google-one", "youtube-premium", "chatgpt", "apple-tv-plus", "max"],
   IN: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
   SG: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],
   HK: ["icloud-plus", "apple-music", "apple-tv-plus", "google-one"],

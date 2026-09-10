@@ -1,0 +1,31 @@
+{
+  "startingHead": "918838d058837ec252b8b89e4384196d44f450ad",
+  "verifiedAt": "2026-09-10",
+  "before": {
+    "markets": 30,
+    "services": 43,
+    "distinctPlans": 107,
+    "registryRows": 364,
+    "offlineRows": 757
+  },
+  "continuationBefore": {
+    "markets": 30,
+    "services": 48,
+    "registryRows": 371,
+    "offlineRows": 764
+  },
+  "after": {
+    "markets": 46,
+    "services": 78,
+    "distinctPlans": 140,
+    "registryRows": 465,
+    "offlineRows": 858
+  },
+  "allOldCatalogMetadataPreserved": true,
+  "allOldBillingChoicesPreserved": true,
+  "allOldCurrenciesPreserved": true,
+  "allOldOfferedServicesPreserved": true,
+  "allOldRegistryRowsPreservedExactly": true,
+  "allOldOfflineRowsPreservedExactly": true,
+  "managementDestinationRegression": "6300 original destinations preserved by existing mobile/API tests; new services do not invent destinations"
+}

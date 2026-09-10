@@ -1,0 +1,27 @@
+{
+  "sourceUrl": "https://www.spotify.com/ae-en/premium/",
+  "observedAt": "2026-09-10",
+  "sourceType": "official localized provider page",
+  "countryCode": "AE",
+  "currency": "AED",
+  "billingProviderSlug": "direct",
+  "plans": [
+    {
+      "planName": "Standard",
+      "monthlyPriceMinor": 2399,
+      "proof": "AED 23.99 per month after trial; recurring subscriptions include automatic monthly payments"
+    },
+    {
+      "planName": "Platinum",
+      "monthlyPriceMinor": 5999,
+      "proof": "AED 59.99/month, up to three accounts at same address"
+    }
+  ],
+  "excluded": [
+    "Trial AED 0",
+    "Prepaid AED 239/year and equivalent monthly figure",
+    "Carrier trial offers",
+    "Unverified Apple/Google/Amazon rates"
+  ],
+  "limits": "Observed recurring snapshot; not an effective-date history or independent source agreement."
+}

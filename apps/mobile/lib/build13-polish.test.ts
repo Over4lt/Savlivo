@@ -6,7 +6,7 @@ import ts from "typescript";
 import { browseCatalog } from "./catalog-browse";
 import { appLanguages, appLocale, translateUi, uiTranslations } from "./ui-localization";
 import { configuredSavlivoPrice } from "./savlivo-plan-prices";
-import { catalogCategories, searchCatalog, serviceCatalog, serviceAvailableInMarket } from "../../../packages/contracts/src/catalog";
+import { catalogCategories, searchCatalog, serviceCatalog, serviceEligibleForCatalog, serviceAvailableInMarket } from "../../../packages/contracts/src/catalog";
 import { countryCurrencyData, formatMarketMinor, subscriptionsForMarket } from "../../../packages/contracts/src/markets";
 import { validateManualSubscription } from "../../../packages/contracts/src/discovery";
 
@@ -19,11 +19,11 @@ function descendants(node: ts.Node): ts.Node[] {
 }
 const nodes = descendants(ast);
 
-test("browse exposes every available service in all 30 markets, independent of prices and relevance limits", () => {
-  assert.equal(countryCurrencyData.length, 30);
-  assert.equal(serviceCatalog.length, 43);
+test("browse exposes every web-eligible service in all selectable markets, independent of prices and relevance limits", () => {
+  assert.equal(countryCurrencyData.length, 46);
+  assert.equal(serviceCatalog.length, 78);
   for (const [country] of countryCurrencyData) {
-    const expected = serviceCatalog.filter(s => serviceAvailableInMarket(s.slug, country)).map(s => s.slug).sort();
+    const expected = serviceCatalog.filter(s => serviceEligibleForCatalog(s.slug, country)).map(s => s.slug).sort();
     assert.deepEqual(browseCatalog(country).map(s => s.slug).sort(), expected, country);
     assert.equal(new Set(browseCatalog(country).map(s => s.slug)).size, expected.length);
   }
@@ -41,16 +41,18 @@ test("category browsing includes all category members and groups the default bro
   }
 });
 
-test("search keeps aliases and foreign explicit matches without claiming local availability", () => {
+test("search keeps aliases but excludes unverified local web flows", () => {
   assert.equal(searchCatalog("  DISNEY   PLUS ", "NO")[0]?.slug, "disney-plus");
   assert.equal(searchCatalog("HBO MAX", "NO")[0]?.slug, "max");
-  assert.equal(searchCatalog("腾讯视频", "NO")[0]?.slug, "tencent-video");
+  assert.deepEqual(searchCatalog("腾讯视频", "NO"), []);
   assert.equal(serviceAvailableInMarket("tencent-video", "NO"), false);
   assert.deepEqual(searchCatalog("Unlisted LocalTV", "NO"), []);
 });
 
 test("manual entry stays ahead of the browse list and preserves unknown identities", () => {
-  assert.ok(source.indexOf('onPress={()=>beginManualService(catalogQuery)}') < source.indexOf("{catalogResults.map("));
+  const manualPosition=source.indexOf('onPress={()=>beginManualService(catalogQuery)}');
+  const rowsPosition=source.indexOf("{group.services.map(");
+  assert.ok(manualPosition >= 0 && rowsPosition > manualPosition);
   const manual = {customServiceName:"Unlisted LocalTV",planName:"",monthlyPriceMinor:1234,countryCode:"NO",currency:"NOK",billingProviderSlug:"carrier",renewalDate:"2026-10-15"};
   const result = validateManualSubscription(manual);
   assert.equal(result, manual.customServiceName);
@@ -58,7 +60,7 @@ test("manual entry stays ahead of the browse list and preserves unknown identiti
   assert.match(JSON.stringify(result), /Unlisted LocalTV/);
 });
 
-test("every static tr key and every dictionary key has translations in all 11 non-English languages", () => {
+test("every static tr key and every dictionary key has translations in all supported non-English languages", () => {
   const keys = new Set(Object.values(uiTranslations).flatMap(dictionary => Object.keys(dictionary ?? {})));
   for (const node of nodes) {
     if (ts.isCallExpression(node) && node.expression.getText(ast) === "tr" && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) keys.add(node.arguments[0].text);
@@ -208,5 +210,57 @@ test("global plan badge is status-only and Overview has one accessible plan acti
   assert.equal(screen, "plans");
   assert.equal(descendants(card).filter(n => ts.isJsxOpeningElement(n) && n.tagName.getText(ast) === "Pressable").length, 1);
   assert.equal(translateUi("no", "Your Savlivo plan"), "Din Savlivo-plan");
-  assert.equal(translateUi("no", "Choose/change"), "Velg/endre");
+  assert.equal(translateUi("no", "Manage"), "Administrer");
+});
+
+test("Japanese form dismissal is distinct from subscription termination", () => {
+  assert.equal(translateUi("ja", "Dismiss"), "キャンセル");
+  assert.equal(translateUi("ja", "Cancel"), "解約");
+  const footer = source.slice(source.indexOf('<View style={styles.serviceFormFooter}>'));
+  const dismissButton = footer.slice(0, footer.indexOf('</Pressable>'));
+  assert.match(dismissButton, /setServiceFormOpen\(false\)/);
+  assert.match(dismissButton, /tr\("Dismiss"\)/);
+  assert.doesNotMatch(dismissButton, /tr\("Cancel"\)/);
+  assert.ok(source.includes('{tr("Cancel")}'), "subscription termination actions retain their key");
+  for (const {code} of appLanguages.filter(l => l.code !== "en")) {
+    assert.ok(uiTranslations[code]?.Dismiss);
+  }
+});
+
+test("picker restores historical rounded category cards without changing search ordering",()=>{
+  const picker=source.slice(source.indexOf('accessibilityLabel={tr("Search subscription catalog")}'),source.indexOf('visible={serviceFormOpen}'));
+  assert.match(picker,/styles\.servicePickerCategoryCard/);
+  assert.match(picker,/styles\.servicePickerCategoryTitle/);
+  assert.match(picker,/services: catalogResults/);
+  assert.match(picker,/service\.categories\[0\] === category\.id/);
+  assert.match(picker,/ServiceLogo serviceSlug=\{service\.slug\} serviceName=\{service\.name\} size=\{38\}/);
+  assert.match(picker,/name="chevron-forward"/);
+  assert.match(picker,/beginManualService\(catalogQuery\)/);
+  assert.doesNotMatch(picker,/setCatalogCategory|horizontal/);
+  assert.match(source,/servicePickerCategoryCard: \{\s*borderRadius: 18,\s*borderWidth: 1,\s*overflow: "hidden"/);
+  assert.match(source,/servicePickerRow: \{\s*minHeight: 62,[\s\S]*?paddingHorizontal: 14/);
+});
+
+test("plan management label is localized and header badge has no interactive ancestor",()=>{
+  for(const {code} of appLanguages)assert.ok(translateUi(code,"Manage"));
+  for(const {code} of appLanguages.filter(l=>l.code!=="en"))assert.ok(uiTranslations[code]?.Manage);
+  const badge=nodes.find(n=>ts.isJsxElement(n)&&n.openingElement.attributes.getText(ast).includes("styles.modernPlanBadge,"))!;
+  for(let parent:ts.Node|undefined=badge;parent;parent=parent.parent){
+    if(ts.isJsxElement(parent))assert.doesNotMatch(parent.openingElement.getText(ast),/Pressable|Touchable|onPress/);
+  }
+  const card=nodes.find(n=>ts.isJsxElement(n)&&n.openingElement.attributes.getText(ast).includes("styles.savlivoPlanCard,"))!;
+  assert.match(card.getText(ast),/tr\("Manage"\)/);
+  assert.doesNotMatch(card.getText(ast),/Choose\/change/);
+});
+
+
+test("picker names keep intrinsic text height inside the centered row",()=>{
+  const nameStyle=nodes.find(n=>ts.isPropertyAssignment(n)&&n.name.getText(ast)==="servicePickerName")!;
+  assert.ok(nameStyle);
+  assert.doesNotMatch(nameStyle.getText(ast), /\bflex\s*:|height\s*:|top\s*:|translateY/);
+  assert.match(source,/servicePickerRow: \{\s*minHeight: 62,\s*flexDirection: "row",\s*alignItems: "center",\s*paddingHorizontal: 14/);
+  const name=nodes.find(n=>ts.isJsxElement(n)&&n.openingElement.attributes.getText(ast).includes("styles.servicePickerName,")) as ts.JsxElement;
+  assert.ok(name);
+  assert.equal((name.parent as ts.JsxElement).openingElement.tagName.getText(ast),"View");
+  assert.match((name.parent as ts.JsxElement).openingElement.getText(ast),/flex:1/);
 });

@@ -1,7 +1,8 @@
+import { defaultAssistantModel, assistantResponseLanguage, assistantLanguageInstruction } from "./assistant-language.js";
 import { modelActionCandidate, type AssistantAction } from "../../../packages/contracts/src/assistant-actions.js";
 import { helpEntries } from "../../../packages/contracts/src/app-help.js";
-import { serviceCatalog, serviceAvailableInMarket, serviceBillingProviders } from "../../../packages/contracts/src/catalog.js";
-import { countryCurrencyData } from "../../../packages/contracts/src/markets.js";
+import { serviceCatalog, serviceEligibleForCatalog, serviceAvailableInMarket, serviceBillingProviders } from "../../../packages/contracts/src/catalog.js";
+import { countryCurrencyData, subscriptionsForMarket } from "../../../packages/contracts/src/markets.js";
 import { parseAddSubscriptionIntent, type AddSubscriptionIntent } from "../../../packages/contracts/src/discovery.js";
 import Groq from "groq-sdk";
 
@@ -100,7 +101,7 @@ When offering management navigation, say the user must review available options 
 Do not claim live web research was performed; you have no browsing tool in this request.
 
 You understand users naturally in many languages.
-Always reply in the language of the user's latest message unless they ask for another language.
+Follow the server response-language policy. Input language never overrides that policy.
 
 Understand:
 - spelling mistakes
@@ -251,7 +252,7 @@ export type AssistantModel = (messages: Array<{role:"system"|"user"|"assistant";
 const callGroq: AssistantModel = async (messages, schema) => {
   if (!groq) throw new Error("GROQ_API_KEY_MISSING");
   const completion = await groq.chat.completions.create({
-    model: process.env.GROQ_ASSISTANT_MODEL ?? "openai/gpt-oss-20b",
+    model: process.env.GROQ_ASSISTANT_MODEL ?? defaultAssistantModel,
     messages,
     response_format: {type:"json_schema",json_schema:{name:"savlivo_assistant_response",strict:true,schema}}
   });
@@ -280,26 +281,37 @@ export function parseAssistantResponse(raw:string,context?:SavlivoAssistantConte
   };
 }
 
-export async function askAssistant(request:AssistantRequest,model:AssistantModel=callGroq):Promise<AssistantResult> {
+export async function askAssistant(request:AssistantRequest,model:AssistantModel=callGroq,observe?:(outcome:"success"|"fallback")=>void):Promise<AssistantResult> {
+  const observed=(outcome:"success"|"fallback")=>{try{observe?.(outcome);}catch{/* Optional telemetry cannot reject an answer. */}};
+  // Defense at the remote boundary as well as HTTP: language fallback never
+  // widens the portfolio, and an unknown country is not an all-market request.
+  const context=request.context;
+  const validMarket=countryCurrencyData.some(([code])=>code===context?.countryCode);
+  request={...request,context:context?{...context,subscriptions:validMarket
+    ? subscriptionsForMarket(context.subscriptions??[],context.countryCode!) : []}:undefined};
+  const responseLanguage=assistantResponseLanguage(request.languageHint,process.env.GROQ_ASSISTANT_MODEL??defaultAssistantModel);
   const message=String(request.message??"").trim();
   if(!message)throw new Error("INVALID_ASSISTANT_MESSAGE");
   // Restricted offline fallback only; these patterns never gate a configured model.
   if(model===callGroq && !groq) {
     const catalogAction=parseAddSubscriptionIntent(message,request.context?.countryCode??"",request.context?.currency??"");
-    if(catalogAction)return {
-      answer:/^(legg til|jeg har)/i.test(message)?"Se gjennom og bekreft i skjemaet. Ingenting er lagt til ennå.":"Review and confirm in the form. Nothing has been added yet.",
-      language:request.languageHint??"en",intent:"NAVIGATION",action:null,serviceNames:[],navigationTarget:null,needsExternalResearch:false,catalogAction,assistantAction:catalogAction
-    };
+    if(catalogAction){observed("fallback");return {
+      answer:"Review and confirm in the form. Nothing has been added yet.",
+      language:"en",intent:"NAVIGATION",action:null,serviceNames:[],navigationTarget:null,needsExternalResearch:false,catalogAction,assistantAction:catalogAction
+    };}
     throw new Error("GROQ_API_KEY_MISSING");
   }
   const catalog=serviceCatalog.map(service=>({slug:service.slug,name:service.name,aliases:service.aliases,
+    eligibleForNewSelection:serviceEligibleForCatalog(service.slug,request.context?.countryCode??""),
     availableInSelectedMarket:serviceAvailableInMarket(service.slug,request.context?.countryCode??""),billingChoices:serviceBillingProviders[service.slug]??[]}));
   const messages:Array<{role:"system"|"user"|"assistant";content:string}>=[
-    {role:"system",content:SYSTEM_PROMPT+"\nShared Savlivo help:\n"+JSON.stringify(helpEntries.map(({topic,answer})=>({topic,answer})))+
+    {role:"system",content:SYSTEM_PROMPT+"\n"+assistantLanguageInstruction(request.languageHint,process.env.GROQ_ASSISTANT_MODEL??defaultAssistantModel)+"\nShared Savlivo help:\n"+JSON.stringify(helpEntries.map(({topic,answer})=>({topic,answer})))+
       "\nCanonical catalog (availability is not proof of a price or this user's bill):\n"+JSON.stringify(catalog)+
       "\nSelectable market/currency definitions:\n"+JSON.stringify(countryCurrencyData)},
     ...sanitizeHistory(request.history).map(item=>({role:item.role,content:item.text})),
-    {role:"user",content:`Latest user message:\n${message}\n\nLanguage hint:\n${request.languageHint??"none"}\n\nSavlivo context:\n${JSON.stringify(request.context??{})}`}
+    {role:"user",content:`Latest user message:\n${message}\n\nLanguage hint:\n${responseLanguage}\n\nSavlivo context:\n${JSON.stringify(request.context??{})}`}
   ];
-  return parseAssistantResponse(await model(messages,RESPONSE_SCHEMA),request.context);
+  const result=parseAssistantResponse(await model(messages,RESPONSE_SCHEMA),request.context);
+  observed("success");
+  return {...result,language:responseLanguage};
 }

@@ -3,12 +3,11 @@ import { browseCatalog } from "../lib/catalog-browse";
 import { configuredSavlivoPrice } from "../lib/savlivo-plan-prices";
 import { resolveSavedManagement, type ManagementIntent } from "../../../packages/contracts/src/assistant-actions";
 import { discoveryRequestIsCurrent, parseAddSubscriptionIntent, validateAddSubscriptionIntent, validateManualSubscription } from "../../../packages/contracts/src/discovery";
-import { transitionCatalogDraft, serviceCatalog, searchCatalog, catalogDiscoveryPolicy, catalogCategories, type CatalogCategory, billingProviders, serviceBillingProviders, billingProvidersForService, defaultBillingProviderForService, isBillingProviderAllowed, allCurrencies, serviceAvailableInMarket, type BillingProviderSlug } from "../../../packages/contracts/src/catalog";
+import { transitionCatalogDraft, serviceCatalog, searchCatalog, catalogDiscoveryPolicy, catalogCategories, billingProviders, serviceBillingProviders, billingProvidersForService, defaultBillingProviderForService, isBillingProviderAllowed, allCurrencies, serviceEligibleForCatalog, serviceAvailableInMarket, type BillingProviderSlug } from "../../../packages/contracts/src/catalog";
 import {
   countryCurrencyData, subscriptionsForMarket, formatMarketMinor, isCurrentMarketPricing, expansionServiceAvailable
 } from "../../../packages/contracts/src/markets";
 import {
-  Fragment,
   useMemo,
   useEffect,
   useRef,
@@ -224,6 +223,42 @@ const serviceBrandColors: Record<string, string> = {
 
 
 const serviceLogoAssets: Record<string, any> = {
+  "anghami": require("../assets/service-logos/anghami.png"),
+  "antenaplay": require("../assets/service-logos/antenaplay.jpg"),
+  "cinobo": require("../assets/service-logos/cinobo.jpg"),
+  "crave": require("../assets/service-logos/crave.png"),
+  "dmm-tv": require("../assets/service-logos/dmm-tv.jpg"),
+  "dstv-stream": require("../assets/service-logos/dstv-stream.png"),
+  "exxen": require("../assets/service-logos/exxen.png"),
+  "fpt-play": require("../assets/service-logos/fpt-play.jpg"),
+  "gain": require("../assets/service-logos/gain.jpg"),
+  "hulu-japan": require("../assets/service-logos/hulu-japan.png"),
+  "magenta-tv-gr": require("../assets/service-logos/magenta-tv-gr.jpg"),
+  "melon": require("../assets/service-logos/melon.png"),
+  "nintendo-switch-online": require("../assets/service-logos/nintendo-switch-online.jpg"),
+  "osn-plus": require("../assets/service-logos/osn-plus.png"),
+  "rtl-plus": require("../assets/service-logos/rtl-plus.png"),
+  "shahid": require("../assets/service-logos/shahid.jpg"),
+  "siriusxm-canada": require("../assets/service-logos/siriusxm-canada.jpg"),
+  "sportsnet-plus": require("../assets/service-logos/sportsnet-plus.jpg"),
+  "stc-tv": require("../assets/service-logos/stc-tv.jpg"),
+  "sting-plus": require("../assets/service-logos/sting-plus.jpg"),
+  "storytel": require("../assets/service-logos/storytel.png"),
+  "tod": require("../assets/service-logos/tod.jpg"),
+  "tsn": require("../assets/service-logos/tsn.jpg"),
+  "tving": require("../assets/service-logos/tving.jpg"),
+  "u-next": require("../assets/service-logos/u-next.png"),
+  "viaplay": require("../assets/service-logos/viaplay.jpg"),
+  "videoland": require("../assets/service-logos/videoland.jpg"),
+  "vidio": require("../assets/service-logos/vidio.jpg"),
+  "vision-plus": require("../assets/service-logos/vision-plus.png"),
+  "vix": require("../assets/service-logos/vix.jpg"),
+  "voyo-ro": require("../assets/service-logos/voyo-ro.jpg"),
+  "watch-it": require("../assets/service-logos/watch-it.jpg"),
+  "win-play": require("../assets/service-logos/win-play.png"),
+  "yes-plus": require("../assets/service-logos/yes-plus.jpg"),
+  "zapping": require("../assets/service-logos/zapping.jpg"),
+
   "amazon-music-unlimited": require("../assets/service-logos/amazon-music-unlimited.png"),
   "amazon-prime": require("../assets/service-logos/amazon-prime.png"),
   "apple-music": require("../assets/service-logos/apple-music.png"),
@@ -767,6 +802,7 @@ export default function Home() {
       ai: "AI",
       settings: "Asetukset"
     },
+    ja: {home:"ホーム",subscriptions:"契約",savings:"節約",autopilot:"自動",ai:"AI",settings:"設定"},
     "zh-CN": {
       home: "首页",
       subscriptions: "订阅",
@@ -795,6 +831,7 @@ export default function Home() {
       pt: { ACTIVE: "Ativa", PAUSED: "Pausada", CANCELLED: "Cancelada" },
       nl: { ACTIVE: "Actief", PAUSED: "Gepauzeerd", CANCELLED: "Opgezegd" },
       fi: { ACTIVE: "Aktiivinen", PAUSED: "Keskeytetty", CANCELLED: "Peruutettu" },
+      ja: {ACTIVE:"利用中",PAUSED:"一時停止中",CANCELLED:"解約済み"},
       "zh-CN": { ACTIVE: "有效", PAUSED: "已暂停", CANCELLED: "已取消" }
     };
     return labels[selectedLanguage]?.[status] ?? statusLabel(status);
@@ -812,6 +849,7 @@ export default function Home() {
       pt: "Editar",
       nl: "Bewerk",
       fi: "Muokkaa:",
+      ja: "編集",
       "zh-CN": "编辑"
     };
     return `${prefixes[selectedLanguage] ?? "Edit"} ${serviceName}`;
@@ -829,6 +867,7 @@ export default function Home() {
       pt: (a, t) => `${a} de ${t} subscrições ativas`,
       nl: (a, t) => `${a} van ${t} abonnementen actief`,
       fi: (a, t) => `${a}/${t} tilausta aktiivisena`,
+      ja: (a, t) => `${t}件中${a}件が利用中`,
       "zh-CN": (a, t) => `${t} 个订阅中有 ${a} 个有效`
     };
     return (templates[selectedLanguage] ?? ((a, t) => `${a} active of ${t} subscriptions`))(active, total);
@@ -846,6 +885,7 @@ export default function Home() {
       pt: "Rever",
       nl: "Beoordeel",
       fi: "Tarkista:",
+      ja: "確認",
       "zh-CN": "审查"
     };
     return `${prefixes[selectedLanguage] ?? "Review"} ${serviceName}`;
@@ -863,6 +903,7 @@ export default function Home() {
       pt: "Despesa de 3 meses:",
       nl: "Uitgaven afgelopen 3 maanden:",
       fi: "3 kuukauden kulut:",
+      ja: "3か月の支出：",
       "zh-CN": "3个月支出："
     };
     return `${labels[selectedLanguage] ?? "3-month spend:"} ${amount}`;
@@ -1161,7 +1202,8 @@ export default function Home() {
             "pt",
             "nl",
             "fi",
-            "zh-CN"
+            "zh-CN",
+            "ja"
           ].includes(savedLanguage ?? "")
         ) {
           setSelectedLanguage(savedLanguage as AppLanguage);
@@ -1518,15 +1560,14 @@ export default function Home() {
   }
 
   const [catalogQuery, setCatalogQuery] = useState("");
-  const [catalogCategory, setCatalogCategory] = useState<CatalogCategory | undefined>();
   const [customServiceName, setCustomServiceName] = useState("");
   const saveServiceBusyRef = useRef(false);
   const discoveryEpochRef = useRef(0);
   const formMarketRef = useRef(selectedCountryCode);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const catalogResults = useMemo(() => catalogQuery.trim() ? searchCatalog(catalogQuery, selectedCountryCode, {
-    category: catalogCategory, limit: catalogDiscoveryPolicy.searchLimit
-  }) : browseCatalog(selectedCountryCode, catalogCategory), [catalogQuery, selectedCountryCode, catalogCategory]);
+    limit: catalogDiscoveryPolicy.searchLimit
+  }) : browseCatalog(selectedCountryCode), [catalogQuery, selectedCountryCode]);
   const [serviceSelectionLocked, setServiceSelectionLocked] = useState(false);
   const [serviceFormOpen, setServiceFormOpen] = useState(false);
   const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
@@ -3574,7 +3615,7 @@ export default function Home() {
     const market=selectedCountryCodeRef.current;
     const epoch=discoveryEpochRef.current;
     Alert.alert(tr("Manage subscription"),tr("{service} · {billing}. Savlivo can open the existing management destination. Choose the requested option there if available; opening or closing the page does not change your saved subscription.", {service:subscription.serviceName,billing:tr(billingProviders.find(provider=>provider.slug===subscription.billingProviderSlug)?.name ?? subscription.billingProviderSlug)}),[
-      {text:tr("Cancel"),style:"cancel"},
+      {text:tr("Dismiss"),style:"cancel"},
       {text:tr("Open management"),onPress:()=>{ void (async()=>{
         if(!discoveryRequestIsCurrent({countryCode:market,epoch},{countryCode:selectedCountryCodeRef.current,epoch:discoveryEpochRef.current}))return;
         if(usesSubscriptionManagementBrowser(destination,Platform.OS))await new Promise<void>(resolve=>Alert.alert("Savlivo",
@@ -3596,6 +3637,8 @@ export default function Home() {
   ) {
     const text =
       value.toLowerCase();
+
+    if (/[\u3040-\u30ff]/.test(text) || (selectedLanguage === "ja" && /[\u4e00-\u9fff]/.test(text))) return "ja-JP";
 
     if (
       /[æøå]/.test(text) ||
@@ -4777,7 +4820,7 @@ export default function Home() {
       `Enter the monthly ${currency} price for ${item.serviceName}. This correction only applies on this device for ${selectedCountryName}.`,
       [
         {
-          text: tr("Cancel"),
+          text: tr("Dismiss"),
           style: "cancel"
         },
         {
@@ -5221,7 +5264,6 @@ export default function Home() {
       setMonthlyPriceInput("");
       setCustomServiceName("");
       setCatalogQuery("");
-      setCatalogCategory(undefined);
     }
     selectedCountryCodeRef.current = code;
     setPricingSnapshot(null);
@@ -5325,7 +5367,6 @@ export default function Home() {
     if(saveServiceBusyRef.current)return;
     discoveryEpochRef.current += 1;
     setCatalogQuery("");
-    setCatalogCategory(undefined);
     setServiceSelectionLocked(false);
     setServicePickerOpen(true);
   }
@@ -5337,6 +5378,10 @@ export default function Home() {
       );
 
     if (!service || saveServiceBusyRef.current) return;
+    if (!serviceEligibleForCatalog(service.slug, selectedCountryCode)) {
+      beginManualService(service.name);
+      return;
+    }
     discoveryEpochRef.current += 1;
     formMarketRef.current = selectedCountryCodeRef.current;
     setCustomServiceName("");
@@ -7417,7 +7462,7 @@ export default function Home() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`${tr("Your Savlivo plan")}. ${planDisplayName}. ${tr("Choose/change")}`}
+              accessibilityLabel={`${tr("Your Savlivo plan")}. ${planDisplayName}. ${tr("Manage")}`}
               style={[styles.savlivoPlanCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
               onPress={() => setScreen("plans")}
             >
@@ -7426,7 +7471,7 @@ export default function Home() {
               </Text>
               <View style={[styles.compactPlanPill, { backgroundColor: theme.surface, borderColor: visual.greenMuted }]}>
                 <Text style={[styles.compactPlanPillText, { color: theme.text }]}>
-                  {tr("Choose/change")}
+                  {tr("Manage")}
                 </Text>
               </View>
             </Pressable>
@@ -8767,6 +8812,7 @@ export default function Home() {
                     pt: "Português",
                     nl: "Nederlands",
                     fi: "Suomi",
+                    ja: "日本語",
                     "zh-CN": "简体中文"
                   } as Record<AppLanguage, string>)[selectedLanguage],
                     "Change"
@@ -9841,30 +9887,29 @@ export default function Home() {
               <Pressable accessibilityRole="button" onPress={()=>beginManualService(catalogQuery)} style={[styles.servicePickerRow,{borderColor:theme.border}]}>
                 <Text style={{color:theme.text}}>{tr("Add manually")}</Text>
               </Pressable>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {[{id:undefined,name:"All categories"},...catalogCategories].map(category=>(
-                  <Pressable key={category.id??"all"} accessibilityRole="button" accessibilityState={{selected:catalogCategory===category.id}}
-                    onPress={()=>setCatalogCategory(category.id)} style={[styles.choiceChip,{borderColor:theme.border,backgroundColor:catalogCategory===category.id?theme.pill:theme.surface}]}>
-                    <Text style={{color:theme.text}}>{tr(category.name)}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <Text style={[styles.formHint,{color:theme.muted}]}>{tr(catalogQuery?"Catalog results — select a service":"All available services in this market")}</Text>
+              <Text style={[styles.formHint,{color:theme.muted}]}>{tr("Catalog results — select a service")}</Text>
               {catalogResults.length===0 ? <Text style={[styles.formHint,{color:theme.muted}]}>{tr("No matching services. You can add your subscription manually.")}</Text> : null}
-              {catalogResults.map((service, index)=>(
-                <Fragment key={service.slug}>
-                {!catalogQuery.trim() && !catalogCategory && (index === 0 || catalogResults[index-1].categories[0] !== service.categories[0]) ? <Text accessibilityRole="header" style={[styles.formHint,{color:theme.text,fontWeight:"700",marginTop:12}]}>{tr(catalogCategories.find(category=>category.id===service.categories[0])?.name ?? "Other")}</Text> : null}
-                <Pressable key={service.slug} accessibilityRole="button" accessibilityLabel={tr("Add {service}", {service:service.name})}
-                  style={[styles.servicePickerRow,{borderBottomWidth:1,borderBottomColor:theme.border}]} onPress={()=>beginAddService(service.slug)}>
-                  <ServiceLogo serviceSlug={service.slug} serviceName={service.name} size={38}/>
-                  <View style={{flex:1,marginLeft:12}}>
-                    <Text style={[styles.servicePickerName,{color:theme.text}]}>{service.name}</Text>
-                    {!serviceAvailableInMarket(service.slug,selectedCountryCode) ? <Text style={{color:theme.muted}}>{tr("Local availability unverified · enter your actual bill")}</Text> : null}
-                    {marketItems.some(item=>item.serviceSlug===service.slug) ? <Text style={{color:theme.muted}}>{tr("Already in this market — review before adding another")}</Text> : null}
+              {(catalogQuery.trim()
+                ? [{id: "search", name: "", services: catalogResults}]
+                : catalogCategories.map(category => ({...category, services: catalogResults.filter(service => service.categories[0] === category.id)}))
+              ).filter(group => group.services.length > 0).map(group => (
+                <View key={group.id} style={styles.servicePickerCategory}>
+                  {group.name ? <Text accessibilityRole="header" style={[styles.servicePickerCategoryTitle,{color:visual.greenMuted}]}>{tr(group.name).toLocaleUpperCase()}</Text> : null}
+                  <View style={[styles.servicePickerCategoryCard,{backgroundColor:theme.surfaceSoft,borderColor:theme.border}]}>
+                    {group.services.map((service,index) => (
+                      <Pressable key={service.slug} accessibilityRole="button" accessibilityLabel={tr("Add {service}", {service:service.name})}
+                        style={[styles.servicePickerRow,index < group.services.length-1 ? {borderBottomWidth:1,borderBottomColor:theme.border} : null]} onPress={()=>beginAddService(service.slug)}>
+                        <View style={{marginRight:12}}><ServiceLogo serviceSlug={service.slug} serviceName={service.name} size={38}/></View>
+                        <View style={{flex:1}}>
+                          <Text style={[styles.servicePickerName,{color:theme.text}]}>{service.name}</Text>
+                          {!serviceAvailableInMarket(service.slug,selectedCountryCode) ? <Text style={{color:theme.muted}}>{tr("Local availability unverified · enter your actual bill")}</Text> : null}
+                          {marketItems.some(item=>item.serviceSlug===service.slug) ? <Text style={{color:theme.muted}}>{tr("Already in this market — review before adding another")}</Text> : null}
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color={visual.greenMuted}/>
+                      </Pressable>
+                    ))}
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={visual.greenMuted}/>
-                </Pressable>
-                </Fragment>
+                </View>
               ))}
 
             </ScrollView>
@@ -9942,7 +9987,7 @@ export default function Home() {
                   )
                 : serviceCatalog.filter(
                     (service) =>
-                      serviceAvailableInMarket(
+                      serviceEligibleForCatalog(
                         service.slug,
                         selectedCountryCode
                       )
@@ -10415,7 +10460,7 @@ export default function Home() {
               }}
               >
                 <Text style={[styles.sheetButtonText, { color: theme.text }]}>
-                  {tr("Cancel")}
+                  {tr("Dismiss")}
                 </Text>
               </Pressable>
 
@@ -13372,7 +13417,6 @@ const styles = StyleSheet.create({
   },
 
   servicePickerName: {
-    flex: 1,
     fontSize: 16,
     fontWeight: "700"
   },

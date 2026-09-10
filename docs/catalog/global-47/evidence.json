@@ -1,0 +1,1380 @@
+[
+  {
+    "id": "storytel",
+    "countries": [
+      "NO",
+      "SE",
+      "FI",
+      "NL"
+    ],
+    "services": [
+      "Storytel"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://www.storytelgroup.com/en/?p=5089",
+    "finding": "Q2 2026: 2.75 million paying subscribers across the group, including Mofibo and Audiobooks.com. Not a Storytel Norway subscriber count.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "tv2no",
+    "countries": [
+      "NO"
+    ],
+    "services": [
+      "TV 2 Play"
+    ],
+    "evidenceType": "qualitative industry evidence",
+    "sourceUrl": "https://kommunikasjon.ntb.no/pressemelding/18833174/tv-2-styrker-sin-posisjon-i-en-krevende-tid?lang=no&publisherId=13318709",
+    "finding": "TV 2 reports growth and leading Norwegian commercial streaming position in 2025.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "tv4",
+    "countries": [
+      "SE"
+    ],
+    "services": [
+      "TV4 Play"
+    ],
+    "evidenceType": "usage evidence",
+    "sourceUrl": "https://commercial.tv4.se/aktuellt/stark-utveckling-for-tv4-play-under-2025-och-stort-sportar-2026",
+    "finding": "3.7 million weekly reach in 2025 includes free viewing; not paid subscribers.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "rtl",
+    "countries": [
+      "DE",
+      "NL"
+    ],
+    "services": [
+      "RTL+",
+      "Videoland"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://company.rtl.com/.galleries/downloads/financial-results/fy-2025/RTL-Group-Full-year-results-2025-report.pdf",
+    "finding": "RTL+ exceeds seven million paying subscribers at end 2025; Videoland is a separate Netherlands service in this report.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "movistar",
+    "countries": [
+      "ES"
+    ],
+    "services": [
+      "Movistar Plus+"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://www.movistarplus.es/comunicacion/notas-de-prensa/movistar-plus-consolida-su-proyecto-con-278-000-nuevos-clientes-en-2025-y-sigue-liderando-los-premios-mas-relevantes-de-la-industria/",
+    "finding": "Provider reports 278,000 net additions in 2025, not total subscriber count.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "canal",
+    "countries": [
+      "FR",
+      "PL"
+    ],
+    "services": [
+      "CANAL+",
+      "Canal+ Online"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.canalplusgroup.com/uploads/Canal_Annual_Report_2025_a6dcc129e8.pdf",
+    "finding": "Major national operations; contracted offers and country-specific identities need individual pricing review.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "opto",
+    "countries": [
+      "PT"
+    ],
+    "services": [
+      "OPTO"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://sdistribution.impresa.pt/data/content/binaries/impresa/8e507809-07bd-444c-9dd4-f5c82284622a/PR%202025%20IMPRESA%20-%20PT%20vf.pdf",
+    "finding": "43,303 OPTO subscribers at end 2025. Meaningful local category coverage, not inferred market leadership.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "streamz",
+    "countries": [
+      "BE"
+    ],
+    "services": [
+      "Streamz"
+    ],
+    "evidenceType": "qualitative industry evidence",
+    "sourceUrl": "https://www.vlaamseregulatormedia.be/sites/default/files/2025-12/mediaconcentratierapport_2025.pdf",
+    "finding": "Regulator identifies Streamz in Flemish media concentration; direct and Telenet billing must remain separate.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "skyx",
+    "countries": [
+      "AT"
+    ],
+    "services": [
+      "Sky X"
+    ],
+    "evidenceType": "official provider page",
+    "sourceUrl": "https://skyx.sky.at/",
+    "finding": "Provider announces migration to WOW on 30 September 2026. Future at audit date; do not duplicate brands.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "irish",
+    "countries": [
+      "IE"
+    ],
+    "services": [
+      "Irish Times"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://www.irishtimes.com/business/2025/10/15/irish-times-group-almost-doubles-profits-as-revenue-comes-in-marginally-higher/",
+    "finding": "Reported 143,000 subscriber base relates to 2024; freshness limitation.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "sanoma",
+    "countries": [
+      "FI"
+    ],
+    "services": [
+      "Ruutu+",
+      "Helsingin Sanomat"
+    ],
+    "evidenceType": "usage evidence",
+    "sourceUrl": "https://www.sanoma.com/en/investors/sanoma-as-an-investment/our-media-business/",
+    "finding": "Leading national media brands; group reach is not individual paid subscription count.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "ofcom",
+    "countries": [
+      "GB"
+    ],
+    "services": [
+      "Netflix",
+      "Disney+",
+      "Prime Video",
+      "NOW"
+    ],
+    "evidenceType": "usage evidence",
+    "sourceUrl": "https://www.ofcom.org.uk/media-use-and-attitudes/media-habits-adults/media-nations-2025?language=en",
+    "finding": "Regulator documents UK SVOD use. Savlivo tiers are editorial, not the regulator legal Tier 1 designation.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "nine",
+    "countries": [
+      "AU"
+    ],
+    "services": [
+      "Stan"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.nineforbrands.com.au/wp-content/uploads/2025/09/Annual-Report-for-lodgement.pdf",
+    "finding": "Stan is an established Australian subscription platform; Optus Sport assets/rights moved to Stan Sport.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "foxtel",
+    "countries": [
+      "AU"
+    ],
+    "services": [
+      "Kayo Sports",
+      "Binge",
+      "Foxtel"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://foxtelgroup.com.au/our-brands",
+    "finding": "Current separate streaming brands. Hubbl hardware is not itself proof of a recurring paid subscription.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "sky",
+    "countries": [
+      "NZ"
+    ],
+    "services": [
+      "Neon",
+      "Sky Sport Now"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://assets.ctfassets.net/7b9nfelvm7fe/7v1b0FawSYtKaZMvZrARep/511f67ccb3aade3e35d76ea5f9c18553/Sky_Annual_Report_2025.pdf",
+    "finding": "Established local services. Day passes must not become recurring monthly plans.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "blue",
+    "countries": [
+      "CH"
+    ],
+    "services": [
+      "blue TV",
+      "blue Sport"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.swisscom.ch/de/privatkunden/tv-abo.html?campID=SC_tv",
+    "finding": "National operator distribution; bundled and included prices require route-specific evidence.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "globo",
+    "countries": [
+      "BR"
+    ],
+    "services": [
+      "Globoplay"
+    ],
+    "evidenceType": "qualitative industry evidence",
+    "sourceUrl": "https://gshow.globo.com/globoplay/noticia/globoplay-da-inicio-a-celebracao-de-seus-10-anos-com-nova-campanha-e-identidade-visual.ghtml",
+    "finding": "Provider describes 2025 growth and new identity. Plan labels/ads tiers require current verification.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "cme",
+    "countries": [
+      "CZ",
+      "RO"
+    ],
+    "services": [
+      "Oneplay",
+      "VOYO"
+    ],
+    "evidenceType": "official provider page",
+    "sourceUrl": "https://www.cme.net/about",
+    "finding": "Czech Voyo transitioned to Oneplay in March 2025. Romanian VOYO remains distinct; never apply Czech rebrand globally.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "astro",
+    "countries": [
+      "MY"
+    ],
+    "services": [
+      "Astro",
+      "Sooka"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.astro.com.my/AR2026/index.html",
+    "finding": "Established Malaysian operator and OTT portfolio in FY2026 reporting.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "reliance",
+    "countries": [
+      "IN"
+    ],
+    "services": [
+      "JioHotstar"
+    ],
+    "evidenceType": "usage evidence",
+    "sourceUrl": "https://www.ril.com/ar2025-26/media-and-entertainment.html",
+    "finding": "Very large sports viewing reach, not an equivalent paid subscriber count.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "cast",
+    "countries": [
+      "SG"
+    ],
+    "services": [
+      "Singtel CAST"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.singtel.com/personal/singtel-blog/singtel-cast",
+    "finding": "Provider offers recurring entertainment packs; credit card and Singtel bill routes differ.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "pccw",
+    "countries": [
+      "HK"
+    ],
+    "services": [
+      "Now TV",
+      "Viu"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.pccw.com/investors/financial-results/index.page?locale=en",
+    "finding": "Hong Kong operator and regional Viu portfolio. Regional Viu totals cannot establish each country adoption.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "hami",
+    "countries": [
+      "TW"
+    ],
+    "services": [
+      "Hami Video"
+    ],
+    "evidenceType": "market-share evidence",
+    "sourceUrl": "https://www.cht.com.tw/zh-tw/home/cht/messages/2025/0703-1000",
+    "finding": "Provider cites MIC 2025 survey share of 7.5% for Hami Video; survey respondents, not absolute subscribers.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "true",
+    "countries": [
+      "TH"
+    ],
+    "services": [
+      "TrueVisions NOW"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.true.th/blog/en/truevision-is-now-2/",
+    "finding": "2026 local premium-content strategy with major studios. Event/season passes require recurring-billing proof.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "iwant",
+    "countries": [
+      "PH"
+    ],
+    "services": [
+      "iWant"
+    ],
+    "evidenceType": "official provider page",
+    "sourceUrl": "https://corporate.abs-cbn.com/newsroom/news-releases/2025/6/4/iwant-officially-launches-revamped-streaming-platf?lang=fil",
+    "finding": "iWantTFC rebranded to iWant in June 2025; free and paid tiers must be distinguished.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "unext",
+    "countries": [
+      "JP"
+    ],
+    "services": [
+      "U-NEXT"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://help.unext.jp/info-video/detail/info532b",
+    "finding": "Five million paying subscribers exceeded in November 2025.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "crave",
+    "countries": [
+      "CA"
+    ],
+    "services": [
+      "Crave"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://www.bce.ca/cs-assets/2025-bce-integrated-annual-report.pdf-blt14a3fcac20d37443",
+    "finding": "Crave reached 4.6 million subscribers in 2025. Bundle pricing is not direct standalone pricing.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "tving",
+    "countries": [
+      "KR"
+    ],
+    "services": [
+      "TVING"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.cjenm.com/en/digital-business/",
+    "finding": "Established domestic streaming platform. Distribution of content through HBO Max is not TVING local availability abroad.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "vix",
+    "countries": [
+      "MX",
+      "CO",
+      "US"
+    ],
+    "services": [
+      "ViX"
+    ],
+    "evidenceType": "official provider help",
+    "sourceUrl": "https://ayuda.vix.com/hc/en-us/articles/42676480809869-How-much-does-ViX-Premium-cost-Annual-Plans-Offers",
+    "finding": "Current help distinguishes legacy annual renewals and a tier closed to new subscriptions. Do not reuse old prices.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "vidio",
+    "countries": [
+      "ID"
+    ],
+    "services": [
+      "Vidio"
+    ],
+    "evidenceType": "qualitative industry evidence",
+    "sourceUrl": "https://emtek.co.id/id/bisnis-kami?tab=media-digital",
+    "finding": "EMTEK identifies Vidio as a major domestic streaming business.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "vidio-prices",
+    "countries": [
+      "ID"
+    ],
+    "services": [
+      "Vidio"
+    ],
+    "evidenceType": "official provider help",
+    "sourceUrl": "https://support.vidio.com/support/solutions/articles/43000789870-berapa-harga-paket-di-vidio-untuk-saat-ini-",
+    "finding": "24 August 2026: Platinum 30 days web/Google Rp49,000 excluding VAT; Apple Rp55,000 including VAT. No new price imported: tax/renewal/ISO identity need confirmation.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "blutv",
+    "countries": [
+      "TR"
+    ],
+    "services": [
+      "BluTV",
+      "Max"
+    ],
+    "evidenceType": "official provider announcement",
+    "sourceUrl": "https://press.wbd.com/emea/ca/media-release/max-now-available-stream-turkey?language_content_entity=en",
+    "finding": "BluTV transitioned to Max on 15 April 2025; not two independent canonical subscriptions.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "showmax",
+    "countries": [
+      "ZA"
+    ],
+    "services": [
+      "Showmax"
+    ],
+    "evidenceType": "official provider announcement",
+    "sourceUrl": "https://www.canalplusgroup.com/en/mandatoryoffermultichoice/multichoice-post-76",
+    "finding": "March 2026 discontinuation announcement. Standalone addition rejected; current replacement offer must be verified.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "yes",
+    "countries": [
+      "IL"
+    ],
+    "services": [
+      "yes+",
+      "STING+"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://ir.bezeq.co.il/news-releases/news-release-details/immediate-report-update-migration-process-yes",
+    "finding": "Provider documents satellite-to-OTT migration; distinguish yes+ and STING+ offers.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "shahid",
+    "countries": [
+      "AE",
+      "SA",
+      "QA",
+      "EG",
+      "KW"
+    ],
+    "services": [
+      "Shahid"
+    ],
+    "evidenceType": "subscriber business evidence",
+    "sourceUrl": "https://www.saudiexchange.sa/Resources/fsPdf/21312_5326_2026-08-10_15-24-19_en.pdf",
+    "finding": "MBC 1H2026 reports Shahid business growth. Group performance does not establish each country price or adoption.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "anghami",
+    "countries": [
+      "AE",
+      "SA",
+      "QA",
+      "EG",
+      "KW"
+    ],
+    "services": [
+      "Anghami",
+      "OSN+"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1871983/000121390026050335/ea0287764-20f_anghami.htm",
+    "finding": "Group filing describes MENA operations; distinguish OSN+ and Anghami brands and country-local offers.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "fpt",
+    "countries": [
+      "VN"
+    ],
+    "services": [
+      "FPT Play"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://bctn2025.fpt.com/en/",
+    "finding": "FPT annual reporting provides operator-level relevance. Current individual plans and K+ status remain unverified.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "cosmote",
+    "countries": [
+      "GR"
+    ],
+    "services": [
+      "COSMOTE TV"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://www.investegate.eu/announcement/rns/hellenic-telecommunications-organization-s-a---otes/q4-2025-fy-2025-financial-results/9448589",
+    "finding": "Company FY2025 results report 777,000 TV subscribers; bundles differ from direct OTT.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "zapping",
+    "countries": [
+      "CL"
+    ],
+    "services": [
+      "Zapping"
+    ],
+    "evidenceType": "official provider page",
+    "sourceUrl": "https://www.zapping.com/planes?miWomView=1",
+    "finding": "Local offers and TNT add-on requiring a base plan; bare dollar and operator offers not imported as standalone CLP prices.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "win",
+    "countries": [
+      "CO"
+    ],
+    "services": [
+      "Win Sports"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://dimayor.com.co/wp-content/uploads/2026/04/PROGRAMACION-FECHA-19-LIGA-BETPLAY-DIMAYOR-I-2026-3.pdf",
+    "finding": "2026 domestic league distribution relevance; Win Play current plans still need billing/currency validation.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "tencent",
+    "countries": [
+      "CN"
+    ],
+    "services": [
+      "Tencent Video",
+      "QQ Music",
+      "Kugou"
+    ],
+    "evidenceType": "subscriber business evidence",
+    "sourceUrl": "https://www.tencent.com/investors/financial-reports/2025annual",
+    "finding": "Group reporting supports major Chinese subscription businesses; no invented individual-brand user counts.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "deezer",
+    "countries": [
+      "FR"
+    ],
+    "services": [
+      "Deezer"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://newsroom-deezer.com/2026/07/deezer-h1-2026-results-direct-growth-profitability/",
+    "finding": "H1 2026 France direct subscribers 3.9 million; other-country relevance not inferred from group growth.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "nintendo",
+    "countries": [
+      "US",
+      "JP"
+    ],
+    "services": [
+      "Nintendo Switch Online"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://www.nintendo.co.jp/ir/pdf/2024/241106e.pdf",
+    "finding": "Over 34 million global members in September 2024. Stale for current country-level ranking; local recurring plans need fresh evidence.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "arcade",
+    "countries": [
+      "NO"
+    ],
+    "services": [
+      "Apple Arcade"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.apple.com/no/apple-arcade/",
+    "finding": "Current localized recurring offering, family distribution and monthly/annual periods; no country subscriber number published here.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "nitro",
+    "countries": [],
+    "services": [
+      "Discord Nitro"
+    ],
+    "evidenceType": "official provider page",
+    "sourceUrl": "https://discord.com/nitro",
+    "finding": "Recurring Nitro product exists; verified local availability, currency and paid-user relevance per country remain incomplete.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "duolingo",
+    "countries": [],
+    "services": [
+      "Duolingo Super",
+      "Duolingo Max"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://investors.duolingo.com/node/10916/pdf",
+    "finding": "Over ten million group paid subscribers in Q1 2025; this is not a per-tier or per-country number.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "kindle",
+    "countries": [],
+    "services": [
+      "Kindle Unlimited"
+    ],
+    "evidenceType": "official provider page",
+    "sourceUrl": "https://www.aboutamazon.com/news/retail/amazon-prime-day-2025-kindle-unlimited-deal",
+    "finding": "Recurring subscription described; historical free-trial campaign is not current standard pricing.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Does not prove all plans, billing routes, current local prices or per-country paid subscriber counts."
+  },
+  {
+    "id": "netflix-global",
+    "countries": [
+      "US",
+      "NO",
+      "SE",
+      "DK",
+      "DE",
+      "ES",
+      "FR",
+      "IT",
+      "PT",
+      "NL",
+      "BE",
+      "AT",
+      "IE",
+      "FI"
+    ],
+    "services": [
+      "Netflix"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://s22.q4cdn.com/959853165/files/doc_financials/2025/ar/Netflix-2026-Proxy-Statement.pdf",
+    "finding": "Over 325 million global paid memberships in 2025; not per-country counts.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Local identity comes from existing registry snapshots, not inferred from global subscriber total. No fresh price recertification."
+  },
+  {
+    "id": "spotify-global",
+    "countries": [
+      "NO",
+      "GB",
+      "CH",
+      "PL",
+      "BR",
+      "CZ",
+      "MY"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://newsroom.spotify.com/2026-08-04/spotify-q2-2026-earnings/",
+    "finding": "300 million global Premium subscribers in Q2 2026; not per-country counts.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Local identity comes from existing registry snapshots, not inferred from global subscriber total. No fresh price recertification."
+  },
+  {
+    "id": "tv2dk",
+    "countries": [
+      "DK"
+    ],
+    "services": [
+      "TV 2 Play Denmark"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://tv2danmark.dk/media/m11gsgit/tv-2-a-rsrapport-2025.pdf",
+    "finding": "2025 reporting and provider summary identify about 1.2 million TV 2 Play subscriptions.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-09",
+    "limits": "Denmark identity distinct from Norwegian TV 2 Play. No prices or canonical mapping copied."
+  },
+  {
+    "id": "kplus",
+    "countries": [
+      "VN"
+    ],
+    "services": [
+      "K+"
+    ],
+    "evidenceType": "official provider announcement",
+    "sourceUrl": "https://www.kplus.vn/thong-bao",
+    "finding": "Provider cessation notice covers paid terms beyond 31 December 2025 and refunds through 31 January 2026. Reject new standalone K+.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Identity and availability evidence does not verify local plans or prices."
+  },
+  {
+    "id": "viaplay-current",
+    "countries": [
+      "NO",
+      "SE",
+      "DK",
+      "FI",
+      "NL",
+      "PL",
+      "US",
+      "CA",
+      "GB"
+    ],
+    "services": [
+      "Viaplay"
+    ],
+    "evidenceType": "official provider announcement",
+    "sourceUrl": "https://www.viaplaygroup.com/en/annual-sustainability-report-2025",
+    "finding": "Current core streaming markets are Nordics and Netherlands. Q1 2026 reporting confirms Poland exit completed June 2025 and earlier North American D2C closure. Viaplay Select distribution is not a local standalone subscription.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Identity and availability evidence does not verify local plans or prices."
+  },
+  {
+    "id": "hbo-rebrand",
+    "countries": [
+      "TR"
+    ],
+    "services": [
+      "Max",
+      "BluTV"
+    ],
+    "evidenceType": "official provider announcement",
+    "sourceUrl": "https://press.wbd.com/us/media-release/hbo-max/hbo-max-back",
+    "finding": "Global HBO Max branding restored 9 July 2025, after BluTV transitioned to Max. Existing max slug and HBO Max alias already resolve together; display/DB rename deferred to coordinated identity review.",
+    "editorialTier": null,
+    "observedAt": "2026-09-09",
+    "limits": "Identity and availability evidence does not verify local plans or prices."
+  },
+  {
+    "id": "rtl-current",
+    "countries": [
+      "DE"
+    ],
+    "services": [
+      "RTL+"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://plus.rtl.de/",
+    "finding": "Current provider sells recurring website packages. Existing RTL group reporting supports Tier 1 significance.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Availability/recurrence evidence, not a new price or an independently measured national subscriber count."
+  },
+  {
+    "id": "videoland-current",
+    "countries": [
+      "NL"
+    ],
+    "services": [
+      "Videoland"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.videoland.com/nl/",
+    "finding": "Current Dutch provider sells recurring paid packages; separate from free TV Gemist. Existing group reporting supports Tier 1.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Availability/recurrence evidence, not a new price or an independently measured national subscriber count."
+  },
+  {
+    "id": "nintendo-current",
+    "countries": [
+      "US",
+      "BR",
+      "CA",
+      "MX",
+      "CL",
+      "CO"
+    ],
+    "services": [
+      "Nintendo Switch Online"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://en-americas-support.nintendo.com/app/answers/detail/a_id/41953/~/nintendo-switch-online-service-and-feature-availability-by-country",
+    "finding": "Official country table confirms paid memberships and automatic renewal; group member count from 2024 is older, not country subscriber counts.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-10",
+    "limits": "Availability/recurrence evidence, not a new price or an independently measured national subscriber count."
+  },
+  {
+    "id": "osn-availability",
+    "countries": [
+      "AE",
+      "SA",
+      "QA",
+      "EG",
+      "KW"
+    ],
+    "services": [
+      "OSN+"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://support.osnplus.com/hc/en-us/articles/6869696148634-Where-is-OSN-available",
+    "finding": "Explicit provider availability includes these countries. Group filing supplies regional significance, not national paid counts.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-10",
+    "limits": "Availability/recurrence evidence, not a new price or an independently measured national subscriber count."
+  },
+  {
+    "id": "osn-paid",
+    "countries": [
+      "AE",
+      "SA",
+      "QA",
+      "EG",
+      "KW"
+    ],
+    "services": [
+      "OSN+"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://support.osnplus.com/hc/en-us/articles/6984916693146-What-are-OSN-Subscription-Price-and-Available-Plans-FAQs",
+    "finding": "Provider offers monthly/yearly website subscriptions. Advertising tier is country-limited. No country price imported.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-10",
+    "limits": "Availability/recurrence evidence, not a new price or an independently measured national subscriber count."
+  },
+  {
+    "id": "canada-bell-current",
+    "countries": [
+      "CA"
+    ],
+    "services": [
+      "Crave",
+      "TSN",
+      "RDS"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/718940/000071894026000009/a2026-q2xmda.htm",
+    "finding": "BCE Q2 2026 describes Canadian distribution and Crave embedded in Walmart+; group reach is not paid subscriber count.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Research evidence retained; not implemented or a claim of completed Canadian census."
+  },
+  {
+    "id": "canada-sirius",
+    "countries": [
+      "CA"
+    ],
+    "services": [
+      "SiriusXM Canada"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://investor.siriusxm.com/sec-filings/annual-reports/content/0001104659-26-041780/0001104659-26-041780.pdf",
+    "finding": "2025 year-end approximately 2.4 million Canadian subscribers, separately reported from US.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-10",
+    "limits": "Research evidence retained; not implemented or a claim of completed Canadian census."
+  },
+  {
+    "id": "canada-sportsnet",
+    "countries": [
+      "CA"
+    ],
+    "services": [
+      "Sportsnet+"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.sportsnetplus.ca/faq/",
+    "finding": "Official service FAQ restricts paid product to Canada. No exact subscriber number established.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-10",
+    "limits": "Research evidence retained; not implemented or a claim of completed Canadian census."
+  },
+  {
+    "id": "canada-prime",
+    "countries": [
+      "CA"
+    ],
+    "services": [
+      "Amazon Prime"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.aboutamazon.ca/prime-day-2026",
+    "finding": "Current official 2026 Canadian membership offer; no recurring price imported from promotional event article.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Research evidence retained; not implemented or a claim of completed Canadian census."
+  },
+  {
+    "id": "canada-ps-plus",
+    "countries": [
+      "CA"
+    ],
+    "services": [
+      "PlayStation Plus"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.playstation.com/en-ca/ps-plus/",
+    "finding": "Canadian official paid membership with automatic renewal. No local price imported.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-10",
+    "limits": "Research evidence retained; not implemented or a claim of completed Canadian census."
+  },
+  {
+    "id": "canada-game-pass",
+    "countries": [
+      "CA"
+    ],
+    "services": [
+      "Xbox Game Pass"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.xbox.com/en-ca/xbox-game-pass",
+    "finding": "Canadian official recurring membership. No local price imported.",
+    "editorialTier": 2,
+    "observedAt": "2026-09-10",
+    "limits": "Research evidence retained; not implemented or a claim of completed Canadian census."
+  },
+  {
+    "id": "netflix-global-2026",
+    "countries": [
+      "US",
+      "NO",
+      "SE",
+      "DK",
+      "DE",
+      "ES",
+      "FR",
+      "IT",
+      "PT",
+      "NL",
+      "BE",
+      "AT",
+      "IE",
+      "FI",
+      "GB",
+      "AU",
+      "NZ",
+      "CH",
+      "PL",
+      "BR",
+      "CZ",
+      "MY",
+      "IN",
+      "SG",
+      "HK",
+      "TW",
+      "AE",
+      "TH",
+      "PH",
+      "JP",
+      "CA",
+      "SA",
+      "KR",
+      "MX",
+      "ID",
+      "TR",
+      "ZA",
+      "IL",
+      "QA",
+      "EG",
+      "KW",
+      "VN",
+      "RO",
+      "GR",
+      "CL",
+      "CO"
+    ],
+    "services": [
+      "Netflix"
+    ],
+    "evidenceType": "usage evidence",
+    "sourceUrl": "https://about.netflix.com/en/news/netflix-upfront-2026-get-closer",
+    "finding": "May 2026 reports over 250 million global monthly active viewers for ads; not paid accounts or a national subscriber measure. Tier 1 global significance, not local market-share ranking. Fifteen-country ads expansion is announced for 2027, not currently available plans.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "netflix-availability",
+    "countries": [
+      "US",
+      "NO",
+      "SE",
+      "DK",
+      "DE",
+      "ES",
+      "FR",
+      "IT",
+      "PT",
+      "NL",
+      "BE",
+      "AT",
+      "IE",
+      "FI",
+      "GB",
+      "AU",
+      "NZ",
+      "CH",
+      "PL",
+      "BR",
+      "CZ",
+      "MY",
+      "IN",
+      "SG",
+      "HK",
+      "TW",
+      "AE",
+      "TH",
+      "PH",
+      "JP",
+      "CA",
+      "SA",
+      "KR",
+      "MX",
+      "ID",
+      "TR",
+      "ZA",
+      "IL",
+      "QA",
+      "EG",
+      "KW",
+      "VN",
+      "RO",
+      "GR",
+      "CL",
+      "CO"
+    ],
+    "services": [
+      "Netflix"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://help.netflix.com/en/node/14164",
+    "finding": "Provider states service covers over 190 countries/regions and explicitly excludes China, Crimea, North Korea, Russia and Syria. No local plan/price inferred.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "spotify-global-2026",
+    "countries": [
+      "US",
+      "NO",
+      "SE",
+      "DK",
+      "DE",
+      "ES",
+      "FR",
+      "IT",
+      "PT",
+      "NL",
+      "BE",
+      "AT",
+      "IE",
+      "FI",
+      "GB",
+      "AU",
+      "NZ",
+      "CH",
+      "PL",
+      "BR",
+      "CZ",
+      "MY",
+      "IN",
+      "SG",
+      "HK",
+      "TW",
+      "AE",
+      "TH",
+      "PH",
+      "JP",
+      "CA",
+      "SA",
+      "KR",
+      "MX",
+      "ID",
+      "TR",
+      "ZA",
+      "IL",
+      "QA",
+      "EG",
+      "KW",
+      "VN",
+      "RO",
+      "GR",
+      "CL",
+      "CO"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "subscriber evidence",
+    "sourceUrl": "https://newsroom.spotify.com/2026-08-04/spotify-q2-2026-earnings/",
+    "finding": "Q2 2026: 300 million global Premium subscribers and 777 million MAU. Global significance only, not country paid subscriber numbers or country-plan availability.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "spotify-paid-in",
+    "countries": [
+      "IN"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.spotify.com/in-en/premium/",
+    "finding": "Current localized paid recurring Premium offer verified. Trials, prepaid equivalents and country-specific tier names must not be generalized. Availability only except separately tested UAE snapshots.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "spotify-paid-sg",
+    "countries": [
+      "SG"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.spotify.com/sg-en/premium/",
+    "finding": "Current localized paid recurring Premium offer verified. Trials, prepaid equivalents and country-specific tier names must not be generalized. Availability only except separately tested UAE snapshots.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "spotify-paid-hk",
+    "countries": [
+      "HK"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.spotify.com/hk-en/premium/",
+    "finding": "Current localized paid recurring Premium offer verified. Trials, prepaid equivalents and country-specific tier names must not be generalized. Availability only except separately tested UAE snapshots.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "spotify-paid-tw",
+    "countries": [
+      "TW"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.spotify.com/tw/premium/",
+    "finding": "Current localized paid recurring Premium offer verified. Trials, prepaid equivalents and country-specific tier names must not be generalized. Availability only except separately tested UAE snapshots.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "spotify-paid-ae",
+    "countries": [
+      "AE"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.spotify.com/ae-en/premium/",
+    "finding": "Current localized paid recurring Premium offer verified. Trials, prepaid equivalents and country-specific tier names must not be generalized. Availability only except separately tested UAE snapshots.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "spotify-paid-th",
+    "countries": [
+      "TH"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.spotify.com/th-en/premium/",
+    "finding": "Current localized paid recurring Premium offer verified. Trials, prepaid equivalents and country-specific tier names must not be generalized. Availability only except separately tested UAE snapshots.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "spotify-paid-ph",
+    "countries": [
+      "PH"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.spotify.com/ph-en/premium/",
+    "finding": "Current localized paid recurring Premium offer verified. Trials, prepaid equivalents and country-specific tier names must not be generalized. Availability only except separately tested UAE snapshots.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "spotify-paid-au",
+    "countries": [
+      "AU"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.spotify.com/au/premium/",
+    "finding": "Current localized paid recurring Premium offer verified. Trials, prepaid equivalents and country-specific tier names must not be generalized. Availability only except separately tested UAE snapshots.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "spotify-paid-nz",
+    "countries": [
+      "NZ"
+    ],
+    "services": [
+      "Spotify"
+    ],
+    "evidenceType": "distribution evidence",
+    "sourceUrl": "https://www.spotify.com/nz/premium/",
+    "finding": "Current localized paid recurring Premium offer verified. Trials, prepaid equivalents and country-specific tier names must not be generalized. Availability only except separately tested UAE snapshots.",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Not evidence for another billing route, a historical effective date or national paid subscriber count."
+  },
+  {
+    "id": "iqiyi-2026",
+    "countries": [
+      "CN"
+    ],
+    "services": [
+      "iQIYI"
+    ],
+    "sourceUrl": "https://ir.iqiyi.com/news-releases/news-release-details/iqiyi-announces-second-quarter-2026-financial-results/",
+    "finding": "Q2 2026 membership-services revenue RMB4.01 billion supports major paid-video significance in China; not a subscriber count.",
+    "evidenceType": "qualitative industry evidence",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Significance evidence; no new local price or billing-channel inference."
+  },
+  {
+    "id": "tencent-video-2025",
+    "countries": [
+      "CN"
+    ],
+    "services": [
+      "Tencent Video"
+    ],
+    "sourceUrl": "https://static.www.tencent.com/uploads/2025/08/13/56af6c5c98acdc7bd757a7bd208d8189.pdf",
+    "finding": "Q2 2025 Tencent Video 114 million subscribers and reported leading long-form video position in China. Older evidence, not a current 2026 subscriber figure.",
+    "evidenceType": "subscriber evidence",
+    "editorialTier": 1,
+    "observedAt": "2026-09-10",
+    "limits": "Significance evidence; no new local price or billing-channel inference."
+  }
+]

@@ -1,0 +1,495 @@
+{
+  "observedAt": "2026-09-10",
+  "newMarkets": [
+    [
+      "JP",
+      "Japan",
+      "JPY"
+    ],
+    [
+      "CA",
+      "Canada",
+      "CAD"
+    ],
+    [
+      "SA",
+      "Saudi Arabia",
+      "SAR"
+    ],
+    [
+      "KR",
+      "South Korea",
+      "KRW"
+    ],
+    [
+      "MX",
+      "Mexico",
+      "MXN"
+    ],
+    [
+      "ID",
+      "Indonesia",
+      "IDR"
+    ],
+    [
+      "TR",
+      "Türkiye",
+      "TRY"
+    ],
+    [
+      "ZA",
+      "South Africa",
+      "ZAR"
+    ],
+    [
+      "IL",
+      "Israel",
+      "ILS"
+    ],
+    [
+      "QA",
+      "Qatar",
+      "QAR"
+    ],
+    [
+      "EG",
+      "Egypt",
+      "EGP"
+    ],
+    [
+      "VN",
+      "Vietnam",
+      "VND"
+    ],
+    [
+      "RO",
+      "Romania",
+      "RON"
+    ],
+    [
+      "GR",
+      "Greece",
+      "EUR"
+    ],
+    [
+      "CL",
+      "Chile",
+      "CLP"
+    ],
+    [
+      "CO",
+      "Colombia",
+      "COP"
+    ]
+  ],
+  "globalSources": {
+    "netflix": "https://help.netflix.com/en/node/14164",
+    "spotify": "https://support.spotify.com/us/article/where-spotify-is-available/",
+    "apple-music": "https://support.apple.com/en-us/118205",
+    "apple-tv-plus": "https://support.apple.com/en-us/118205",
+    "google-one": "https://support.google.com/googleone/answer/9080668?hl=en",
+    "youtube-premium": "https://support.google.com/youtube/answer/6307365?hl=en",
+    "chatgpt": "https://help.openai.com/en/articles/7947663-chatgpt-supported-countries"
+  },
+  "services": [
+    {
+      "slug": "apple-arcade",
+      "name": "Apple Arcade",
+      "countries": [
+        "US",
+        "NO",
+        "SE",
+        "DK",
+        "DE",
+        "ES",
+        "FR",
+        "IT",
+        "PT",
+        "NL",
+        "BE",
+        "AT",
+        "IE",
+        "FI",
+        "GB",
+        "AU",
+        "NZ",
+        "CH",
+        "PL",
+        "BR",
+        "CZ",
+        "MY",
+        "IN",
+        "SG",
+        "TW",
+        "AE",
+        "TH",
+        "PH",
+        "JP",
+        "CA",
+        "SA",
+        "KR",
+        "MX",
+        "ID",
+        "TR",
+        "ZA",
+        "IL",
+        "QA",
+        "EG",
+        "VN",
+        "RO",
+        "GR",
+        "CL",
+        "CO"
+      ],
+      "sourceUrl": "https://support.apple.com/en-us/118205",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "u-next",
+      "name": "U-NEXT",
+      "countries": [
+        "JP"
+      ],
+      "sourceUrl": "https://help.unext.jp/guide/detail/types-of-service-plan",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "hulu-japan",
+      "name": "Hulu Japan",
+      "countries": [
+        "JP"
+      ],
+      "sourceUrl": "https://www.hjholdings.jp/",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "dmm-tv",
+      "name": "DMM TV",
+      "countries": [
+        "JP"
+      ],
+      "sourceUrl": "https://premium.dmm.com/welcome/",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "tving",
+      "name": "TVING",
+      "countries": [
+        "KR"
+      ],
+      "sourceUrl": "https://www.tving.com/bill/subscription/plan?tab=plus",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "melon",
+      "name": "Melon",
+      "countries": [
+        "KR"
+      ],
+      "sourceUrl": "https://search.melon.com/buy/pamphlet/discount.htm",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "crave",
+      "name": "Crave",
+      "countries": [
+        "CA"
+      ],
+      "sourceUrl": "https://www.crave.ca/en/subscribe",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "tsn",
+      "name": "TSN",
+      "countries": [
+        "CA"
+      ],
+      "sourceUrl": "https://www.bellmedia.ca/the-lede/press/the-ultimate-entertainment-and-sports-bundles-bell-media-offers-new-bundles-featuring-crave-tsn-and-rds/",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "sportsnet-plus",
+      "name": "Sportsnet+",
+      "countries": [
+        "CA"
+      ],
+      "sourceUrl": "https://www.sportsnetplus.ca/faq/",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "siriusxm-canada",
+      "name": "SiriusXM Canada",
+      "countries": [
+        "CA"
+      ],
+      "sourceUrl": "https://www.siriusxm.ca/plans/",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "shahid",
+      "name": "Shahid",
+      "countries": [
+        "AE",
+        "SA",
+        "QA",
+        "EG"
+      ],
+      "sourceUrl": "https://shahid.mbc.net/en/hub/web-promo",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "anghami",
+      "name": "Anghami",
+      "countries": [
+        "AE",
+        "SA",
+        "QA",
+        "EG"
+      ],
+      "sourceUrl": "https://support.anghami.com/hc/en-us/articles/360000567168-Overview-of-Anghami-Subscription-Plans",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "stc-tv",
+      "name": "stc tv",
+      "countries": [
+        "SA"
+      ],
+      "sourceUrl": "https://www.stc.com.sa/en/personal/lifestyle/stctv.html",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "tod",
+      "name": "TOD",
+      "countries": [
+        "QA"
+      ],
+      "sourceUrl": "https://support.tod.tv/hc/en-us/articles/10492474302492-How-do-I-subscribe-via-Ooredoo-Qatar",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "vix",
+      "name": "ViX",
+      "countries": [
+        "MX"
+      ],
+      "sourceUrl": "https://ayuda.vix.com/hc/es-mx/articles/42708849724173--Cu%C3%A1nto-cuesta-ViX-Premium-Planes-y-Ofertas-Mensuales",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "vidio",
+      "name": "Vidio",
+      "countries": [
+        "ID"
+      ],
+      "sourceUrl": "https://support.vidio.com/support/solutions/articles/43000789870-berapa-harga-paket-di-vidio-untuk-saat-ini-",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "vision-plus",
+      "name": "VISION+",
+      "countries": [
+        "ID"
+      ],
+      "sourceUrl": "https://packages.visionplus.id/premium?packageName=premium30days",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "gain",
+      "name": "GAİN",
+      "countries": [
+        "TR"
+      ],
+      "sourceUrl": "https://destek.gain.tv/guncel-ucretler.html",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "exxen",
+      "name": "Exxen",
+      "countries": [
+        "TR"
+      ],
+      "sourceUrl": "https://yardim-exxen.ortusdesk.com/planlar-ve-ucretler-3/",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "dstv-stream",
+      "name": "DStv Stream",
+      "countries": [
+        "ZA"
+      ],
+      "sourceUrl": "https://www.dstv.com/en-za/campaign/new-compact-season/",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "sting-plus",
+      "name": "STING+",
+      "countries": [
+        "IL"
+      ],
+      "sourceUrl": "https://www.stingtv.co.il/choose-package/",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "yes-plus",
+      "name": "yes+",
+      "countries": [
+        "IL"
+      ],
+      "sourceUrl": "https://ir.bezeq.co.il/news-releases/news-release-details/immediate-report-update-migration-process-yes",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "watch-it",
+      "name": "WATCH IT",
+      "countries": [
+        "EG"
+      ],
+      "sourceUrl": "https://support.watchit.com/hc/en-us/articles/5118489729437-How-to-subscribe-to-WATCH-IT-using-your-Credit-Debit-Cards",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "fpt-play",
+      "name": "FPT Play",
+      "countries": [
+        "VN"
+      ],
+      "sourceUrl": "https://fpt.vn/vi/khach-hang-ca-nhan/san-pham-dich-vu/truyen-hinh-fpt/fpt-play-menu.html",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "voyo-ro",
+      "name": "VOYO Romania",
+      "countries": [
+        "RO"
+      ],
+      "sourceUrl": "https://voyo.protv.ro/",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "antenaplay",
+      "name": "AntenaPLAY",
+      "countries": [
+        "RO"
+      ],
+      "sourceUrl": "https://antenaplay.ro/ajutor-clienti/cum-imi-fac-abonament",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "magenta-tv-gr",
+      "name": "MagentaTV Greece",
+      "countries": [
+        "GR"
+      ],
+      "sourceUrl": "https://www.magentatv.gr/streaming",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "cinobo",
+      "name": "Cinobo",
+      "countries": [
+        "GR"
+      ],
+      "sourceUrl": "https://cinobo.com/en",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "zapping",
+      "name": "Zapping",
+      "countries": [
+        "CL"
+      ],
+      "sourceUrl": "https://www.zapping.com/planes",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    },
+    {
+      "slug": "win-play",
+      "name": "Win Play",
+      "countries": [
+        "CO"
+      ],
+      "sourceUrl": "https://www.winsports.co/mas-contenido/noticias/que-incluye-cada-plan-de-win-play-descubre-precios-y-beneficios-409344",
+      "priceStatus": "See direct-price evidence; otherwise manual",
+      "significance": "Editorial relevant provider; see candidates/evidence for separate national or group significance; no invented subscriber counts"
+    }
+  ],
+  "additionalExistingServices": [
+    {
+      "serviceSlug": "disney-plus",
+      "countries": [
+        "JP",
+        "CA",
+        "KR",
+        "MX",
+        "RO",
+        "GR"
+      ],
+      "sourceUrls": [
+        "https://www.disneyplus.com/ja-jp",
+        "https://www.disneyplus.com/en-ca",
+        "https://www.disneyplus.com/ko-kr",
+        "https://www.disneyplus.com/es-mx",
+        "https://www.disneyplus.com/ro-ro",
+        "https://www.disneyplus.com/el-gr"
+      ]
+    },
+    {
+      "serviceSlug": "max",
+      "countries": [
+        "MX",
+        "ID",
+        "TR",
+        "RO",
+        "CL",
+        "CO",
+        "VN",
+        "GR"
+      ],
+      "sourceUrl": "https://help.max.com/us/Answer/Detail/000002518",
+      "note": "Existing canonical Max/HBO Max identity, no BluTV duplicate; no direct price imported."
+    },
+    {
+      "serviceSlug": "nintendo-switch-online",
+      "countries": [
+        "JP",
+        "CA",
+        "MX",
+        "CL",
+        "CO"
+      ],
+      "sourceUrls": [
+        "https://www.nintendo.com/jp/nintendo-switch-online/plan/index.html",
+        "https://en-americas-support.nintendo.com/app/answers/detail/a_id/41953/~/nintendo-switch-online-service-and-feature-availability-by-country"
+      ]
+    }
+  ]
+}

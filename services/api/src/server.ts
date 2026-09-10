@@ -596,7 +596,7 @@ const server = http.createServer(async (req, res) => {
               subscriptions:
                 (typeof body.context?.countryCode === "string" && /^[A-Z]{2}$/.test(body.context.countryCode.trim().toUpperCase())
                   ? subscriptionsForMarket(subscriptions, body.context.countryCode.trim().toUpperCase())
-                  : subscriptions).map(
+                  : []).map(
                   (item: any) => ({
                     id: item.id,
                     countryCode: item.countryCode,

@@ -1,3 +1,4 @@
+import { verifiedExpansionPrices } from "./verified-expansion-prices.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
@@ -16,7 +17,7 @@ const audit = JSON.parse(readFileSync(new URL("../../../docs/markets/readiness-b
 
 test("shared definitions preserve every baseline mobile country and API currency", () => {
   for (const code of audit.mobileMarkets) assert.ok(countryCurrencyData.some(([cc]) => cc === code));
-  assert.deepEqual(countryCurrencies, audit.apiCurrencies);
+  for(const [cc,currency] of Object.entries(audit.apiCurrencies)) assert.equal(countryCurrencies[cc],currency);
   assert.equal(new Set(countryCurrencyData.map(([cc]) => cc)).size, countryCurrencyData.length);
   for (const [cc, , currency] of countryCurrencyData) assert.equal(countryCurrencies[cc], currency);
 });
@@ -92,7 +93,7 @@ test("notifications retain user timezone independently of the subscription marke
 
 
 test("only evidence-ready expansion markets are selectable and their catalogs are bounded", () => {
-  assert.deepEqual(countryCurrencyData.filter(([cc]) => !audit.mobileMarkets.includes(cc)).map(([cc]) => cc), ["GB", "AU", "NZ", "CH", "PL", "BR", "CZ", "MY", "IN", "SG", "HK", "TW", "AE", "TH", "PH"]);
+  assert.deepEqual(countryCurrencyData.slice(0,30).filter(([cc]) => !audit.mobileMarkets.includes(cc)).map(([cc]) => cc), ["GB", "AU", "NZ", "CH", "PL", "BR", "CZ", "MY", "IN", "SG", "HK", "TW", "AE", "TH", "PH"]);
   for (const cc of ["GB", "AU", "NZ"]) {
     const services = expansionMarketServices[cc];
     assert.ok(services.length >= 4);
@@ -219,11 +220,11 @@ test("next-wave subscriptions can be created and edited without moving another m
 test("release review preserves all 23 selectable markets and valid offline pricing identities", async(t)=>{
   const expected = ["US","NO","SE","DK","DE","ES","FR","IT","PT","NL","BE","AT","IE","FI","CN","GB","AU","NZ","CH","PL","BR","CZ","MY"];
   assert.deepEqual(countryCurrencyData.slice(0, expected.length).map(([cc])=>cc),expected);
-  assert.equal(countryCurrencyData.length,30);
+  assert.equal(countryCurrencyData.length,46);
   t.mock.method(globalThis,"fetch",async()=>{throw new Error("offline");});
   const subscriptions=countryCurrencyData.map(([countryCode,,currency])=>({id:countryCode,countryCode,currency,monthlyPriceMinor:1299}));
   const before=structuredClone(subscriptions);
-  for(const [cc,,currency] of countryCurrencyData){
+  for(const [cc,,currency] of countryCurrencyData.slice(0,30)){
     assert.equal(countryCurrencies[cc],currency);
     assert.equal(new Intl.NumberFormat("en-US",{style:"currency",currency}).resolvedOptions().maximumFractionDigits,2);
     assert.match(formatMarketMinor(1299,currency,"en-US"),/12\.99/);
@@ -254,7 +255,7 @@ test("seven international markets meet unchanged breadth route fallback and appl
     const services=expansionMarketServices[cc];
     assert.deepEqual(services,["icloud-plus","apple-music","apple-tv-plus","google-one"]);
     assert.equal(expansionServiceAvailable("spotify",cc),false);
-    const rows=verifiedProviderRegistry[cc];
+    const rows=verifiedProviderRegistry[cc].slice(0,11); // Preserve the original priced launch independently of additive services.
     assert.equal(rows.length,11);assert.equal(new Set(rows.map(r=>r.serviceSlug)).size,4);
     assert.deepEqual([...new Set(rows.map(r=>new URL(r.sourceUrl).hostname.includes("apple")?"Apple":"Google"))].sort(),["Apple","Google"]);
     assert.equal(rows.filter(r=>r.billingProviderSlug==="apple").length,9);
@@ -275,7 +276,7 @@ test("seven international markets meet unchanged breadth route fallback and appl
   }
   assert.deepEqual(items,before);
   assert.deepEqual(subscriptionsForMarket(items,"NO").map(p=>p.id),["NO"]);
-  for(const cc of ["JP","KR","MX","AR","ZA","VN","ID","NG","EG","MA","QA","KW","RU"])assert.ok(!countryCurrencyData.some(([c])=>c===cc),cc);
+  for(const cc of ["AR","NG","MA","KW","RU"])assert.ok(!countryCurrencyData.some(([c])=>c===cc),cc);
 });
 
 test("catalog batch preserves all 363 baseline registry rows and all 756 offline pricing hits",async(t)=>{
@@ -295,13 +296,94 @@ test("discovery preserves all 364 registry rows and 757 offline results from 225
   const baseline=JSON.parse(readFileSync(new URL("../../../docs/catalog/baseline-2258c70.json",import.meta.url),"utf8"));
   const digest=(value:unknown)=>createHash("sha256").update(JSON.stringify(value)).digest("hex");
   t.mock.method(globalThis,"fetch",async()=>{throw new Error("offline");});
-  assert.deepEqual(countryCurrencyData,baseline.markets.map((m:any)=>[m.country,m.name,m.currency]));
+  assert.deepEqual(countryCurrencyData.slice(0,baseline.markets.length),baseline.markets.map((m:any)=>[m.country,m.name,m.currency]));
   let registry=0,offline=0;
   for(const market of baseline.markets){
-    assert.equal(digest(verifiedProviderRegistry[market.country]??[]),market.registrySha256);
-    const prices=await fetchProviderLocalPrices(market.country,market.currency);
+    assert.equal(digest((verifiedProviderRegistry[market.country]??[]).slice(0,market.registryRows)),market.registrySha256);
+    const prices=(await fetchProviderLocalPrices(market.country,market.currency)).filter(row=>!verifiedExpansionPrices.some(p=>p.countryCode===market.country&&p.serviceSlug===row.serviceSlug&&p.planName===row.planName&&row.billingProviderSlug==="direct") && row.serviceSlug!=="storytel" && !(market.country==="AE"&&row.serviceSlug==="spotify"&&["Standard","Platinum"].includes(row.planName)));
     assert.equal(digest(prices.map(({updatedAt,...p})=>p)),market.offlineSha256,market.country);
     registry+=market.registryRows;offline+=prices.length;
   }
   assert.equal(registry,364);assert.equal(offline,757);
+});
+
+test("Storytel NO adds only five regular direct snapshots; source failure preserves all old output", async(t)=>{
+  t.mock.method(globalThis,"fetch",async()=>{throw new Error("source unavailable");});
+  const proof=JSON.parse(readFileSync(new URL("../../../docs/catalog/global-47/storytel-no-evidence.json",import.meta.url),"utf8"));
+  const baseline=JSON.parse(readFileSync(new URL("../../../docs/catalog/global-47/baseline.json",import.meta.url),"utf8"));
+  for(const market of baseline.markets){
+    const registry=verifiedProviderRegistry[market.country]??[];
+    assert.deepEqual(registry.slice(0,market.registry.length),market.registry);
+    const result=await fetchProviderLocalPrices(market.country,market.currency);
+    const added=result.filter(row=>row.serviceSlug==="storytel");
+    assert.equal(added.length,market.country==="NO"?5:0);
+    for(const row of added){
+      const plan=proof.plans.find((p:any)=>p.planName===row.planName);
+      assert.ok(plan); assert.equal(plan.countryCode,"NO"); assert.equal(plan.currency,"NOK");
+      assert.equal(plan.campaignId,null); assert.equal(plan.regularPeriod,"P1M");
+      assert.equal(plan.baseBilling.type,"RECURRING"); assert.equal(plan.baseBilling.currencyCode,"NOK");
+      assert.equal(plan.baseBilling.basePrice,Number(plan.regularPrice));
+      assert.equal(row.monthlyPriceMinor,Math.round(Number(plan.regularPrice)*100));
+      assert.equal(row.currency,"NOK");assert.equal(row.billingProviderSlug,"direct");
+      assert.equal(row.verification,"registry");assert.equal(row.sourceUrl,proof.sourceUrl);
+    }
+  }
+  assert.equal((await fetchProviderLocalPrices("NO","USD")).filter(p=>p.serviceSlug==="storytel").length,0);
+});
+
+test("actual remote assistant context excludes all portfolios when selected market is missing or malformed",()=>{
+  const source=readFileSync(new URL("./server.ts",import.meta.url),"utf8");
+  const expression=source.match(/\(typeof body\.context\?\.countryCode[\s\S]*?: \[\]\)\.map\(/)?.[0].replace(/\.map\($/,"");
+  assert.ok(expression,"remote assistant must fail closed without selected-market context");
+  const select=new Function("body","subscriptions","subscriptionsForMarket",`return ${expression}`);
+  const subscriptions=[{id:"de",countryCode:"DE",currency:"EUR"},{id:"fr",countryCode:"FR",currency:"EUR"},{id:"no",countryCode:"NO",currency:"NOK"}];
+  for(const countryCode of [undefined,null,"", "Norway", "NO FR",123])assert.deepEqual(select({context:{countryCode}},subscriptions,subscriptionsForMarket),[]);
+  assert.deepEqual(select({context:{countryCode:"DE"}},subscriptions,subscriptionsForMarket).map((x:any)=>x.id),["de"]);
+  assert.deepEqual(select({context:{countryCode:"FR"}},subscriptions,subscriptionsForMarket).map((x:any)=>x.id),["fr"]);
+  assert.equal(subscriptions.length,3);
+});
+
+test("Spotify UAE snapshots are recurring direct AED amounts and survive source failure without leaking countries",async(t)=>{
+  t.mock.method(globalThis,"fetch",async()=>{throw new Error("offline");});
+  const rows=(await fetchProviderLocalPrices("AE","AED")).filter(p=>p.serviceSlug==="spotify");
+  assert.deepEqual(rows.map(p=>[p.planName,p.monthlyPriceMinor]).sort(),[["Platinum",5999],["Standard",2399]]);
+  for(const p of rows){assert.equal(p.countryCode,"AE");assert.equal(p.currency,"AED");assert.equal(p.billingProviderSlug,"direct");assert.equal(p.verification,"registry");assert.equal(p.sourceUrl,"https://www.spotify.com/ae-en/premium/");}
+  for(const [cc,currency] of [["AE","USD"],["SA","SAR"],["QA","QAR"]])
+    assert.equal((await fetchProviderLocalPrices(cc,currency)).filter(p=>p.sourceUrl==="https://www.spotify.com/ae-en/premium/").length,0);
+});
+
+test("all expansion prices survive source failure with exact local currency and isolated billing", async () => {
+  const original=globalThis.fetch;
+  globalThis.fetch=async()=>{throw new Error("offline fixture");};
+  try {
+    for(const cc of new Set(verifiedExpansionPrices.map(p=>p.countryCode))){
+      const rows=await fetchProviderLocalPrices(cc,countryCurrencies[cc]);
+      for(const expected of verifiedExpansionPrices.filter(p=>p.countryCode===cc)){
+        const found=rows.find(p=>p.serviceSlug===expected.serviceSlug&&p.planName===expected.planName&&p.billingProviderSlug===expected.billingProviderSlug);
+        assert.ok(found,`${cc}/${expected.serviceSlug}/${expected.planName}/${expected.billingProviderSlug}`);
+        assert.equal(found.monthlyPriceMinor,expected.monthlyPriceMinor);
+        assert.equal(found.currency,expected.currency);assert.equal(found.countryCode,cc);
+        assert.equal(found.sourceUrl,expected.sourceUrl);
+      }
+      for(const row of rows)assert.equal(row.currency,countryCurrencies[cc]);
+    }
+    const jp=await fetchProviderLocalPrices("JP","JPY");
+    const dmm=jp.filter(p=>p.serviceSlug==="dmm-tv");
+    assert.deepEqual(dmm.map(p=>[p.billingProviderSlug,p.monthlyPriceMinor]).sort(),[["apple",65000],["direct",55000],["google-play",65000]]);
+    assert.equal((await fetchProviderLocalPrices("JP","USD")).length,0);
+    assert.equal((await fetchProviderLocalPrices("KW","KWD")).length,0);
+  } finally {globalThis.fetch=original;}
+});
+
+test("continuation preserves all 371 registry rows and 764 offline prices exactly",async()=>{
+  const snapshot=JSON.parse(readFileSync(new URL("../../../docs/catalog/global-47/continuation-baseline.json",import.meta.url),"utf8"));
+  const original=globalThis.fetch;globalThis.fetch=async()=>{throw new Error("source failure");};
+  const comparable=(p:AdapterPrice)=>JSON.stringify([p.serviceSlug,p.planName,p.billingProviderSlug,p.countryCode,p.currency,p.monthlyPriceMinor,p.verification,p.sourceUrl]);
+  try{
+    for(const market of snapshot.markets){
+      assert.deepEqual((verifiedProviderRegistry[market.country]??[]).slice(0,market.registry.length),market.registry);
+      const rows=new Set((await fetchProviderLocalPrices(market.country,market.currency)).map(comparable));
+      for(const old of market.prices)assert.ok(rows.has(comparable(old)),`Lost ${market.country}/${old.serviceSlug}/${old.planName}`);
+    }
+  }finally{globalThis.fetch=original;}
 });

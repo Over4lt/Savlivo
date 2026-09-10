@@ -12,9 +12,9 @@ test("bounded discovery uses aliases, normalized spacing, categories and market 
   assert.ok(searchCatalog("","NO",{limit:12}).length<=12);
   for(const category of catalogCategories)assert.ok(searchCatalog("","NO",{category:category.id}).every(s=>s.categories.includes(category.id)));
   assert.equal(searchCatalog("not-a-known-provider","NO").length,0);
-  assert.equal(searchCatalog("Viaplay","US")[0]?.slug,"viaplay");
+  assert.deepEqual(searchCatalog("Viaplay","US"),[]);
   assert.ok(!searchCatalog("","US").some(s=>s.slug==="viaplay"));
-  assert.ok(searchCatalog("","IN").every(s=>["apple-music","apple-tv-plus","icloud-plus","google-one"].includes(s.slug)));
+  assert.ok(searchCatalog("","IN").every(s=>["apple-music","apple-tv-plus","icloud-plus","google-one","netflix","spotify","apple-arcade"].includes(s.slug)));
   assert.equal(searchCatalog("","NO",{limit:1000}).length<=50,true);
 });
 
@@ -50,7 +50,7 @@ test("stale country and invalid actions are rejected, global search never grants
   assert.equal(validateAddSubscriptionIntent(parse("Add Viaplay"),"US","USD",[price]),null);
   assert.equal(validateAddSubscriptionIntent({...parse("Add Viaplay"),requiresConfirmation:false},"NO","NOK",[price]),null);
   const outside=validateAddSubscriptionIntent(parseAddSubscriptionIntent("Add Viaplay Film & Serier","US","USD"),"US","USD",[price]);
-  if(outside?.kind==="service"){assert.equal(outside.availableForSelection,false);assert.deepEqual(outside.prefill,{});}else assert.fail();
+  assert.deepEqual(outside,{kind:"manual",customServiceName:"Viaplay",countryCode:"US",currency:"USD",requiresConfirmation:true});
   for(const message of ["Cancel Netflix","I have cancelled Netflix","Do not add Netflix","Add not Netflix","Add Netflix and Spotify","How do I add Netflix?"]){assert.equal(parse(message),null,message);}
 });
 

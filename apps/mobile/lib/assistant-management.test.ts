@@ -79,3 +79,18 @@ test("management candidates cannot mutate a subscription, browser cancel/dismiss
   assert.deepEqual(bill,before);
   assert.equal(discoveryRequestIsCurrent({countryCode:"NO",epoch:1},{countryCode:"NO",epoch:2}),false);
 });
+
+
+test("Storytel uses NO direct instructions without inventing a foreign direct destination",()=>{
+  assert.equal(routing.getSubscriptionManagementUrl({serviceSlug:"storytel",billingProviderSlug:"direct",countryCode:"NO",action:"CANCEL"}),"https://support.storytel.com/hc/en-001/articles/360010486719-Cancel-your-subscription");
+  assert.equal(routing.getSubscriptionManagementUrl({serviceSlug:"storytel",billingProviderSlug:"direct",countryCode:"US",action:"CANCEL"}),null);
+});
+
+
+test("verified provider fallback is additive and excluded saved identities retain legacy routes",()=>{
+  assert.equal(routing.getSubscriptionManagementUrl({serviceSlug:"osn-plus",countryCode:"AE",billingProviderSlug:"direct",action:"CANCEL"}),"https://osnplus.com/manage-subscriptions");
+  assert.equal(routing.getSubscriptionManagementUrl({serviceSlug:"osn-plus",countryCode:"AE",billingProviderSlug:"apple",action:"CANCEL"}),"https://apps.apple.com/account/subscriptions");
+  assert.equal(routing.getSubscriptionManagementUrl({serviceSlug:"osn-plus",countryCode:"AE",billingProviderSlug:"carrier",action:"CANCEL"}),null);
+  assert.equal(catalog.serviceEligibleForCatalog("crunchyroll","US"),false);
+  assert.ok(routing.getSubscriptionManagementUrl({serviceSlug:"crunchyroll",countryCode:"US",billingProviderSlug:"direct",action:"MANAGE"}));
+});

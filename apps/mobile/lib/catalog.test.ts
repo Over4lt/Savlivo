@@ -8,12 +8,15 @@ test("canonical catalog preserves all original identities categories billing sel
   assert.deepEqual(serviceCatalog.slice(0,42).map(({slug,name})=>({slug,name})),baseline.services);
   for(const category of baseline.categories)assert.deepEqual(serviceCategories.find(c=>c.key===category.key)?.slugs.filter(s=>baseline.services.some((p:any)=>p.slug===s)),category.slugs);
   for(const[slug,routes]of Object.entries(baseline.billingSelection))assert.deepEqual(serviceBillingProviders[slug],routes);
-  for(const market of baseline.markets)for(const service of baseline.services)assert.equal(serviceAvailableInMarket(service.slug,market.country),market.availability.includes(service.slug));
+  for(const market of baseline.markets)for(const service of baseline.services){
+    const added=serviceCatalog.find(s=>s.slug===service.slug)?.additionalAvailability?.markets.includes(market.country)??false;
+    assert.equal(serviceAvailableInMarket(service.slug,market.country),market.availability.includes(service.slug)||added);
+  }
   assert.equal(new Set(serviceCatalog.map(s=>s.slug)).size,serviceCatalog.length);
 });
-test("search tolerates case spacing aliases without hiding explicit foreign matches or inventing unknowns",()=>{
+test("search tolerates case spacing aliases while excluding ineligible foreign matches or inventing unknowns",()=>{
   assert.equal(searchCatalog("  DISNEY   PLUS ","NO")[0]?.slug,"disney-plus");
-  assert.equal(searchCatalog("腾讯视频","NO")[0]?.slug,"tencent-video");
+  assert.deepEqual(searchCatalog("腾讯视频","NO"),[]);
   assert.equal(searchCatalog("hbo max","NO")[0]?.slug,"max");
   assert.deepEqual(searchCatalog("totally unknown service","NO"),[]);
   assert.ok(searchCatalog("","NO",{limit:3}).length<=3);
@@ -29,7 +32,7 @@ test("AI and manual candidates share the catalog and require exact market route 
     const r=resolveCatalogCandidate(args,[evidence]);if(r.kind==="service")assert.deepEqual(r.prefill,{});
   }
   assert.deepEqual(catalogPlans("spotify","NO","USD",[evidence]),[]);
-  const inactive=resolveCatalogCandidate({...input,countryCode:"JP",currency:"JPY"},[{...evidence,countryCode:"JP",currency:"JPY"}]);
+  const inactive=resolveCatalogCandidate({...input,countryCode:"KW",currency:"KWD"},[{...evidence,countryCode:"KW",currency:"KWD"}]);
   if(inactive.kind==="service"){assert.equal(inactive.availableForSelection,false);assert.deepEqual(inactive.prefill,{});}
   assert.equal(resolveCatalogCandidate({...input,serviceQuery:"unknown"},[evidence]).kind,"unknown");
 });
