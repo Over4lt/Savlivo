@@ -148,3 +148,45 @@ unchanged. All 15 tracked overlay files matched Git's certified byte hashes;
 the other 15 remained bootstrap-only. Regression validation: 262 storage,
 lifecycle, Operations/Admin and supervisor tests; 407 API tests; production
 build and API typecheck. No production or external research was accessed.
+
+## Startup input selection: original input is not the production input
+
+`V2_OPERATIONS_LIFECYCLE_INPUT` is the single explicit lifecycle selection used
+by the supervisor, Operations API and worker. For this certified deployment it
+must be:
+
+```text
+.savlivo/v2-operations-inputs/genesis-8a3c1f4e95249554716f6238cd72ae3fb5e3ddb4d3126c952362f80facd8df53.json
+```
+
+The tracked `docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/lifecycle-input.json`
+is an authenticated historical source input. It has no `productionGenesis`
+field and points at the historical run namespace. Selecting it is not an alias
+for the new production lineage. In 466df94 the placement helper returned
+`NOT_GENESIS`, so the supervisor proceeded without restoring the overlay.
+
+Startup now rejects that stale selection when a validated registered Genesis
+identifies it as `lifecycle.originalInput`, naming the correct production input.
+It does not silently choose a Genesis, scan historical control snapshots, or
+rewrite configuration. Correct explicit selection uses the existing repair
+before either API or poller starts. Other non-Genesis deployments without a
+corresponding registered Genesis retain their existing behavior.
+
+Recovery for this case requires changing the Render service environment value,
+not re-registering an already validated persistent bundle. Keep Run Control and
+Scheduling false; read-only Operations may remain true. Restart/redeploy using
+`npm --workspace @savlivo/api start`. Expect `GENESIS_DEPLOYMENT_PREFLIGHT` with
+`READY`, 30 repository files, normally 15 restored after a fresh deploy, before
+both `CHILD_STARTED` events. A shell-only environment export does not configure
+the supervised Render service. Run the two offline checks documented above.
+
+Startup-selection regression validation used a fresh real-corpus restore with
+exactly 15 bootstrap-only inputs omitted and the persistent bundle present.
+The actual supervisor rejected the historical input without spawning children;
+with the explicit Genesis input it restored 15 files before starting both
+network-free fixture children at the API/poller command paths. Placement and
+native mature lifecycle checks then passed (188/275/104/161, zero requests).
+OS sandboxing denied network and original-source access. No production process
+or research was started. All 32,991 protected source files remained unchanged.
+265 offline storage/lifecycle/Operations/Admin/runtime tests, the API build and
+typecheck passed.

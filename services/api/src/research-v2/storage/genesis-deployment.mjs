@@ -63,3 +63,21 @@ export function ensureGenesisRepositoryInputs(root,input,{repair=true}={}){
  if(repair)copyMissing(overlayRoot,root,c.repository);
  return {status:'READY',genesisHash:g.genesisHash,repositoryFiles:c.repository.length,restored:missing.length,researchStarted:false};
 }
+
+// Explicit configuration remains authoritative. Never silently select a Genesis.
+// Catch a stale original-input selection before either supervised child starts.
+export function prepareGenesisStartup(root,input){
+ const result=ensureGenesisRepositoryInputs(root,input);
+ if(result.status!=='NOT_GENESIS')return result;
+ const selected=path.isAbsolute(input)?path.relative(root,input):input;
+ const directory='.savlivo/research-v2/storage/deployment',dir=safe(root,directory);
+ if(!fs.existsSync(dir))return result;
+ const names=fs.readdirSync(dir).filter(n=>/^[a-f0-9]{64}$/.test(n)).sort();
+ if(names.length>100)fail('STARTUP_BUNDLE_LIMIT');
+ for(const name of names){
+  const manifestPath=directory+'/'+name+'/manifest.json';if(!fs.existsSync(safe(root,manifestPath)))continue;
+  const c=deploymentContract(root,JSON.parse(readFile(root,manifestPath)),name);
+  if(c.genesis.lifecycle.originalInput===selected)throw Error(`GENESIS_DEPLOYMENT_LIFECYCLE_INPUT_REQUIRES_GENESIS:set V2_OPERATIONS_LIFECYCLE_INPUT=${c.genesis.lifecycle.productionInput}; configured input ${selected} selects historical lineage. No automatic selection or research performed.`);
+ }
+ return result;
+}
