@@ -23,12 +23,21 @@ function clearSession() {
   disposeOperations?.();disposeOperations=null;
   token = null; browserAbort?.abort(); clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();
 }
+function operationsRequestTimeout(path) {
+  if (["v2-operations/preflight","v2-operations/start"].includes(path)) return 150000;
+  if (path === "v2-operations/targeting") return 30000;
+  return 10000;
+}
 async function request(path, options = {}) {
   const authorization=options.headers?.Authorization ?? (token ? `Bearer ${token}` : undefined);
-  const response = await fetch(`${api}/v1/admin/${path}`, { ...options, credentials:"omit", cache:"no-store", signal:AbortSignal.timeout(10000),
+  const response = await fetch(`${api}/v1/admin/${path}`, { ...options, credentials:"omit", cache:"no-store", signal:AbortSignal.timeout(operationsRequestTimeout(path)),
     headers:{"Content-Type":"application/json", ...(authorization ? {Authorization:authorization} : {}), ...options.headers}});
   if (response.status === 401 && (authorization === `Bearer ${token}` || (!authorization && !token))) {clearSession();message("Access denied or session expired.");}
-  if (!response.ok) throw new Error(response.status === 401 ? "Access denied or session expired." : "Request unavailable. Check configuration or try again later.");
+  if (!response.ok) {
+    const messages={TARGETING_STALE_REFRESH_PREVIEW:"The lifecycle changed. Refresh the service preview and run Preflight again.",TARGETING_PREVIEW_MISMATCH:"The selection changed. Refresh the service preview before Preflight.",INVALID_LIFECYCLE_SELECTION:"That selection includes a service outside the frozen lifecycle.",PREFLIGHT_STALE:"Research inputs changed. Run Preflight again before starting.",PREFLIGHT_EXPIRED:"Preflight expired. Run Preflight again before starting."};
+    const detail=path.startsWith("v2-operations/")?await response.json().catch(()=>null):null;
+    throw new Error(response.status === 401 ? "Access denied or session expired." : messages[detail?.error]??"Request unavailable. Check configuration or try again later.");
+  }
   return response.json();
 }
 function paragraph(parent,text) {const p=document.createElement("p");p.textContent=text;parent.append(p);}

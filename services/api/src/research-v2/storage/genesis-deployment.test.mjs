@@ -19,7 +19,7 @@ test('actual production launcher rejects stale input then repairs before either 
  const {spawn,spawnSync}=await import('node:child_process');const {fileURLToPath}=await import('node:url');const f=fixture(t);
  restoreGenesisFiles(f.source,f.dest,f.g.genesisHash);registerGenesisOverlay(f.dest,f.manifest,f.g.genesisHash);
  f.put(f.dest,'historical-input.json','{"version":1}');fs.renameSync(f.dest+'/'+f.data,f.dest+'/'+f.data+'.backup');
- for(const [from,to]of [['../../../scripts/production-runtime.mjs','services/api/scripts/production-runtime.mjs'],['./genesis-deployment.mjs','services/api/src/research-v2/storage/genesis-deployment.mjs'],['./core.mjs','services/api/src/research-v2/storage/core.mjs']])f.put(f.dest,to,fs.readFileSync(new URL(from,import.meta.url)));
+ for(const [from,to]of [['../../../scripts/production-runtime.mjs','services/api/scripts/production-runtime.mjs'],['./genesis-deployment.mjs','services/api/src/research-v2/storage/genesis-deployment.mjs'],['./core.mjs','services/api/src/research-v2/storage/core.mjs'],['../capabilities/config.mjs','services/api/src/research-v2/capabilities/config.mjs']])f.put(f.dest,to,fs.readFileSync(new URL(from,import.meta.url)));
  fs.symlinkSync(fileURLToPath(new URL('../../../../../node_modules',import.meta.url)),f.dest+'/node_modules','dir');
  const children=['services/api/dist/services/api/src/server.js','services/api/src/v2-operations/worker.mjs'];
  for(const p of children)f.put(f.dest,p,`import fs from 'node:fs';if(!fs.existsSync(${JSON.stringify(f.data)}))throw Error('REPAIR_ORDER');if(process.env.ANALYTICS_V2_RUN_CONTROL_ENABLED!=='false'||process.env.ANALYTICS_V2_SCHEDULING_ENABLED!=='false')throw Error('GATES');fs.writeFileSync(${JSON.stringify(p+'.started')},'offline');process.on('SIGTERM',()=>process.exit(0));process.on('disconnect',()=>process.exit(0));setInterval(()=>{},1000);`);
@@ -30,4 +30,17 @@ test('actual production launcher rejects stale input then repairs before either 
  t.after(()=>{if(child.exitCode===null)child.kill('SIGTERM');});
  const deadline=Date.now()+10000;while(!children.every(p=>fs.existsSync(f.dest+'/'+p+'.started'))&&Date.now()<deadline&&child.exitCode===null)await new Promise(r=>setTimeout(r,25));
  assert(children.every(p=>fs.existsSync(f.dest+'/'+p+'.started')),output);assert.equal(ensureGenesisRepositoryInputs(f.dest,f.input,{repair:false}).status,'READY');assert(output.indexOf('GENESIS_DEPLOYMENT_PREFLIGHT')<output.indexOf('CHILD_STARTED'));child.kill('SIGTERM');assert.equal(await exit,0,output);
+});
+
+test('execution selection cannot change Genesis trust inputs or widen research scopes',async t=>{
+ const {validateGenesisExecutionSelection}=await import('./genesis-deployment.mjs');const f=fixture(t);
+ const original={version:1,productionGenesis:f.genesis,cohortManifest:'frozen.json',runsRoot:'.savlivo/research-v2/production',researchScopes:'scopes.json',universe:'universe.json'};
+ f.put(f.dest,f.input,JSON.stringify(original));f.put(f.dest,'scopes.json',JSON.stringify({researchMarkets:{film:['NO','SE']}}));f.put(f.dest,'universe.json',JSON.stringify({new_include:[{slug:'film',markets:['NO','SE']}],research:[]}));
+ const capabilities={direct:true,tavily:true,decodo:false,browser:false,groq:false};const g={lifecycle:{productionInput:f.input},cohort:['film']};
+ const check=c=>validateGenesisExecutionSelection(f.dest,'.savlivo/v2-operations-inputs/'+sha(JSON.stringify(c))+'.json',c,g);
+ const c={...original,capabilities,executionServices:['film']};check(c);
+ for(const patch of [{runsRoot:'.savlivo/research-v2/history'},{cohortManifest:'other.json'},{productionGenesis:'other.json'},{executionServices:['netflix']},{capabilities:{...capabilities,unknown:true}}])assert.throws(()=>check({...c,...patch}));
+ const scope={researchMarkets:{film:['NO']}},file='.savlivo/v2-operations-inputs/'+sha(JSON.stringify(scope))+'.json';f.put(f.dest,file,JSON.stringify(scope));check({...c,researchScopes:file});
+ f.put(f.dest,file,JSON.stringify({researchMarkets:{film:['DE']}}));assert.throws(()=>check({...c,researchScopes:file}),/EXECUTION_SCOPE_HASH/);
+ const wrong={researchMarkets:{film:['DE']}},wrongFile='.savlivo/v2-operations-inputs/'+sha(JSON.stringify(wrong))+'.json';f.put(f.dest,wrongFile,JSON.stringify(wrong));assert.throws(()=>check({...c,researchScopes:wrongFile}),/EXECUTION_SCOPE_EXPANSION/);
 });

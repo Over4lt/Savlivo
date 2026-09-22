@@ -40,7 +40,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1]
 export async function lifecycleMain(args,control={}){
  const at=args.indexOf('--input'),file=at>=0?args[at+1]:null,rest=args.filter((a,i)=>i!==at&&i!==at+1&&a!=='--lifecycle');
  if(!file||rest.length!==1||!['--check','--live'].includes(rest[0])||args.length!==4)throw Error('Usage: --lifecycle --input <frozen-input.json> --check|--live');
- ensureGenesisRepositoryInputs(process.cwd(),file,{repair:false});
+ ensureGenesisRepositoryInputs(process.cwd(),file,{repair:false,allowExecutionSelection:true});
  const h=inspectLifecycleInput(file);h.config.capabilities=resolveCapabilities(h.config.capabilities);const capabilityCheck=capabilityPreflight(h.config.capabilities);const markets=structuredClone(h.config.researchScopes?json(h.config.researchScopes).researchMarkets:{});
  // Explicit project market hints are research scopes only, never availability.
  for(const c of h.cohort.candidates)if(!markets[c.slug]?.length&&c.markets?.length)markets[c.slug]=[...c.markets];

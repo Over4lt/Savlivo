@@ -1,3 +1,4 @@
+import {resolveCapabilities} from '../capabilities/config.mjs';
 // Deployment placement only. No research, authority changes or historical rewrites.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -48,13 +49,33 @@ export function registerGenesisOverlay(root,manifest,expectedGenesisHash){
  immutable(safe(root,base+'/manifest.json'),canonical(manifest));
  return {genesisHash:expectedGenesisHash,repositoryFiles:c.repository.length,repositoryBytes:c.repository.reduce((n,e)=>n+e.bytes,0),bundle:base};
 }
-export function ensureGenesisRepositoryInputs(root,input,{repair=true}={}){
+// Operations may derive a content-addressed execution selection, never another trust root.
+export function validateGenesisExecutionSelection(root,relative,config,g){
+ const original=JSON.parse(readFile(root,g.lifecycle.productionInput));
+ if(sha(JSON.stringify(config))!==path.basename(relative,'.json')||!/^\.savlivo\/v2-operations-inputs\/[a-f0-9]{64}\.json$/.test(relative))fail('EXECUTION_INPUT_IDENTITY');
+ const omit=x=>Object.fromEntries(Object.entries(x).filter(([k])=>!['capabilities','executionServices','researchScopes'].includes(k)));
+ if(digest(omit(config))!==digest(omit(original)))fail('EXECUTION_INPUT_CHANGED');
+ resolveCapabilities(config.capabilities);
+ const ids=config.executionServices;
+ if(!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length||ids.some(id=>!g.cohort.includes(id)))fail('EXECUTION_COHORT');
+ if(config.researchScopes!==original.researchScopes){
+  if(!/^\.savlivo\/v2-operations-inputs\/[a-f0-9]{64}\.json$/.test(config.researchScopes??''))fail('EXECUTION_SCOPE_PATH');
+  const scope=JSON.parse(readFile(root,config.researchScopes));
+  if(sha(JSON.stringify(scope))!==path.basename(config.researchScopes,'.json')||Object.keys(scope).join()!=='researchMarkets'||!scope.researchMarkets||Array.isArray(scope.researchMarkets))fail('EXECUTION_SCOPE_HASH');
+  const old=original.researchScopes?JSON.parse(readFile(root,original.researchScopes)).researchMarkets:{};
+  const universe=JSON.parse(readFile(root,original.universe)),candidates=[...universe.new_include,...universe.research];
+  if(digest(Object.keys(scope.researchMarkets).sort())!==digest([...ids].sort()))fail('EXECUTION_SCOPE_SERVICES');
+  for(const [id,markets]of Object.entries(scope.researchMarkets)){const allowed=old[id]?.length?old[id]:candidates.find(c=>c.slug===id)?.markets??[];if(!Array.isArray(markets)||!markets.length||new Set(markets).size!==markets.length||markets.some(m=>!allowed.includes(m)))fail('EXECUTION_SCOPE_EXPANSION');}
+ }
+}
+export function ensureGenesisRepositoryInputs(root,input,{repair=true,allowExecutionSelection=false}={}){
  if(!input)return {status:'NOT_CONFIGURED',researchStarted:false};
  const relative=path.isAbsolute(input)?path.relative(root,input):input,config=JSON.parse(readFile(root,relative));
  if(!config.productionGenesis)return {status:'NOT_GENESIS',researchStarted:false};
  const g=JSON.parse(readFile(root,config.productionGenesis)),base=bundle(g);
  const manifest=JSON.parse(readFile(root,base+'/manifest.json')),c=deploymentContract(root,manifest,g.genesisHash);
- if(manifest.productionInput!==relative||manifest.genesis!==config.productionGenesis)fail('ACTIVE_INPUT_MISMATCH');
+ if(manifest.genesis!==config.productionGenesis)fail('ACTIVE_INPUT_MISMATCH');
+ if(manifest.productionInput!==relative){if(!allowExecutionSelection)fail('ACTIVE_INPUT_MISMATCH');validateGenesisExecutionSelection(root,relative,config,c.genesis);}
  const overlayRoot=safe(root,base+'/repository');
  for(const e of c.repository)match(overlayRoot,e);
  preflightDest(root,c.repository);

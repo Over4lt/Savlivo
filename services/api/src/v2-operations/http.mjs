@@ -7,6 +7,7 @@ export async function operationsRequest({method,url,body,actor},ops=operations()
  const route=url.pathname.replace('/v1/admin/v2-operations',''),parts=route.split('/').filter(Boolean),page=()=>{const offset=Number(url.searchParams.get('offset')??0),limit=Number(url.searchParams.get('limit')??50);if(!Number.isInteger(offset)||offset<0||offset>100000||!Number.isInteger(limit)||limit<1||limit>100)throw new OperationError('INVALID_PAGE');return {offset,limit};};
  if(method==='GET'&&route==='/storage')return storageView(ops.config.repo);
  if(method==='GET'&&route==='/history'){const {offset,limit}=page(),index=historyIndex(ops.config.repo);return {status:index.status??'AVAILABLE',total:index.rows.length,rows:index.rows.slice(offset,offset+limit)};}
+ if(['GET','POST'].includes(method)&&route==='/targeting')return ops.targeting(method==='POST'?body??{}:{});
  if(method==='GET'&&route==='/summary')return ops.summary();
  if(method==='GET'&&route==='/runs'){const {offset,limit}=page();let rows=ops.index().map(publicRun);for(const k of ['objective','status','origin'])if(url.searchParams.get(k))rows=rows.filter(r=>r[k]===url.searchParams.get(k));return {total:rows.length,rows:rows.slice(offset,offset+limit)};}
  if(method==='GET'&&route==='/coverage')return {rows:ops.index().filter(r=>r.after).map(r=>({runId:r.id,at:r.createdAt,origin:r.origin,objective:r.objective,...r.after})).reverse()};
