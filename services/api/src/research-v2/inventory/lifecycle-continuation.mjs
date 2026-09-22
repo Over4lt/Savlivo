@@ -37,7 +37,7 @@ export function snapshotLifecycle({handoff,researchMarkets,runsRoot,baselineIds=
 export function lifecycleSeed(target,snapshot){
  const entry=snapshot.states[target.id];if(!entry)return structuredClone(target);
  const old=entry.target;if(digest(old.authorities)!==digest(target.authorities))return structuredClone(target);
- const t=structuredClone(old);t.researchMemory=combineResearchMemory(t,[t.researchMemory,createResearchMemory(t,entry.reference)].filter(Boolean));
+ const t=structuredClone(old);if(target.capabilities)t.capabilities=target.capabilities;t.researchMemory=combineResearchMemory(t,[t.researchMemory,createResearchMemory(t,entry.reference)].filter(Boolean));
  t.priorUsage={reads:t.reads?.length??0,searches:t.queries?.length??0,reference:entry.reference};
  for(const field of ['reads','queries','decisions','retainedReviews'])t[field]=[];
  for(const field of ['done','executionBlocked','historicalSchedulerTerminal','researchPlan'])delete t[field];

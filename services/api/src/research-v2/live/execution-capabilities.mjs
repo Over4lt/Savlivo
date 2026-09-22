@@ -5,6 +5,7 @@ export const executionBounds=Object.freeze({managementReserveOnly:0,perServiceRe
 export function resourceKey(url){const u=new URL(url),m=u.pathname.match(/^\/hc\/[^/]+\/(articles|sections)\/(\d+)/),app=u.pathname.match(/^\/([a-z]{2})\/app\/[^/]+\/(id\d+)/);return m?u.origin+'/'+m[1]+'/'+m[2]:app?u.origin+'/'+app[1]+'/'+app[2]:navigationKey(u.href);}
 export function destinationReadAllowed(t,lead,bounds=executionBounds){const reviewed=t.authorities?.some(a=>a.hostname===new URL(lead.url).hostname),count=(t.reads??[]).filter(r=>new URL(r.requestedUrl).origin===new URL(lead.url).origin).length;return (!t.authorities?.length||reviewed)&&count<(reviewed&&navigationRank(t,lead)<=15?bounds.perServiceReads:2);}
 export function executableAction(t,action,{bounds=executionBounds,usage={reads:0,searches:0,acquisitions:0},available={direct:true,discovery:true,decodo:true}}={}){
+ if(t.capabilities)available={direct:available.direct!==false&&t.capabilities.direct,discovery:available.discovery!==false&&t.capabilities.tavily,decodo:available.decodo!==false&&t.capabilities.decodo};
  const no=reason=>({executable:false,reason}),yes=()=>({executable:true,reason:'CAPABILITY_AND_BUDGET_ALLOWED'}),route=action.route;
  if(route==='REUSE_RETAINED')return yes();
  if(route==='DIRECT'){

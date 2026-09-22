@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {resolveCapabilities,capabilityPreflight} from '../../../../services/api/src/research-v2/capabilities/config.mjs';
 import fs from 'node:fs';import path from 'node:path';import {pathToFileURL} from 'node:url';
 import {prepareHandoff,inspectHandoff,handoffDirectory,inspectLifecycleInput} from '../../../../services/api/src/research-v2/inventory/reviewed-cohort-handoff.mjs';
 import {priceTargets,continuationLocation,executeHandoff,validateReviewedContinuation} from '../../../../services/api/src/research-v2/inventory/reviewed-cohort-execution.mjs';
@@ -36,7 +37,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1]
 export async function lifecycleMain(args,control={}){
  const at=args.indexOf('--input'),file=at>=0?args[at+1]:null,rest=args.filter((a,i)=>i!==at&&i!==at+1&&a!=='--lifecycle');
  if(!file||rest.length!==1||!['--check','--live'].includes(rest[0])||args.length!==4)throw Error('Usage: --lifecycle --input <frozen-input.json> --check|--live');
- const h=inspectLifecycleInput(file),markets=structuredClone(h.config.researchScopes?json(h.config.researchScopes).researchMarkets:{});
+ const h=inspectLifecycleInput(file);h.config.capabilities=resolveCapabilities(h.config.capabilities);const capabilityCheck=capabilityPreflight(h.config.capabilities);const markets=structuredClone(h.config.researchScopes?json(h.config.researchScopes).researchMarkets:{});
  // Explicit project market hints are research scopes only, never availability.
  for(const c of h.cohort.candidates)if(!markets[c.slug]?.length&&c.markets?.length)markets[c.slug]=[...c.markets];
  priceTargets(h.targets,markets,h.cohort.manifest.serviceIds);
@@ -44,10 +45,11 @@ export async function lifecycleMain(args,control={}){
  const codeHash=digest(codeFiles('services/api/src/research-v2').sort().map(f=>[f,digest(fs.readFileSync(f))]));
  const lifecycle=snapshotLifecycle({handoff:h,researchMarkets:markets,runsRoot:h.config.runsRoot,baselineIds:h.baselineIds,legacyDirectory:h.config.legacyDirectory,quarantine:h.config.quarantineFile?json(h.config.quarantineFile).entries:[],codeHash});
  const location=continuationLocation(h,markets,false,null,null,lifecycle);
- const preflight={servicesSelected:h.config.executionServices?.length??h.cohort.manifest.serviceIds.length,cohort:h.cohort.manifest.serviceIds.length,reviewed:h.targets.length,humanReview:(h.config.executionServices?.length??h.cohort.manifest.serviceIds.length)-h.targets.length,baselineExcluded:h.baselineIds.length,liveReady:true,output:location.directory,maximumNewRequests:lifecycleBudgets(h).total,historicalRequests:lifecycle.historicalRequests,parentRequests:lifecycle.parentRequests,networkCalls:0,onlineStarted:false,credentials:'VALIDATED_AT_LIVE_START'};
+ const preflight={servicesSelected:h.config.executionServices?.length??h.cohort.manifest.serviceIds.length,cohort:h.cohort.manifest.serviceIds.length,reviewed:h.targets.length,humanReview:(h.config.executionServices?.length??h.cohort.manifest.serviceIds.length)-h.targets.length,baselineExcluded:h.baselineIds.length,capabilityCheck,capabilities:h.config.capabilities,liveReady:capabilityCheck.ready,output:location.directory,maximumNewRequests:lifecycleBudgets(h).total,historicalRequests:lifecycle.historicalRequests,parentRequests:lifecycle.parentRequests,networkCalls:0,onlineStarted:false,credentials:'VALIDATED_AT_LIVE_START'};
  if(control.expectedOutput&&control.expectedOutput!==location.directory)throw Error('LIFECYCLE_CHECKPOINT_CHANGED');
  console.log(JSON.stringify(preflight,null,2));if(rest[0]==='--check')return preflight;
- const key=process.env.TAVILY_API_KEY?.trim()||await readTavilyKeychain();if(!key)throw Error('HANDOFF_TAVILY_CREDENTIAL_REQUIRED');
+ if(!capabilityCheck.ready)throw Error('LIFECYCLE_CAPABILITY_UNAVAILABLE');
+ const key=h.config.capabilities.tavily?process.env.TAVILY_API_KEY?.trim():null;
  let stop=false;const halt=()=>{stop=true;console.log('Stopping after current mature action; use the same command to resume.');};process.on('SIGINT',halt);process.on('SIGTERM',halt);
  try{return await executeHandoff({handoff:h,researchMarkets:markets,directory:location.directory,mode:'live',key,shouldStop:()=>stop||control.shouldStop?.()===true,lifecycle});}finally{process.off('SIGINT',halt);process.off('SIGTERM',halt);}
 }

@@ -11,8 +11,8 @@ export function admittedDiscoveryCandidate(candidate){
  // Authority belongs to the reviewed final URL, not an untrusted redirecting lead.
  return {url:decision.url,authority:decision.authority,discoveryLeadUrl:candidate.url};
 }
-export async function createTavilyDiscovery({inventory,readKeychain,bounds,coveredServices=[]}={}){
- const search=await createTavilySearch({readKeychain,maxCalls:bounds?.searches??50});
+export async function createTavilyDiscovery({inventory,readKeychain,bounds,coveredServices=[],searchEnabled=true}={}){
+ const search=searchEnabled?await createTavilySearch({readKeychain,maxCalls:bounds?.searches??50}):async()=>{throw Error('CAPABILITY_DISABLED_TAVILY');};
  return {search,bounds,coveredServices,bind({dir,runtime,bundle,runLive,dependencies}){
   const {registry}=discoveryInputs(inventory),dest=dir+'/open-web-discovery',journal=new DiscoveryJournal(dest+'/acquisition-budget');
   const acquire=createDiscoveryAcquirer({runtime,bundle,runLive,root:dest+'/acquisitions',dependencies});

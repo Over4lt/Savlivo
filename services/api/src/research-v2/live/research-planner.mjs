@@ -15,7 +15,7 @@ export function diagnoseResearch({authority=false,target=false,priceCount=0,bloc
  if(priceCount){const text=blockers.join(' ');if(blockers.length&&blockers.every(b=>/TRIAL|PROMO/.test(b)))return 'ONLY_PROMO_OR_TRIAL';if(blockers.length&&blockers.every(b=>/ADDON|SECONDARY|FEE/.test(b)))return 'ONLY_SECONDARY_FEES';for(const [re,reason]of [[/CURRENCY/,'CURRENCY_UNRESOLVED'],[/CADENCE|INTERVAL/,'CADENCE_UNRESOLVED'],[/MARKET/,'MARKET_UNRESOLVED'],[/OWNERSHIP|CONFLICT|STRUCTUR/,'PRICE_FOUND_STRUCTURE_AMBIGUOUS'],[/PLAN|PRODUCT/,'PLAN_UNRESOLVED'],[/ROLE|RECURRING/,'PRICE_ROLE_UNRESOLVED']])if(re.test(text))return reason;return 'NO_SAFE_APP_PRICE';}
  return discoveryExhausted?'DISCOVERY_EXHAUSTED':navigationExhausted?'PROVIDER_NAVIGATION_EXHAUSTED':'NO_PRICE_DETECTED';
 }
-export function planResearch(t,{retained=null,diagnosis=null,history=[],unreadUrls=null,configurationDemonstrated=false,renderingDemonstrated=false,discoveryAllowed=true,executionContext}={}){
+function planResearchUnrestricted(t,{retained=null,diagnosis=null,history=[],unreadUrls=null,configurationDemonstrated=false,renderingDemonstrated=false,discoveryAllowed=true,executionContext}={}){
  if(t.smartResearch?.version===2){const knowledge=researchKnowledge(t),action=chooseInformationAction(t,{knowledge,executionContext,discoveryAllowed,retained:retained??t.retainedPriceReview,configurationDemonstrated:configurationDemonstrated||t.demonstratedConfigurator===true,renderingDemonstrated:renderingDemonstrated||t.demonstratedRendering===true,urls:unreadUrls??t.urls??[]});return {version:2,...action,knowledge,service:t.service,requestedMarket:t.market,marketApplicabilityEstablished:false,language:t.language??marketLanguages[t.market]??'en',categoryIntent:categoryIntent(t),query:['DISCOVERY','AUTHORITY_DISCOVERY'].includes(action.route)?contextualQuery(t,knowledge.attempts.filter(a=>a.route==='DISCOVERY').length):null,directAppropriate:action.route==='DIRECT',discoveryRequired:['DISCOVERY','AUTHORITY_DISCOVERY'].includes(action.route),decodoConditional:true,configuratorEnabled:false,browserEnabled:false,evidenceStatus:'PLANNING_ONLY',bounds:{reads:4,depth:3,width:2}};}
  const authority=(t.authorities??[]).filter(a=>a.provider===t.serviceName&&a.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(a.sourceType));
  const urls=(unreadUrls??t.urls??[]).map(u=>normalizeFrontierUrl(u).url).filter(u=>u&&authority.some(a=>a.hostname===new URL(u).hostname));
@@ -32,4 +32,13 @@ export function planResearch(t,{retained=null,diagnosis=null,history=[],unreadUr
  else {route='DISCOVERY';reason=urls.length?'PROVIDER_NAVIGATION_EXHAUSTED':'NO_PROVIDER_TARGET';}
  const failedUrl=history.find(h=>h.route==='DIRECT'&&h.completed&&h.failure===diagnosis&&h.escalationPermitted===true&&urls.includes(h.url))?.url;const url=route==='CONDITIONAL_DECODO'?failedUrl??null:fresh[0]??urls[0]??null;if(route==='CONDITIONAL_DECODO'&&completed.has(route+'|'+url)){route='STOP';reason='ACQUISITION_FAILED';}
  return {version:1,service:t.service,requestedMarket:t.market,marketApplicabilityEstablished:false,language:t.language??marketLanguages[t.market]??'en',categoryIntent:categoryIntent(t),route,reason,url,query:['DISCOVERY','AUTHORITY_DISCOVERY'].includes(route)?contextualQuery(t,history.filter(h=>h.route==='DISCOVERY').length):null,expectedPageType:categoryIntent(t),directAppropriate:route==='DIRECT',discoveryRequired:['DISCOVERY','AUTHORITY_DISCOVERY'].includes(route),decodoConditional:true,configuratorEnabled:false,browserEnabled:false,evidenceStatus:'PLANNING_ONLY',bounds:{reads:4,depth:3,width:2},historyKey:JSON.stringify([t.service,t.market,route,url,reason])};
+}
+
+export function planResearch(target,options={}){
+ const c=target.capabilities;if(!c)return planResearchUnrestricted(target,options);
+ const plan=planResearchUnrestricted(target,{...options,discoveryAllowed:c.tavily&&options.discoveryAllowed!==false});
+ if(plan.route==='DIRECT'&&!c.direct){if(c.tavily&&options.discoveryAllowed!==false)return {...plan,route:'DISCOVERY',directAppropriate:false,discoveryRequired:true,query:contextualQuery(target,0)};return {...plan,route:'STOP',reason:'CAPABILITY_DISABLED_DIRECT',directAppropriate:false,discoveryRequired:false};}
+ if(['DISCOVERY','AUTHORITY_DISCOVERY'].includes(plan.route)&&!c.tavily)return {...plan,route:'STOP',reason:'CAPABILITY_DISABLED_TAVILY',discoveryRequired:false};
+ if(plan.route==='CONDITIONAL_DECODO'&&!c.decodo)return {...plan,route:'STOP',reason:'CAPABILITY_DISABLED_DECODO'};
+ return plan;
 }

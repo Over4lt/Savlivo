@@ -1,3 +1,6 @@
+import {resolveCapabilities,requireCapability} from '../capabilities/config.mjs';
+import {capabilityLedger} from '../capabilities/ledger.mjs';
+import {enrichProvider} from '../capabilities/enrichment.mjs';
 import {claimLeases,releaseLeases} from '../../v2-operations/leases.mjs';
 import {validateLifecycleSnapshot,lifecycleSeed,evaluateProviderCandidate,writeLifecycleDisposition,writeLifecycleReviewQueue,lifecycleBudgets} from './lifecycle-continuation.mjs';
 // Reuses the mature adaptive controller, public reader and verifier boundaries.
@@ -71,6 +74,7 @@ export async function runNativeTargets({directory,targets,retainedStates=[],crea
  return state;
 }
 export async function executeHandoff({handoff,researchMarkets,directory,mode='plan',key,shouldStop=()=>false,candidateRound=false,reconciliation=null,continuation=null,lifecycle=null}) {
+ const capabilities=resolveCapabilities(handoff.config?.capabilities);
  if(!['plan','replay','live'].includes(mode))throw Error('HANDOFF_MODE');
  if(lifecycle){validateLifecycleSnapshot(lifecycle);if(candidateRound||continuation||reconciliation)throw Error('HANDOFF_LIFECYCLE_MODE');}
  const continuationState=continuation?validateReviewedContinuation(handoff,researchMarkets,continuation):null;
@@ -79,6 +83,7 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
  const reconciliationState=reconciliation?validateRetainedReconciliation(handoff,reconciliation):null;
  if(reconciliation&&mode!=='replay')throw Error('HANDOFF_RECONCILIATION_OFFLINE_ONLY');
  const selected=reconciliation?handoff.targets.filter(t=>reconciliation.services.includes(t.service)):handoff.targets;
+ for(const target of selected)target.capabilities=capabilities;
  let prices=priceTargets(selected,researchMarkets,handoff.cohort.manifest.serviceIds);
  if(mode==='live'&&!candidateRound&&!continuation&&!lifecycle&&(handoff.targets.length!==188||new Set(prices.map(t=>t.service)).size!==188))throw Error('HANDOFF_FULL_COHORT_REVIEW_OR_SCOPE_REQUIRED');
  const location=continuationLocation(handoff,researchMarkets,candidateRound,reconciliation,continuation,lifecycle);if(directory!==location.directory)throw Error('HANDOFF_OUTPUT_SCOPE');
@@ -89,7 +94,7 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
  if(fs.existsSync(lock)){const pid=Number(fs.readFileSync(lock));if(!Number.isInteger(pid)||pid<1)throw Error('HANDOFF_LOCK');try{process.kill(pid,0);throw Error('HANDOFF_ACTIVE');}catch(e){if(e.code!=='ESRCH')throw e;}fs.unlinkSync(lock);}fs.writeFileSync(lock,String(process.pid),{flag:'wx'});
  let cohortLeases=[];try{
  if(lifecycle)cohortLeases=claimLeases([path.join(parent,'cohort-'+digest(handoff.cohort.manifest.serviceIds).slice(0,16)+'.lock')]);
- const lineage={fingerprint:location.fingerprint,cohort:handoff.cohort.manifest.serviceIds,inputHashes:handoff.inputHashes,historicalRequests:handoff.summary.historicalRequests,historicalSearches:handoff.summary.historicalSearches,historicalReads:handoff.summary.historicalReads,previousRun:runDirectory,review:handoff.document,researchMarkets,candidateRound,reconciliation,continuation,lifecycle:lifecycle?{key:lifecycle.key,parents:lifecycle.parents,inputHashes:lifecycle.inputHashes}:null,parentRequests:lifecycle?.parentRequests??continuationState?.parentRequests??reconciliationState?.parentRequests??0,additionalRequestCeiling:reconciliation?0:lifecycle?lifecycleBudget.total:continuation?selected.length*additionalRequestLimit:188*additionalRequestLimit};
+ const lineage={capabilities,fingerprint:location.fingerprint,cohort:handoff.cohort.manifest.serviceIds,inputHashes:handoff.inputHashes,historicalRequests:handoff.summary.historicalRequests,historicalSearches:handoff.summary.historicalSearches,historicalReads:handoff.summary.historicalReads,previousRun:runDirectory,review:handoff.document,researchMarkets,candidateRound,reconciliation,continuation,lifecycle:lifecycle?{key:lifecycle.key,parents:lifecycle.parents,inputHashes:lifecycle.inputHashes}:null,parentRequests:lifecycle?.parentRequests??continuationState?.parentRequests??reconciliationState?.parentRequests??0,additionalRequestCeiling:reconciliation?0:lifecycle?lifecycleBudget.total:continuation?selected.length*additionalRequestLimit:188*additionalRequestLimit};
  if(fs.existsSync(directory+'/lineage.json')&&json(directory+'/lineage.json').fingerprint!==lineage.fingerprint)throw Error('HANDOFF_LINEAGE_CHANGED');if(!fs.existsSync(directory+'/lineage.json'))atomic(directory+'/lineage.json',lineage);
  const ledgerFile=directory+'/network.jsonl',events=fs.existsSync(ledgerFile)?fs.readFileSync(ledgerFile,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[],used=new Map();
  for(const e of events)used.set(e.service,(used.get(e.service)??0)+1);
@@ -97,21 +102,23 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
  const observe=(phase,event,state=null)=>{if(!lifecycle)return;const record={at:new Date().toISOString(),phase,event,wave:phase==='catalog'?1:phase==='pricing'?2:phase==='feedback'?3:null,turn:state?.turn??null,service:state?.pending?.targetId?state.targets?.[state.pending.targetId]?.service??null:null,requestsConsumed:events.length,requestsRemaining:Math.max(0,lineage.additionalRequestCeiling-events.length)};atomic(directory+'/lifecycle-progress.json',record);fs.appendFileSync(directory+'/lifecycle-events.jsonl',JSON.stringify(record)+'\n');};
  observe('bootstrap','LIFECYCLE_STARTED');
  const stopped=()=>shouldStop()||(lifecycle&&events.length>=lineage.additionalRequestCeiling);
+ const capabilityState=mode==='live'?capabilityLedger(directory,capabilities,{model:capabilities.groq?process.env.SAVLIVO_PRICE_SEMANTIC_MODEL:null}):null;
  const searches=new Map();const registry=loadProviderSourceRegistry({targets:handoff.targets});
  let runtime,bundle;
- if(mode==='live'){
+ if(mode==='live'&&capabilities.decodo){
   runtime=await loadDecodoRuntimeConfig({env:process.env});bundle=createDecodoProvider({env:runtime});
   if(!bundle.provider.ready||!bundle.provider.configured||!bundle.verifier.approved)throw Error('HANDOFF_DECODO_CONFIGURATION_NOT_READY');
  }
+ const enrich=async(args,result)=>mode!=='live'?result:await enrichProvider({...args,capabilities,ledger:capabilityState,result,charge,verify:interpretDirectProvider,readResource:async({url,kind,maxBytes,signal,onBytes})=>{requireCapability(capabilities,'direct');return createV2RobotsPublicAdapter({authorities:args.target.authorities,retainRaw:true,maxReads:1,maxRequests:4,network:{maxBytes,timeoutMs:15000,maxRedirects:0,retainRuntimeCors:true,onBodyBytes:onBytes,...(kind==='SCRIPT'?{scriptUrls:[url]}:{structuredJsonUrls:[url]})}}).read({url,maxRedirects:0,signal,onBytes,consumeNetwork:k=>charge(args.target.service,k)});}});
  const adapters=async({directory:nativeDirectory,targets})=>{
   // Reuse the mature direct-access proof and gated geo fallback unchanged.
-  const fallback=mode==='live'?(await createTavilyDiscovery({inventory:targets,readKeychain:async()=>key,bounds:nativeLimits,coveredServices:[]})).bind({dir:nativeDirectory,runtime,bundle:{...bundle,transport:{...bundle.transport,request:async r=>{charge(targets[0].service,'DECODO');return bundle.transport.request(r);}}},runLive,dependencies:{}}):null;
+  const fallback=mode==='live'&&capabilities.decodo?(await createTavilyDiscovery({inventory:targets,readKeychain:async()=>key,bounds:nativeLimits,coveredServices:[],searchEnabled:capabilities.tavily})).bind({dir:nativeDirectory,runtime,bundle:{...bundle,transport:{...bundle.transport,request:async r=>{charge(targets[0].service,'DECODO');return bundle.transport.request(r);}}},runLive,dependencies:{}}):null;
   return {
-  search:async args=>{if(mode!=='live')throw Error('OFFLINE_NETWORK_FORBIDDEN');let search=searches.get(args.target.service);if(!search){search=await createTavilySearch({readKeychain:async()=>key,maxCalls:4});searches.set(args.target.service,search);}charge(args.target.service,'DISCOVERY');return search(args);},
-  read:async({url,target})=>{if(mode!=='live')throw Error('OFFLINE_NETWORK_FORBIDDEN');const reader=createV2RobotsPublicAdapter({authorities:target.authorities,retainRaw:true,maxLinks:80,maxReads:1,maxRequests:4,network:{timeoutMs:15000,maxBytes:2097152,maxRedirects:1}});const page=await reader.read({url,targetCountry:target.market,maxRedirects:1,consumeNetwork:k=>charge(target.service,k)});if(page.outcome==='OK'&&page.authority?.status==='CONFIGURED_REVIEWED'){if(lifecycle)fs.appendFileSync(nativeDirectory+'/field-review.jsonl',JSON.stringify({service:target.service,...matureFieldReview(target,page)})+'\n');fs.appendFileSync(nativeDirectory+'/cancellation-review.jsonl',JSON.stringify({service:target.service,url:page.url,...cancellationReview(target,page)})+'\n');}return page;},
+  search:async args=>{requireCapability(capabilities,'tavily');if(mode!=='live')throw Error('OFFLINE_NETWORK_FORBIDDEN');let search=searches.get(args.target.service);if(!search){search=await createTavilySearch({readKeychain:async()=>key,maxCalls:4});searches.set(args.target.service,search);}charge(args.target.service,'DISCOVERY');return search(args);},
+  read:async({url,target})=>{requireCapability(capabilities,'direct');if(mode!=='live')throw Error('OFFLINE_NETWORK_FORBIDDEN');const reader=createV2RobotsPublicAdapter({authorities:target.authorities,retainRaw:true,maxLinks:80,maxReads:1,maxRequests:4,network:{timeoutMs:15000,maxBytes:2097152,maxRedirects:1}});const page=await reader.read({url,targetCountry:target.market,maxRedirects:1,consumeNetwork:k=>charge(target.service,k)});if(page.outcome==='OK'&&page.authority?.status==='CONFIGURED_REVIEWED'){if(lifecycle)fs.appendFileSync(nativeDirectory+'/field-review.jsonl',JSON.stringify({service:target.service,...matureFieldReview(target,page)})+'\n');fs.appendFileSync(nativeDirectory+'/cancellation-review.jsonl',JSON.stringify({service:target.service,url:page.url,...cancellationReview(target,page)})+'\n');}return page;},
   classify:async({target,page})=>officialCandidate(target,{url:page.url??page.requestedUrl,label:'consumer subscription account pricing'},registry.domains),
-  consumeProvider:async args=>filterQuarantinedResult(args.target,await (fallback?.consumeProvider??interpretDirectProvider)(args),lifecycle?.quarantine??continuationState?.quarantine??[]),
-  ...(fallback?{acquire:async args=>filterQuarantinedResult(args.target,await fallback.acquire(args),lifecycle?.quarantine??continuationState?.quarantine??[])}:{})
+  consumeProvider:async args=>{let result=await (fallback?.consumeProvider??interpretDirectProvider)(args);result=await enrich(args,result);return filterQuarantinedResult(args.target,result,lifecycle?.quarantine??continuationState?.quarantine??[]);},
+  ...(fallback?{acquire:async args=>{requireCapability(capabilities,'decodo');return filterQuarantinedResult(args.target,await fallback.acquire(args),lifecycle?.quarantine??continuationState?.quarantine??[]);}}:{})
  };};
  const bootstrap=[];
  if(candidateRound||lifecycle){
@@ -124,7 +131,8 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
    if(lifecycle&&!reviewed){const retained=lifecycle.sources[row.service]?.filter(s=>s.page.url===candidate?.url||s.page.requestedUrl===candidate?.url).at(-1);if(retained){Object.assign(result,{status:'HUMAN_REVIEW_REQUIRED',reason:'EXPLICIT_OWNERSHIP_REVIEW_REQUIRED',retainedSource:retained});fs.mkdirSync(dest,{recursive:true});atomic(resultFile,result);bootstrap.push(result);continue;}}
    if(mode!=='live'){bootstrap.push(result);continue;}
    fs.mkdirSync(dest,{recursive:true});
-   if(!reviewed&&candidate){
+   if(!reviewed&&candidate&&!capabilities.direct){result.status='UNRESOLVED';result.reason='CAPABILITY_DISABLED_DIRECT';}
+   if(!reviewed&&candidate&&capabilities.direct){
     const pending=dest+'/dispatched.json';
     if(fs.existsSync(pending)){result.status='INTERRUPTED_REVIEW_REQUIRED';result.reason='Prior dispatch preserved; no automatic repeated acquisition';}
     else{
@@ -158,7 +166,7 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
     fs.mkdirSync(dest+'/input/bodies',{recursive:true});const pages=[];for(const x of unique){fs.copyFileSync(x.directory+'/'+x.page.bodyFile,dest+'/input/'+x.page.bodyFile);pages.push(x.page);}atomic(dest+'/input/pages.json',pages);
     // Reinterpret price under current generic safety rules before reusing old sufficiency.
     if(phase==='pricing'){seed.priorVerifiedRequiringCurrentSafetyReview=seed.verified??[];seed.verified=[];delete seed.retainedPriceReview;}
-    let replay;try{replay=await replayTarget({target:seed,directory:dest+'/evidence',sourceDirectory:dest+'/input',registry,quarantine:lifecycle.quarantine??[]});}catch(error){if(/HASH|AUTHORITY|POLICY/.test(error.message))throw error;seed.executionBlocked='RETAINED_INTERPRETATION_REVIEW_REQUIRED';seed.retainedFailure={reason:seed.executionBlocked,artifact:dest+'/evidence',rawEvidencePreserved:true};replay={target:seed};}
+    let replay;try{replay=await replayTarget({target:seed,directory:dest+'/evidence',sourceDirectory:dest+'/input',registry,interpret:async args=>enrich(args,await interpretDirectProvider(args)),quarantine:lifecycle.quarantine??[]});}catch(error){if(/HASH|AUTHORITY|POLICY/.test(error.message))throw error;seed.executionBlocked='RETAINED_INTERPRETATION_REVIEW_REQUIRED';seed.retainedFailure={reason:seed.executionBlocked,artifact:dest+'/evidence',rawEvidencePreserved:true};replay={target:seed};}
 
     replay.target.leads=[...new Map([...(seed.leads??[]),...(replay.target.leads??[])].map(l=>[l.url,l])).values()];
     replay.target.researchMemory=combineResearchMemory(replay.target,[seed.researchMemory,replay.target.researchMemory].filter(Boolean));
