@@ -1,10 +1,11 @@
-import {requireSpace,checkpointReserveLow} from '../../../../services/api/src/research-v2/storage/runtime.mjs';
 #!/usr/bin/env node
+import {requireSpace,checkpointReserveLow} from '../../../../services/api/src/research-v2/storage/runtime.mjs';
 import {resolveCapabilities,capabilityPreflight} from '../../../../services/api/src/research-v2/capabilities/config.mjs';
 import fs from 'node:fs';import path from 'node:path';import {pathToFileURL} from 'node:url';
 import {prepareHandoff,inspectHandoff,handoffDirectory,inspectLifecycleInput} from '../../../../services/api/src/research-v2/inventory/reviewed-cohort-handoff.mjs';
 import {priceTargets,continuationLocation,executeHandoff,validateReviewedContinuation} from '../../../../services/api/src/research-v2/inventory/reviewed-cohort-execution.mjs';
 import {snapshotLifecycle,lifecycleBudgets} from '../../../../services/api/src/research-v2/inventory/lifecycle-continuation.mjs';
+import {validateProductionGenesis} from '../../../../services/api/src/research-v2/storage/production-genesis.mjs';
 import {digest,json} from '../../../../services/api/src/research-v2/inventory/new-service-controller.mjs';
 import {readTavilyKeychain} from '../../../../services/api/src/research-v2/live/tavily-search.mjs';
 export function modeOf(args){const filtered=args.filter(a=>!['--candidate-round','--reviewed-continuation'].includes(a));if(args.filter(a=>a==='--reviewed-continuation').length>1||args.includes('--candidate-round')&&args.includes('--reviewed-continuation')||args.filter(a=>a==='--candidate-round').length>1||filtered.length!==1||!['--prepare-review','--check','--plan','--replay','--live'].includes(filtered[0]))throw Error('Usage: node --import tsx docs/catalog/global-47/research-v2/run-v15-mature-v2.mjs --prepare-review|--check|--plan|--replay|--live');return filtered[0];}
@@ -44,7 +45,8 @@ export async function lifecycleMain(args,control={}){
  priceTargets(h.targets,markets,h.cohort.manifest.serviceIds);
  const codeFiles=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?codeFiles(path.join(dir,e.name)):e.isFile()&&e.name.endsWith('.mjs')?[path.join(dir,e.name)]:[]);
  const codeHash=digest(codeFiles('services/api/src/research-v2').sort().map(f=>[f,digest(fs.readFileSync(f))]));
- const lifecycle=snapshotLifecycle({handoff:h,researchMarkets:markets,runsRoot:h.config.runsRoot,baselineIds:h.baselineIds,legacyDirectory:h.config.legacyDirectory,quarantine:h.config.quarantineFile?json(h.config.quarantineFile).entries:[],codeHash});
+ const genesis=h.config.productionGenesis?validateProductionGenesis(process.cwd(),h.config.productionGenesis):null;
+ const lifecycle=snapshotLifecycle({handoff:h,researchMarkets:markets,runsRoot:h.config.runsRoot,baselineIds:h.baselineIds,legacyDirectory:genesis?null:h.config.legacyDirectory,quarantine:h.config.quarantineFile?json(h.config.quarantineFile).entries:[],codeHash,genesis});
  const location=continuationLocation(h,markets,false,null,null,lifecycle);
  const preflight={servicesSelected:h.config.executionServices?.length??h.cohort.manifest.serviceIds.length,cohort:h.cohort.manifest.serviceIds.length,reviewed:h.targets.length,humanReview:(h.config.executionServices?.length??h.cohort.manifest.serviceIds.length)-h.targets.length,baselineExcluded:h.baselineIds.length,capabilityCheck,capabilities:h.config.capabilities,liveReady:capabilityCheck.ready,output:location.directory,maximumNewRequests:lifecycleBudgets(h).total,historicalRequests:lifecycle.historicalRequests,parentRequests:lifecycle.parentRequests,networkCalls:0,onlineStarted:false,credentials:'VALIDATED_AT_LIVE_START'};
  if(control.expectedOutput&&control.expectedOutput!==location.directory)throw Error('LIFECYCLE_CHECKPOINT_CHANGED');

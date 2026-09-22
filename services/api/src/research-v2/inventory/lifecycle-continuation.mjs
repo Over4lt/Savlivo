@@ -15,11 +15,13 @@ export function validateLifecycleSnapshot(snapshot){
  for(const [f,hash]of Object.entries(snapshot.inputHashes)){if(!fs.realpathSync(f).startsWith(process.cwd()+path.sep)||hashFile(f)!==hash)throw Error('LIFECYCLE_IMMUTABLE_INPUT_CHANGED');}
  return snapshot;
 }
-export function snapshotLifecycle({handoff,researchMarkets,runsRoot,baselineIds=[],legacyDirectory=null,quarantine=[],codeHash}){
+export function snapshotLifecycle({handoff,researchMarkets,runsRoot,baselineIds=[],legacyDirectory=null,quarantine=[],codeHash,genesis=null}){
  const ids=handoff.cohort.manifest.serviceIds;assertLifecycleCohort(ids,baselineIds);
- const key=digest({ids,review:handoff.document,researchMarkets,input:handoff.inputHashes,codeHash}),control=path.join(runsRoot,'lifecycle-control-'+digest(ids).slice(0,16)),file=control+'/'+key+'.json';
+ if(genesis&&(genesis.genesis.lifecycle.executionRoot!==runsRoot||digest(genesis.source.cohort)!==digest(ids)))throw Error('LIFECYCLE_GENESIS_SCOPE');
+ const key=digest({ids,review:handoff.document,researchMarkets,input:handoff.inputHashes,codeHash,...(genesis?{genesis:genesis.genesis.genesisHash}:{})}),control=path.join(runsRoot,'lifecycle-control-'+digest(ids).slice(0,16)),file=control+'/'+key+'.json';
  if(fs.existsSync(file))return validateLifecycleSnapshot(json(file));
- const parents=[],inputHashes={...handoff.inputHashes},states={},sources={};
+ const parents=[],inputHashes={...handoff.inputHashes},states=genesis?structuredClone(genesis.source.states):{},sources=genesis?structuredClone(genesis.source.sources):{};
+ if(genesis)for(const e of genesis.genesis.protectedReferences.entries)inputHashes[e.path]=e.sha256;
  const addSource=(service,directory,pages)=>{if(!ids.includes(service))throw Error('LIFECYCLE_SOURCE_SCOPE');sources[service]??=[];for(const page of pages){const body=page.bodyFile?path.join(directory,page.bodyFile):null;if(body){if(!/^bodies\/[a-f0-9]{64}\.txt$/.test(page.bodyFile)||hashFile(body)!==page.bodyHash)throw Error('LIFECYCLE_BODY_HASH');inputHashes[body]=hashFile(body);}sources[service].push({directory,page});}};
  const dirs=fs.existsSync(runsRoot)?fs.readdirSync(runsRoot).map(n=>path.join(runsRoot,n)).filter(d=>fs.existsSync(d+'/lineage.json')&&fs.existsSync(d+'/summary.json')).sort((a,b)=>fs.statSync(a+'/summary.json').mtimeMs-fs.statSync(b+'/summary.json').mtimeMs||a.localeCompare(b)):[];
  for(const d of dirs){const lineage=json(d+'/lineage.json');if(digest(lineage.cohort)!==digest(ids))continue;
@@ -34,7 +36,7 @@ export function snapshotLifecycle({handoff,researchMarkets,runsRoot,baselineIds=
   for(const f of Object.keys(inputHashes).filter(f=>f.startsWith(d+'/')&&f.endsWith('/open-web-discovery/state.json'))){const state=json(f);for(const t of state.targets??[])addSource(t.service,path.dirname(f),t.reads??[]);}
  }
  if(legacyDirectory){for(const id of ids){const dir=legacyDirectory+'/services/'+id,f=dir+'/pages.json';if(fs.existsSync(f)){inputHashes[f]=hashFile(f);addSource(id,dir,json(f));}}}
- const snapshot={version:1,key,cohort:ids,parents,states,sources,inputHashes,quarantine,codeHash,historicalRequests:handoff.summary.historicalRequests??0,parentRequests:parents.reduce((n,p)=>n+p.requests,0)};
+ const snapshot={version:1,key,cohort:ids,parents,states,sources,inputHashes,quarantine,codeHash,historicalRequests:handoff.summary.historicalRequests??0,parentRequests:(genesis?.genesis.accounting.parentRequests??0)+parents.reduce((n,p)=>n+p.requests,0),...(genesis?{productionGenesisHash:genesis.genesis.genesisHash}: {})};
  snapshot.snapshotHash=digest(snapshot);fs.mkdirSync(control,{recursive:true});atomic(file,snapshot);return snapshot;
 }
 export function lifecycleSeed(target,snapshot){

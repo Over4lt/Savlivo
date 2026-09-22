@@ -1,5 +1,6 @@
 // Offline storage maintenance only. There is deliberately no destructive command.
 import fs from 'node:fs';
+import {buildProductionGenesis,validateGenesisExport,prepareGenesisActions} from './production-genesis.mjs';
 import {certifyLegacyBoundary,revalidateLegacyBoundary} from './legacy-boundary.mjs';
 import {streamingInventory} from './stream-scan.mjs';
 import path from 'node:path';
@@ -20,6 +21,8 @@ export function lifecycleRoots(root,input,operations='.savlivo/v2-operations'){
 }
 export function main(args){const [command,...rest]=args,opts={};for(let i=0;i<rest.length;i+=2){if(!rest[i]?.startsWith('--')||!rest[i+1]||opts[rest[i]])throw Error('STORAGE_ARGUMENTS');opts[rest[i]]=rest[i+1];}
  const root=path.resolve(opts['--root']??process.cwd());
+ if(command==='genesis-export'){const spec=read(opts['--spec']);if(spec.schema!=='PRODUCTION_GENESIS_INPUT_V1')throw Error('GENESIS_SPEC_SCHEMA');const r=buildProductionGenesis({...spec,root,destination:opts['--output']});console.log(JSON.stringify({genesisHash:r.genesis.genesisHash,files:r.manifest.files.length,productionInput:r.manifest.productionInput}));return r;}
+ if(command==='genesis-validate'||command==='genesis-plan'){const r=validateGenesisExport(path.resolve(opts['--destination']));const result=command==='genesis-plan'?prepareGenesisActions(r):{valid:true,genesisHash:r.genesis.genesisHash,cohort:r.genesis.cohort.length,baselineExcluded:r.genesis.baselineExcluded.length};console.log(JSON.stringify(result,null,2));return result;}
  if(command==='certify-legacy'){const result=certifyLegacyBoundary({...read(opts['--spec']),root,destination:opts['--output']});console.log(JSON.stringify(result,null,2));return result;}
  if(command==='validate-legacy'){const result=revalidateLegacyBoundary(root,opts['--receipt']);console.log(JSON.stringify({complete:true,hash:result.contentHash}));return result;}
  if(command==='rebuild-history'){const result=rebuildHistoryIndex(root);console.log(JSON.stringify({runs:result.rows.length}));return result;}
