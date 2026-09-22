@@ -32,3 +32,18 @@ test('screenshot pixel ceiling prevents PNG allocation',async t=>{let capture=0;
 test('retained inline rendering works without Direct; external resources remain prohibited',async t=>{const args=source(t,'<script>var app = true;</script><p>Enable JavaScript</p>'),caps={...none,browser:true};let runs=0;const result=await enrichProvider({...args,capabilities:caps,ledger:capabilityLedger(args.directory,caps),result:{},readResource:()=>assert.fail('no external Direct'),createRuntime:async()=>({execute:async({readResource})=>{runs++;await assert.rejects(readResource({url:'https://example.com/app.js'}),/NO_POLICY_AUTHORIZED_RESOURCE_TRANSPORT/);await assert.rejects(readResource({url:'https://evil.example/app.js'}),/AUTHORITY_REQUIRED/);return {outcome:'UNRESOLVED',reason:'RUNTIME_PAGE_STABLE',resources:[]};}})});assert.equal(runs,1);assert.equal(result.browser.status,'UNRESOLVED');});
 test('browser never runs on robots-denied parent',async t=>{const args=source(t,'<script>var app=true;</script>Enable JavaScript');args.page.accessDecisions=[{decision:'DISALLOWED'}];await assert.rejects(enrichProvider({...args,capabilities:{...none,browser:true},result:{},ledger:{attempt:()=>assert.fail()},createRuntime:()=>assert.fail()}),/POLICY_UNPROVEN/);});
 test('Groq service and run limits survive failed calls',async t=>{const dir=temp(t),c={...none,groq:true},limits={groqPerService:1,groqPerRun:1},a={service:'one',url:'https://example.com',sourceHash:'a',trigger:'gap'};const l=capabilityLedger(dir,c,{limits});await l.attempt('groq',a,async()=>{throw Error('timeout');});assert.equal((await capabilityLedger(dir,c,{limits}).attempt('groq',{...a,service:'two'},()=>assert.fail())).reason,'CAPABILITY_BUDGET_EXHAUSTED');});
+
+test('Groq readiness distinguishes key and model without API calls or changing admission',()=>{
+ for(const [env,reason,key,model]of [
+  [{},'GROQ_KEY_AND_MODEL_REQUIRED',false,false],
+  [{GROQ_API_KEY:'fixture'},'GROQ_MODEL_REQUIRED',true,false],
+  [{SAVLIVO_PRICE_SEMANTIC_MODEL:'fixture/model'},'GROQ_KEY_REQUIRED',false,true],
+  [{GROQ_API_KEY:'fixture',SAVLIVO_PRICE_SEMANTIC_MODEL:'invalid model'},'GROQ_MODEL_INVALID',true,false],
+  [{GROQ_API_KEY:'fixture',SAVLIVO_PRICE_SEMANTIC_MODEL:'fixture/model'},'CONFIGURED',true,true]
+ ]){
+  const check=capabilityPreflight({...none,groq:true},env),g=check.availability.groq;
+  assert.equal(g.reason,reason);assert.equal(g.keyConfigured,key);assert.equal(g.modelConfigured,model);assert.equal(check.ready,key&&model);
+  assert.equal(capabilityPreflight(none,env).ready,true);
+  assert(!JSON.stringify(check).includes('fixture'));
+ }
+});

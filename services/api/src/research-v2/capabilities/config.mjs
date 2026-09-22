@@ -21,7 +21,9 @@ export function browserAvailability(){
  return {available:r.status===0,reason:r.status===0?'LOCAL_IMAGE_PRESENT_SANDBOX_CHECK_AT_USE':'DOCKER_OR_PINNED_IMAGE_UNAVAILABLE'};
 }
 export function capabilityAvailability(env=process.env,{browser=false,probeBrowser=browserAvailability}={}){
- return {direct:{available:true},tavily:{available:!!env.TAVILY_API_KEY?.trim(),reason:env.TAVILY_API_KEY?.trim()?'CONFIGURED':'TAVILY_API_KEY_REQUIRED'},decodo:{available:!!env.SAVLIVO_DECODO_USERNAME?.trim()&&!!env.SAVLIVO_DECODO_PASSWORD?.trim(),reason:'DECODO_CONFIGURATION_VALIDATED_AT_USE'},browser:browser?probeBrowser():{available:false,reason:'NOT_PROBED_NO_BROWSER_INITIALIZATION'},groq:{available:!!env.GROQ_API_KEY?.trim()&&/^[\w./:-]{1,160}$/.test(env.SAVLIVO_PRICE_SEMANTIC_MODEL??''),reason:env.GROQ_API_KEY?.trim()&&/^[\w./:-]{1,160}$/.test(env.SAVLIVO_PRICE_SEMANTIC_MODEL??'')?'CONFIGURED':'GROQ_KEY_AND_MODEL_REQUIRED'}};
+ const keyConfigured=!!env.GROQ_API_KEY?.trim(),modelConfigured=/^[\w./:-]{1,160}$/.test(env.SAVLIVO_PRICE_SEMANTIC_MODEL??'');
+ const groqReason=keyConfigured?(modelConfigured?'CONFIGURED':env.SAVLIVO_PRICE_SEMANTIC_MODEL?'GROQ_MODEL_INVALID':'GROQ_MODEL_REQUIRED'):(modelConfigured?'GROQ_KEY_REQUIRED':'GROQ_KEY_AND_MODEL_REQUIRED');
+ return {direct:{available:true},tavily:{available:!!env.TAVILY_API_KEY?.trim(),reason:env.TAVILY_API_KEY?.trim()?'CONFIGURED':'TAVILY_API_KEY_REQUIRED'},decodo:{available:!!env.SAVLIVO_DECODO_USERNAME?.trim()&&!!env.SAVLIVO_DECODO_PASSWORD?.trim(),reason:'DECODO_CONFIGURATION_VALIDATED_AT_USE'},browser:browser?probeBrowser():{available:false,reason:'NOT_PROBED_NO_BROWSER_INITIALIZATION'},groq:{available:keyConfigured&&modelConfigured,keyConfigured,modelConfigured,reason:groqReason}};
 }
 export function capabilityPreflight(c,env=process.env,options={}){
  const availability=capabilityAvailability(env,{...options,browser:c.browser});
