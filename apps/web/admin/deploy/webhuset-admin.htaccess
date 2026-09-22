@@ -8,8 +8,8 @@ RewriteCond %{HTTP_HOST} !^admin\.savlivo\.com$ [NC]
 RewriteRule ^ - [F,L]
 RewriteCond %{HTTPS} !=on
 RewriteRule ^ https://admin.savlivo.com%{REQUEST_URI} [R=301,L]
-# Upload only the three public client files and the unchanged logo. Deny unexpected files even if uploaded.
-RewriteRule !^(index\.html|admin\.js|admin\.css|logo\.png)?$ - [F,L]
+# Upload only index.html, admin.js, admin.css, v2-operations.js and logo.png. Deny unexpected files even if uploaded.
+RewriteRule !^(index\.html|admin\.js|admin\.css|v2-operations\.js|logo\.png)?$ - [F,L]
 
 Header always set Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://savlivo-api.onrender.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'"
 Header always set X-Frame-Options "DENY"
