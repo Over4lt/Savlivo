@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
+import test,{after} from 'node:test';import os from 'node:os';import path from 'node:path';import assert from 'node:assert/strict';import fs from 'node:fs';
 import {evaluateProviderCandidate,lifecycleBudgets,lifecycleSeed,assertLifecycleCohort,snapshotLifecycle,validateLifecycleSnapshot} from '../../../../services/api/src/research-v2/inventory/lifecycle-continuation.mjs';
 import {runAdaptiveCampaign,initializeAdaptiveState,assessAdaptiveService} from '../../../../services/api/src/research-v2/inventory/adaptive-campaign.mjs';
 import {acquisitionEscalation} from '../../../../services/api/src/research-v2/live/provider-access-gap.mjs';
@@ -7,7 +7,11 @@ import {usableResearchMemory} from '../../../../services/api/src/research-v2/liv
 import {executeHandoff,continuationLocation} from '../../../../services/api/src/research-v2/inventory/reviewed-cohort-execution.mjs';
 import {reviewedTargets,inspectLifecycleInput} from '../../../../services/api/src/research-v2/inventory/reviewed-cohort-handoff.mjs';
 const {assertOffline}=await import('../../../../services/api/src/research-v2/offline-replay/offline-guard.mjs');
-const root=fs.mkdtempSync('.savlivo/research-v2/lifecycle-test-');
+const repository=process.cwd(),isolated=fs.mkdtempSync(path.join(os.tmpdir(),'savlivo-lifecycle-test-'));
+for(const file of ['docs/catalog/global-47/market-expansion-evidence.json','docs/catalog/global-47/evidence.json','docs/catalog/global-47/research-v2/provider-domain-discovery-bindings.json']){fs.mkdirSync(path.dirname(path.join(isolated,file)),{recursive:true});fs.copyFileSync(path.join(repository,file),path.join(isolated,file));}
+process.chdir(isolated);fs.mkdirSync('.savlivo/research-v2',{recursive:true});
+const root='.savlivo/research-v2/fixture';fs.mkdirSync(root);
+after(()=>{process.chdir(repository);fs.rmSync(isolated,{recursive:true,force:true});});
 const t=id=>({id:id+'-catalog',service:id,serviceName:id,market:'US',urls:['https://provider.example/plans'],authorities:[{hostname:'provider.example',provider:id,sourceType:'OFFICIAL_PROVIDER',checkedAt:'2026-09-21',ownershipReview:{review:{status:'REVIEWED'}}}],smartResearch:{version:2},researchObjective:'CATALOG_ONLY',gaps:['LOGIN','WEB_MANAGEMENT']});
 test('acquired candidate is never automatically reviewed; exact existing reviewed handoff unlocks',()=>{const page={url:'https://provider.example/',outcome:'OK'};assert.equal(evaluateProviderCandidate({service:'a',page,targets:[]}).status,'HUMAN_REVIEW_REQUIRED');assert.equal(evaluateProviderCandidate({service:'a',page,targets:[t('a')]}).status,'ESTABLISHED');assert.equal(evaluateProviderCandidate({service:'b',page,targets:[t('a')]}).status,'HUMAN_REVIEW_REQUIRED');assert.equal(evaluateProviderCandidate({service:'a',page:{...page,url:'https://sibling.provider.example/'},targets:[t('a')]}).status,'HUMAN_REVIEW_REQUIRED');});
 test('baseline and duplicate exclusion generic to frozen cohorts',()=>{assert.throws(()=>assertLifecycleCohort(['old'],['old']));assert.throws(()=>assertLifecycleCohort(['new','new'],[]));assertLifecycleCohort(['new'],['old']);});
@@ -19,7 +23,7 @@ test('budget zero terminates; established evidence stops without network',()=>{c
 test('Tavily is a planner discovery route, never trusted provider acquisition',()=>{const a={...t('search'),urls:[],leads:[]};const s=initializeAdaptiveState({targets:[a],conditionalFollowupTargets:[]});const plan=assessAdaptiveService(s,'search');assert(['DISCOVERY','AUTHORITY_DISCOVERY'].includes(plan.next?.plan.route));});
 for(const code of ['NETWORK_FAILED','TIMEOUT'])test('documented access failure retains mature fallback '+code,()=>{assert(acquisitionEscalation({page:{outcome:'UNRESOLVED',failure:{code},accessDecisions:[{decision:'ALLOWED'}]},targetMarket:'US'}).eligible);});
 test('robots restriction and missing price cannot enable proxy',()=>{assert.equal(acquisitionEscalation({page:{outcome:'UNRESOLVED',failure:{code:'HTTP_403'},accessDecisions:[{decision:'DISALLOWED'}]},targetMarket:'US'}).eligible,false);assert.equal(acquisitionEscalation({page:{outcome:'OK',blockers:['NO_PRICE']},targetMarket:'US'}).eligible,false);});
-test('current immutable 188/275 cohort uses104 exact reviewed bindings',()=>{const h=inspectLifecycleInput('docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/lifecycle-input.json');assert.equal(h.targets.length,104);assert.equal(h.cohort.manifest.serviceIds.length,188);assert.equal(h.baselineIds.length,275);assert.equal(h.summary.historicalRequests,3838);assert.equal(assertOffline().externalNetwork,0);});
+test('current immutable 188/275 cohort uses104 exact reviewed bindings',()=>{const h=inspectLifecycleInput('docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/lifecycle-input.json',repository);assert.equal(h.targets.length,104);assert.equal(h.cohort.manifest.serviceIds.length,188);assert.equal(h.baselineIds.length,275);assert.equal(h.summary.historicalRequests,3838);assert.equal(assertOffline().externalNetwork,0);});
 
 test('native reviewed binding, retained admission and login verifier integrate offline in one lifecycle',async()=>{
  const dir=root+'/source';fs.mkdirSync(dir+'/bodies',{recursive:true});const body='<html><body><p>Example Ltd operates this service.</p><a href="/login">Log in</a></body></html>',bodyHash=digest(body),bodyFile='bodies/'+bodyHash+'.txt';fs.writeFileSync(dir+'/'+bodyFile,body);

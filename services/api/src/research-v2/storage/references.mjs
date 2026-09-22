@@ -15,6 +15,7 @@ export function closure(root,roots,{maxFiles=100000,maxBytes=4*1024**3}={}){
   if(value.inputHashes||value.frozenHashes){for(const [p,h]of Object.entries({...value.inputHashes,...value.frozenHashes})){const name=resolve(p,owner,'path');enqueue({path:name,sha256:h,format:/\.(mjs|js|ts)$/.test(name)?'CODE':format(name),classification:'REFERENCED_EVIDENCE'},owner+':inputHashes');}}
   for(const [key,v]of Object.entries(value)){
    if((key==='runId'&&value.schema?.startsWith('V2_ANALYTICS_'))||['inputHashes','frozenHashes'].includes(key)||hashKeys.has(key)||key==='runsRoot')continue; // runsRoot is a destination; not historical evidence.
+   if(key==='runDirectory'&&v!==null)throw Error('STORAGE_UNKNOWN_PATH_FIELD:runDirectory');
    if(typeof v==='string'){
     if(/^https?:\/\//.test(v)||!v||v.includes('<')||v.includes('\n'))continue;
     const looksPath=v.startsWith('.savlivo/')||v.startsWith('docs/')||v.startsWith('/Users/')||v.startsWith('/opt/')||v.startsWith('/tmp/')||v.startsWith('/private/')||(/(?:^|\/)[^/]+\.(json|jsonl|txt|body|log)$/.test(v));
@@ -35,7 +36,7 @@ export function closure(root,roots,{maxFiles=100000,maxBytes=4*1024**3}={}){
    if(ref.format==='CODE'){if(!/\.(mjs|js|ts)$/.test(ref.path)||!ref.path.match(/^(docs|services|packages)\//))throw Error('STORAGE_CODE_REFERENCE');continue;}
    if(ref.format==='BYTES'){if(/\.(json|jsonl|mjs|js|ts)$/.test(ref.path))throw Error('STORAGE_OPAQUE_STRUCTURED_REFERENCE');continue;}
    if(ref.format==='FINALIZED'){const m=verifySeal(JSON.parse(bytes),'V2_FINALIZED_REFERENCES_V1');for(const e of m.entries)enqueue(e,ref.path);continue;}
-   if(ref.format==='SNAPSHOT'){const s=JSON.parse(bytes),{snapshotHash,...p}=s;const legacy=sha(JSON.stringify(p));if(s.version!==1||snapshotHash!==legacy)throw Error('STORAGE_LEGACY_SNAPSHOT_HASH');scan(s.sources?adaptSnapshot(root,s):s,ref.path);continue;}
+   if(ref.format==='SNAPSHOT'){const s=JSON.parse(bytes),{snapshotHash,...p}=s;const legacy=sha(JSON.stringify(p));if(!Object.hasOwn(s,'snapshotHash'))throw Error('STORAGE_LEGACY_SEAL_MISSING');if(s.version!==1||snapshotHash!==legacy)throw Error('STORAGE_LEGACY_SNAPSHOT_HASH');scan(s.sources?adaptSnapshot(root,s):s,ref.path);continue;}
    if(!['JSON','JSONL'].includes(ref.format))throw Error('STORAGE_UNKNOWN_SCHEMA');
    const values=ref.format==='JSON'?[JSON.parse(bytes)]:String(bytes).split('\n').filter(Boolean).map(JSON.parse);
    for(const v of values){if(v?.schema&& !['V2_EVIDENCE_OBSERVATION_V1','V2_BLOB_V1','V2_ANALYTICS_RUN_V1','V2_ANALYTICS_SERVICE_V1','V2_ANALYTICS_INDEX_V1','V2_HISTORY_INDEX_POINTER_V1'].includes(v.schema))throw Error('STORAGE_UNKNOWN_SCHEMA:'+v.schema);const adapted=adaptDocument(root,v,ref.path);for(const r of adapted.references)enqueue(r,r.reason);scan(adapted.value,ref.path);}

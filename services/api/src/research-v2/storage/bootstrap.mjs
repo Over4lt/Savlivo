@@ -1,3 +1,4 @@
+import {adaptDocument} from './schema-adapters.mjs';
 import {revalidateLegacyBoundary} from './legacy-boundary.mjs';
 import {inspectLifecycleInput} from '../inventory/reviewed-cohort-handoff.mjs';
 import fs from 'node:fs';
@@ -19,7 +20,7 @@ export function buildBootstrap({root,destination,spec,createdAt,sourceIdentity})
  const included=refs.entries.map(({identity,...e})=>e);
  const externalBytes=external?Buffer.from(canonical(external)):null;
  if(external)included.push({path:receiptFile,sha256:sha(externalBytes),bytes:externalBytes.length,classification:'PERMANENT_HISTORY',format:'FINALIZED',reasons:['EXTERNAL_LEGACY_CERTIFICATION']});
- for(const e of included){if(/(^|\/)(\.env(?:\.|$)|.*keychain)/i.test(e.path))throw Error('STORAGE_SECRET_PATH');if(['JSON','JSONL','FINALIZED','SNAPSHOT'].includes(e.format)){const b=String(external&&e.path===receiptFile?externalBytes:stableBytes(safe(root,e.path)));for(const value of e.format==='JSONL'?b.split('\n').filter(Boolean).map(JSON.parse):[JSON.parse(b)])portable(value);}}
+ for(const e of included){if(/(^|\/)(\.env(?:\.|$)|.*keychain)/i.test(e.path))throw Error('STORAGE_SECRET_PATH');if(['JSON','JSONL','FINALIZED','SNAPSHOT'].includes(e.format)){const b=String(external&&e.path===receiptFile?externalBytes:stableBytes(safe(root,e.path)));for(const value of e.format==='JSONL'?b.split('\n').filter(Boolean).map(JSON.parse):[JSON.parse(b)])portable(adaptDocument(root,value,e.path).value);}}
  for(const e of included){const bytes=external&&e.path===receiptFile?externalBytes:stableBytes(safe(root,e.path));if(sha(bytes)!==e.sha256)throw Error('STORAGE_EXPORT_RACE');immutable(safe(dest,e.path),bytes);}
  const manifest=sealed({schema:'V2_PRODUCTION_BOOTSTRAP_V1',createdAt,sourceIdentity,lifecycleInput:spec.lifecycleInput,receipt:receiptFile,roots,selection,included,sourceFootprintInspected:refs.logicalBytes,totalBootstrapLogicalBytes:included.reduce((n,e)=>n+e.bytes,0),exclusions:{basis:'OUTSIDE_VALIDATED_REFERENCE_CLOSURE',bytes:null,files:null},validation:{brokenReferences:0,baselineEligible:0,mutableDataRequiresGit:false}});
  validateBootstrap(dest,manifest);immutable(safe(dest,'bootstrap-manifest.json'),canonical(manifest));return manifest;

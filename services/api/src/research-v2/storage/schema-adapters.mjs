@@ -1,7 +1,18 @@
 // Recognize versioned contracts, never grant path semantics by field name alone.
-import {safe} from './core.mjs';
+import path from 'node:path';
+import {safe,read,sha,stableBytes,files} from './core.mjs';
 const stages=['IDENTITY_SUBSCRIPTION','MARKETS','LOGIN','MANAGEMENT','CANCELLATION','PRICING','VALIDATION'];
 export function adaptDocument(root,value,owner){
+ if(owner.endsWith('/discovery-input.json')&&value?.mainSheet==='V15 Gate'){
+  const manifestPath=path.posix.dirname(owner)+'/manifest.json',m=read(safe(root,manifestPath));
+  if(m.version!==1||m.authorityBootstrap!==1||m.scope!=='NEW_SERVICES_ONLY'||m.inputHashes?.[owner]!==sha(stableBytes(safe(root,owner)))||m.workbookSha256!==value.sha256||!/^[a-f0-9]{64}$/.test(value.sha256)||typeof value.source!=='string'||!value.source.endsWith('.xlsx')||value.rows?.length!==215||!Array.isArray(value.sidepoolRows))throw Error('STORAGE_DISCOVERY_EXTRACT_SCHEMA');
+  // The frozen extraction contains all input rows; prepare-v15-new-services reads
+  // rows/mainSheet/sha256, never source. Keep original bytes, ignore only this
+  // authenticated historical locator for filesystem traversal/portability.
+  const {source,...data}=value;
+  return {value:data,references:[{path:manifestPath,sha256:sha(stableBytes(safe(root,manifestPath))),format:'JSON',classification:'PERMANENT_CANONICAL',reason:'FROZEN_WORKBOOK_EXTRACT_AUTHENTICATION'}],schema:'FROZEN_DISCOVERY_WORKBOOK_EXTRACT_V1',provenanceOnly:['source']};
+ }
+
  if(value?.version==='V2_ADDITIVE_CANDIDATES_V1'){
   if(!Array.isArray(value.existing)||!Array.isArray(value.exclude))throw Error('STORAGE_ADDITIVE_SCHEMA');
   const references=[];
@@ -46,7 +57,8 @@ export function adaptDocument(root,value,owner){
 // to its acquisition directory, NOT the directory containing the snapshot itself.
 export function adaptSnapshot(root,snapshot){
  if(snapshot.version!==1||!snapshot.inputHashes||!Array.isArray(snapshot.cohort)||!snapshot.sources||!Array.isArray(snapshot.parents))throw Error('STORAGE_LIFECYCLE_SNAPSHOT_SCHEMA');
- const local=p=>{if(p.startsWith(root+'/'))p=p.slice(root.length+1);safe(root,p);return p;};
+ const locals=new Map();
+ const local=p=>{if(locals.has(p))return locals.get(p);const original=p;if(p.startsWith(root+'/'))p=p.slice(root.length+1);safe(root,p);locals.set(original,p);return p;};
  const inputHashes=snapshot.inputHashes;
  const sources=Object.fromEntries(Object.entries(snapshot.sources).map(([service,items])=>{
   if(!snapshot.cohort.includes(service)||!Array.isArray(items))throw Error('STORAGE_LIFECYCLE_SOURCE_SCOPE');
@@ -64,8 +76,16 @@ export function adaptSnapshot(root,snapshot){
  const parents=snapshot.parents.map(p=>{const {directory,...rest}=p;local(directory);return rest;});
  function stateReferences(v){
   if(Array.isArray(v))return v.map(stateReferences);if(!v||typeof v!=='object')return v;
+  if(v.version==='V2_FIELD_VERIFICATION_V1'){
+   function locators(x){if(Array.isArray(x))return x.map(locators);if(!x||typeof x!=='object')return x;const out={};for(const [key,value]of Object.entries(x)){
+    if(key==='path'&&typeof value==='string'&&value.startsWith('$/')){if(!/^\$(?:\/[a-zA-Z0-9_:#.-]+(?:\[\d+\])?)+$/.test(value))throw Error('STORAGE_DOM_LOCATOR_SCHEMA');out.domLocator=value;}else out[key]=locators(value);
+   }return out;}v=locators(v);
+  }
   const result={};for(const [k,x]of Object.entries(v))if(k!=='bodyFile'){
-   if(k==='rule'&&v.robotsUrl&&x?.path!==undefined){
+   if(k==='quarantinedVerified'){
+    if(!Array.isArray(x))throw Error('STORAGE_QUARANTINE_STATE_SCHEMA');
+    result[k]=x.map(row=>{const {decision,...rest}=row;const q=adaptDocument(root,{schemaVersion:1,scope:'EXACT_RETAINED_INTERPRETATIONS_ONLY',entries:[decision]},'snapshot-quarantine').value.entries[0];return {...stateReferences(rest),decision:stateReferences(q)};});
+   }else if(k==='rule'&&v.robotsUrl&&x?.path!==undefined){
     if(!/^https?:\/\//.test(v.robotsUrl)||!['allow','disallow'].includes(x.directive)||typeof x.path!=='string'||!x.path.startsWith('/'))throw Error('STORAGE_ROBOTS_RULE_SCHEMA');
     const {path:robotsPattern,...rest}=x;result.rule={...stateReferences(rest),robotsPattern};
    }else result[k]=stateReferences(x);
@@ -76,5 +96,21 @@ export function adaptSnapshot(root,snapshot){
    result.bodyReferences=matches.map(s=>({path:local(s.directory+'/'+s.page.bodyFile),sha256:v.bodyHash}));
   }return result;
  }
- return stateReferences({...snapshot,sources,parents});
+ const states=Object.fromEntries(Object.entries(snapshot.states).map(([id,state])=>{
+  const target=state.target;if(!target?.providerInterpretations)return [id,state];
+  if(!Array.isArray(target.providerInterpretations))throw Error('STORAGE_PROVIDER_INTERPRETATION_SCHEMA');
+  const providerInterpretations=target.providerInterpretations.map(item=>{
+   if(item.runDirectory==null)return item;
+   if(typeof item.url!=='string'||!/^https?:\/\//.test(item.url)||!Array.isArray(item.blockers)||typeof item.needsGeo!=='boolean')throw Error('STORAGE_PROVIDER_INTERPRETATION_SCHEMA');
+   const directory=local(item.runDirectory);
+   if(!snapshot.parents.some(p=>directory.startsWith(local(p.directory)+'/'))||!directory.includes('/direct-acquisitions/direct-'))throw Error('STORAGE_CHILD_RUN_SCOPE');
+   const expected=Object.keys(inputHashes).filter(p=>local(p).startsWith(directory+'/')).map(local).sort();
+   const actual=files(root,directory).sort();
+   if(!expected.length||JSON.stringify(expected)!==JSON.stringify(actual))throw Error('STORAGE_CHILD_RUN_NOT_FINGERPRINTED');
+   const {runDirectory,...rest}=item;
+   return {...rest,childRunReferences:expected.map(p=>({path:p,sha256:inputHashes[p]??inputHashes[root+'/'+p]}))};
+  });return [id,{...state,target:{...target,providerInterpretations}}];
+ }));
+ const quarantine=adaptDocument(root,{schemaVersion:1,scope:'EXACT_RETAINED_INTERPRETATIONS_ONLY',entries:snapshot.quarantine??[]},'snapshot-quarantine').value.entries;
+ return stateReferences({...snapshot,sources,parents,states,quarantine});
 }
