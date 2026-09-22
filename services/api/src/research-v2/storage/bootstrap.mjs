@@ -1,3 +1,4 @@
+import {revalidateLegacyBoundary} from './legacy-boundary.mjs';
 import {inspectLifecycleInput} from '../inventory/reviewed-cohort-handoff.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,14 +10,18 @@ export function buildBootstrap({root,destination,spec,createdAt,sourceIdentity})
  if(spec.schema!=='V2_BOOTSTRAP_INPUT_V1'||!createdAt||!sourceIdentity)throw Error('STORAGE_BOOTSTRAP_SCHEMA');
  const dest=path.resolve(destination);if(dest===path.resolve(root)||dest.startsWith(path.resolve(root)+path.sep+'.savlivo'+path.sep))throw Error('STORAGE_BOOTSTRAP_SOURCE_OVERLAP');
  if(fs.existsSync(dest)&&fs.readdirSync(dest).length)throw Error('STORAGE_BOOTSTRAP_DESTINATION_NOT_EMPTY');
- const receipt=validateReceipt(root,read(safe(root,spec.receipt))),selection=scope(root,spec.lifecycleInput,receipt);
+ const external=spec.externalReceipt?revalidateLegacyBoundary(root,spec.externalReceipt):null;
+ const receipt=external??validateReceipt(root,read(safe(root,spec.receipt))),selection=scope(root,spec.lifecycleInput,receipt);
+ const receiptFile=external?'.savlivo/research-v2/storage/legacy-certifications/'+receipt.contentHash+'.json':spec.receipt;
  const historical=files(root,'.savlivo/research-v2/storage/history').filter(p=>p.endsWith('/summary.json'));const index='.savlivo/research-v2/storage/history-index.json';if(fs.existsSync(safe(root,index)))historical.push(index);
- const roots=[{path:spec.receipt,format:'FINALIZED',classification:'PERMANENT_HISTORY',reason:'BOOTSTRAP_FINALIZATION'},{path:spec.lifecycleInput,format:'JSON',classification:'PERMANENT_CANONICAL',reason:'FROZEN_LIFECYCLE'},...[...new Set([...historical,...(spec.history??[])])].map(p=>({path:p,format:'JSON',classification:'PERMANENT_HISTORY',reason:'ANALYTICS_HISTORY'}))];
- const refs=closure(root,roots);if(!refs.complete)throw Error('STORAGE_BOOTSTRAP_INCOMPLETE:'+refs.errors.join(';'));
+ const roots=[{path:receiptFile,format:'FINALIZED',classification:'PERMANENT_HISTORY',reason:'BOOTSTRAP_FINALIZATION'},{path:spec.lifecycleInput,format:'JSON',classification:'PERMANENT_CANONICAL',reason:'FROZEN_LIFECYCLE'},...[...new Set([...historical,...(spec.history??[])])].map(p=>({path:p,format:'JSON',classification:'PERMANENT_HISTORY',reason:'ANALYTICS_HISTORY'}))];
+ const refs=closure(root,external?[...receipt.roots,...roots.slice(1)]:roots);if(!refs.complete)throw Error('STORAGE_BOOTSTRAP_INCOMPLETE:'+refs.errors.join(';'));
  const included=refs.entries.map(({identity,...e})=>e);
- for(const e of included){if(/(^|\/)(\.env(?:\.|$)|.*keychain)/i.test(e.path))throw Error('STORAGE_SECRET_PATH');if(['JSON','JSONL','FINALIZED','SNAPSHOT'].includes(e.format)){const b=String(stableBytes(safe(root,e.path)));for(const value of e.format==='JSONL'?b.split('\n').filter(Boolean).map(JSON.parse):[JSON.parse(b)])portable(value);}}
- for(const e of included){const bytes=stableBytes(safe(root,e.path));if(sha(bytes)!==e.sha256)throw Error('STORAGE_EXPORT_RACE');immutable(safe(dest,e.path),bytes);}
- const manifest=sealed({schema:'V2_PRODUCTION_BOOTSTRAP_V1',createdAt,sourceIdentity,lifecycleInput:spec.lifecycleInput,receipt:spec.receipt,roots,selection,included,sourceFootprintInspected:refs.logicalBytes,totalBootstrapLogicalBytes:included.reduce((n,e)=>n+e.bytes,0),exclusions:{basis:'OUTSIDE_VALIDATED_REFERENCE_CLOSURE',bytes:null,files:null},validation:{brokenReferences:0,baselineEligible:0,mutableDataRequiresGit:false}});
+ const externalBytes=external?Buffer.from(canonical(external)):null;
+ if(external)included.push({path:receiptFile,sha256:sha(externalBytes),bytes:externalBytes.length,classification:'PERMANENT_HISTORY',format:'FINALIZED',reasons:['EXTERNAL_LEGACY_CERTIFICATION']});
+ for(const e of included){if(/(^|\/)(\.env(?:\.|$)|.*keychain)/i.test(e.path))throw Error('STORAGE_SECRET_PATH');if(['JSON','JSONL','FINALIZED','SNAPSHOT'].includes(e.format)){const b=String(external&&e.path===receiptFile?externalBytes:stableBytes(safe(root,e.path)));for(const value of e.format==='JSONL'?b.split('\n').filter(Boolean).map(JSON.parse):[JSON.parse(b)])portable(value);}}
+ for(const e of included){const bytes=external&&e.path===receiptFile?externalBytes:stableBytes(safe(root,e.path));if(sha(bytes)!==e.sha256)throw Error('STORAGE_EXPORT_RACE');immutable(safe(dest,e.path),bytes);}
+ const manifest=sealed({schema:'V2_PRODUCTION_BOOTSTRAP_V1',createdAt,sourceIdentity,lifecycleInput:spec.lifecycleInput,receipt:receiptFile,roots,selection,included,sourceFootprintInspected:refs.logicalBytes,totalBootstrapLogicalBytes:included.reduce((n,e)=>n+e.bytes,0),exclusions:{basis:'OUTSIDE_VALIDATED_REFERENCE_CLOSURE',bytes:null,files:null},validation:{brokenReferences:0,baselineEligible:0,mutableDataRequiresGit:false}});
  validateBootstrap(dest,manifest);immutable(safe(dest,'bootstrap-manifest.json'),canonical(manifest));return manifest;
 }
 export function validateBootstrap(root,proposed=null){const m=verifySeal(proposed??read(safe(root,'bootstrap-manifest.json')),'V2_PRODUCTION_BOOTSTRAP_V1');for(const e of m.included){const bytes=stableBytes(safe(root,e.path));if(sha(bytes)!==e.sha256||bytes.length!==e.bytes)throw Error('STORAGE_BOOTSTRAP_HASH');}const receipt=validateReceipt(root,read(safe(root,m.receipt)));const selection=scope(root,m.lifecycleInput,receipt);if(digest(selection)!==digest(m.selection))throw Error('STORAGE_BOOTSTRAP_SCOPE');const refs=closure(root,m.roots);if(!refs.complete||refs.entries.length!==m.included.length||refs.entries.some(e=>!m.included.some(i=>i.path===e.path&&i.sha256===e.sha256)))throw Error('STORAGE_BOOTSTRAP_BROKEN_REFERENCE');return {valid:true,brokenReferences:0,cohort:selection.cohort.length,baselineExcluded:selection.baseline.length,capabilities:selection.capabilities,files:m.included.length,logicalBytes:m.totalBootstrapLogicalBytes};}
