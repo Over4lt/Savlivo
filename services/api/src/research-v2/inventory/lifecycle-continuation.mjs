@@ -1,3 +1,4 @@
+import {finalizedBoundary} from '../storage/finalize.mjs';
 // Continuation inventory/projection helpers for the existing mature executor.
 // No transport, authority inference, verifier or alternative scheduler lives here.
 import fs from 'node:fs';import path from 'node:path';
@@ -25,7 +26,9 @@ export function snapshotLifecycle({handoff,researchMarkets,runsRoot,baselineIds=
   const summary=json(d+'/summary.json'),ledger=d+'/network.jsonl',events=fs.existsSync(ledger)?fs.readFileSync(ledger,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];
   if(!summary.executionComplete||events.length!==summary.additionalRequests||events.some(e=>!ids.includes(e.service)))throw Error('LIFECYCLE_PARENT_NOT_RECONCILED');
   parents.push({directory:d,requests:events.length,fingerprint:lineage.fingerprint});
-  for(const f of filesUnder(d)){if(f.endsWith('.lock')){const pid=Number(fs.readFileSync(f,'utf8'));if(!Number.isInteger(pid)||pid<1)throw Error('LIFECYCLE_PARENT_LOCK');try{process.kill(pid,0);throw Error('LIFECYCLE_PARENT_ACTIVE');}catch(e){if(e.code!=='ESRCH')throw e;}}inputHashes[f]=hashFile(f);}
+  const boundary=finalizedBoundary(process.cwd(),d);
+  if(boundary){if(digest(boundary.receipt.cohort)!==digest(ids)||boundary.receipt.runId!==d)throw Error('LIFECYCLE_FINALIZED_SCOPE');if(filesUnder(d).some(f=>f.endsWith('.lock')))throw Error('LIFECYCLE_PARENT_LOCK');inputHashes[boundary.file]=hashFile(boundary.file);}
+  for(const f of (boundary?boundary.receipt.entries.map(e=>e.path):filesUnder(d))){if(f.endsWith('.lock')){const pid=Number(fs.readFileSync(f,'utf8'));if(!Number.isInteger(pid)||pid<1)throw Error('LIFECYCLE_PARENT_LOCK');try{process.kill(pid,0);throw Error('LIFECYCLE_PARENT_ACTIVE');}catch(e){if(e.code!=='ESRCH')throw e;}}const actual=hashFile(f);if(boundary&&actual!==boundary.receipt.entries.find(e=>e.path===f)?.sha256)throw Error('LIFECYCLE_FINALIZED_INPUT_CHANGED');inputHashes[f]=actual;}
   for(const phase of ['catalog','pricing']){const f=d+'/'+phase+'/adaptive-state.json';if(!fs.existsSync(f))continue;const state=json(f);if(state.pending)throw Error('LIFECYCLE_PARENT_PENDING');for(const t of Object.values(state.targets)){if(!ids.includes(t.service))throw Error('LIFECYCLE_TARGET_SCOPE');states[t.id]={target:t,reference:{path:f,hash:inputHashes[f]}};}}
   for(const f of Object.keys(inputHashes).filter(f=>f.startsWith(d+'/')&&f.endsWith('/pages.json'))){const service=ids.find(id=>f.includes('/bootstrap/'+id+'/')||f.includes('/services/'+id+'/')||f.includes('/replay/'+id+'-'));if(service&&Array.isArray(json(f)))addSource(service,path.dirname(f),json(f));}
   for(const f of Object.keys(inputHashes).filter(f=>f.startsWith(d+'/')&&f.endsWith('/open-web-discovery/state.json'))){const state=json(f);for(const t of state.targets??[])addSource(t.service,path.dirname(f),t.reads??[]);}

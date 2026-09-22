@@ -1,3 +1,4 @@
+import {requireSpace,checkpointReserveLow} from '../../../../services/api/src/research-v2/storage/runtime.mjs';
 #!/usr/bin/env node
 import {resolveCapabilities,capabilityPreflight} from '../../../../services/api/src/research-v2/capabilities/config.mjs';
 import fs from 'node:fs';import path from 'node:path';import {pathToFileURL} from 'node:url';
@@ -49,7 +50,8 @@ export async function lifecycleMain(args,control={}){
  if(control.expectedOutput&&control.expectedOutput!==location.directory)throw Error('LIFECYCLE_CHECKPOINT_CHANGED');
  console.log(JSON.stringify(preflight,null,2));if(rest[0]==='--check')return preflight;
  if(!capabilityCheck.ready)throw Error('LIFECYCLE_CAPABILITY_UNAVAILABLE');
+ requireSpace(path.join(process.cwd(),'.savlivo'));
  const key=h.config.capabilities.tavily?process.env.TAVILY_API_KEY?.trim():null;
  let stop=false;const halt=()=>{stop=true;console.log('Stopping after current mature action; use the same command to resume.');};process.on('SIGINT',halt);process.on('SIGTERM',halt);
- try{return await executeHandoff({handoff:h,researchMarkets:markets,directory:location.directory,mode:'live',key,shouldStop:()=>stop||control.shouldStop?.()===true,lifecycle});}finally{process.off('SIGINT',halt);process.off('SIGTERM',halt);}
+ try{return await executeHandoff({handoff:h,researchMarkets:markets,directory:location.directory,mode:'live',key,shouldStop:()=>stop||control.shouldStop?.()===true||checkpointReserveLow(path.join(process.cwd(),'.savlivo')),lifecycle});}finally{process.off('SIGINT',halt);process.off('SIGTERM',halt);}
 }
