@@ -1,6 +1,7 @@
+import {restoreGenesisFiles,registerGenesisOverlay,ensureGenesisRepositoryInputs,verifyGenesisPlacement} from './genesis-deployment.mjs';
 // Offline storage maintenance only. There is deliberately no destructive command.
 import fs from 'node:fs';
-import {buildProductionGenesis,validateGenesisExport,prepareGenesisActions} from './production-genesis.mjs';
+import {buildProductionGenesis,validateProductionGenesis,validateGenesisExport,prepareGenesisActions} from './production-genesis.mjs';
 import {certifyLegacyBoundary,revalidateLegacyBoundary} from './legacy-boundary.mjs';
 import {streamingInventory} from './stream-scan.mjs';
 import path from 'node:path';
@@ -21,6 +22,16 @@ export function lifecycleRoots(root,input,operations='.savlivo/v2-operations'){
 }
 export function main(args){const [command,...rest]=args,opts={};for(let i=0;i<rest.length;i+=2){if(!rest[i]?.startsWith('--')||!rest[i+1]||opts[rest[i]])throw Error('STORAGE_ARGUMENTS');opts[rest[i]]=rest[i+1];}
  const root=path.resolve(opts['--root']??process.cwd());
+ if(command==='genesis-restore'||command==='genesis-register-overlay'){
+  const destination=path.resolve(opts['--destination']),expected=opts['--expected-genesis-hash'];let manifest;
+  if(command==='genesis-restore'){const source=path.resolve(opts['--source']);validateGenesisExport(source);manifest=restoreGenesisFiles(source,destination,expected).manifest;}
+  else manifest=read(opts['--manifest']);
+  verifyGenesisPlacement(destination,manifest,expected);
+  // Full native closure validation is mandatory before the persistent startup receipt.
+  validateProductionGenesis(destination,manifest.genesis);
+  const result=registerGenesisOverlay(destination,manifest,expected);console.log(JSON.stringify(result,null,2));return result;
+ }
+ if(command==='genesis-deployment-check'){const result=ensureGenesisRepositoryInputs(root,opts['--input'],{repair:false});console.log(JSON.stringify(result,null,2));return result;}
  if(command==='genesis-export'){const spec=read(opts['--spec']);if(spec.schema!=='PRODUCTION_GENESIS_INPUT_V1')throw Error('GENESIS_SPEC_SCHEMA');const r=buildProductionGenesis({...spec,root,destination:opts['--output']});console.log(JSON.stringify({genesisHash:r.genesis.genesisHash,files:r.manifest.files.length,productionInput:r.manifest.productionInput}));return r;}
  if(command==='genesis-validate'||command==='genesis-plan'){const r=validateGenesisExport(path.resolve(opts['--destination']));const result=command==='genesis-plan'?prepareGenesisActions(r):{valid:true,genesisHash:r.genesis.genesisHash,cohort:r.genesis.cohort.length,baselineExcluded:r.genesis.baselineExcluded.length};console.log(JSON.stringify(result,null,2));return result;}
  if(command==='certify-legacy'){const result=certifyLegacyBoundary({...read(opts['--spec']),root,destination:opts['--output']});console.log(JSON.stringify(result,null,2));return result;}

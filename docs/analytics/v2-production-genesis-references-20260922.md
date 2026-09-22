@@ -153,3 +153,12 @@ the excluded snapshot. Source integrity rechecked 32,992 files with zero changes
 Validation: 239 storage, lifecycle, Operations and Admin tests passed; API
 production build and launcher syntax check passed. Generated exports and
 certificates are external operational artifacts and must never be staged.
+
+## Deployment placement enforcement
+
+See [Genesis deployment/restore](v2-genesis-deployment-restore.md). Restoring only
+`.savlivo` omits 30 required repository-relative references. The supported restore
+now persists their authenticated overlay inside the mount and verifies it at
+startup, so ephemeral redeploys cannot silently lose these inputs. Historical
+bootstrap-only inputs are not newly committed to Git. The certified Genesis
+and its hashes remain unchanged.

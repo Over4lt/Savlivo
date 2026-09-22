@@ -1,3 +1,4 @@
+import {ensureGenesisRepositoryInputs} from '../src/research-v2/storage/genesis-deployment.mjs';
 // Process supervision only. No research planning, credentials or transport here.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -58,6 +59,8 @@ export async function supervise({children,cwd,env=process.env,graceMs=shutdownGr
 }
 export async function main(){
  const config=runtimeConfiguration();
+ const genesis=ensureGenesisRepositoryInputs(config.cwd,config.env.V2_OPERATIONS_LIFECYCLE_INPUT);
+ if(genesis.status!=='NOT_CONFIGURED')console.log(JSON.stringify({component:'savlivo-runtime',event:'GENESIS_DEPLOYMENT_PREFLIGHT',...genesis}));
  for(const file of [config.children[0].args[0],config.children[1].args[2]])if(!fs.existsSync(file))throw Error('RUNTIME_FILE_MISSING:'+path.relative(config.cwd,file));
  import.meta.resolve('tsx');
  return supervise(config);

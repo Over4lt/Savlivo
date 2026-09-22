@@ -5,6 +5,7 @@ import fs from 'node:fs';import path from 'node:path';import {pathToFileURL} fro
 import {prepareHandoff,inspectHandoff,handoffDirectory,inspectLifecycleInput} from '../../../../services/api/src/research-v2/inventory/reviewed-cohort-handoff.mjs';
 import {priceTargets,continuationLocation,executeHandoff,validateReviewedContinuation} from '../../../../services/api/src/research-v2/inventory/reviewed-cohort-execution.mjs';
 import {snapshotLifecycle,lifecycleBudgets} from '../../../../services/api/src/research-v2/inventory/lifecycle-continuation.mjs';
+import {ensureGenesisRepositoryInputs} from '../../../../services/api/src/research-v2/storage/genesis-deployment.mjs';
 import {validateProductionGenesis} from '../../../../services/api/src/research-v2/storage/production-genesis.mjs';
 import {digest,json} from '../../../../services/api/src/research-v2/inventory/new-service-controller.mjs';
 import {readTavilyKeychain} from '../../../../services/api/src/research-v2/live/tavily-search.mjs';
@@ -34,11 +35,12 @@ export async function main(args=process.argv.slice(2)){
  process.on('SIGINT',requestStop);process.on('SIGTERM',requestStop);
  try{return await executeHandoff({handoff,researchMarkets,directory:location.directory,mode:mode.slice(2),key,shouldStop:()=>stop,candidateRound,continuation});}finally{process.off('SIGINT',requestStop);process.off('SIGTERM',requestStop);}
 }
-if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href)main().catch(e=>{console.error(/^(HANDOFF_|AUTHORITY_|Usage:)/.test(e.message)?e.message:'HANDOFF_STOPPED: inspect local review inputs; no fallback to old controller.');process.exitCode=1;});
+if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1])).href)main().catch(e=>{console.error(/^(HANDOFF_|AUTHORITY_|GENESIS_DEPLOYMENT_|Usage:)/.test(e.message)?e.message:'HANDOFF_STOPPED: inspect local review inputs; no fallback to old controller.');process.exitCode=1;});
 
 export async function lifecycleMain(args,control={}){
  const at=args.indexOf('--input'),file=at>=0?args[at+1]:null,rest=args.filter((a,i)=>i!==at&&i!==at+1&&a!=='--lifecycle');
  if(!file||rest.length!==1||!['--check','--live'].includes(rest[0])||args.length!==4)throw Error('Usage: --lifecycle --input <frozen-input.json> --check|--live');
+ ensureGenesisRepositoryInputs(process.cwd(),file,{repair:false});
  const h=inspectLifecycleInput(file);h.config.capabilities=resolveCapabilities(h.config.capabilities);const capabilityCheck=capabilityPreflight(h.config.capabilities);const markets=structuredClone(h.config.researchScopes?json(h.config.researchScopes).researchMarkets:{});
  // Explicit project market hints are research scopes only, never availability.
  for(const c of h.cohort.candidates)if(!markets[c.slug]?.length&&c.markets?.length)markets[c.slug]=[...c.markets];
@@ -48,7 +50,7 @@ export async function lifecycleMain(args,control={}){
  const genesis=h.config.productionGenesis?validateProductionGenesis(process.cwd(),h.config.productionGenesis):null;
  const lifecycle=snapshotLifecycle({handoff:h,researchMarkets:markets,runsRoot:h.config.runsRoot,baselineIds:h.baselineIds,legacyDirectory:genesis?null:h.config.legacyDirectory,quarantine:h.config.quarantineFile?json(h.config.quarantineFile).entries:[],codeHash,genesis});
  const location=continuationLocation(h,markets,false,null,null,lifecycle);
- const preflight={servicesSelected:h.config.executionServices?.length??h.cohort.manifest.serviceIds.length,cohort:h.cohort.manifest.serviceIds.length,reviewed:h.targets.length,humanReview:(h.config.executionServices?.length??h.cohort.manifest.serviceIds.length)-h.targets.length,baselineExcluded:h.baselineIds.length,capabilityCheck,capabilities:h.config.capabilities,liveReady:capabilityCheck.ready,output:location.directory,maximumNewRequests:lifecycleBudgets(h).total,historicalRequests:lifecycle.historicalRequests,parentRequests:lifecycle.parentRequests,networkCalls:0,onlineStarted:false,credentials:'VALIDATED_AT_LIVE_START'};
+ const preflight={servicesSelected:h.config.executionServices?.length??h.cohort.manifest.serviceIds.length,cohort:h.cohort.manifest.serviceIds.length,reviewed:h.targets.length,humanReview:(h.config.executionServices?.length??h.cohort.manifest.serviceIds.length)-h.targets.length,baselineExcluded:h.baselineIds.length,capabilityCheck,capabilities:h.config.capabilities,liveReady:capabilityCheck.ready,output:location.directory,maximumNewRequests:lifecycleBudgets(h).total,historicalRequests:lifecycle.historicalRequests,parentRequests:lifecycle.parentRequests,retainedTargets:Object.keys(lifecycle.states).length,requestsConsumed:0,executionStarted:false,networkCalls:0,onlineStarted:false,credentials:'VALIDATED_AT_LIVE_START'};
  if(control.expectedOutput&&control.expectedOutput!==location.directory)throw Error('LIFECYCLE_CHECKPOINT_CHANGED');
  console.log(JSON.stringify(preflight,null,2));if(rest[0]==='--check')return preflight;
  if(!capabilityCheck.ready)throw Error('LIFECYCLE_CAPABILITY_UNAVAILABLE');

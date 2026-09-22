@@ -161,3 +161,17 @@ For later production acceptance with gates OFF: verify `/health`, both child log
 - `docs/analytics/mature-v2-operations-20260921.md` — supersession/runtime dependency note.
 
 Do not use `git add .`. The package/lockfile and untracked worker already contain prior integration work: stage/review that prerequisite integration separately or deliberately include it as a dependency, then stage these runtime changes. Do not include unrelated mobile, catalog, pricing-owner or migration activation edits by accident. No commit/push was performed.
+
+## Certified Genesis repository-input restoration
+
+A Genesis `.savlivo` subtree alone is insufficient. Follow
+[v2-genesis-deployment-restore.md](v2-genesis-deployment-restore.md) to install
+and validate the complete authenticated overlay and its persistent deployment
+cache. If `V2_OPERATIONS_LIFECYCLE_INPUT` names a Genesis input, the supervisor
+checks that cache before spawning either child, restores missing immutable data
+inputs, and rejects missing/mismatched deployed code or conflicting data.
+Pre-stage the verified cache before deploying this supervisor to a service whose
+Genesis environment variable is already configured. New installations may keep
+that variable unset until the full offline restore completes. All V2 gates
+remain OFF during installation and validation. This placement preflight neither
+performs research nor replaces full lifecycle hash validation.
