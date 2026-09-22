@@ -16,3 +16,12 @@ test('transformation is deterministic and idempotent', () => {
   assert.equal(rewriteImports(first.source).source, first.source);
   assert.deepEqual(rewriteImports(first.source).targets, []);
 });
+
+test('copied research modules resolve explicit TypeScript imports to emitted JS',()=>{
+ const source="import {countryCurrencyData} from '../../../../packages/contracts/src/markets.ts'; export * from './x.mts'; import('./y.cts'); const note='./untouched.ts';";
+ const result=rewriteImports(source,{extensionless:false});
+ assert.deepEqual(result.targets,['../../../../packages/contracts/src/markets.js','./x.mjs','./y.cjs']);
+ assert(result.source.includes("const note='./untouched.ts'"));
+ assert.equal(rewriteImports(result.source,{extensionless:false}).source,result.source);
+ assert.equal(rewriteImports("import './unknown'",{extensionless:false}).source,"import './unknown'");
+});

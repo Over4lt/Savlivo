@@ -175,3 +175,30 @@ Genesis environment variable is already configured. New installations may keep
 that variable unset until the full offline restore completes. All V2 gates
 remain OFF during installation and validation. This placement preflight neither
 performs research nor replaces full lifecycle hash validation.
+
+## Compiled research imports (startup packaging)
+
+Operations targeting imports the reviewed handoff, direct provider evidence and
+live runner, making the Decodo adapter statically reachable. Importing that code
+does not initialize its transport or make calls. Per-run capability permissions
+and escalation checks remain authoritative.
+
+TypeScript preserves explicit `.ts` imports in emitted `.mjs` files while emitting
+contracts as `.js`. The post-build step resolves those specifiers to emitted
+extensions throughout dist, verifies targets, and copies the immutable adapter
+asset `decodo-capabilities.json`. It does not rewrite source/historical artifacts.
+Missing targets fail the build; no retry or source-mode fallback is used.
+
+`node --test services/api/scripts/production-imports.test.mjs` builds an isolated
+committed checkout with the current post-build script. It checks the emitted API
+graph and repeats startup with absent/present dummy Decodo configuration. Database
+and listen boundaries are mocked; it stops before startup background jobs without
+opening a port. It does not certify a live database. Run offline in a network-denying
+sandbox alongside the supervisor and Genesis deployment tests.
+
+Genesis restoration completes before child spawn and does not write dist.
+Restoring 15 bootstrap-only inputs on a fresh Render filesystem is expected.
+Identical missing compiled imports cannot resolve differently merely on retry;
+the historical later success requires failed/successful artifact hashes and
+process/build logs to establish what changed. Do not infer a restoration race
+from that observation alone.
