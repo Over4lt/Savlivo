@@ -100,3 +100,17 @@ li {margin:.4rem 0;color:var(--muted)}
 .ops-research-builder fieldset{display:flex;flex-wrap:wrap;gap:.6rem;padding:1rem}
 .ops-research-builder fieldset p{flex-basis:100%;margin:.15rem 0}
 .ops-research-builder button{justify-self:start}
+
+/* Native checkbox semantics and label activation, with a switch presentation. */
+.ops-research-builder .ops-tool-switch{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 3rem 6.5rem;align-items:center;gap:.4rem .75rem;flex:1 1 22rem;min-width:0;padding:.85rem;border:1px solid var(--border);border-radius:.85rem;cursor:pointer;font-weight:600}
+.ops-tool-switch-input{position:absolute;width:1px;height:1px;min-height:0;margin:0;padding:0;border:0;opacity:0;overflow:hidden}
+.ops-tool-switch-track{grid-column:2;grid-row:1;position:relative;display:block;width:3rem;height:1.75rem;border-radius:1rem;background:#687381;box-shadow:inset 0 0 0 1px #0002;transition:background-color .16s ease}
+.ops-tool-switch-track::after{content:"";position:absolute;top:.1875rem;left:.1875rem;width:1.375rem;height:1.375rem;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0004;transition:transform .16s ease}
+.ops-tool-switch-input:checked+.ops-tool-switch-track{background:var(--accent)}
+.ops-tool-switch-input:checked+.ops-tool-switch-track::after{transform:translateX(1.25rem);background:var(--accent-ink)}
+.ops-tool-switch-input:focus-visible+.ops-tool-switch-track{outline:3px solid #8fb7e5;outline-offset:4px}
+.ops-tool-switch-state{grid-column:3;grid-row:1;font-size:.85rem;white-space:nowrap}
+.ops-tool-switch-availability{grid-column:1/-1;font-size:.85rem;font-weight:400;overflow-wrap:anywhere}
+@media(max-width:480px){.ops-research-builder .ops-tool-switch{flex-basis:100%;grid-template-columns:minmax(0,1fr) 3rem;gap:.5rem}.ops-tool-switch-state{grid-column:1;grid-row:2}.ops-tool-switch-availability{grid-row:3}}
+@media(prefers-reduced-motion:reduce){.ops-tool-switch-track,.ops-tool-switch-track::after{transition:none}}
+@media(forced-colors:active){.ops-tool-switch-track{border:1px solid ButtonText;background:Canvas}.ops-tool-switch-track::after{background:ButtonText}.ops-tool-switch-input:checked+.ops-tool-switch-track{background:Highlight}.ops-tool-switch-input:checked+.ops-tool-switch-track::after{background:HighlightText}}

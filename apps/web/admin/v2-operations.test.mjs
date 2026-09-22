@@ -64,3 +64,17 @@ test('server permission substitution fails closed before Start',async t=>{
  const {root}=await builder(t,{capabilityCheck:{capabilities:{direct:true,tavily:true,decodo:true,browser:false,groq:false},availability}});
  await button(root,'Preflight').listeners.click();assert(text(root).includes('tool permissions differ'));assert(!button(root,'Confirm and queue run'));
 });
+
+test('research tools remain native labelled switch controls with decorative tracks and separate availability',async t=>{
+ const {root}=await builder(t);
+ for(const name of ['Direct','Tavily','Decodo','Browser/Web','Groq']){
+  const input=checkbox(root,name),label=descendants(root).find(n=>n.className==='ops-tool-switch'&&n.children.includes(input));
+  assert(label);assert.equal(input.type,'checkbox');assert.equal(input.role,'switch');
+  assert.equal(input['aria-label'],name+' — allowed for this run');
+  assert.equal(input.disabled,false);
+  const track=label.children[label.children.indexOf(input)+1];
+  assert.equal(track.className,'ops-tool-switch-track');assert.equal(track['aria-hidden'],'true');
+  assert(label.children.some(n=>n.className==='ops-tool-switch-availability'&&n.textContent.startsWith('Available:')));
+  assert.equal(label.listeners.click,undefined,'native label toggles once; no duplicate scripted click handler');
+ }
+});
