@@ -128,3 +128,19 @@ Changing any permission removes the old confirmation and invalidates pending
 Preflight responses. The UI also rejects a Preflight response whose permissions
 differ from the submitted five booleans. Start sends only the confirmed token;
 the server owns the frozen configuration. Scheduling settings are unchanged.
+
+### Instant targeting preview
+
+The manual builder loads GET /targeting once on opening. Presets, markets,
+categories, name search and manual selection compute a local preview from that
+returned authenticated eligible snapshot. Capability changes do not reload it.
+Selection-only changes keep existing service DOM nodes/focus; changing the
+matching set replaces the list synchronously without a loading flash.
+
+Refresh targeting explicitly reopens the builder, reloads its metadata through
+the existing server cache, and resets filters/selection and permissions to new-run
+defaults. No automatic polling mutates the preview. Preflight continues forcing
+server-side model validation and checking both revision and exact selected IDs.
+A stale revision requires refreshing and reviewing the new set before another
+Preflight; no stale token may start an edited selection. Local filtering is only
+a presentation projection, never an eligibility authorization.

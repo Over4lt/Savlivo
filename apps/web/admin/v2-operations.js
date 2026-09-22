@@ -8,6 +8,18 @@ export function capabilityGuidance(key,status,allowed=false){
  return reasons[status?.reason]??'Configuration needs checking in Preflight';
 }
 // All content uses text nodes. Provider URLs are links, never executable markup.
+// Local preview only; server Preflight independently revalidates revision and selection.
+export function previewTargeting(model,filters){
+ const {preset='ALL',markets=[],categories=[],services=null,q=''}=filters;
+ const matching=model.matching.filter(s=>s.eligible&&s.selectable&&
+  (preset==='ALL'||preset==='UNRESOLVED'&&s.researchComplete!==true||preset==='HUMAN_REVIEW'&&s.humanReview||preset==='REVIEWED'&&s.reviewed||preset==='RETAINED'&&s.retainedTargets>0)&&
+  (!markets.length||s.markets.some(m=>markets.includes(m)))&&(!categories.length||s.categories.some(c=>categories.includes(c)))&&
+  (!q||[s.name,s.service,...s.aliases??[],...s.providerNames??[]].join(' ').toLowerCase().includes(q.toLowerCase())));
+ const rows=matching.filter(s=>services===null||services.includes(s.service)).map(s=>({...s,researchMarkets:markets.length?s.markets.filter(m=>markets.includes(m)):s.markets}));
+ return {...model,matching,rows,services:rows.map(s=>s.service),matchingServices:matching.length,selectedServices:rows.length,
+  serviceMarketTargets:rows.reduce((n,s)=>n+s.researchMarkets.length,0),unscopedServices:rows.filter(s=>!s.markets.length).length,
+  targeting:{preset,markets:[...markets].sort(),categories:[...categories].sort(),services:services===null?null:[...services].sort(),q},researchMarkets:Object.fromEntries(rows.map(s=>[s.service,s.researchMarkets]))};
+}
 export async function mountOperations(parent,request,isCurrent=()=>true){
  const root=document.createElement('section');root.id='v2-operations';parent.append(root);let tab='Overview',selectedRun=null,offset=0,query='',filter='',timer;
  const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text??'Unavailable');if(cls)n.className=cls;return n;};
@@ -22,10 +34,10 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   text(form,'Choose candidates to investigate. Preflight checks the plan; it does not start research.');
   const overview=el('div'),presetsBox=el('div',undefined,'ops-presets'),facetsBox=el('div',undefined,'ops-facets'),browser=el('div'),counts=el('p'),activity=el('p'),result=el('div');
   form.append(overview,presetsBox,facetsBox);const filters={preset:'ALL',markets:[],categories:[],services:null,q:''};
-  let preview=null,epoch=0,pending=false,capabilities={direct:true,tavily:true,decodo:false,browser:false,groq:false};
+  let preview=null,model=null,epoch=0,capabilities={direct:true,tavily:true,decodo:false,browser:false,groq:false};
   const presetButtons=new Map(),facetChecks={markets:[],categories:[]};
   const search=field(form,'Search service or provider name',null,'');search.placeholder='Browse below, or type a name';
-  const tools=el('div',undefined,'ops-presets');form.append(tools,counts,activity,browser);
+  const tools=el('div',undefined,'ops-presets'),filterDescription=el('p');form.append(tools,counts,activity,browser,filterDescription);
   const caps=el('fieldset');caps.append(el('legend','Research tools'));form.append(caps);
   text(caps,'Enabled capabilities are permitted, not forced. V2 chooses when to use them according to evidence, budgets and policy.');
   const capChecks={},capStatuses={},labels={direct:'Direct',tavily:'Tavily',decodo:'Decodo',browser:'Browser/Web',groq:'Groq'};
@@ -34,36 +46,36 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   for(const [key,label]of Object.entries(labels)){
    const wrapper=el('label',label,'ops-tool-switch'),input=el('input');input.type='checkbox';input.className='ops-tool-switch-input';input.setAttribute('role','switch');input.setAttribute('aria-label',label+' — allowed for this run');input.checked=capabilities[key];input.disabled=false;const track=el('span',undefined,'ops-tool-switch-track');track.setAttribute('aria-hidden','true');const status=el('span',undefined,'ops-tool-switch-availability');status.id='ops-tool-status-'+key;input.setAttribute('aria-describedby',status.id);
    const refreshStatus=()=>{const value=summary.capabilityAvailability?.[key];status.textContent=capabilityGuidance(key,value,input.checked);status.hidden=!status.textContent;status.className='ops-tool-switch-availability'+(input.checked&&status.textContent?' ops-tool-switch-warning':'');status.title=value?.reason??'';};capStatuses[key]=refreshStatus;
-   input.addEventListener('change',()=>{capabilities[key]=input.checked;refreshStatus();invalidate();if(pending)void update();});capChecks[key]=input;wrapper.append(input,track,status);caps.append(wrapper);refreshStatus();
+   input.addEventListener('change',()=>{capabilities[key]=input.checked;refreshStatus();invalidate();});capChecks[key]=input;wrapper.append(input,track,status);caps.append(wrapper);refreshStatus();
   }
-  button(caps,'Enable all available capabilities',()=>{for(const k of Object.keys(capabilities)){capabilities[k]=summary.capabilityAvailability?.[k]?.available===true;capChecks[k].checked=capabilities[k];capStatuses[k]();}invalidate();if(pending)void update();});
+  button(caps,'Enable all available capabilities',()=>{for(const k of Object.keys(capabilities)){capabilities[k]=summary.capabilityAvailability?.[k]?.available===true;capChecks[k].checked=capabilities[k];capStatuses[k]();}invalidate();});
   text(caps,'Actually used: no run started. Run details report measured usage separately from permission. OFF prohibits use; ON never forces use. Unavailable enabled tools must pass server Preflight before Start.');
   text(caps,'Decodo: access/geo fallback remains policy-gated. Browser: bounded JavaScript resource discovery, not interactive browsing. Groq: source-grounded interpretation when deterministic extraction is insufficient.');
   const preflight=el('button','Preflight');preflight.type='button';preflight.disabled=true;form.append(preflight,result);
-  const enablePreflight=()=>{preflight.disabled=pending||!preview?.selectedServices||!summary.flags.control;};
+  const enablePreflight=()=>{preflight.disabled=!preview?.selectedServices||!summary.flags.control;};
+  let renderedIds=null;const serviceChecks=new Map();
   const renderRows=()=>{
-   browser.replaceChildren();const names=new Map(preview.facets.markets.map(f=>[f.id,f.name])),cats=new Map(preview.facets.categories.map(f=>[f.id,f.name]));
+   const ids=preview.matching.map(r=>r.service).join('|'),rebuild=ids!==renderedIds;if(rebuild){browser.replaceChildren();serviceChecks.clear();renderedIds=ids;}const names=new Map(preview.facets.markets.map(f=>[f.id,f.name])),cats=new Map(preview.facets.categories.map(f=>[f.id,f.name]));
    counts.textContent=`${preview.matchingServices} matching eligible services · ${preview.selectedServices} selected services · ${preview.serviceMarketTargets} service-market targets`;
    activity.textContent=preview.selectedServices?`${filters.services===null?'All matching services (follows filters)':'Manual selection'} · ${preview.unscopedServices} selected services have no recorded market scope.`:'No eligible services selected. Clear filters or select matching services.';
    const list=el('div',undefined,'ops-service-list');list.setAttribute('aria-label','Matching eligible services');
    selectAll.textContent=`Select all matching (${preview.matchingServices})`;
    const selected=new Set(preview.services);
-   for(const row of preview.matching){const label=el('label',undefined,'ops-service-row'),check=el('input');check.type='checkbox';check.checked=selected.has(row.service);check.disabled=!row.selectable;
+   if(rebuild)for(const row of preview.matching){const label=el('label',undefined,'ops-service-row'),check=el('input');check.type='checkbox';check.checked=selected.has(row.service);check.disabled=!row.selectable;serviceChecks.set(row.service,check);
     check.addEventListener('change',async()=>{if(!row.selectable)return;const ids=new Set(preview.services);if(check.checked&&row.selectable)ids.add(row.service);else ids.delete(row.service);filters.services=[...ids];await update();});
     label.append(check,el('strong',row.name),el('span',row.selectable?`${row.reviewed?'Reviewed provider':'Needs human review'}${row.retainedTargets?' · retained work':''}`:(row.eligibilityReason??'Outside the frozen lifecycle; reference only')),el('span',row.markets.map(m=>names.get(m)??m).join(', ')||'Market scope not recorded'),el('span',row.categories.map(c=>cats.get(c)??c).join(', ')||'Category not recorded'));list.append(label);}
-   browser.append(list);
-   text(browser,`Filters: ${preview.presets.find(p=>p.id===filters.preset)?.name??'All eligible'} · ${filters.markets.map(m=>names.get(m)??m).join(', ')||'All markets'} · ${filters.categories.map(c=>cats.get(c)??c).join(', ')||'All categories'}${filters.q?' · Search: '+filters.q:''}`);
+   if(rebuild)browser.append(list);else for(const [id,check]of serviceChecks)check.checked=selected.has(id);
+   filterDescription.textContent=`Filters: ${preview.presets.find(p=>p.id===filters.preset)?.name??'All eligible'} · ${filters.markets.map(m=>names.get(m)??m).join(', ')||'All markets'} · ${filters.categories.map(c=>cats.get(c)??c).join(', ')||'All categories'}${filters.q?' · Search: '+filters.q:''}`;
    for(const [id,b]of presetButtons)b.setAttribute('aria-pressed',String(filters.preset===id));
    for(const key of ['markets','categories'])for(const [id,c]of facetChecks[key])c.checked=filters[key].includes(id);
    enablePreflight();
   };
-  async function update(){invalidate();const generation=epoch;pending=true;preview=null;enablePreflight();counts.textContent='Updating matching services…';browser.replaceChildren();
-   try{const data=await post('targeting',{...filters});if(!isCurrent()||generation!==epoch)return;preview=data;pending=false;renderRows();}
-   catch(e){if(generation!==epoch)return;pending=false;counts.textContent='Targeting unavailable: '+e.message;enablePreflight();}
-  }
+  function update(){invalidate();if(!model)return;preview=previewTargeting(model,filters);renderRows();}
   const changeFilters=async()=>{filters.services=null;await update();};
   search.addEventListener('input',async()=>{filters.q=search.value;await changeFilters();});
   const selectAll=button(tools,'Select all matching',async()=>{filters.services=null;await update();});
+  button(tools,'Refresh targeting',()=>render());
+  text(form,'Filters use the loaded authenticated snapshot. Refresh targeting reloads data and restores new-run defaults; Preflight checks for changes before Start.');
   button(tools,'Clear selection',async()=>{filters.services=[];await update();});
   button(tools,'Clear filters',async()=>{Object.assign(filters,{preset:'ALL',markets:[],categories:[],services:null,q:''});search.value='';await update();});
   preflight.addEventListener('click',async()=>{
@@ -83,7 +95,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
     else text(result,'Starting is blocked. Resolve the readiness or conflict information above, then run Preflight again.');
    }catch(e){if(generation===epoch)text(result,e.message);}finally{enablePreflight();}
   });
-  counts.textContent='Validating authenticated lifecycle targeting…';const data=await request('v2-operations/targeting');if(!isCurrent())return;preview=data;
+  counts.textContent='Validating authenticated lifecycle targeting…';const data=await request('v2-operations/targeting');if(!isCurrent())return;model=data;preview=previewTargeting(model,filters);
   text(overview,`Lifecycle eligible: ${data.counts.eligible} · Existing catalog: ${data.counts.baselineExcluded} — excluded from this lifecycle.`);
   text(overview,`Reviewed providers: ${data.counts.reviewed} · Needs human review: ${data.counts.humanReview} · Retained: ${data.counts.retainedServices} services / ${data.counts.retainedTargets} targets.`);
   text(overview,'Needs human review selects candidates for permitted research; it does not approve provider authority.');

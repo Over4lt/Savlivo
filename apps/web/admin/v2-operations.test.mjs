@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {mountOperations,capabilityGuidance} from './v2-operations.js';
+import test from 'node:test';import assert from 'node:assert/strict';import {mountOperations,capabilityGuidance,previewTargeting} from './v2-operations.js';
 class Element{children=[];listeners={};textContent='';value='';append(...n){this.children.push(...n);}replaceChildren(...n){this.children=n;}addEventListener(k,v){this.listeners[k]=v;}setAttribute(k,v){this[k]=v;}remove(){this.removed=true;}set innerHTML(_){throw Error('Unsafe HTML');}}
 const descendants=n=>[n,...n.children.flatMap(descendants)],text=n=>descendants(n).map(x=>x.textContent).join(' '),button=(n,name)=>descendants(n).find(x=>x.textContent===name&&x.listeners.click);
 function setup(){globalThis.document={createElement:()=>new Element()};globalThis.window={confirm:()=>false};return new Element();}
@@ -29,16 +29,17 @@ test('name search previews exact preflight set; preflight never calls start; cha
 test('start sends only token and deliberate confirmation after successful preflight',async t=>{const {root,calls}=await builder(t);await button(root,'Preflight').listeners.click();globalThis.window.confirm=()=>true;await button(root,'Confirm and queue run').listeners.click();assert.deepEqual(calls.find(c=>c.p.endsWith('/start')).body,{token:'safe-token',confirmed:true});});
 test('presets and All dimensions reset correctly without enabling scheduling',async t=>{const {root,calls}=await builder(t);await button(root,'Needs human review (1)').listeners.click();assert(text(root).includes('1 selected services'));await button(root,'Reviewed providers (1)').listeners.click();assert(text(root).includes('Film House'));await button(root,'Retained work (1)').listeners.click();assert(text(root).includes('1 selected services'));await button(root,'All eligible (2)').listeners.click();await button(root,'All markets').listeners.click();await button(root,'All categories').listeners.click();assert(text(root).includes('2 selected services'));assert(!calls.some(c=>c.p.includes('schedules')&&c.body));});
 test('unavailable preflight/conflicts expose no Start; changing filters invalidates prior Start',async t=>{for(const overrides of [{liveReady:false},{conflicts:[{name:'Active job'}]}]){const {root}=await builder(t,overrides);await button(root,'Preflight').listeners.click();assert(!button(root,'Confirm and queue run'));assert(text(root).includes('Starting is blocked'));}const {root}=await builder(t);await button(root,'Preflight').listeners.click();assert(button(root,'Confirm and queue run'));await button(root,'Clear selection').listeners.click();assert(!button(root,'Confirm and queue run'));assert(button(root,'Preflight').disabled);});
-test('out-of-order targeting replies cannot replace newer preview or enable stale preflight',async t=>{
- const {selectTargeting}=await import('../../../services/api/src/v2-operations/targeting.mjs');const root=setup(),pending=[];
- const dispose=await mountOperations(root,async(p,options)=>{if(p.endsWith('/summary'))return {...summary,lifecycleConfigured:true,flags:{control:true,scheduling:false},capabilityAvailability:availability};if(options)return new Promise(resolve=>pending.push({resolve,body:JSON.parse(options.body)}));return {...targetModel,...selectTargeting(targetModel)};});t.after(dispose);
- const search=descendants(root).find(n=>n.placeholder==='Browse below, or type a name');search.value='Film';const first=search.listeners.input();search.value='Music';const second=search.listeners.input();assert(button(root,'Preflight').disabled);
- pending[1].resolve({...targetModel,...selectTargeting(targetModel,pending[1].body)});await second;assert(text(root).includes('Music Club'));pending[0].resolve({...targetModel,...selectTargeting(targetModel,pending[0].body)});await first;assert(!text(root).includes('Film House'));assert(text(root).includes('Music Club'));assert(!button(root,'Preflight').disabled);
+test('pending Preflight cannot enable Start after instant local filter changes',async t=>{
+ const {selectTargeting}=await import('../../../services/api/src/v2-operations/targeting.mjs');const root=setup();let resolve;
+ const dispose=await mountOperations(root,async(p,options)=>{if(p.endsWith('/summary'))return {...summary,lifecycleConfigured:true,flags:{control:true,scheduling:false},capabilityAvailability:availability};if(options)return new Promise(r=>{resolve=r;});return {...targetModel,...selectTargeting(targetModel)};});t.after(dispose);
+ const pending=button(root,'Preflight').listeners.click();const search=descendants(root).find(n=>n.placeholder==='Browse below, or type a name');search.value='Music';await search.listeners.input();
+ assert(text(root).includes('Music Club'));assert(!text(root).includes('Film House'));
+ resolve({liveReady:true,conflicts:[],capabilityCheck:{capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},availability}});await pending;assert(!button(root,'Confirm and queue run'));
 });
 test('reference-only baseline row cannot be manually checked even if returned alongside preview',async t=>{
  const {selectTargeting}=await import('../../../services/api/src/v2-operations/targeting.mjs');const root=setup(),calls=[];const data={...targetModel,...selectTargeting(targetModel)};data.matching=[...data.matching,{service:'netflix',name:'Netflix',eligible:false,selectable:false,markets:['NO'],categories:['video'],reviewed:false}];
  const dispose=await mountOperations(root,async(p,options)=>{if(p.endsWith('/summary'))return {...summary,lifecycleConfigured:true,flags:{control:true,scheduling:false},capabilityAvailability:availability};if(options)calls.push(JSON.parse(options.body));return data;});t.after(dispose);
- const row=descendants(root).find(n=>n.className==='ops-service-row'&&text(n).includes('Netflix')),check=row.children[0];assert(check.disabled);check.checked=true;await check.listeners.change();assert.equal(calls.length,0);assert(text(row).includes('Outside the frozen lifecycle'));
+ assert(!descendants(root).some(n=>n.className==='ops-service-row'&&text(n).includes('Netflix')));assert.equal(calls.length,0);
 });
 
 for(const [key,label]of Object.entries({direct:'Direct',tavily:'Tavily',decodo:'Decodo',browser:'Browser/Web',groq:'Groq'}))test(`independent ${key} permission reaches Preflight without substitutes and invalidates Start`,async t=>{
@@ -87,3 +88,31 @@ test('research tools remain native labelled switch controls with decorative trac
  assert.equal(capabilityGuidance('groq',{reason:'GROQ_KEY_AND_MODEL_REQUIRED'}),'API key or model not configured');
  assert.equal(capabilityGuidance('groq',{reason:'GROQ_KEY_AND_MODEL_REQUIRED',keyConfigured:false,modelConfigured:false}),'API key and model not configured');
  });
+
+test('ordinary interactions use one snapshot; explicit refresh alone reloads it',async t=>{
+ const {root,calls}=await builder(t);
+ await button(root,'Reviewed providers (1)').listeners.click();await button(root,'All eligible (2)').listeners.click();
+ const market=checkbox(root,'Norway (1)');market.checked=true;await market.listeners.change();
+ await button(root,'All markets').listeners.click();await button(root,'All categories').listeners.click();
+ await button(root,'Clear selection').listeners.click();await button(root,'Select all matching (2)').listeners.click();
+ const search=descendants(root).find(n=>n.placeholder==='Browse below, or type a name');search.value='Music';await search.listeners.input();
+ checkbox(root,'Decodo').checked=true;await checkbox(root,'Decodo').listeners.change();
+ assert.equal(calls.filter(c=>c.p.endsWith('/targeting')).length,1);assert(!calls.some(c=>c.p.endsWith('/targeting')&&c.body));
+ await button(root,'Preflight').listeners.click();assert.deepEqual(calls.find(c=>c.p.endsWith('/preflight')).body.services,['music']);
+ await button(root,'Refresh targeting').listeners.click();assert.equal(calls.filter(c=>c.p.endsWith('/targeting')).length,2);
+});
+test('local preview matches server selection semantics across facets and presets',async()=>{
+ const {selectTargeting}=await import('../../../services/api/src/v2-operations/targeting.mjs');const model={...targetModel,...selectTargeting(targetModel)};
+ for(const preset of ['ALL','UNRESOLVED','HUMAN_REVIEW','REVIEWED','RETAINED'])for(const markets of [[],...targetModel.facets.markets.map(f=>[f.id]),targetModel.facets.markets.map(f=>f.id)])for(const categories of [[],...targetModel.facets.categories.map(f=>[f.id])])for(const services of [null,[],['music']]){
+ const filters={preset,markets,categories,services,q:''},server=selectTargeting(targetModel,filters),local=previewTargeting(model,filters);
+ for(const key of Object.keys(server))assert.deepEqual(local[key],server[key],key);
+ }
+});
+
+test('selection and capability edits preserve the existing service list nodes',async t=>{
+ const {root,calls}=await builder(t);const row=descendants(root).find(n=>n.className==='ops-service-row'),check=row.children[0];
+ check.checked=false;await check.listeners.change();assert(descendants(root).includes(row));
+ const capability=checkbox(root,'Tavily');capability.checked=false;await capability.listeners.change();assert(descendants(root).includes(row));
+ assert.equal(calls.filter(c=>c.p.endsWith('/targeting')).length,1);
+ await button(root,'Preflight').listeners.click();assert.equal(calls.find(c=>c.p.endsWith('/preflight')).body.services.length,1);
+});
