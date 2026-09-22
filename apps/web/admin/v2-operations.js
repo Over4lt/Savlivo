@@ -17,16 +17,18 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   const presetButtons=new Map(),facetChecks={markets:[],categories:[]};
   const search=field(form,'Search service or provider name',null,'');search.placeholder='Browse below, or type a name';
   const tools=el('div',undefined,'ops-presets');form.append(tools,counts,activity,browser);
-  const caps=el('fieldset');caps.append(el('legend','Research capabilities'));form.append(caps);
+  const caps=el('fieldset');caps.append(el('legend','Research tools'));form.append(caps);
   text(caps,'Enabled capabilities are permitted, not forced. V2 chooses when to use them according to evidence, budgets and policy.');
-  const capChecks={},labels={direct:'Web / Direct HTTP',tavily:'Tavily',decodo:'Decodo',browser:'Browser / JavaScript',groq:'Groq — use when needed'};
+  const capChecks={},capStates={},labels={direct:'Direct',tavily:'Tavily',decodo:'Decodo',browser:'Browser/Web',groq:'Groq'};
+  const availabilityText=v=>v?.available===true?(v.reason==='DECODO_CONFIGURATION_VALIDATED_AT_USE'?'Configured / validated at use':'Yes'):v?.reason==='NOT_PROBED_NO_BROWSER_INITIALIZATION'?'Not checked (no browser initialization)':'No / '+(v?.reason??'not checked');
   const invalidate=()=>{epoch++;result.replaceChildren();};
   for(const [key,label]of Object.entries(labels)){
-   const wrapper=el('label',label),input=el('input');input.type='checkbox';input.checked=capabilities[key];input.disabled=key==='browser'&&!summary.capabilityAvailability?.browser?.available;
-   input.addEventListener('change',()=>{capabilities[key]=input.checked;invalidate();if(pending)void update();});capChecks[key]=input;wrapper.append(input);caps.append(wrapper);
-   text(caps,summary.capabilityAvailability?.[key]?.available?'Available / configured':'Unavailable: '+(summary.capabilityAvailability?.[key]?.reason??'not checked'));
+   const wrapper=el('label',label),input=el('input');input.type='checkbox';input.checked=capabilities[key];input.disabled=false;const state=el('span','Allowed: '+(input.checked?'ON':'OFF'));capStates[key]=state;
+   input.addEventListener('change',()=>{capabilities[key]=input.checked;state.textContent='Allowed: '+(input.checked?'ON':'OFF');invalidate();if(pending)void update();});capChecks[key]=input;wrapper.append(input,state);caps.append(wrapper);
+   text(caps,'Available: '+availabilityText(summary.capabilityAvailability?.[key]));
   }
-  button(caps,'Enable all available capabilities',()=>{for(const k of Object.keys(capabilities)){capabilities[k]=summary.capabilityAvailability?.[k]?.available===true;capChecks[k].checked=capabilities[k];}invalidate();if(pending)void update();});
+  button(caps,'Enable all available capabilities',()=>{for(const k of Object.keys(capabilities)){capabilities[k]=summary.capabilityAvailability?.[k]?.available===true;capChecks[k].checked=capabilities[k];capStates[k].textContent='Allowed: '+(capabilities[k]?'ON':'OFF');}invalidate();if(pending)void update();});
+  text(caps,'Actually used: no run started. Run details report measured usage separately from permission. OFF prohibits use; ON never forces use. Unavailable enabled tools must pass server Preflight before Start.');
   text(caps,'Decodo: access/geo fallback remains policy-gated. Browser: bounded JavaScript resource discovery, not interactive browsing. Groq: source-grounded interpretation when deterministic extraction is insufficient.');
   const preflight=el('button','Preflight');preflight.type='button';preflight.disabled=true;form.append(preflight,result);
   const enablePreflight=()=>{preflight.disabled=pending||!preview?.selectedServices||!summary.flags.control;};
@@ -56,16 +58,17 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   button(tools,'Clear selection',async()=>{filters.services=[];await update();});
   button(tools,'Clear filters',async()=>{Object.assign(filters,{preset:'ALL',markets:[],categories:[],services:null,q:''});search.value='';await update();});
   preflight.addEventListener('click',async()=>{
-   if(preflight.disabled||!preview?.selectedServices)return;const generation=epoch,selection=preview;preflight.disabled=true;result.replaceChildren(el('p','Checking authenticated inputs and run limits… No research is running.'));
-   try{const pre=await post('preflight',{objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:selection.services,targeting:selection.targeting,targetingRevision:selection.revision,capabilities:{...capabilities}});
+   if(preflight.disabled||!preview?.selectedServices)return;const generation=epoch,selection=preview,requestedCapabilities={...capabilities};preflight.disabled=true;result.replaceChildren(el('p','Checking authenticated inputs and run limits… No research is running.'));
+   try{const pre=await post('preflight',{objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:selection.services,targeting:selection.targeting,targetingRevision:selection.revision,capabilities:requestedCapabilities});
     if(!isCurrent()||generation!==epoch)return;
+    if(Object.keys(labels).some(k=>pre.capabilityCheck?.capabilities?.[k]!==requestedCapabilities[k]))throw new Error('Preflight tool permissions differ from the requested selection. Run Preflight again; Start is blocked.');
     result.replaceChildren();result.append(el('h3','Preflight — research has not started'));
     text(result,`${selection.selectedServices} services · ${selection.serviceMarketTargets} service-market targets · ${selection.presets.find(p=>p.id===selection.targeting.preset)?.name??'Custom selection'}`);
     text(result,'Markets: '+(selection.targeting.markets.map(id=>selection.facets.markets.find(f=>f.id===id)?.name??id).join(', ')||'All markets'));
     text(result,'Categories: '+(selection.targeting.categories.map(id=>selection.facets.categories.find(f=>f.id===id)?.name??id).join(', ')||'All categories'));
     table(result,[['name','Selected service'],['scope','Investigation markets']],selection.rows.map(r=>({name:r.name,scope:r.researchMarkets.join(', ')||'Not recorded'})));
     table(result,[['metric','Readiness'],['value','Result']],[{metric:'Maximum new external requests',value:pre.totalSafetyCeiling},{metric:'Expected services requiring network',value:pre.servicesExpectedNetwork??'Determined by adaptive planner'},{metric:'Retained targets available (whole lifecycle)',value:pre.preflight?.retainedTargets},{metric:'Storage admission',value:pre.storage?.admissionAllowed&&pre.storage?.researchDisk?.admissionAllowed?'Ready':pre.storage?.reason??pre.storage?.researchDisk?.reason??'Not ready'},{metric:'Active conflicts',value:pre.conflicts?.length??0},{metric:'Can start',value:pre.liveReady===true&&pre.conflicts?.length===0?'Yes':'No'}]);
-    if(pre.capabilityCheck)table(result,[['capability','Capability'],['allowed','Allowed'],['available','Available'],['reason','Readiness']],Object.entries(pre.capabilityCheck.availability).map(([k,v])=>({capability:labels[k],allowed:pre.capabilityCheck.capabilities[k],available:v.available,reason:v.reason??''})));
+    if(pre.capabilityCheck)table(result,[['capability','Capability'],['allowed','Allowed'],['available','Available'],['reason','Readiness']],Object.entries(pre.capabilityCheck.availability).map(([k,v])=>({capability:labels[k],allowed:pre.capabilityCheck.capabilities[k]?'ON':'OFF',available:availabilityText(v),reason:!pre.capabilityCheck.capabilities[k]?'Disabled':v.available?'Enabled · Ready'+(v.reason?' · '+v.reason:''):'Enabled · Not ready · '+(v.reason??'Unavailable')})));
     text(result,'Authority and account research are service-wide. Selected markets narrow market-specific investigation; scopes do not assert availability. Unresolved outcomes are legitimate.');
     if(pre.liveReady===true&&pre.conflicts?.length===0){const start=button(result,'Confirm and queue run',async()=>{if(generation!==epoch)return;if(!window.confirm(`Start research for these ${selection.selectedServices} services, with a ceiling of ${pre.totalSafetyCeiling} new external requests?`))return;const job=await post('start',{token:pre.token,confirmed:true});result.replaceChildren(el('p','Job '+job.id+': '+job.status));});start.setAttribute('aria-label','Confirm and queue run');}
     else text(result,'Starting is blocked. Resolve the readiness or conflict information above, then run Preflight again.');

@@ -113,3 +113,18 @@ initial targeting, and keeps other requests at 10 seconds. Confirmed Start uses
 its freshly validated plan once, then rechecks storage/conflicts at enqueue; it
 does not run the same expensive native validation twice. Recognized stale-preview
 errors give an actionable refresh message without exposing raw server errors.
+
+### Per-run research tools
+
+Each manual mature run exposes editable Direct, Tavily, Decodo, Browser/Web and
+Groq permissions, with explicit Allowed ON/OFF text. Server availability is
+separate: selecting an unavailable tool does not configure it or substitute
+another tool. Preflight applies the existing conditional readiness checks and
+shows Disabled or Enabled with readiness/reason. Decodo remains policy-gated;
+Browser remains bounded resource discovery; Groq remains grounded interpretation.
+Actual usage is measured in run details, never inferred from permission.
+
+Changing any permission removes the old confirmation and invalidates pending
+Preflight responses. The UI also rejects a Preflight response whose permissions
+differ from the submitted five booleans. Start sends only the confirmed token;
+the server owns the frozen configuration. Scheduling settings are unchanged.
