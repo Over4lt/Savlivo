@@ -1,0 +1,55 @@
+[
+  {
+    "name": "The New York Times",
+    "action": "REUSE_RESEARCH_IDENTITY",
+    "canonicalId": "nytimes",
+    "reason": "Leading article variation; reuse historical New York Times candidate ID."
+  },
+  {
+    "name": "El País",
+    "action": "REUSE_RESEARCH_IDENTITY",
+    "canonicalId": "el-pais",
+    "reason": "Accent-normalized historical El Pais identity."
+  },
+  {
+    "name": "Le Monde",
+    "action": "REUSE_RESEARCH_IDENTITY",
+    "canonicalId": "le-monde",
+    "reason": "Exact historical candidate identity."
+  },
+  {
+    "name": "Corriere della Sera",
+    "action": "REUSE_RESEARCH_IDENTITY",
+    "canonicalId": "corriere",
+    "reason": "Exact historical candidate identity."
+  },
+  {
+    "name": "Coursera",
+    "action": "REUSE_RESEARCH_IDENTITY",
+    "canonicalId": "coursera-plus",
+    "reason": "Input identifies Coursera Plus subscription; reuse existing RESEARCH identity."
+  },
+  {
+    "name": "BeautyCam",
+    "action": "MERGE_INTO_RESEARCH_FAMILY",
+    "parent": "Meitu",
+    "reason": "Explicit workbook family grouping retained for identity investigation; underlying product/source row remains attached, no evidence inherited."
+  },
+  {
+    "name": "Wink",
+    "action": "MERGE_INTO_RESEARCH_FAMILY",
+    "parent": "Meitu",
+    "reason": "Explicit workbook family grouping retained for identity investigation; underlying product/source row remains attached, no evidence inherited."
+  },
+  {
+    "name": "YouCam",
+    "action": "MERGE_INTO_RESEARCH_FAMILY",
+    "parent": "Perfect Corp",
+    "reason": "Explicit workbook family grouping retained for identity investigation; underlying product/source row remains attached, no evidence inherited."
+  },
+  {
+    "name": "Tile Premium",
+    "action": "KEEP_DISTINCT_RESEARCH_CANDIDATE",
+    "reason": "Workbook says recurring Tile Premium exists; group-level scale is not identity equivalence. Parent relationship remains a research question."
+  }
+]

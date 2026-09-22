@@ -1,0 +1,4 @@
+import fs from 'node:fs';import {alive} from './artifacts.mjs';
+export function releaseLeases(files,pid){for(const file of files)try{if(Number(fs.readFileSync(file,'utf8'))===pid)fs.unlinkSync(file);}catch{}}
+export function claimLeases(files,pid=process.pid){const held=[];try{for(const file of files){if(fs.existsSync(file)){const text=fs.readFileSync(file,'utf8').trim(),owner=Number(text);if(!text||!Number.isInteger(owner)||owner<2||alive(owner))throw Error('ACTIVE_EXECUTION_CONFLICT');fs.unlinkSync(file);}fs.writeFileSync(file,String(pid),{flag:'wx',mode:0o600});held.push(file);}return held;}catch(e){releaseLeases(held,pid);throw e;}}
+export function transferLeases(files,from,to){for(const file of files){if(Number(fs.readFileSync(file,'utf8'))!==from)throw Error('LEASE_OWNERSHIP_CHANGED');const tmp=file+'.transfer-'+from;fs.writeFileSync(tmp,String(to),{mode:0o600});fs.renameSync(tmp,file);}}

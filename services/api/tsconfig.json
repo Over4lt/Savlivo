@@ -5,11 +5,14 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "skipLibCheck": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "allowJs": true,
+    "checkJs": false
   },
   "include": [
     "src/**/*.ts",
-    "../../packages/**/*.ts"
+    "../../packages/**/*.ts",
+    "src/research-v1/**/*.mjs"
   ],
   "exclude": [
     "src/savlivo-*-build-*.ts"

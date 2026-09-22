@@ -1,0 +1,1793 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:savlivo:catalog-research-item:v1",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "enum": [
+        1
+      ]
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "countryCode": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "serviceName": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "canonicalSlug": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "taskType": {
+      "enum": [
+        "DISCOVERY",
+        "VERIFICATION",
+        "REVALIDATE",
+        "PROVIDER_CONTACT"
+      ]
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4
+    },
+    "tier": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "facts": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "availability": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "AVAILABLE",
+                    "UNAVAILABLE"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "significance": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "ordinaryRecurringPrice": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "amount": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                      },
+                      "currency": {
+                        "type": "string",
+                        "pattern": "^[A-Z]{3}$"
+                      },
+                      "plan": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "billingRoute": {
+                        "enum": [
+                          "DIRECT",
+                          "APPLE",
+                          "GOOGLE_PLAY",
+                          "OPERATOR",
+                          "BUNDLE",
+                          "OTHER"
+                        ]
+                      },
+                      "billingProvider": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "period": {
+                        "enum": [
+                          "MONTH",
+                          "YEAR",
+                          "WEEK",
+                          "OTHER"
+                        ]
+                      },
+                      "periodDescription": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "ordinaryRecurring": {
+                        "enum": [
+                          true
+                        ]
+                      },
+                      "evidenceIds": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      }
+                    },
+                    "required": [
+                      "amount",
+                      "currency",
+                      "plan",
+                      "billingRoute",
+                      "billingProvider",
+                      "period",
+                      "periodDescription",
+                      "ordinaryRecurring",
+                      "evidenceIds"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "currency": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "plan": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "startWeb": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "cancelWeb": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "billingRoute": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "DIRECT",
+                      "APPLE",
+                      "GOOGLE_PLAY",
+                      "OPERATOR",
+                      "BUNDLE",
+                      "OTHER"
+                    ]
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "manageWeb": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "lifecycle": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "STANDALONE",
+                        "PARTNER_ONLY",
+                        "LEGACY_ONLY",
+                        "DISCONTINUED",
+                        "MARKET_EXIT",
+                        "REBRAND",
+                        "ACQUISITION",
+                        "MERGER",
+                        "SUCCESSOR",
+                        "UPCOMING_TRANSITION"
+                      ]
+                    },
+                    "relatedService": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "effectiveAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "relatedService",
+                    "effectiveAt"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        "pauseWeb": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "UNKNOWN",
+                "REVIEW_REQUIRED",
+                "VERIFIED",
+                "VERIFIED_NEGATIVE"
+              ]
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "status",
+            "value",
+            "evidenceIds"
+          ],
+          "additionalProperties": false,
+          "description": "Optional research fact: VERIFIED is a supported web pause URL; VERIFIED_NEGATIVE means provider explicitly does not offer web pause; UNKNOWN differs from not offered. Never an eligibility gate."
+        }
+      },
+      "required": [
+        "identity",
+        "availability",
+        "significance",
+        "ordinaryRecurringPrice",
+        "currency",
+        "plan",
+        "startWeb",
+        "cancelWeb",
+        "billingRoute",
+        "manageWeb",
+        "lifecycle"
+      ],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceUrl": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sourceType": {
+            "enum": [
+              "OFFICIAL_PROVIDER",
+              "OFFICIAL_SUPPORT",
+              "OFFICIAL_OPERATOR",
+              "OFFICIAL_STORE",
+              "REPUTABLE_RESEARCH",
+              "SECONDARY"
+            ]
+          },
+          "checkedAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "countryCodes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          "supports": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "identity",
+                "availability",
+                "significance",
+                "ordinaryRecurringPrice",
+                "currency",
+                "plan",
+                "startWeb",
+                "cancelWeb",
+                "billingRoute",
+                "manageWeb",
+                "lifecycle",
+                "plans",
+                "prices",
+                "billingRoutes",
+                "identityRelations",
+                "pauseWeb"
+              ]
+            }
+          },
+          "finding": {
+            "type": "string",
+            "minLength": 1
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "observedValue": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidenceStatus": {
+            "enum": [
+              "OBSERVED",
+              "CORROBORATED",
+              "DISPUTED",
+              "STALE"
+            ]
+          },
+          "provenance": {
+            "type": "string",
+            "minLength": 1
+          },
+          "revalidateAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sourceUrl",
+          "sourceType",
+          "checkedAt",
+          "countryCodes",
+          "supports",
+          "finding",
+          "limitations",
+          "observedValue",
+          "evidenceStatus",
+          "provenance",
+          "revalidateAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "enum": [
+              "PRICE",
+              "PLAN",
+              "TAX",
+              "IDENTITY",
+              "LIFECYCLE",
+              "AVAILABILITY",
+              "WEB_FLOW",
+              "ROUTE",
+              "OTHER"
+            ]
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "detectedAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolutionStatus": {
+            "enum": [
+              "OPEN",
+              "RESOLVED"
+            ]
+          },
+          "resolutionEvidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "facts",
+          "evidenceIds",
+          "detectedAt",
+          "explanation",
+          "resolutionStatus",
+          "resolutionEvidenceIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "reviewStatus": {
+      "enum": [
+        "PENDING_RESEARCH",
+        "NEEDS_HUMAN_REVIEW",
+        "HUMAN_REVIEWED",
+        "REJECTED",
+        "NOT_REQUIRED"
+      ]
+    },
+    "createdAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "updatedAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "freshness": {
+      "type": "object",
+      "properties": {
+        "lastCheckedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recheckAfter": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "lastCheckedAt",
+        "recheckAfter"
+      ],
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "auditPointer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidatePointer": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordedStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordedTier": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "auditPointer",
+          "candidatePointer",
+          "recordedStatus",
+          "recordedTier",
+          "evidenceIds",
+          "sourceUrl",
+          "note"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "locale": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "researchStatus": {
+      "enum": [
+        "QUEUED",
+        "RESEARCHING",
+        "GEO_RESEARCH_REQUIRED",
+        "PROVIDER_CONTACT_REQUIRED",
+        "MESSAGE_DRAFTED",
+        "APPROVAL_REQUIRED",
+        "SENT",
+        "AWAITING_REPLY",
+        "REPLY_RECEIVED",
+        "EVIDENCE_REVIEW",
+        "RESOLVED",
+        "REVIEW_REQUIRED",
+        "UNKNOWN",
+        "INTEGRATION_READY",
+        "AUTO_RETRY_PENDING"
+      ]
+    },
+    "plans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "UNKNOWN",
+              "REVIEW_REQUIRED",
+              "VERIFIED",
+              "VERIFIED_NEGATIVE"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "cadence": {
+                    "enum": [
+                      "MONTH",
+                      "YEAR",
+                      "THIRTY_DAYS",
+                      "WEEK",
+                      "OTHER",
+                      "UNKNOWN"
+                    ]
+                  },
+                  "cadenceDescription": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "billingRoute": {
+                    "enum": [
+                      "DIRECT",
+                      "APPLE",
+                      "GOOGLE_PLAY",
+                      "OPERATOR",
+                      "BUNDLE",
+                      "PARTNER",
+                      "INCLUDED",
+                      "OTHER"
+                    ]
+                  },
+                  "offering": {
+                    "enum": [
+                      "CURRENT",
+                      "LEGACY",
+                      "PROMOTIONAL",
+                      "INTRODUCTORY",
+                      "TRIAL",
+                      "UNKNOWN"
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "cadence",
+                  "cadenceDescription",
+                  "billingRoute",
+                  "offering"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "status",
+          "value",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "prices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "UNKNOWN",
+              "REVIEW_REQUIRED",
+              "VERIFIED",
+              "VERIFIED_NEGATIVE"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "currency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                  },
+                  "plan": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "cadence": {
+                    "enum": [
+                      "MONTH",
+                      "YEAR",
+                      "THIRTY_DAYS",
+                      "WEEK",
+                      "OTHER",
+                      "UNKNOWN"
+                    ]
+                  },
+                  "cadenceDescription": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "billingRoute": {
+                    "enum": [
+                      "DIRECT",
+                      "APPLE",
+                      "GOOGLE_PLAY",
+                      "OPERATOR",
+                      "BUNDLE",
+                      "PARTNER",
+                      "INCLUDED",
+                      "OTHER"
+                    ]
+                  },
+                  "billingProvider": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "offerType": {
+                    "enum": [
+                      "ORDINARY_RECURRING",
+                      "PROMOTIONAL",
+                      "INTRODUCTORY",
+                      "TRIAL",
+                      "LEGACY",
+                      "INCLUDED",
+                      "DISCOUNTED_BUNDLE",
+                      "UNKNOWN_EFFECTIVE"
+                    ]
+                  },
+                  "taxTreatment": {
+                    "enum": [
+                      "INCLUDED",
+                      "EXCLUDED",
+                      "NOT_APPLICABLE",
+                      "UNKNOWN"
+                    ]
+                  },
+                  "taxNote": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency",
+                  "plan",
+                  "cadence",
+                  "cadenceDescription",
+                  "billingRoute",
+                  "billingProvider",
+                  "offerType",
+                  "taxTreatment",
+                  "taxNote"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "status",
+          "value",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "billingRoutes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "UNKNOWN",
+              "REVIEW_REQUIRED",
+              "VERIFIED",
+              "VERIFIED_NEGATIVE"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "channel": {
+                    "enum": [
+                      "DIRECT",
+                      "APPLE",
+                      "GOOGLE_PLAY",
+                      "OPERATOR",
+                      "BUNDLE",
+                      "PARTNER",
+                      "INCLUDED",
+                      "OTHER"
+                    ]
+                  },
+                  "provider": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "url": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "channel",
+                  "provider",
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "status",
+          "value",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "identityRelations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "UNKNOWN",
+              "REVIEW_REQUIRED",
+              "VERIFIED",
+              "VERIFIED_NEGATIVE"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "CANONICAL",
+                      "ALIAS",
+                      "POSSIBLE_ALIAS",
+                      "REBRAND",
+                      "ACQUISITION",
+                      "MERGER",
+                      "SUCCESSOR"
+                    ]
+                  },
+                  "serviceName": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "canonicalSlug": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "serviceName",
+                  "canonicalSlug"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "status",
+          "value",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "geoObservations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "transportVerification": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "enum": [
+                  2
+                ]
+              },
+              "level": {
+                "enum": [
+                  "PER_HOP_VERIFIED",
+                  "BRACKET_VERIFIED"
+                ]
+              },
+              "attemptId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "version",
+              "level",
+              "attemptId"
+            ],
+            "additionalProperties": false
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "targetMarket": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          },
+          "exitCountry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "accessMethod": {
+            "enum": [
+              "NORMAL",
+              "LOCALIZED_URL",
+              "LOCAL_LANGUAGE_SEARCH",
+              "BROWSER",
+              "COUNTRY_SELECTOR",
+              "APPROVED_PROXY",
+              "APPROVED_VPN"
+            ]
+          },
+          "observedUrl": {
+            "type": "string",
+            "minLength": 1
+          },
+          "redirects": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checkedAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observedPlan": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "observedPrice": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "corroboratingEvidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "outcome": {
+            "enum": [
+              "OBSERVED",
+              "GEO_BLOCKED",
+              "ACCESS_CONTROL_STOP",
+              "UNRESOLVED"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "targetMarket",
+          "exitCountry",
+          "accessMethod",
+          "observedUrl",
+          "redirects",
+          "locale",
+          "checkedAt",
+          "observedPlan",
+          "observedPrice",
+          "corroboratingEvidenceIds",
+          "outcome"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "unresolvedQuestions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "discovery": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "parentResearchId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "significanceReason": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sourceUrls": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "alreadyCanonical": {
+              "enum": [
+                "YES",
+                "NO",
+                "UNKNOWN"
+              ]
+            },
+            "nextAction": {
+              "enum": [
+                "IDENTITY_RESOLUTION",
+                "VERIFY_SERVICE"
+              ]
+            }
+          },
+          "required": [
+            "parentResearchId",
+            "significanceReason",
+            "sourceUrls",
+            "alreadyCanonical",
+            "nextAction"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "history": {
+      "type": "object",
+      "properties": {
+        "previousRevision": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "changedFacts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "previousRevision",
+        "changedFacts"
+      ],
+      "additionalProperties": false
+    },
+    "providerContact": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "recipient": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "recipientSourceUrl": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "subject": {
+              "type": "string",
+              "minLength": 1
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1
+            },
+            "language": {
+              "type": "string",
+              "minLength": 1
+            },
+            "requestedFacts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "approvalState": {
+              "enum": [
+                "DRAFT",
+                "APPROVAL_REQUIRED",
+                "APPROVED",
+                "REJECTED"
+              ]
+            },
+            "approval": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "approvedBy": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "approvedAt": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "messageSha256": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "approvedBy",
+                    "approvedAt",
+                    "messageSha256"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sentAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "replyLinks": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "resultingEvidenceIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "recipient",
+            "recipientSourceUrl",
+            "subject",
+            "body",
+            "language",
+            "requestedFacts",
+            "approvalState",
+            "approval",
+            "sentAt",
+            "replyLinks",
+            "resultingEvidenceIds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "countryCode",
+    "serviceName",
+    "canonicalSlug",
+    "taskType",
+    "priority",
+    "tier",
+    "facts",
+    "evidence",
+    "conflicts",
+    "notes",
+    "reviewStatus",
+    "createdAt",
+    "updatedAt",
+    "freshness",
+    "provenance",
+    "locale",
+    "researchStatus",
+    "plans",
+    "prices",
+    "billingRoutes",
+    "identityRelations",
+    "geoObservations",
+    "unresolvedQuestions",
+    "discovery",
+    "history",
+    "providerContact"
+  ],
+  "additionalProperties": false
+}

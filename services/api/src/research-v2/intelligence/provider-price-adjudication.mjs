@@ -1,0 +1,64 @@
+import {materializeOfferObjects} from './offer-objects.mjs';
+// Research-only exposure granularity. The complete canonical gate is unchanged.
+import {hash,monetary} from '../offline-recovery/extract.mjs';
+import {verifyCandidate} from '../verification/gate.mjs';
+import {retainPriceObservation} from './price-observation.mjs';
+export const priceFieldRequirements={providerAuthority:'REQUIRED_FOR_ANY_TRUSTWORTHY_PRICE',service:'REQUIRED_FOR_ANY_TRUSTWORTHY_PRICE',amount:'REQUIRED_FOR_ANY_TRUSTWORTHY_PRICE',currency:'REQUIRED_FOR_ANY_TRUSTWORTHY_PRICE',billingInterval:'REQUIRED_FOR_ANY_TRUSTWORTHY_PRICE',recurringSemantics:'REQUIRED_FOR_ANY_TRUSTWORTHY_PRICE',commercialRole:'REQUIRED_FOR_ANY_TRUSTWORTHY_PRICE',offerOwnership:'REQUIRED_FOR_ANY_TRUSTWORTHY_PRICE',provenance:'REQUIRED_FOR_ANY_TRUSTWORTHY_PRICE',market:'REQUIRED_ONLY_FOR_MARKET_TARGETED_EXPOSURE',plan:'REQUIRED_ONLY_FOR_COMPLETE_CANONICAL_IDENTITY',commitment:'OPTIONAL_BUT_MUST_PRESERVE_WHEN_PRESENT',eligibility:'OPTIONAL_BUT_MUST_PRESERVE_WHEN_PRESENT',channel:'OPTIONAL_BUT_MUST_PRESERVE_WHEN_PRESENT',location:'OPTIONAL_BUT_MUST_PRESERVE_WHEN_PRESENT',configuration:'OPTIONAL_BUT_MUST_PRESERVE_WHEN_PRESENT',nationalUniversality:'DERIVED_ONLY_WHEN_PROVEN',discoveryTarget:'RESEARCH_METADATA_ONLY'};
+const permittedMetadata=/^(?:MARKET_ATTRIBUTION_UNRESOLVED|MARKET_APPLICABILITY_UNRESOLVED|SHARED_SOURCE_MARKET_UNRESOLVED|PAGE_GLOBAL_ONLY_APPLICABILITY|MARKET_SCOPE_UNRESOLVED|PROVIDER_PAGE_MARKET_CONFLICT|GEO_PROVIDER_MARKET_CONFLICT|CROSS_COUNTRY_MARKET_MISMATCH|STRUCTURED_MARKET_MISMATCH|CTA_OR_TRIAL_HEADING_NOT_PLAN|COMMITMENT_REQUIRES_REVIEW)$/;
+const secondary=/\b(?:joining|enrolment|enrollment|registration|activation|setup|admin(?:istration)?|pause|freeze|deposit|delivery)\s+(?:fee|price|charge)|\b(?:dedicated IP|optional add.on|available as (?:an? )?extra|additional member|extra member)\b|Anmeldegebühr|Startgebühr|innmeldingsavgift|inschrijfkosten|frais d.inscription/iu;
+const unsafeLocal=/\b(?:equivalent|average|installment|instalment|prepaid|one.time|pass|was|save|saving|instead of|starting at|starts at|as low as|less than)\b|月額.{0,20}円[〜～]|Cena promocyjna|pierwszych|første\s+\d+|first\s+\d+|per\s+(?:seat|user|member)|\/\s*(?:seat|user|member)/iu;
+function intervalFor(c){const x=c.commercial??{},local=x.evidence?.find(e=>e.kind==='MONETARY_CLAUSE')?.raw??c.normalizedEvidenceSnippet??'';
+ if(x.billingInterval?.recurringPresentation&&['MONTH','DAY','WEEK','HOUR'].includes(x.billingInterval.unit))return x.billingInterval;
+ if(/(?:\/\s*week\b|\bper week\b|\bweekly\b)/iu.test(local)&&/subscription|membership|renews?/iu.test(c.normalizedEvidenceSnippet+' '+c.product))return {value:1,unit:'WEEK',normalized:'P1W',originalWording:local,recurringPresentation:true,path:c.structuredPath,bodyHash:c.bodyHash,cadenceFamily:null};
+ if(x.type==='ANNUAL_RECURRING'&&!x.monthlyEquivalentDisplay&&/(?:\/\s*(?:year|yr|ann?ée|jaar|jahr|år)|\bper year\b|\bannually\b|\byearly\b|\bjährlich\b)/iu.test(local)&&!/(?:\/\s*(?:month|mo)\b|per month|monthly)/iu.test(local))return {value:1,unit:'YEAR',normalized:'P1Y',originalWording:local,recurringPresentation:true,path:c.structuredPath,bodyHash:c.bodyHash,cadenceFamily:null};
+ return null;
+}
+function commitmentFor(c,source){const owner=source.nodes.get(c.qualifierPreservation?.ownerPath),text=owner?.text??'';const re=/\b(\d+)\s*(Monate?\s+Mindestlaufzeit|måneder\s+binding)\b|\bminimum\s+(?:contract|term|commitment)\s*(?:of\s*)?(\d+)\s*(months?|weeks?|years?)\b/giu;const hits=[...text.matchAll(re)];const keys=new Set(hits.map(m=>[m[1]??m[3],m[1]?'MONTH':m[4].toUpperCase().replace(/S$/,'')].join(':')));if(keys.size!==1)return null;const m=hits[0];return {value:Number(m[1]??m[3]),unit:m[1]?'MONTH':m[4].toUpperCase().replace(/S$/,''),raw:m[0],ownerPath:c.qualifierPreservation.ownerPath,sourceHash:c.bodyHash};}
+export function adjudicateProviderPrice(c,derived,receipt,{body,sourceUrl,source,scope={},canonicalIdentity=null}){
+ if(hash(body)!==derived.bodyHash||c.bodyHash!==derived.bodyHash)throw Error('ORIGINAL_PROVIDER_HASH_REQUIRED');
+ const offerObject=materializeOfferObjects(derived,source).byCandidate.get(c.candidateId);
+ const d=verifyCandidate({...c,sourceUrl},derived,receipt),base=retainPriceObservation(d,{body,sourceUrl,scope}),co=c.commercial??{},local=co.evidence?.find(e=>e.kind==='MONETARY_CLAUSE')?.raw??c.normalizedEvidenceSnippet??'',owner=source.nodes.get(c.qualifierPreservation?.ownerPath),term=commitmentFor(c,source),interval=intervalFor(c),reasons=[];
+ for(const f of ['service','amount','currency','provenance'])if(d.fields[f].status!=='VERIFIED')reasons.push('UNPROVEN_'+f.toUpperCase());
+ // Offer ownership is independent from whether its title is a valid plan name.
+ const offerOwned=!!c.productOwnerEvidence?.path&&!c.ownershipAmbiguous&&!c.crossCardRisk&&c.attribution?.productOwnershipEstablished===true;
+ if(!offerOwned)reasons.push('OFFER_OWNERSHIP_UNRESOLVED');
+ // A global structured catalog may include sibling products or bundles. Its
+ // parent application name is a constraint, not permission to assign every
+ // offer to the acquisition's service. No provider-name vocabulary is used.
+ if(c.sourceType==='JSON'){
+  const object=source.objects.get(c.structuredPath?.replace(/\/[^/]+$/,''));
+  const parent=object?.ancestors?.slice().reverse().find(a=>['Product','SoftwareApplication','Service'].includes(a.value?.['@type'])&&typeof a.value?.name==='string');
+  if(parent){const words=parent.value.name.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu)??[],identityToken=words.at(-1),nameWords=(c.product??'').normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
+   if(identityToken&&!nameWords.includes(identityToken))reasons.push('STRUCTURED_PRODUCT_FAMILY_ASSOCIATION_UNRESOLVED');
+  }
+ }
+
+ const raw=[...new Set([...(c.blockingReasons??[]),...(co.reasons??[])])].filter(r=>!(r==='MULTIPLE_CONFLICTING_FACTS'&&offerObject?.resolvedConflict));
+ if(offerObject&&['OPTIONAL_ADDON','SECONDARY_FEE','COMPARISON_PRICE','TRIAL','INTRO_PROMOTION'].includes(offerObject.monetaryRole.role))reasons.push('MATERIALIZED_SECONDARY_MONETARY_ROLE');
+ for(const r of raw)if(!permittedMetadata.test(r)&&!(interval?.unit==='WEEK'&&['BILLING_MODE_NOT_ESTABLISHED','DURATION_WITHOUT_BILLING_MODE'].includes(r)))reasons.push(r);
+ if(raw.includes('COMMITMENT_REQUIRES_REVIEW')&&!term)reasons.push('COMMITMENT_NOT_STRUCTURALLY_RESOLVED');
+ if(!interval)reasons.push('EXACT_RECURRING_INTERVAL_UNRESOLVED');
+ const typeOK=co.type==='RECURRING_MONTHLY'||co.type==='ANNUAL_RECURRING'||co.type==='UNRESOLVED'&&term&&raw.includes('COMMITMENT_REQUIRES_REVIEW')||co.type==='UNRESOLVED'&&interval?.unit==='WEEK'&&co.reasons?.every(r=>['BILLING_MODE_NOT_ESTABLISHED','DURATION_WITHOUT_BILLING_MODE'].includes(r));
+ if(!typeOK||co.prepaid||co.nonRenewing||co.oneTimePayment||co.monthlyEquivalentDisplay||co.nonPrincipalRole)reasons.push('NOT_PROVEN_ORDINARY_RECURRING');
+ if(c.qualifierAmbiguous||c.billingPeriodAmbiguous||(c.qualifierPreservation?.unresolved??[]).length)reasons.push('QUALIFIER_OR_INTERVAL_AMBIGUITY');
+ if((c.qualifier??[]).some(q=>/REFERENCE_PRICE|FROM|SAVINGS_AMOUNT|EXTRA_MEMBER|DERIVED_DISPLAY/.test(q)))reasons.push('NON_PRINCIPAL_PRICE_QUALIFIER');
+ if(c.offerRole&&!['REGULAR_BASE','POST_INTRO_REGULAR','UNKNOWN'].includes(c.offerRole.role))reasons.push('NON_ORDINARY_PRICE_ROLE');
+ if(secondary.test(local)||unsafeLocal.test(local))reasons.push('SECONDARY_PROMOTIONAL_OR_EQUIVALENT_EXPRESSION');
+ if(owner&&/dedicated IP|optional add.on|extra member|pause membership|freeze membership/iu.test(owner.text))reasons.push('SECONDARY_OFFER_OWNER');
+ // A raw minimum-term qualifier is not permission to resolve an unselected mode.
+ if(raw.some(r=>/VARIANT_SELECTION|CONFLICTING|MULTIPLE_CONFLICT|DIFFERENT_OWNER/.test(r)))reasons.push('UNRESOLVED_SEMANTIC_CONFLICT');
+ const marketEstablished=d.fields.market.status==='VERIFIED'&&!(offerObject?.resolvedConflict&&c.attribution?.marketEvidenceType==='GEO_OBSERVED'),marketMismatch=raw.some(r=>/MARKET_MISMATCH|MARKET_CONFLICT/.test(r)),plan=base.plan;
+ const canonical=canonicalIdentity?.status==='V2_VERIFIED'&&canonicalIdentity.service===c.service&&canonicalIdentity.market===c.market&&canonicalIdentity.plan===plan&&canonicalIdentity.amount===c.amountNormalized&&canonicalIdentity.currency===c.currency&&canonicalIdentity.sourceHashes?.includes(c.bodyHash)&&d.status==='V2_VERIFIED';
+ let level='PARTIAL_PROVIDER_PRICE_OBSERVATION';if(!reasons.length){level=canonical?'COMPLETE_VERIFIED_PROVIDER_PRICE':term||!marketEstablished||Object.keys(scope).length?'QUALIFIED_SCOPED_VERIFIED_PROVIDER_PRICE':!plan?'SERVICE_LEVEL_VERIFIED_PROVIDER_PRICE':'QUALIFIED_SCOPED_VERIFIED_PROVIDER_PRICE';if(interval?.cadenceFamily!=='MONTHLY_FAMILY'&&co.cadenceFamily!=='MONTHLY_FAMILY')level='NON_MONTHLY_VERIFIED_PROVIDER_PRICE';}
+ return {version:1,offerObject:offerObject?{...offerObject,sourceUrl,exactInterval:interval??offerObject.exactInterval}:null,level,trustworthy:reasons.length===0,completeCanonicalStatus:canonical?'V2_VERIFIED':'NOT_ADMITTED_AS_COMPLETE_IDENTITY',candidateVerificationStatus:d.status,service:c.service,plan,amount:base.amount,currency:base.currency,billingInterval:interval,cadenceFamily:co.cadenceFamily??interval?.cadenceFamily??null,commercialRole:reasons.length?co.type:'ORDINARY_RECURRING',commitment:term,scope:base.scope,market:marketEstablished?c.market:null,marketApplicability:{retainedAcquisitionMarket:offerObject?.resolvedConflict&&c.attribution?.marketEvidenceType==='GEO_OBSERVED'?c.market:null,status:marketEstablished?'ESTABLISHED':marketMismatch?'TARGET_MISMATCH':'UNKNOWN',allowedMarkets:marketEstablished?[c.market]:[],requestedMarket:c.market,meaning:'Unknown/mismatched target is never an exposure market. Unlocalized observations require qualification.'},offerOwnership:{established:offerOwned,owner:c.productOwnerEvidence,pricePath:c.structuredPath},fields:{...base.fields,billingInterval:{status:interval?'ESTABLISHED':'UNKNOWN',evidence:interval},recurringSemantics:{status:typeOK&&!co.nonRenewing&&!co.prepaid&&!co.oneTimePayment?'ESTABLISHED':'UNKNOWN',evidence:co.evidence},offerOwnership:{status:offerOwned?'ESTABLISHED':'UNKNOWN',evidence:c.productOwnerEvidence}},exposure:{definitivePrice:reasons.length===0,marketTargeting:reasons.length===0&&marketEstablished,monthlyCanonical:canonical,requiresQualifiers:!canonical},qualifiers:{offerVariants:offerObject?.dimensions??{},product:co.productConditions??[],price:co.priceConditions??[],commitment:term,sourceCommercialContext:owner?.text??local},source:{kind:'ORIGINAL_PROVIDER',url:sourceUrl,hash:c.bodyHash,path:c.structuredPath,original:c.rawEvidenceSnippet,wording:c.normalizedEvidenceSnippet},blockers:[...new Set(reasons)].sort(),nationallyUniversal:false,appPromotion:false,userPriceOverride:false};
+}
+// Variants coexist only when their grounded scope/term distinguishes them.
+export function reconcilePriceObservations(rows){
+ // Resolve a legacy label-only conflict only when EVERY competing observation
+ // has validated source-bound scope and no other unresolved dependency.
+ const candidates=new Map();for(const r of rows){const k=JSON.stringify([r.service,r.market,r.plan,r.source.hash,r.billingInterval?.normalized,r.currency]);if(!candidates.has(k))candidates.set(k,[]);candidates.get(k).push(r);}
+ for(const group of candidates.values())if(group.length>1&&group.every(r=>Object.keys(r.scope).length&&r.blockers.every(b=>['MULTIPLE_CONFLICTING_FACTS','UNRESOLVED_SEMANTIC_CONFLICT'].includes(b)))){
+  const scoped=new Map();for(const r of group){const k=JSON.stringify(Object.entries(r.scope).map(([k,v])=>[k,v.value]).sort());if(!scoped.has(k))scoped.set(k,new Set());scoped.get(k).add(r.amount);}
+  if([...scoped.values()].every(values=>values.size===1))for(const r of group){r.blockers=[];r.trustworthy=true;r.level=r.cadenceFamily==='MONTHLY_FAMILY'?'QUALIFIED_SCOPED_VERIFIED_PROVIDER_PRICE':'NON_MONTHLY_VERIFIED_PROVIDER_PRICE';r.exposure={...r.exposure,definitivePrice:true,marketTargeting:r.market!==null,monthlyCanonical:false};}
+ }
+ const groups=new Map();for(const r of rows.filter(r=>r.trustworthy)){const key=JSON.stringify([r.service,r.market,r.plan,r.source.hash,r.billingInterval?.normalized,r.currency,r.commitment&&[r.commitment.value,r.commitment.unit],r.offerObject?.variantKey??[],Object.entries(r.scope).map(([k,v])=>[k,v.value]).sort()]);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r);}for(const group of groups.values())if(new Set(group.map(r=>r.amount)).size>1)for(const r of group){r.trustworthy=false;r.level='PARTIAL_PROVIDER_PRICE_OBSERVATION';r.blockers.push('SAME_SCOPE_INCOMPATIBLE_AMOUNTS');r.exposure={...r.exposure,definitivePrice:false,marketTargeting:false,monthlyCanonical:false};r.completeCanonicalStatus='NOT_ADMITTED_AS_COMPLETE_IDENTITY';}return rows;}

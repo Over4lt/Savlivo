@@ -1,0 +1,2360 @@
+{
+  "schemaVersion": 1,
+  "scope": "EXACT_RETAINED_INTERPRETATIONS_ONLY",
+  "entries": [
+    {
+      "service": "avast-premium",
+      "market": "US",
+      "monthlyPlanId": "monthly-plan:c4709f419ebc1f4b27d59dbfef13c03746cddb2d7bc4948551e03a16c4d0fa55",
+      "amount": "5798.33",
+      "currency": "USD",
+      "sourceHashes": [
+        "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190"
+      ],
+      "factIds": [
+        "fact:9204b2d04a3ae749d2dd6b471b609f4f56d1f5a5be5275f1e12e0a9fc217bab5"
+      ],
+      "status": "REJECTED_INVALID_PRICE_INTERPRETATION",
+      "reason": "ADJACENT_AMOUNTS_CONCATENATED",
+      "source": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/pricing/adaptive-state.json",
+      "sourceHash": "1c7a8f6be85ce7183ffd294f9a41f6c190e8f65cf067add8c2da7b3899a8764e",
+      "target": "avast-premium-price-US",
+      "originalVerified": {
+        "version": "V2_FIELD_VERIFICATION_V1",
+        "billingInterval": {
+          "value": 1,
+          "unit": "MONTH",
+          "normalized": "P1M",
+          "originalWording": "$ 5.79 8.33 /month",
+          "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+          "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+          "recurringPresentation": true,
+          "basis": "EXISTING_EXPLICIT_CALENDAR_MONTH_CLASSIFICATION"
+        },
+        "billingIntervalEvidence": [
+          {
+            "value": 1,
+            "unit": "MONTH",
+            "normalized": "P1M",
+            "originalWording": "$ 5.79 8.33 /month",
+            "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+            "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+            "recurringPresentation": true,
+            "basis": "EXISTING_EXPLICIT_CALENDAR_MONTH_CLASSIFICATION"
+          },
+          {
+            "value": 1,
+            "unit": "MONTH",
+            "normalized": "P1M",
+            "originalWording": "$ 5.79 8.33 /month",
+            "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+            "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+            "recurringPresentation": true,
+            "basis": "EXISTING_EXPLICIT_CALENDAR_MONTH_CLASSIFICATION"
+          }
+        ],
+        "cadenceFamily": "MONTHLY_FAMILY",
+        "monthlyPlanId": "monthly-plan:c4709f419ebc1f4b27d59dbfef13c03746cddb2d7bc4948551e03a16c4d0fa55",
+        "canonicalKey": [
+          "US",
+          "avast-premium",
+          {
+            "plan": "10 devices"
+          }
+        ],
+        "market": "US",
+        "service": "avast-premium",
+        "plan": "10 devices",
+        "providerPlanId": null,
+        "amount": "5798.33",
+        "currency": "USD",
+        "commercialType": "RECURRING_MONTHLY",
+        "evidenceLevels": [
+          3
+        ],
+        "candidateIds": [
+          "candidate:77db6eee15ab08edf22f3b3ecfb0ea5448888820256781f8aace908ff6b2a107"
+        ],
+        "factIds": [
+          "fact:9204b2d04a3ae749d2dd6b471b609f4f56d1f5a5be5275f1e12e0a9fc217bab5"
+        ],
+        "sourceHashes": [
+          "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190"
+        ],
+        "verifiedWitnessCandidateIds": [
+          "candidate:77db6eee15ab08edf22f3b3ecfb0ea5448888820256781f8aace908ff6b2a107"
+        ],
+        "fields": {
+          "service": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "authority": {
+                    "status": "CONFIGURED_REVIEWED",
+                    "hostname": "www.avast.com",
+                    "provider": "Avast Premium",
+                    "sourceType": "OFFICIAL_PROVIDER",
+                    "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                    "checkedAt": "2026-09-21T12:46:12.993Z",
+                    "ownershipReview": {
+                      "bindingType": "DIRECT_PROVIDER",
+                      "authorityScope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET",
+                      "basis": "OFFICIAL_SERVICE_SITE",
+                      "review": {
+                        "status": "REVIEWED",
+                        "checkedAt": "2026-09-21T12:46:12.993Z",
+                        "method": "PROVIDER_PAGE_OWNERSHIP_REVIEW",
+                        "reviewer": "CODEX_OFFLINE_INDIVIDUAL_REVIEW",
+                        "reason": "Avast Premium Security product page and Gen Digital copyright identify the exact provider/product relationship. Reviewed retained provider content and original candidate context, not workbook QA alone. No market, price, sibling-host or qualification inheritance.",
+                        "candidateReconciliation": {
+                          "sourceUrl": "https://www.avast.com/",
+                          "reason": "Individual retained-source review selected www.avast.com as the exact evidenced host. Workbook homepage remains discovery guidance; only this named host is approved."
+                        }
+                      },
+                      "evidence": [
+                        {
+                          "format": "NATIVE_PUBLIC_PAGE_V1",
+                          "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/avast-premium/pages.json",
+                          "sha256": "5a22cca639435697b7908c794ba465d59c19927092db95d2a9990510bb853134",
+                          "pageIndex": 0,
+                          "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                          "locator": {
+                            "offset": 99
+                          },
+                          "excerpt": "Avast Premium Security | Online Security \u2014 Up to 10 Devices"
+                        },
+                        {
+                          "format": "NATIVE_PUBLIC_PAGE_V1",
+                          "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/avast-premium/pages.json",
+                          "sha256": "5a22cca639435697b7908c794ba465d59c19927092db95d2a9990510bb853134",
+                          "pageIndex": 0,
+                          "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                          "locator": {
+                            "offset": 969357
+                          },
+                          "excerpt": "\u00a9 2026 Gen Digital Inc. All rights reserved."
+                        }
+                      ]
+                    }
+                  },
+                  "targetService": "avast-premium",
+                  "targetServiceName": "Avast Premium",
+                  "matchedAuthority": "CONFIGURED_REVIEWED"
+                }
+              },
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "authority": {
+                    "status": "CONFIGURED_REVIEWED",
+                    "hostname": "www.avast.com",
+                    "provider": "Avast Premium",
+                    "sourceType": "OFFICIAL_PROVIDER",
+                    "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                    "checkedAt": "2026-09-21T12:46:12.993Z",
+                    "ownershipReview": {
+                      "bindingType": "DIRECT_PROVIDER",
+                      "authorityScope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET",
+                      "basis": "OFFICIAL_SERVICE_SITE",
+                      "review": {
+                        "status": "REVIEWED",
+                        "checkedAt": "2026-09-21T12:46:12.993Z",
+                        "method": "PROVIDER_PAGE_OWNERSHIP_REVIEW",
+                        "reviewer": "CODEX_OFFLINE_INDIVIDUAL_REVIEW",
+                        "reason": "Avast Premium Security product page and Gen Digital copyright identify the exact provider/product relationship. Reviewed retained provider content and original candidate context, not workbook QA alone. No market, price, sibling-host or qualification inheritance.",
+                        "candidateReconciliation": {
+                          "sourceUrl": "https://www.avast.com/",
+                          "reason": "Individual retained-source review selected www.avast.com as the exact evidenced host. Workbook homepage remains discovery guidance; only this named host is approved."
+                        }
+                      },
+                      "evidence": [
+                        {
+                          "format": "NATIVE_PUBLIC_PAGE_V1",
+                          "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/avast-premium/pages.json",
+                          "sha256": "5a22cca639435697b7908c794ba465d59c19927092db95d2a9990510bb853134",
+                          "pageIndex": 0,
+                          "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                          "locator": {
+                            "offset": 99
+                          },
+                          "excerpt": "Avast Premium Security | Online Security \u2014 Up to 10 Devices"
+                        },
+                        {
+                          "format": "NATIVE_PUBLIC_PAGE_V1",
+                          "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/avast-premium/pages.json",
+                          "sha256": "5a22cca639435697b7908c794ba465d59c19927092db95d2a9990510bb853134",
+                          "pageIndex": 0,
+                          "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                          "locator": {
+                            "offset": 969357
+                          },
+                          "excerpt": "\u00a9 2026 Gen Digital Inc. All rights reserved."
+                        }
+                      ]
+                    }
+                  },
+                  "targetService": "avast-premium",
+                  "targetServiceName": "Avast Premium",
+                  "matchedAuthority": "CONFIGURED_REVIEWED"
+                }
+              }
+            ]
+          },
+          "market": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "version": 2,
+                  "requestedMarket": "US",
+                  "marketApplicabilityEstablished": true,
+                  "productOwnershipEstablished": true,
+                  "marketSourceType": "provider-page",
+                  "marketEvidenceType": "PROVIDER_DECLARED",
+                  "geoEvidence": [
+                    {
+                      "version": 1,
+                      "occurrenceId": "6617349e2f7e5ad28e9a6d95de63de717517d7f2581af3f7927af5d438773d2a",
+                      "targetCountry": "US",
+                      "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                      "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                      "sourceReference": {
+                        "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                        "hash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                        "sequence": 1,
+                        "pointer": "/result/attempts/0/page"
+                      },
+                      "classification": "G2",
+                      "reasons": [
+                        "EXECUTION_NOT_ESTABLISHED",
+                        "BRACKET_NOT_ESTABLISHED",
+                        "GEO_COUNTRY_MISMATCH",
+                        "BEFORE_RAW_GEO_PROOF_INVALID",
+                        "AFTER_RAW_GEO_PROOF_INVALID",
+                        "EXACT_RESPONSE_RECEIPT_MISSING",
+                        "RESPONSE_NOT_BRACKETED_IN_RECEIPT_ORDER",
+                        "RECEIPT_BINDING_CONTINUITY_MISSING",
+                        "ATTEMPT_PAGE_BODY_MISMATCH"
+                      ],
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76",
+                      "executionReference": {
+                        "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                        "recordHash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                        "pointer": "/result/attempts/0"
+                      },
+                      "geoCountry": null,
+                      "transport": {
+                        "method": "DIRECT_PUBLIC"
+                      },
+                      "receiptIndexes": {
+                        "before": -1,
+                        "response": -1,
+                        "after": -1
+                      },
+                      "geoProofHashes": {
+                        "before": null,
+                        "after": null
+                      },
+                      "checkedAt": null,
+                      "meaning": "Offer observed in a provider response acquired through the independently bracket-verified target-country route; NOT a provider declaration of offer country.",
+                      "limitation": "Same observed exit before/after on one approved sticky binding; not cryptographic per-hop proof; transient unobserved rotations cannot be excluded."
+                    }
+                  ],
+                  "geoEvidenceMeaning": "Observed response market, not provider-declared offer applicability",
+                  "structuredCatalogApplicabilityRequired": false,
+                  "marketOwnerEvidence": [],
+                  "productOwnerEvidence": {
+                    "raw": "10 devices",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]",
+                    "method": "HEADING_CONTAINER"
+                  },
+                  "conflictingMarketEvidence": [],
+                  "multiCountrySource": false,
+                  "sharedSourceMarkets": [
+                    "US"
+                  ],
+                  "classes": [
+                    "EXPLICIT_PRODUCT_OWNER",
+                    "PROVIDER_DECLARED_PAGE"
+                  ],
+                  "blockingReasons": [],
+                  "providerPageEvidence": [
+                    {
+                      "version": 1,
+                      "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                      "pattern": "CANONICAL_ROUTE_AND_DOCUMENT_LOCALE",
+                      "country": "US",
+                      "scopePaths": [
+                        "$"
+                      ],
+                      "fields": [
+                        {
+                          "path": "$/html[2]/head[1]/link[33]/attributes/href",
+                          "value": "https://www.avast.com/en-us/premium-security",
+                          "raw": "<link rel=\"canonical\" href=\"https://www.avast.com/en-us/premium-security\"/>",
+                          "span": {
+                            "start": 3459,
+                            "end": 3534,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        },
+                        {
+                          "path": "$/html[2]/attributes/lang",
+                          "value": "en-us",
+                          "raw": "<html lang=\"en-us\" dir=\"ltr\">",
+                          "span": {
+                            "start": 27,
+                            "end": 56,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        }
+                      ],
+                      "sourceOccurrences": [
+                        {
+                          "id": "6617349e2f7e5ad28e9a6d95de63de717517d7f2581af3f7927af5d438773d2a",
+                          "url": "https://www.avast.com/en-us/premium-security"
+                        }
+                      ],
+                      "status": "ESTABLISHED",
+                      "reasons": [],
+                      "evidenceId": "provider-market:25cb5f375b0f49b415a96001b9116cc28bcf9d9fea1c9ed9899d5fa58db73b54"
+                    }
+                  ],
+                  "providerPageDiagnostics": [],
+                  "providerOwnerEvidence": [],
+                  "providerConflictingEvidence": [],
+                  "geoConflictingEvidence": []
+                }
+              },
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "version": 2,
+                  "requestedMarket": "US",
+                  "marketApplicabilityEstablished": true,
+                  "productOwnershipEstablished": true,
+                  "marketSourceType": "provider-page",
+                  "marketEvidenceType": "PROVIDER_DECLARED",
+                  "geoEvidence": [
+                    {
+                      "version": 1,
+                      "occurrenceId": "6617349e2f7e5ad28e9a6d95de63de717517d7f2581af3f7927af5d438773d2a",
+                      "targetCountry": "US",
+                      "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                      "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                      "sourceReference": {
+                        "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                        "hash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                        "sequence": 1,
+                        "pointer": "/result/attempts/0/page"
+                      },
+                      "classification": "G2",
+                      "reasons": [
+                        "EXECUTION_NOT_ESTABLISHED",
+                        "BRACKET_NOT_ESTABLISHED",
+                        "GEO_COUNTRY_MISMATCH",
+                        "BEFORE_RAW_GEO_PROOF_INVALID",
+                        "AFTER_RAW_GEO_PROOF_INVALID",
+                        "EXACT_RESPONSE_RECEIPT_MISSING",
+                        "RESPONSE_NOT_BRACKETED_IN_RECEIPT_ORDER",
+                        "RECEIPT_BINDING_CONTINUITY_MISSING",
+                        "ATTEMPT_PAGE_BODY_MISMATCH"
+                      ],
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76",
+                      "executionReference": {
+                        "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                        "recordHash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                        "pointer": "/result/attempts/0"
+                      },
+                      "geoCountry": null,
+                      "transport": {
+                        "method": "DIRECT_PUBLIC"
+                      },
+                      "receiptIndexes": {
+                        "before": -1,
+                        "response": -1,
+                        "after": -1
+                      },
+                      "geoProofHashes": {
+                        "before": null,
+                        "after": null
+                      },
+                      "checkedAt": null,
+                      "meaning": "Offer observed in a provider response acquired through the independently bracket-verified target-country route; NOT a provider declaration of offer country.",
+                      "limitation": "Same observed exit before/after on one approved sticky binding; not cryptographic per-hop proof; transient unobserved rotations cannot be excluded."
+                    }
+                  ],
+                  "geoEvidenceMeaning": "Observed response market, not provider-declared offer applicability",
+                  "structuredCatalogApplicabilityRequired": false,
+                  "marketOwnerEvidence": [],
+                  "productOwnerEvidence": {
+                    "raw": "10 devices",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]",
+                    "method": "HEADING_CONTAINER"
+                  },
+                  "conflictingMarketEvidence": [],
+                  "multiCountrySource": false,
+                  "sharedSourceMarkets": [
+                    "US"
+                  ],
+                  "classes": [
+                    "EXPLICIT_PRODUCT_OWNER",
+                    "PROVIDER_DECLARED_PAGE"
+                  ],
+                  "blockingReasons": [],
+                  "providerPageEvidence": [
+                    {
+                      "version": 1,
+                      "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                      "pattern": "CANONICAL_ROUTE_AND_DOCUMENT_LOCALE",
+                      "country": "US",
+                      "scopePaths": [
+                        "$"
+                      ],
+                      "fields": [
+                        {
+                          "path": "$/html[2]/head[1]/link[33]/attributes/href",
+                          "value": "https://www.avast.com/en-us/premium-security",
+                          "raw": "<link rel=\"canonical\" href=\"https://www.avast.com/en-us/premium-security\"/>",
+                          "span": {
+                            "start": 3459,
+                            "end": 3534,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        },
+                        {
+                          "path": "$/html[2]/attributes/lang",
+                          "value": "en-us",
+                          "raw": "<html lang=\"en-us\" dir=\"ltr\">",
+                          "span": {
+                            "start": 27,
+                            "end": 56,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        }
+                      ],
+                      "sourceOccurrences": [
+                        {
+                          "id": "6617349e2f7e5ad28e9a6d95de63de717517d7f2581af3f7927af5d438773d2a",
+                          "url": "https://www.avast.com/en-us/premium-security"
+                        }
+                      ],
+                      "status": "ESTABLISHED",
+                      "reasons": [],
+                      "evidenceId": "provider-market:25cb5f375b0f49b415a96001b9116cc28bcf9d9fea1c9ed9899d5fa58db73b54"
+                    }
+                  ],
+                  "providerPageDiagnostics": [],
+                  "providerOwnerEvidence": [],
+                  "providerConflictingEvidence": [],
+                  "geoConflictingEvidence": []
+                }
+              }
+            ]
+          },
+          "plan": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "product": "10 devices",
+                  "owner": {
+                    "raw": "10 devices",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]",
+                    "method": "HEADING_CONTAINER"
+                  }
+                }
+              },
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "product": "10 devices",
+                  "owner": {
+                    "raw": "10 devices",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]",
+                    "method": "HEADING_CONTAINER"
+                  }
+                }
+              }
+            ]
+          },
+          "amount": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "raw": "$ 5.79 8.33",
+                  "value": "5798.33",
+                  "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]"
+                }
+              },
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "raw": "$ 5.79 8.33",
+                  "value": "5798.33",
+                  "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]"
+                }
+              }
+            ]
+          },
+          "currency": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "raw": "$",
+                  "value": "USD",
+                  "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                  "resolution": {
+                    "kind": "PROVIDER_SELECTED_LOCAL_DENOMINATION",
+                    "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                    "displayToken": "$",
+                    "currency": "USD",
+                    "provider": {
+                      "country": "US",
+                      "locale": "en-US",
+                      "proof": [
+                        {
+                          "path": "$/html[2]",
+                          "span": [
+                            27,
+                            56
+                          ],
+                          "attributes": {
+                            "lang": "en-us",
+                            "dir": "ltr"
+                          }
+                        },
+                        {
+                          "version": 1,
+                          "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                          "pattern": "CANONICAL_ROUTE_AND_DOCUMENT_LOCALE",
+                          "country": "US",
+                          "scopePaths": [
+                            "$"
+                          ],
+                          "fields": [
+                            {
+                              "path": "$/html[2]/head[1]/link[33]/attributes/href",
+                              "value": "https://www.avast.com/en-us/premium-security",
+                              "raw": "<link rel=\"canonical\" href=\"https://www.avast.com/en-us/premium-security\"/>",
+                              "span": {
+                                "start": 3459,
+                                "end": 3534,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            },
+                            {
+                              "path": "$/html[2]/attributes/lang",
+                              "value": "en-us",
+                              "raw": "<html lang=\"en-us\" dir=\"ltr\">",
+                              "span": {
+                                "start": 27,
+                                "end": 56,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            }
+                          ],
+                          "sourceOccurrences": [
+                            {
+                              "id": "6617349e2f7e5ad28e9a6d95de63de717517d7f2581af3f7927af5d438773d2a",
+                              "url": "https://www.avast.com/en-us/premium-security"
+                            }
+                          ],
+                          "status": "ESTABLISHED",
+                          "reasons": [],
+                          "evidenceId": "provider-market:25cb5f375b0f49b415a96001b9116cc28bcf9d9fea1c9ed9899d5fa58db73b54"
+                        }
+                      ]
+                    },
+                    "algorithm": "UNIQUE_INTL_LOCALE_CURRENCY_SYMBOL",
+                    "icuVersion": "78.3"
+                  }
+                }
+              },
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "raw": "$",
+                  "value": "USD",
+                  "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                  "resolution": {
+                    "kind": "PROVIDER_SELECTED_LOCAL_DENOMINATION",
+                    "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                    "displayToken": "$",
+                    "currency": "USD",
+                    "provider": {
+                      "country": "US",
+                      "locale": "en-US",
+                      "proof": [
+                        {
+                          "path": "$/html[2]",
+                          "span": [
+                            27,
+                            56
+                          ],
+                          "attributes": {
+                            "lang": "en-us",
+                            "dir": "ltr"
+                          }
+                        },
+                        {
+                          "version": 1,
+                          "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                          "pattern": "CANONICAL_ROUTE_AND_DOCUMENT_LOCALE",
+                          "country": "US",
+                          "scopePaths": [
+                            "$"
+                          ],
+                          "fields": [
+                            {
+                              "path": "$/html[2]/head[1]/link[33]/attributes/href",
+                              "value": "https://www.avast.com/en-us/premium-security",
+                              "raw": "<link rel=\"canonical\" href=\"https://www.avast.com/en-us/premium-security\"/>",
+                              "span": {
+                                "start": 3459,
+                                "end": 3534,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            },
+                            {
+                              "path": "$/html[2]/attributes/lang",
+                              "value": "en-us",
+                              "raw": "<html lang=\"en-us\" dir=\"ltr\">",
+                              "span": {
+                                "start": 27,
+                                "end": 56,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            }
+                          ],
+                          "sourceOccurrences": [
+                            {
+                              "id": "6617349e2f7e5ad28e9a6d95de63de717517d7f2581af3f7927af5d438773d2a",
+                              "url": "https://www.avast.com/en-us/premium-security"
+                            }
+                          ],
+                          "status": "ESTABLISHED",
+                          "reasons": [],
+                          "evidenceId": "provider-market:25cb5f375b0f49b415a96001b9116cc28bcf9d9fea1c9ed9899d5fa58db73b54"
+                        }
+                      ]
+                    },
+                    "algorithm": "UNIQUE_INTL_LOCALE_CURRENCY_SYMBOL",
+                    "icuVersion": "78.3"
+                  }
+                }
+              }
+            ]
+          },
+          "monthlyCadence": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": [
+                  {
+                    "kind": "OWNING_STRUCTURE",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]",
+                    "span": [
+                      680540,
+                      684997
+                    ],
+                    "raw": "10 devices Win Icon Image Mac Icon Image Ios Icon Image Android Icon Image Save 31% $99.99 $69.48/first yr It works out as $ 5.79 8.33 /month Buy now Savings compared to renewal price $99.99/year. Subscription details",
+                    "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190"
+                  },
+                  {
+                    "kind": "MONETARY_CLAUSE",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                    "raw": "$ 5.79 8.33 /month",
+                    "fields": {},
+                    "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190"
+                  }
+                ]
+              },
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": [
+                  {
+                    "kind": "OWNING_STRUCTURE",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]",
+                    "span": [
+                      883422,
+                      887879
+                    ],
+                    "raw": "10 devices Win Icon Image Mac Icon Image Ios Icon Image Android Icon Image Save 31% $99.99 $69.48/first yr It works out as $ 5.79 8.33 /month Buy now Savings compared to renewal price $99.99/year. Subscription details",
+                    "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190"
+                  },
+                  {
+                    "kind": "MONETARY_CLAUSE",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                    "raw": "$ 5.79 8.33 /month",
+                    "fields": {},
+                    "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190"
+                  }
+                ]
+              }
+            ]
+          },
+          "ordinaryPriceRole": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "role": {
+                    "role": "REGULAR_BASE",
+                    "basis": "ORDINARY_MONTHLY_PRESENTATION_WITHOUT_EXCLUSION"
+                  },
+                  "commercialEvidence": [
+                    {
+                      "kind": "OWNING_STRUCTURE",
+                      "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]",
+                      "span": [
+                        680540,
+                        684997
+                      ],
+                      "raw": "10 devices Win Icon Image Mac Icon Image Ios Icon Image Android Icon Image Save 31% $99.99 $69.48/first yr It works out as $ 5.79 8.33 /month Buy now Savings compared to renewal price $99.99/year. Subscription details",
+                      "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190"
+                    },
+                    {
+                      "kind": "MONETARY_CLAUSE",
+                      "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                      "raw": "$ 5.79 8.33 /month",
+                      "fields": {},
+                      "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190"
+                    }
+                  ],
+                  "conditions": []
+                }
+              },
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "role": {
+                    "role": "REGULAR_BASE",
+                    "basis": "ORDINARY_MONTHLY_PRESENTATION_WITHOUT_EXCLUSION"
+                  },
+                  "commercialEvidence": [
+                    {
+                      "kind": "OWNING_STRUCTURE",
+                      "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]",
+                      "span": [
+                        883422,
+                        887879
+                      ],
+                      "raw": "10 devices Win Icon Image Mac Icon Image Ios Icon Image Android Icon Image Save 31% $99.99 $69.48/first yr It works out as $ 5.79 8.33 /month Buy now Savings compared to renewal price $99.99/year. Subscription details",
+                      "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190"
+                    },
+                    {
+                      "kind": "MONETARY_CLAUSE",
+                      "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                      "raw": "$ 5.79 8.33 /month",
+                      "fields": {},
+                      "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190"
+                    }
+                  ],
+                  "conditions": []
+                }
+              }
+            ]
+          },
+          "ownership": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "owner": {
+                    "raw": "10 devices",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]",
+                    "method": "HEADING_CONTAINER"
+                  },
+                  "pricePath": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]"
+                }
+              },
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "owner": {
+                    "raw": "10 devices",
+                    "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]",
+                    "method": "HEADING_CONTAINER"
+                  },
+                  "pricePath": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]"
+                }
+              }
+            ]
+          },
+          "provenance": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "intact": true,
+                  "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                  "service": "avast-premium",
+                  "serviceEstablished": true,
+                  "bindingEstablished": true,
+                  "sourceOccurrenceId": "6617349e2f7e5ad28e9a6d95de63de717517d7f2581af3f7927af5d438773d2a",
+                  "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                  "record": {
+                    "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                    "hash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                    "sequence": 1,
+                    "pointer": "/result/attempts/0/page"
+                  },
+                  "targetReference": {
+                    "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                    "hash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                    "sequence": 1,
+                    "pointer": "/target"
+                  },
+                  "serviceEvidence": {
+                    "authority": {
+                      "status": "CONFIGURED_REVIEWED",
+                      "hostname": "www.avast.com",
+                      "provider": "Avast Premium",
+                      "sourceType": "OFFICIAL_PROVIDER",
+                      "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                      "checkedAt": "2026-09-21T12:46:12.993Z",
+                      "ownershipReview": {
+                        "bindingType": "DIRECT_PROVIDER",
+                        "authorityScope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET",
+                        "basis": "OFFICIAL_SERVICE_SITE",
+                        "review": {
+                          "status": "REVIEWED",
+                          "checkedAt": "2026-09-21T12:46:12.993Z",
+                          "method": "PROVIDER_PAGE_OWNERSHIP_REVIEW",
+                          "reviewer": "CODEX_OFFLINE_INDIVIDUAL_REVIEW",
+                          "reason": "Avast Premium Security product page and Gen Digital copyright identify the exact provider/product relationship. Reviewed retained provider content and original candidate context, not workbook QA alone. No market, price, sibling-host or qualification inheritance.",
+                          "candidateReconciliation": {
+                            "sourceUrl": "https://www.avast.com/",
+                            "reason": "Individual retained-source review selected www.avast.com as the exact evidenced host. Workbook homepage remains discovery guidance; only this named host is approved."
+                          }
+                        },
+                        "evidence": [
+                          {
+                            "format": "NATIVE_PUBLIC_PAGE_V1",
+                            "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/avast-premium/pages.json",
+                            "sha256": "5a22cca639435697b7908c794ba465d59c19927092db95d2a9990510bb853134",
+                            "pageIndex": 0,
+                            "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                            "locator": {
+                              "offset": 99
+                            },
+                            "excerpt": "Avast Premium Security | Online Security \u2014 Up to 10 Devices"
+                          },
+                          {
+                            "format": "NATIVE_PUBLIC_PAGE_V1",
+                            "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/avast-premium/pages.json",
+                            "sha256": "5a22cca639435697b7908c794ba465d59c19927092db95d2a9990510bb853134",
+                            "pageIndex": 0,
+                            "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                            "locator": {
+                              "offset": 969357
+                            },
+                            "excerpt": "\u00a9 2026 Gen Digital Inc. All rights reserved."
+                          }
+                        ]
+                      }
+                    },
+                    "targetService": "avast-premium",
+                    "targetServiceName": "Avast Premium",
+                    "matchedAuthority": "CONFIGURED_REVIEWED"
+                  },
+                  "geo": {
+                    "version": 1,
+                    "occurrenceId": "6617349e2f7e5ad28e9a6d95de63de717517d7f2581af3f7927af5d438773d2a",
+                    "targetCountry": "US",
+                    "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                    "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                    "sourceReference": {
+                      "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                      "hash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                      "sequence": 1,
+                      "pointer": "/result/attempts/0/page"
+                    },
+                    "classification": "G2",
+                    "reasons": [
+                      "EXECUTION_NOT_ESTABLISHED",
+                      "BRACKET_NOT_ESTABLISHED",
+                      "GEO_COUNTRY_MISMATCH",
+                      "BEFORE_RAW_GEO_PROOF_INVALID",
+                      "AFTER_RAW_GEO_PROOF_INVALID",
+                      "EXACT_RESPONSE_RECEIPT_MISSING",
+                      "RESPONSE_NOT_BRACKETED_IN_RECEIPT_ORDER",
+                      "RECEIPT_BINDING_CONTINUITY_MISSING",
+                      "ATTEMPT_PAGE_BODY_MISMATCH"
+                    ],
+                    "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76",
+                    "executionReference": {
+                      "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                      "recordHash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                      "pointer": "/result/attempts/0"
+                    },
+                    "geoCountry": null,
+                    "transport": {
+                      "method": "DIRECT_PUBLIC"
+                    },
+                    "receiptIndexes": {
+                      "before": -1,
+                      "response": -1,
+                      "after": -1
+                    },
+                    "geoProofHashes": {
+                      "before": null,
+                      "after": null
+                    },
+                    "checkedAt": null,
+                    "meaning": "Offer observed in a provider response acquired through the independently bracket-verified target-country route; NOT a provider declaration of offer country.",
+                    "limitation": "Same observed exit before/after on one approved sticky binding; not cryptographic per-hop proof; transient unobserved rotations cannot be excluded."
+                  },
+                  "bindings": [
+                    {
+                      "bindingId": "binding:ba84900c9805add040f22887d59fe9cba6c0ad899e478abf78a4d7cd1fa93067",
+                      "candidateId": "candidate:875b7ba43d615f0d8ea81650fc7e920fc4ed35e0c20a8ffb67d948f32f364b87",
+                      "factId": "fact:96ed96822a102cbc579dcb3bef2db1ae4b7558e556ca36b7025f73579392e02f",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:8133c3766418ae34ad53ea76ae83ea4bc6f6fe1f7ccfe6cc904ca9ab8423a86f",
+                      "candidateId": "candidate:66eb11d9fd38734bdcec1256781adb0e0256d62c151101ab15fcdfa3de75c7d2",
+                      "factId": "fact:ffc1ae2870d107fc158702b35b525ab8b9bfbd92eab555f11bad5c6d560dfab2",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:b3af95bb3bed4b7fa817cd71a32ddfd484ab3ea2637ffd7c8d5ab184d6806c0b",
+                      "candidateId": "candidate:342d80b66a0496a6b41347ce9adabea57b9ae7f2ff30ccbf91298201018fa068",
+                      "factId": "fact:d99befd21ed8e007b92472e7f8bbb2a6541ed65249fd97ee77110b3985a6b862",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:2e41a02b87b61181b7515d42fed25584955a27c7d8991a9430a4e98126141bcf",
+                      "candidateId": "candidate:e09b458d899853525c329af7a996a3772f5311447b894e6589075f5880252c70",
+                      "factId": "fact:b96465fa3fc949033b5fddae43b6f80e986bf709ae2c06c8e9678fb37b48babe",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:984c2db93df1c9ae4f6e8173521ca2a3d23ee9c521388e1ec47ce09577b5b685",
+                      "candidateId": "candidate:38e3b6f3bb63742d7bff41ec6a87e261abd9268b6c65db20d0e17828af0eeee0",
+                      "factId": "fact:5ccea01b9897699dec59aafbdac4228a1b919732e715df4b3e97acfd8b000a02",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:cf1ce1d9c7ef26138da5eb9828a335617df46a58d1f8c851a2861e70decfc151",
+                      "candidateId": "candidate:cb84e75f7b7c136c4b8d31b88065a8999963b6a0586c56d13eed3f5cbe8a3af3",
+                      "factId": "fact:322f45ceb645c3c7164ccf5de143624fe68f1e01d3e31e79f83d735502acd6d5",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:f19a94f574514ff44baf7851ad9708ce59c93a983917252a4560d4353481049d",
+                      "candidateId": "candidate:f41cf12482954536689a6570c82571617d91e17fd58156afef04d965ceecde78",
+                      "factId": "fact:b86d802bfd43c181dea9356a408cc2826e66043bf02dda734b80e500151538f5",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:c2943fba431f8adb63d854e8e187e61d57db4ee5b9459716bdd6f49bc1800b6f",
+                      "candidateId": "candidate:202d4c09b4775ad36d7c78aca1163acdcf638a0943296e07b12f08300fb6fd3b",
+                      "factId": "fact:2075401fde15afefad21563f01388b2df273471531fe5665f6c1b74c95ca62ef",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:a4b03399d485c57ada16d7e38f44329d2cb1239da30d668a017612b4a62cdbeb",
+                      "candidateId": "candidate:77db6eee15ab08edf22f3b3ecfb0ea5448888820256781f8aace908ff6b2a107",
+                      "factId": "fact:9204b2d04a3ae749d2dd6b471b609f4f56d1f5a5be5275f1e12e0a9fc217bab5",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:7a228df78f45c76ecf4163d7e528d8f3e04c9ed0107c6232e1d3496fdfd0d693",
+                      "candidateId": "candidate:905590e855233e03c7822a30eacb3a67fd5d28a3bea41f74b58d2055b19547c5",
+                      "factId": "fact:ef212c9644a4dc3ec89a173931d540f658cd8bc3483a50e7608d8ba610e7e66a",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:bd2505fee61abf413120b8cebfcfb7d93b77b7d2b95a127a279d0c6ff808642b",
+                      "candidateId": "candidate:3b6f34e0fa6657c95813d4cc123e3e0caaf14a178682d849bee70e2de07f3b40",
+                      "factId": "fact:2d751e3a830395798671f8587ff9554cbde7e8d65a73b98e4093c0faf8dbde25",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    }
+                  ]
+                }
+              },
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "intact": true,
+                  "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                  "service": "avast-premium",
+                  "serviceEstablished": true,
+                  "bindingEstablished": true,
+                  "sourceOccurrenceId": "6617349e2f7e5ad28e9a6d95de63de717517d7f2581af3f7927af5d438773d2a",
+                  "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                  "record": {
+                    "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                    "hash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                    "sequence": 1,
+                    "pointer": "/result/attempts/0/page"
+                  },
+                  "targetReference": {
+                    "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                    "hash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                    "sequence": 1,
+                    "pointer": "/target"
+                  },
+                  "serviceEvidence": {
+                    "authority": {
+                      "status": "CONFIGURED_REVIEWED",
+                      "hostname": "www.avast.com",
+                      "provider": "Avast Premium",
+                      "sourceType": "OFFICIAL_PROVIDER",
+                      "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                      "checkedAt": "2026-09-21T12:46:12.993Z",
+                      "ownershipReview": {
+                        "bindingType": "DIRECT_PROVIDER",
+                        "authorityScope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET",
+                        "basis": "OFFICIAL_SERVICE_SITE",
+                        "review": {
+                          "status": "REVIEWED",
+                          "checkedAt": "2026-09-21T12:46:12.993Z",
+                          "method": "PROVIDER_PAGE_OWNERSHIP_REVIEW",
+                          "reviewer": "CODEX_OFFLINE_INDIVIDUAL_REVIEW",
+                          "reason": "Avast Premium Security product page and Gen Digital copyright identify the exact provider/product relationship. Reviewed retained provider content and original candidate context, not workbook QA alone. No market, price, sibling-host or qualification inheritance.",
+                          "candidateReconciliation": {
+                            "sourceUrl": "https://www.avast.com/",
+                            "reason": "Individual retained-source review selected www.avast.com as the exact evidenced host. Workbook homepage remains discovery guidance; only this named host is approved."
+                          }
+                        },
+                        "evidence": [
+                          {
+                            "format": "NATIVE_PUBLIC_PAGE_V1",
+                            "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/avast-premium/pages.json",
+                            "sha256": "5a22cca639435697b7908c794ba465d59c19927092db95d2a9990510bb853134",
+                            "pageIndex": 0,
+                            "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                            "locator": {
+                              "offset": 99
+                            },
+                            "excerpt": "Avast Premium Security | Online Security \u2014 Up to 10 Devices"
+                          },
+                          {
+                            "format": "NATIVE_PUBLIC_PAGE_V1",
+                            "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/avast-premium/pages.json",
+                            "sha256": "5a22cca639435697b7908c794ba465d59c19927092db95d2a9990510bb853134",
+                            "pageIndex": 0,
+                            "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                            "locator": {
+                              "offset": 969357
+                            },
+                            "excerpt": "\u00a9 2026 Gen Digital Inc. All rights reserved."
+                          }
+                        ]
+                      }
+                    },
+                    "targetService": "avast-premium",
+                    "targetServiceName": "Avast Premium",
+                    "matchedAuthority": "CONFIGURED_REVIEWED"
+                  },
+                  "geo": {
+                    "version": 1,
+                    "occurrenceId": "6617349e2f7e5ad28e9a6d95de63de717517d7f2581af3f7927af5d438773d2a",
+                    "targetCountry": "US",
+                    "bodyHash": "c84ddb921fe8366e02f5cef4dbcbbb39528f8c22bf0402a1839f271029401190",
+                    "sourceUrl": "https://www.avast.com/en-us/premium-security",
+                    "sourceReference": {
+                      "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                      "hash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                      "sequence": 1,
+                      "pointer": "/result/attempts/0/page"
+                    },
+                    "classification": "G2",
+                    "reasons": [
+                      "EXECUTION_NOT_ESTABLISHED",
+                      "BRACKET_NOT_ESTABLISHED",
+                      "GEO_COUNTRY_MISMATCH",
+                      "BEFORE_RAW_GEO_PROOF_INVALID",
+                      "AFTER_RAW_GEO_PROOF_INVALID",
+                      "EXACT_RESPONSE_RECEIPT_MISSING",
+                      "RESPONSE_NOT_BRACKETED_IN_RECEIPT_ORDER",
+                      "RECEIPT_BINDING_CONTINUITY_MISSING",
+                      "ATTEMPT_PAGE_BODY_MISMATCH"
+                    ],
+                    "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76",
+                    "executionReference": {
+                      "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/avast-premium-price-US/direct-acquisitions/direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76/journal/record-00000001.json",
+                      "recordHash": "326310fe6239ccd5a9be0309147c57b3029f1126838204c92704c1a90dbcd0ab",
+                      "pointer": "/result/attempts/0"
+                    },
+                    "geoCountry": null,
+                    "transport": {
+                      "method": "DIRECT_PUBLIC"
+                    },
+                    "receiptIndexes": {
+                      "before": -1,
+                      "response": -1,
+                      "after": -1
+                    },
+                    "geoProofHashes": {
+                      "before": null,
+                      "after": null
+                    },
+                    "checkedAt": null,
+                    "meaning": "Offer observed in a provider response acquired through the independently bracket-verified target-country route; NOT a provider declaration of offer country.",
+                    "limitation": "Same observed exit before/after on one approved sticky binding; not cryptographic per-hop proof; transient unobserved rotations cannot be excluded."
+                  },
+                  "bindings": [
+                    {
+                      "bindingId": "binding:ba84900c9805add040f22887d59fe9cba6c0ad899e478abf78a4d7cd1fa93067",
+                      "candidateId": "candidate:875b7ba43d615f0d8ea81650fc7e920fc4ed35e0c20a8ffb67d948f32f364b87",
+                      "factId": "fact:96ed96822a102cbc579dcb3bef2db1ae4b7558e556ca36b7025f73579392e02f",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:8133c3766418ae34ad53ea76ae83ea4bc6f6fe1f7ccfe6cc904ca9ab8423a86f",
+                      "candidateId": "candidate:66eb11d9fd38734bdcec1256781adb0e0256d62c151101ab15fcdfa3de75c7d2",
+                      "factId": "fact:ffc1ae2870d107fc158702b35b525ab8b9bfbd92eab555f11bad5c6d560dfab2",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:b3af95bb3bed4b7fa817cd71a32ddfd484ab3ea2637ffd7c8d5ab184d6806c0b",
+                      "candidateId": "candidate:342d80b66a0496a6b41347ce9adabea57b9ae7f2ff30ccbf91298201018fa068",
+                      "factId": "fact:d99befd21ed8e007b92472e7f8bbb2a6541ed65249fd97ee77110b3985a6b862",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:2e41a02b87b61181b7515d42fed25584955a27c7d8991a9430a4e98126141bcf",
+                      "candidateId": "candidate:e09b458d899853525c329af7a996a3772f5311447b894e6589075f5880252c70",
+                      "factId": "fact:b96465fa3fc949033b5fddae43b6f80e986bf709ae2c06c8e9678fb37b48babe",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:984c2db93df1c9ae4f6e8173521ca2a3d23ee9c521388e1ec47ce09577b5b685",
+                      "candidateId": "candidate:38e3b6f3bb63742d7bff41ec6a87e261abd9268b6c65db20d0e17828af0eeee0",
+                      "factId": "fact:5ccea01b9897699dec59aafbdac4228a1b919732e715df4b3e97acfd8b000a02",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:cf1ce1d9c7ef26138da5eb9828a335617df46a58d1f8c851a2861e70decfc151",
+                      "candidateId": "candidate:cb84e75f7b7c136c4b8d31b88065a8999963b6a0586c56d13eed3f5cbe8a3af3",
+                      "factId": "fact:322f45ceb645c3c7164ccf5de143624fe68f1e01d3e31e79f83d735502acd6d5",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:f19a94f574514ff44baf7851ad9708ce59c93a983917252a4560d4353481049d",
+                      "candidateId": "candidate:f41cf12482954536689a6570c82571617d91e17fd58156afef04d965ceecde78",
+                      "factId": "fact:b86d802bfd43c181dea9356a408cc2826e66043bf02dda734b80e500151538f5",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:c2943fba431f8adb63d854e8e187e61d57db4ee5b9459716bdd6f49bc1800b6f",
+                      "candidateId": "candidate:202d4c09b4775ad36d7c78aca1163acdcf638a0943296e07b12f08300fb6fd3b",
+                      "factId": "fact:2075401fde15afefad21563f01388b2df273471531fe5665f6c1b74c95ca62ef",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:a4b03399d485c57ada16d7e38f44329d2cb1239da30d668a017612b4a62cdbeb",
+                      "candidateId": "candidate:77db6eee15ab08edf22f3b3ecfb0ea5448888820256781f8aace908ff6b2a107",
+                      "factId": "fact:9204b2d04a3ae749d2dd6b471b609f4f56d1f5a5be5275f1e12e0a9fc217bab5",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:7a228df78f45c76ecf4163d7e528d8f3e04c9ed0107c6232e1d3496fdfd0d693",
+                      "candidateId": "candidate:905590e855233e03c7822a30eacb3a67fd5d28a3bea41f74b58d2055b19547c5",
+                      "factId": "fact:ef212c9644a4dc3ec89a173931d540f658cd8bc3483a50e7608d8ba610e7e66a",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    },
+                    {
+                      "bindingId": "binding:bd2505fee61abf413120b8cebfcfb7d93b77b7d2b95a127a279d0c6ff808642b",
+                      "candidateId": "candidate:3b6f34e0fa6657c95813d4cc123e3e0caaf14a178682d849bee70e2de07f3b40",
+                      "factId": "fact:2d751e3a830395798671f8587ff9554cbde7e8d65a73b98e4093c0faf8dbde25",
+                      "attemptId": "direct-9b14e772-b8e9-42a7-9d50-ebc2ff398e76"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "conflicts": {
+            "status": "CLEAR",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[5]/div[3]/div[1]/div[1]/div[5]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "CLEAR",
+                "blocker": null,
+                "evidence": {
+                  "reasons": [],
+                  "commercialReasons": [],
+                  "marketConflicts": [],
+                  "competingMonetaryEvidence": []
+                }
+              },
+              {
+                "path": "$/html[2]/body[3]/div[5]/div[1]/div[29]/div[1]/div[1]/div[1]/div[7]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[1]/div[1]/div[3]/div[2]/div[13]/div[3]",
+                "status": "CLEAR",
+                "blocker": null,
+                "evidence": {
+                  "reasons": [],
+                  "commercialReasons": [],
+                  "marketConflicts": [],
+                  "competingMonetaryEvidence": []
+                }
+              }
+            ]
+          }
+        },
+        "blockers": [],
+        "status": "V2_VERIFIED",
+        "productionPromotion": false
+      }
+    },
+    {
+      "service": "klarna-memberships",
+      "market": "US",
+      "monthlyPlanId": "monthly-plan:7f1872b6d2e06f2c717936fce88e94a7e66c2e52f6a2548c3b6186e9828db64e",
+      "amount": "10",
+      "currency": "USD",
+      "sourceHashes": [
+        "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c"
+      ],
+      "factIds": [
+        "fact:8bb929999549be9a0c857002178bb37aa5ee84f81ede8e2a6743f86dcae0c6e1"
+      ],
+      "status": "REJECTED_INVALID_PRICE_INTERPRETATION",
+      "reason": "BENEFIT_CREDIT_IS_NOT_SUBSCRIPTION_PRICE",
+      "source": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/pricing/adaptive-state.json",
+      "sourceHash": "1c7a8f6be85ce7183ffd294f9a41f6c190e8f65cf067add8c2da7b3899a8764e",
+      "target": "klarna-memberships-price-US",
+      "originalVerified": {
+        "version": "V2_FIELD_VERIFICATION_V1",
+        "billingInterval": {
+          "value": 1,
+          "unit": "MONTH",
+          "normalized": "P1M",
+          "originalWording": "Laundryheap $10 monthly credit, every month",
+          "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+          "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c",
+          "recurringPresentation": true,
+          "basis": "EXISTING_EXPLICIT_CALENDAR_MONTH_CLASSIFICATION"
+        },
+        "billingIntervalEvidence": [
+          {
+            "value": 1,
+            "unit": "MONTH",
+            "normalized": "P1M",
+            "originalWording": "Laundryheap $10 monthly credit, every month",
+            "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+            "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c",
+            "recurringPresentation": true,
+            "basis": "EXISTING_EXPLICIT_CALENDAR_MONTH_CLASSIFICATION"
+          }
+        ],
+        "cadenceFamily": "MONTHLY_FAMILY",
+        "monthlyPlanId": "monthly-plan:7f1872b6d2e06f2c717936fce88e94a7e66c2e52f6a2548c3b6186e9828db64e",
+        "canonicalKey": [
+          "US",
+          "klarna-memberships",
+          {
+            "plan": "Laundryheap"
+          }
+        ],
+        "market": "US",
+        "service": "klarna-memberships",
+        "plan": "Laundryheap",
+        "providerPlanId": null,
+        "amount": "10",
+        "currency": "USD",
+        "commercialType": "RECURRING_MONTHLY",
+        "evidenceLevels": [
+          4
+        ],
+        "candidateIds": [
+          "candidate:7d427b65eddfa64411ec5157ec520e671bd0cd3ead96378e752bbc57cb14d80b"
+        ],
+        "factIds": [
+          "fact:8bb929999549be9a0c857002178bb37aa5ee84f81ede8e2a6743f86dcae0c6e1"
+        ],
+        "sourceHashes": [
+          "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c"
+        ],
+        "verifiedWitnessCandidateIds": [
+          "candidate:7d427b65eddfa64411ec5157ec520e671bd0cd3ead96378e752bbc57cb14d80b"
+        ],
+        "fields": {
+          "service": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "authority": {
+                    "status": "CONFIGURED_REVIEWED",
+                    "hostname": "www.klarna.com",
+                    "provider": "Klarna Memberships",
+                    "sourceType": "OFFICIAL_PROVIDER",
+                    "sourceUrl": "https://www.klarna.com/us/memberships/",
+                    "checkedAt": "2026-09-21T12:46:12.993Z",
+                    "ownershipReview": {
+                      "bindingType": "DIRECT_PROVIDER",
+                      "authorityScope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET",
+                      "basis": "OFFICIAL_SERVICE_SITE",
+                      "review": {
+                        "status": "REVIEWED",
+                        "checkedAt": "2026-09-21T12:46:12.993Z",
+                        "method": "PROVIDER_PAGE_OWNERSHIP_REVIEW",
+                        "reviewer": "CODEX_OFFLINE_INDIVIDUAL_REVIEW",
+                        "reason": "Klarna's own membership selection interface names its subscription tiers and explicitly distinguishes third-party protection providers. Reviewed retained provider content and original candidate context, not workbook QA alone. No market, price, sibling-host or qualification inheritance.",
+                        "candidateReconciliation": {
+                          "sourceUrl": "https://www.klarna.com/",
+                          "reason": "Individual retained-source review selected www.klarna.com as the exact evidenced host. Workbook homepage remains discovery guidance; only this named host is approved."
+                        }
+                      },
+                      "evidence": [
+                        {
+                          "format": "NATIVE_PUBLIC_PAGE_V1",
+                          "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/klarna-memberships/pages.json",
+                          "sha256": "79a7ae9200ba5dd3c8c7d3778625eef795f755ed771efdf22d45dd4c0791f695",
+                          "pageIndex": 1,
+                          "sourceUrl": "https://www.klarna.com/us/memberships/",
+                          "locator": {
+                            "offset": 13358
+                          },
+                          "excerpt": "Klarna Memberships | More benefits"
+                        },
+                        {
+                          "format": "NATIVE_PUBLIC_PAGE_V1",
+                          "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/klarna-memberships/pages.json",
+                          "sha256": "79a7ae9200ba5dd3c8c7d3778625eef795f755ed771efdf22d45dd4c0791f695",
+                          "pageIndex": 1,
+                          "sourceUrl": "https://www.klarna.com/us/memberships/",
+                          "locator": {
+                            "offset": 527443
+                          },
+                          "excerpt": "Get 30% off Klarna Premium or Max for 3 months."
+                        },
+                        {
+                          "format": "NATIVE_PUBLIC_PAGE_V1",
+                          "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/klarna-memberships/pages.json",
+                          "sha256": "79a7ae9200ba5dd3c8c7d3778625eef795f755ed771efdf22d45dd4c0791f695",
+                          "pageIndex": 1,
+                          "sourceUrl": "https://www.klarna.com/us/memberships/",
+                          "locator": {
+                            "offset": 527682
+                          },
+                          "excerpt": "Get up to 2% cashback on every debit purchase. Plus, enjoy subscriptions, travel and purchase protection, and exclusive deals\u00b9\u2014all worth up to $5,000 a year.\u00b2"
+                        },
+                        {
+                          "format": "NATIVE_PUBLIC_PAGE_V1",
+                          "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/klarna-memberships/pages.json",
+                          "sha256": "79a7ae9200ba5dd3c8c7d3778625eef795f755ed771efdf22d45dd4c0791f695",
+                          "pageIndex": 1,
+                          "sourceUrl": "https://www.klarna.com/us/memberships/",
+                          "locator": {
+                            "offset": 735926
+                          },
+                          "excerpt": " for terms and conditions for subscriptions based on your membership."
+                        },
+                        {
+                          "format": "NATIVE_PUBLIC_PAGE_V1",
+                          "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/klarna-memberships/pages.json",
+                          "sha256": "79a7ae9200ba5dd3c8c7d3778625eef795f755ed771efdf22d45dd4c0791f695",
+                          "pageIndex": 1,
+                          "sourceUrl": "https://www.klarna.com/us/memberships/",
+                          "locator": {
+                            "offset": 736534
+                          },
+                          "excerpt": "Protection plans provided by Cover Genius Insurance Services, LLC and administered via our XCover platform. Insurance coverages are subject to the terms, limitations and exclusions in the plan. "
+                        }
+                      ]
+                    }
+                  },
+                  "targetService": "klarna-memberships",
+                  "targetServiceName": "Klarna Memberships",
+                  "matchedAuthority": "CONFIGURED_REVIEWED"
+                }
+              }
+            ]
+          },
+          "market": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "version": 2,
+                  "requestedMarket": "US",
+                  "marketApplicabilityEstablished": true,
+                  "productOwnershipEstablished": true,
+                  "marketSourceType": "provider-page",
+                  "marketEvidenceType": "PROVIDER_DECLARED",
+                  "geoEvidence": [
+                    {
+                      "version": 1,
+                      "occurrenceId": "72b84baf5959c2678c90d9a6d6add1f68154abdc682be59c046a966627f488c3",
+                      "targetCountry": "US",
+                      "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c",
+                      "sourceUrl": "https://www.klarna.com/us/memberships/",
+                      "sourceReference": {
+                        "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/klarna-memberships-price-US/direct-acquisitions/direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2/journal/record-00000001.json",
+                        "hash": "084a979b6579b3a7bec5170f4b0f37f6d0ada2cc40365df945404babbcbd3f60",
+                        "sequence": 1,
+                        "pointer": "/result/attempts/0/page"
+                      },
+                      "classification": "G2",
+                      "reasons": [
+                        "EXECUTION_NOT_ESTABLISHED",
+                        "BRACKET_NOT_ESTABLISHED",
+                        "GEO_COUNTRY_MISMATCH",
+                        "BEFORE_RAW_GEO_PROOF_INVALID",
+                        "AFTER_RAW_GEO_PROOF_INVALID",
+                        "EXACT_RESPONSE_RECEIPT_MISSING",
+                        "RESPONSE_NOT_BRACKETED_IN_RECEIPT_ORDER",
+                        "RECEIPT_BINDING_CONTINUITY_MISSING",
+                        "ATTEMPT_PAGE_BODY_MISMATCH"
+                      ],
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2",
+                      "executionReference": {
+                        "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/klarna-memberships-price-US/direct-acquisitions/direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2/journal/record-00000001.json",
+                        "recordHash": "084a979b6579b3a7bec5170f4b0f37f6d0ada2cc40365df945404babbcbd3f60",
+                        "pointer": "/result/attempts/0"
+                      },
+                      "geoCountry": null,
+                      "transport": {
+                        "method": "DIRECT_PUBLIC"
+                      },
+                      "receiptIndexes": {
+                        "before": -1,
+                        "response": -1,
+                        "after": -1
+                      },
+                      "geoProofHashes": {
+                        "before": null,
+                        "after": null
+                      },
+                      "checkedAt": null,
+                      "meaning": "Offer observed in a provider response acquired through the independently bracket-verified target-country route; NOT a provider declaration of offer country.",
+                      "limitation": "Same observed exit before/after on one approved sticky binding; not cryptographic per-hop proof; transient unobserved rotations cannot be excluded."
+                    }
+                  ],
+                  "geoEvidenceMeaning": "Observed response market, not provider-declared offer applicability",
+                  "structuredCatalogApplicabilityRequired": false,
+                  "marketOwnerEvidence": [],
+                  "productOwnerEvidence": {
+                    "raw": "Laundryheap",
+                    "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]",
+                    "method": "HEADING_CONTAINER"
+                  },
+                  "conflictingMarketEvidence": [],
+                  "multiCountrySource": false,
+                  "sharedSourceMarkets": [
+                    "US"
+                  ],
+                  "classes": [
+                    "EXPLICIT_PRODUCT_OWNER",
+                    "PROVIDER_DECLARED_PAGE"
+                  ],
+                  "blockingReasons": [],
+                  "providerPageEvidence": [
+                    {
+                      "version": 1,
+                      "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c",
+                      "pattern": "CANONICAL_ROUTE_AND_DOCUMENT_LOCALE",
+                      "country": "US",
+                      "scopePaths": [
+                        "$"
+                      ],
+                      "fields": [
+                        {
+                          "path": "$/html[0]/head[0]/link[101]/attributes/href",
+                          "value": "https://www.klarna.com/us/memberships/",
+                          "raw": "<link href=\"https://www.klarna.com/us/memberships/\" rel=\"canonical\"/>",
+                          "span": {
+                            "start": 13877,
+                            "end": 13946,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        },
+                        {
+                          "path": "$/html[0]/attributes/lang",
+                          "value": "en-US",
+                          "raw": "<html lang=\"en-US\" xmlns:fb=\"http://www.facebook.com/2008/fbml\">",
+                          "span": {
+                            "start": 15,
+                            "end": 79,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        },
+                        {
+                          "path": "$/html[0]/head[0]/meta[97]/attributes/content",
+                          "value": "en_US",
+                          "raw": "<meta content=\"en_US\" prefix=\"og: http://ogp.me/ns#\" property=\"og:locale\"/>",
+                          "span": {
+                            "start": 13442,
+                            "end": 13517,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        }
+                      ],
+                      "sourceOccurrences": [
+                        {
+                          "id": "72b84baf5959c2678c90d9a6d6add1f68154abdc682be59c046a966627f488c3",
+                          "url": "https://www.klarna.com/us/memberships/"
+                        }
+                      ],
+                      "status": "ESTABLISHED",
+                      "reasons": [],
+                      "evidenceId": "provider-market:30f1d2a4f75fc36619b7a8cfb955a55496f2106c3efd2818377e32243b20d8cf"
+                    },
+                    {
+                      "version": 1,
+                      "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c",
+                      "pattern": "EXACT_SELF_ALTERNATE_AND_CANONICAL_COUNTRY_ROUTE",
+                      "country": "US",
+                      "scopePaths": [
+                        "$"
+                      ],
+                      "fields": [
+                        {
+                          "path": "$/html[0]/head[0]/link[118]/attributes/href",
+                          "value": "https://www.klarna.com/us/memberships/",
+                          "raw": "<link href=\"https://www.klarna.com/us/memberships/\" hrefLang=\"en-US\" rel=\"alternate\"/>",
+                          "span": {
+                            "start": 15331,
+                            "end": 15417,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        },
+                        {
+                          "path": "$/html[0]/head[0]/link[118]/attributes/hreflang",
+                          "value": "en-US",
+                          "raw": "<link href=\"https://www.klarna.com/us/memberships/\" hrefLang=\"en-US\" rel=\"alternate\"/>",
+                          "span": {
+                            "start": 15331,
+                            "end": 15417,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        },
+                        {
+                          "path": "$/html[0]/head[0]/link[101]/attributes/href",
+                          "value": "https://www.klarna.com/us/memberships/",
+                          "raw": "<link href=\"https://www.klarna.com/us/memberships/\" rel=\"canonical\"/>",
+                          "span": {
+                            "start": 13877,
+                            "end": 13946,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        },
+                        {
+                          "path": "$/html[0]/attributes/lang",
+                          "value": "en-US",
+                          "raw": "<html lang=\"en-US\" xmlns:fb=\"http://www.facebook.com/2008/fbml\">",
+                          "span": {
+                            "start": 15,
+                            "end": 79,
+                            "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                          }
+                        }
+                      ],
+                      "sourceOccurrences": [
+                        {
+                          "id": "72b84baf5959c2678c90d9a6d6add1f68154abdc682be59c046a966627f488c3",
+                          "url": "https://www.klarna.com/us/memberships/"
+                        }
+                      ],
+                      "status": "ESTABLISHED",
+                      "reasons": [],
+                      "evidenceId": "provider-market:970b152ff3ac8fb156ce273b676dcdb31c460b46bff9f69e9b99c092c7e3516f"
+                    }
+                  ],
+                  "providerPageDiagnostics": [],
+                  "providerOwnerEvidence": [],
+                  "providerConflictingEvidence": [],
+                  "geoConflictingEvidence": []
+                }
+              }
+            ]
+          },
+          "plan": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "product": "Laundryheap",
+                  "owner": {
+                    "raw": "Laundryheap",
+                    "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]",
+                    "method": "HEADING_CONTAINER"
+                  }
+                }
+              }
+            ]
+          },
+          "amount": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "raw": "$10",
+                  "value": "10",
+                  "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]"
+                }
+              }
+            ]
+          },
+          "currency": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "raw": "$",
+                  "value": "USD",
+                  "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                  "resolution": {
+                    "kind": "PROVIDER_SELECTED_LOCAL_DENOMINATION",
+                    "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c",
+                    "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                    "displayToken": "$",
+                    "currency": "USD",
+                    "provider": {
+                      "country": "US",
+                      "locale": "en-US",
+                      "proof": [
+                        {
+                          "path": "$/html[0]",
+                          "span": [
+                            15,
+                            79
+                          ],
+                          "attributes": {
+                            "lang": "en-US",
+                            "xmlns:fb": "http://www.facebook.com/2008/fbml"
+                          }
+                        },
+                        {
+                          "version": 1,
+                          "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c",
+                          "pattern": "CANONICAL_ROUTE_AND_DOCUMENT_LOCALE",
+                          "country": "US",
+                          "scopePaths": [
+                            "$"
+                          ],
+                          "fields": [
+                            {
+                              "path": "$/html[0]/head[0]/link[101]/attributes/href",
+                              "value": "https://www.klarna.com/us/memberships/",
+                              "raw": "<link href=\"https://www.klarna.com/us/memberships/\" rel=\"canonical\"/>",
+                              "span": {
+                                "start": 13877,
+                                "end": 13946,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            },
+                            {
+                              "path": "$/html[0]/attributes/lang",
+                              "value": "en-US",
+                              "raw": "<html lang=\"en-US\" xmlns:fb=\"http://www.facebook.com/2008/fbml\">",
+                              "span": {
+                                "start": 15,
+                                "end": 79,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            },
+                            {
+                              "path": "$/html[0]/head[0]/meta[97]/attributes/content",
+                              "value": "en_US",
+                              "raw": "<meta content=\"en_US\" prefix=\"og: http://ogp.me/ns#\" property=\"og:locale\"/>",
+                              "span": {
+                                "start": 13442,
+                                "end": 13517,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            }
+                          ],
+                          "sourceOccurrences": [
+                            {
+                              "id": "72b84baf5959c2678c90d9a6d6add1f68154abdc682be59c046a966627f488c3",
+                              "url": "https://www.klarna.com/us/memberships/"
+                            }
+                          ],
+                          "status": "ESTABLISHED",
+                          "reasons": [],
+                          "evidenceId": "provider-market:30f1d2a4f75fc36619b7a8cfb955a55496f2106c3efd2818377e32243b20d8cf"
+                        },
+                        {
+                          "version": 1,
+                          "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c",
+                          "pattern": "EXACT_SELF_ALTERNATE_AND_CANONICAL_COUNTRY_ROUTE",
+                          "country": "US",
+                          "scopePaths": [
+                            "$"
+                          ],
+                          "fields": [
+                            {
+                              "path": "$/html[0]/head[0]/link[118]/attributes/href",
+                              "value": "https://www.klarna.com/us/memberships/",
+                              "raw": "<link href=\"https://www.klarna.com/us/memberships/\" hrefLang=\"en-US\" rel=\"alternate\"/>",
+                              "span": {
+                                "start": 15331,
+                                "end": 15417,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            },
+                            {
+                              "path": "$/html[0]/head[0]/link[118]/attributes/hreflang",
+                              "value": "en-US",
+                              "raw": "<link href=\"https://www.klarna.com/us/memberships/\" hrefLang=\"en-US\" rel=\"alternate\"/>",
+                              "span": {
+                                "start": 15331,
+                                "end": 15417,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            },
+                            {
+                              "path": "$/html[0]/head[0]/link[101]/attributes/href",
+                              "value": "https://www.klarna.com/us/memberships/",
+                              "raw": "<link href=\"https://www.klarna.com/us/memberships/\" rel=\"canonical\"/>",
+                              "span": {
+                                "start": 13877,
+                                "end": 13946,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            },
+                            {
+                              "path": "$/html[0]/attributes/lang",
+                              "value": "en-US",
+                              "raw": "<html lang=\"en-US\" xmlns:fb=\"http://www.facebook.com/2008/fbml\">",
+                              "span": {
+                                "start": 15,
+                                "end": 79,
+                                "coordinate": "UTF16_RETAINED_BODY_NEW_ANALYSIS"
+                              }
+                            }
+                          ],
+                          "sourceOccurrences": [
+                            {
+                              "id": "72b84baf5959c2678c90d9a6d6add1f68154abdc682be59c046a966627f488c3",
+                              "url": "https://www.klarna.com/us/memberships/"
+                            }
+                          ],
+                          "status": "ESTABLISHED",
+                          "reasons": [],
+                          "evidenceId": "provider-market:970b152ff3ac8fb156ce273b676dcdb31c460b46bff9f69e9b99c092c7e3516f"
+                        }
+                      ]
+                    },
+                    "algorithm": "UNIQUE_INTL_LOCALE_CURRENCY_SYMBOL",
+                    "icuVersion": "78.3"
+                  }
+                }
+              }
+            ]
+          },
+          "monthlyCadence": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": [
+                  {
+                    "kind": "OWNING_STRUCTURE",
+                    "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]",
+                    "span": [
+                      998116,
+                      998244
+                    ],
+                    "raw": "Laundryheap $10 monthly credit, every month",
+                    "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c"
+                  },
+                  {
+                    "kind": "MONETARY_CLAUSE",
+                    "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                    "raw": "Laundryheap $10 monthly credit, every month",
+                    "fields": {},
+                    "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c"
+                  }
+                ]
+              }
+            ]
+          },
+          "ordinaryPriceRole": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "role": {
+                    "role": "REGULAR_BASE",
+                    "basis": "ORDINARY_MONTHLY_PRESENTATION_WITHOUT_EXCLUSION"
+                  },
+                  "commercialEvidence": [
+                    {
+                      "kind": "OWNING_STRUCTURE",
+                      "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]",
+                      "span": [
+                        998116,
+                        998244
+                      ],
+                      "raw": "Laundryheap $10 monthly credit, every month",
+                      "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c"
+                    },
+                    {
+                      "kind": "MONETARY_CLAUSE",
+                      "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                      "raw": "Laundryheap $10 monthly credit, every month",
+                      "fields": {},
+                      "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c"
+                    }
+                  ],
+                  "conditions": []
+                }
+              }
+            ]
+          },
+          "ownership": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "owner": {
+                    "raw": "Laundryheap",
+                    "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]",
+                    "method": "HEADING_CONTAINER"
+                  },
+                  "pricePath": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]"
+                }
+              }
+            ]
+          },
+          "provenance": {
+            "status": "VERIFIED",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                "status": "VERIFIED",
+                "blocker": null,
+                "evidence": {
+                  "intact": true,
+                  "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c",
+                  "service": "klarna-memberships",
+                  "serviceEstablished": true,
+                  "bindingEstablished": true,
+                  "sourceOccurrenceId": "72b84baf5959c2678c90d9a6d6add1f68154abdc682be59c046a966627f488c3",
+                  "sourceUrl": "https://www.klarna.com/us/memberships/",
+                  "record": {
+                    "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/klarna-memberships-price-US/direct-acquisitions/direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2/journal/record-00000001.json",
+                    "hash": "084a979b6579b3a7bec5170f4b0f37f6d0ada2cc40365df945404babbcbd3f60",
+                    "sequence": 1,
+                    "pointer": "/result/attempts/0/page"
+                  },
+                  "targetReference": {
+                    "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/klarna-memberships-price-US/direct-acquisitions/direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2/journal/record-00000001.json",
+                    "hash": "084a979b6579b3a7bec5170f4b0f37f6d0ada2cc40365df945404babbcbd3f60",
+                    "sequence": 1,
+                    "pointer": "/target"
+                  },
+                  "serviceEvidence": {
+                    "authority": {
+                      "status": "CONFIGURED_REVIEWED",
+                      "hostname": "www.klarna.com",
+                      "provider": "Klarna Memberships",
+                      "sourceType": "OFFICIAL_PROVIDER",
+                      "sourceUrl": "https://www.klarna.com/us/memberships/",
+                      "checkedAt": "2026-09-21T12:46:12.993Z",
+                      "ownershipReview": {
+                        "bindingType": "DIRECT_PROVIDER",
+                        "authorityScope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET",
+                        "basis": "OFFICIAL_SERVICE_SITE",
+                        "review": {
+                          "status": "REVIEWED",
+                          "checkedAt": "2026-09-21T12:46:12.993Z",
+                          "method": "PROVIDER_PAGE_OWNERSHIP_REVIEW",
+                          "reviewer": "CODEX_OFFLINE_INDIVIDUAL_REVIEW",
+                          "reason": "Klarna's own membership selection interface names its subscription tiers and explicitly distinguishes third-party protection providers. Reviewed retained provider content and original candidate context, not workbook QA alone. No market, price, sibling-host or qualification inheritance.",
+                          "candidateReconciliation": {
+                            "sourceUrl": "https://www.klarna.com/",
+                            "reason": "Individual retained-source review selected www.klarna.com as the exact evidenced host. Workbook homepage remains discovery guidance; only this named host is approved."
+                          }
+                        },
+                        "evidence": [
+                          {
+                            "format": "NATIVE_PUBLIC_PAGE_V1",
+                            "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/klarna-memberships/pages.json",
+                            "sha256": "79a7ae9200ba5dd3c8c7d3778625eef795f755ed771efdf22d45dd4c0791f695",
+                            "pageIndex": 1,
+                            "sourceUrl": "https://www.klarna.com/us/memberships/",
+                            "locator": {
+                              "offset": 13358
+                            },
+                            "excerpt": "Klarna Memberships | More benefits"
+                          },
+                          {
+                            "format": "NATIVE_PUBLIC_PAGE_V1",
+                            "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/klarna-memberships/pages.json",
+                            "sha256": "79a7ae9200ba5dd3c8c7d3778625eef795f755ed771efdf22d45dd4c0791f695",
+                            "pageIndex": 1,
+                            "sourceUrl": "https://www.klarna.com/us/memberships/",
+                            "locator": {
+                              "offset": 527443
+                            },
+                            "excerpt": "Get 30% off Klarna Premium or Max for 3 months."
+                          },
+                          {
+                            "format": "NATIVE_PUBLIC_PAGE_V1",
+                            "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/klarna-memberships/pages.json",
+                            "sha256": "79a7ae9200ba5dd3c8c7d3778625eef795f755ed771efdf22d45dd4c0791f695",
+                            "pageIndex": 1,
+                            "sourceUrl": "https://www.klarna.com/us/memberships/",
+                            "locator": {
+                              "offset": 527682
+                            },
+                            "excerpt": "Get up to 2% cashback on every debit purchase. Plus, enjoy subscriptions, travel and purchase protection, and exclusive deals\u00b9\u2014all worth up to $5,000 a year.\u00b2"
+                          },
+                          {
+                            "format": "NATIVE_PUBLIC_PAGE_V1",
+                            "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/klarna-memberships/pages.json",
+                            "sha256": "79a7ae9200ba5dd3c8c7d3778625eef795f755ed771efdf22d45dd4c0791f695",
+                            "pageIndex": 1,
+                            "sourceUrl": "https://www.klarna.com/us/memberships/",
+                            "locator": {
+                              "offset": 735926
+                            },
+                            "excerpt": " for terms and conditions for subscriptions based on your membership."
+                          },
+                          {
+                            "format": "NATIVE_PUBLIC_PAGE_V1",
+                            "path": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921/services/klarna-memberships/pages.json",
+                            "sha256": "79a7ae9200ba5dd3c8c7d3778625eef795f755ed771efdf22d45dd4c0791f695",
+                            "pageIndex": 1,
+                            "sourceUrl": "https://www.klarna.com/us/memberships/",
+                            "locator": {
+                              "offset": 736534
+                            },
+                            "excerpt": "Protection plans provided by Cover Genius Insurance Services, LLC and administered via our XCover platform. Insurance coverages are subject to the terms, limitations and exclusions in the plan. "
+                          }
+                        ]
+                      }
+                    },
+                    "targetService": "klarna-memberships",
+                    "targetServiceName": "Klarna Memberships",
+                    "matchedAuthority": "CONFIGURED_REVIEWED"
+                  },
+                  "geo": {
+                    "version": 1,
+                    "occurrenceId": "72b84baf5959c2678c90d9a6d6add1f68154abdc682be59c046a966627f488c3",
+                    "targetCountry": "US",
+                    "bodyHash": "9f7d7713bf704c63ff7ecac8f21c67056b6c75835d7b1886e1a137536f27db4c",
+                    "sourceUrl": "https://www.klarna.com/us/memberships/",
+                    "sourceReference": {
+                      "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/klarna-memberships-price-US/direct-acquisitions/direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2/journal/record-00000001.json",
+                      "hash": "084a979b6579b3a7bec5170f4b0f37f6d0ada2cc40365df945404babbcbd3f60",
+                      "sequence": 1,
+                      "pointer": "/result/attempts/0/page"
+                    },
+                    "classification": "G2",
+                    "reasons": [
+                      "EXECUTION_NOT_ESTABLISHED",
+                      "BRACKET_NOT_ESTABLISHED",
+                      "GEO_COUNTRY_MISMATCH",
+                      "BEFORE_RAW_GEO_PROOF_INVALID",
+                      "AFTER_RAW_GEO_PROOF_INVALID",
+                      "EXACT_RESPONSE_RECEIPT_MISSING",
+                      "RESPONSE_NOT_BRACKETED_IN_RECEIPT_ORDER",
+                      "RECEIPT_BINDING_CONTINUITY_MISSING",
+                      "ATTEMPT_PAGE_BODY_MISMATCH"
+                    ],
+                    "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2",
+                    "executionReference": {
+                      "path": ".savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-08eb702a35e3eeb4/replay/klarna-memberships-price-US/direct-acquisitions/direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2/journal/record-00000001.json",
+                      "recordHash": "084a979b6579b3a7bec5170f4b0f37f6d0ada2cc40365df945404babbcbd3f60",
+                      "pointer": "/result/attempts/0"
+                    },
+                    "geoCountry": null,
+                    "transport": {
+                      "method": "DIRECT_PUBLIC"
+                    },
+                    "receiptIndexes": {
+                      "before": -1,
+                      "response": -1,
+                      "after": -1
+                    },
+                    "geoProofHashes": {
+                      "before": null,
+                      "after": null
+                    },
+                    "checkedAt": null,
+                    "meaning": "Offer observed in a provider response acquired through the independently bracket-verified target-country route; NOT a provider declaration of offer country.",
+                    "limitation": "Same observed exit before/after on one approved sticky binding; not cryptographic per-hop proof; transient unobserved rotations cannot be excluded."
+                  },
+                  "bindings": [
+                    {
+                      "bindingId": "binding:99e2847903494a7e752709328259da0551732c7a29919fadc2ee713c14ffea2f",
+                      "candidateId": "candidate:8ab9aa9a3efb845b325f876e301e2750a5111763b3a558aab0a4e7ef6ca1860c",
+                      "factId": "fact:0f4451f5b676ae2a28f1b2fef03561ebb4ed8dd09b5e859ab05dc3e6181d4534",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:f1ff738bebfd4b88d1aed135524e6cf24799ea6b6a88b11efaa4efdcee719ce2",
+                      "candidateId": "candidate:e28ffe42b2f30f11a1d2e9efd4436228b0c0861c8e708c7db629114c814f5a37",
+                      "factId": "fact:6eb32dc3583d846c45b20ce05692f119590559e4aaad61f65a7c025ef92c8097",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:9c8f388ac5a3e487f1f1cb7b2042736286ff3c9fc1a1d40e163e838ac6a9ff0b",
+                      "candidateId": "candidate:d10bd3e7592388e9dd480258dc146021f699719214603532e0a0caf6bd3e1ba7",
+                      "factId": "fact:2e59e7af478daee11aba17fb5f45c3b1b63a074f769a188575b6524274f7da1b",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:fe2d41292069c5b4ea00158a31fd77b9fb624cd31ea15f268ef47a4d37c894cb",
+                      "candidateId": "candidate:094ec1accbb04fb39466a091a90230e91f9f6bec0b03149b3a679860a11151ad",
+                      "factId": "fact:63131f2817b8f4a334756c43145de3cebb4a3f2d587e1ec9bfce7430e6501ac8",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:38ad55085cf62c055e93edabb286feb6fd2a581009406b1c59ba8cdbc8042325",
+                      "candidateId": "candidate:a2e4d3109a780265da34d2a0f887d115cf0c805b292016b6e559998d4f267bc1",
+                      "factId": "fact:de7e8af2dc2afdaf58cb8e3991e391e45c01d29e7322229414692166674bcf8b",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:e0d50a34fc452ff7a9356e542f10ed4c3de8b3cd3f17ae52df9a782fe63d97ad",
+                      "candidateId": "candidate:b6907158184617b5ec3d7482f0a67f6d4d06bdbe2b2557f0af8e77e6bb1a3415",
+                      "factId": "fact:75068e724c8d77a9bf03c7b6c33ec6b3a0149b21fd54a13de9bb8b52b1620cac",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:ad805f76a5e7d7f93e903d54ff5832fd5fee37896e6753a7826fc72fb2105c5d",
+                      "candidateId": "candidate:f8842adc83fded21e1a5e2ef6ac2cd23b534a80c093b7891dd98dccdf3e1d2df",
+                      "factId": "fact:30db29eb7b6f4c6f7f3e1965adaa34a609f3947c7513d1699ce205214a65892f",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:6ec626a211e7bec4e7122a2aaa02a3ffd7763906c364701f0ebd44a9d147121c",
+                      "candidateId": "candidate:18f7eed6853ec12f9f5cbbbecb5b9fd87b3b7f9e9e203deed9acd2cd777e3bbc",
+                      "factId": "fact:fa7d75de3442511587f28b2b5fd7d0b98619e40155026cc1d7b93c2dc2515128",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:63db64739d179866a12c2b082b5c611b63f8d6aabdd71a0b81891ca93792975b",
+                      "candidateId": "candidate:36ceba4bf341ebcb75a03c7608d5b8a0d56dc6f3a1e49d1c32a533996125a476",
+                      "factId": "fact:433647e3e8190620946ae9f16f9c1fe9e442bca22660f2c2376f65c68ac69456",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:c9c9e07e01b29cc04bd2a20c3bb988d3e618d18e61b3b125152449ccf5cf8e6b",
+                      "candidateId": "candidate:93fe53b1bb8b1bbdbc5d1d68bb00456c1ec0c77d2407bbddc6872f18340e609a",
+                      "factId": "fact:49b1c7121fb937c549456cd1f4eaa8ec409ee476ccf2b0268f94c9d17ca26456",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:c567a16d35358ee122bcd14f9131921e1facd979ef981595d26570bb7d0b4db5",
+                      "candidateId": "candidate:5fd64e37e8a8a2fac8f9fb1cbda6f7fa6c7c76d4ec439717b6f42434c8fdbfbd",
+                      "factId": "fact:d5be31a1a8178cdfd70cbf4a572a42e7f4d4fb7fa0fdbd7ec349ee0d15b8a690",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:61581846599c1bb70e99c74c7953cf53a82591ce604041944ec4275c4434ed1e",
+                      "candidateId": "candidate:cc636bbcdaacd75a3cad19d18371de7f5e11cb3c12df61c94e274a83371314dd",
+                      "factId": "fact:0e9a473143a327731c6b47c09b5a5654a87756b4b55c118521524f064064bb69",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:20a80ed784a1b066dd1e78bca4154cbf8e40e5ce7219bc677588db854b6fa62a",
+                      "candidateId": "candidate:dd6b1c9e221079fd622571476016be69cb9677d47ebafbbb24482b520658bfcc",
+                      "factId": "fact:a2faf9192e34e87a0e50b3072848e0cb60a557309add4e4fa4fe45b82c8b5b1b",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:aa25ad2620bfaf78ca6d15d25a44f853db1e8946d25759dd7143faba0cbe59b6",
+                      "candidateId": "candidate:9e4e7a585b7a302a9ede43fca2f11bdfe4c4d26d8bd11dad44cc7d664150f663",
+                      "factId": "fact:fccc279a2cea6041a70c39d2180bea3de25f82c443eaf02b432370a5ed2a178a",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:9d0ce64ce4b1fbfb55796ce519bc0290fc6adbce74c550b1e7774d15d6b06de7",
+                      "candidateId": "candidate:206e477229093b50704788a4f3b2d23dda05c119e9f293f6c4a07a2acd201fb8",
+                      "factId": "fact:33d7036cb10fb63c36fdec59ba31267266508abffac0c383ee59af4d54db63b9",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:026bf251b5681fc6a49513722b783cfabf6a285a4ccdf42cc549f35c614aafcf",
+                      "candidateId": "candidate:8730a58aa7e682d05b60728b657c65a77f147f44e3760c1606f08a0901f3ad16",
+                      "factId": "fact:c64d31b2064d2923b222e9a8e8f43f37137396e65e868c54f6f06ebb04fb65dc",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:04d9a74c9712860ba192b8aab1a4b4219ba2766c241a6369380517056c5a38c6",
+                      "candidateId": "candidate:6d3427ebd66c013d951a9acb4cef202e97985cc5061ac10dbd8c55f2a8ab9f5e",
+                      "factId": "fact:bfc9b7cfd10f8ce3953c5494f512b9961349faeab19ab174d0f9ec8f1ec080d0",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:f33b43fdeb47a587259e8b77b5d9fbf1735a06f91ba18b4315a842ca3eb447bf",
+                      "candidateId": "candidate:cfb10c46b7eec1779538fd17b5dc2faee519dd6212a7f21f10d786630e1ca8c9",
+                      "factId": "fact:6d2619d377ff3366e37a2bae33cf020ce91e35cbed3febf727933567aebd0d9b",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:49991f0e78f68fdcfef0e8bca16e3e2033880934973faf636a05d5fbc2ab4a96",
+                      "candidateId": "candidate:0575a8e1f4d368c57e56e1c65f94f5b62378e41cedaaeca448d72fd411fc2e79",
+                      "factId": "fact:c712e13cb00cd591ed304844e2b27736664257575d99f638b189610179c80147",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:0d7cb226bef58c2a92d73e1f390b8102490062d5a27676fe5ff5b7ea933d48f4",
+                      "candidateId": "candidate:fb6ff9654b3c5979da636d3f4b89096713f86446b1a5d29db82baa25e0ff8ba7",
+                      "factId": "fact:3115c986f1826decb3c3133fec78fd5293a671c4a0633a749dbeda72d60fa392",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:83eb1935d33fe23771c0b97c68d611ebe0d2ab1c56b9e67fb4ae4640a90d6ed6",
+                      "candidateId": "candidate:7d427b65eddfa64411ec5157ec520e671bd0cd3ead96378e752bbc57cb14d80b",
+                      "factId": "fact:8bb929999549be9a0c857002178bb37aa5ee84f81ede8e2a6743f86dcae0c6e1",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:d760d92e6ea77b68cff938b126d0033951cf9a2a27576e8ecd98c3625057e4a8",
+                      "candidateId": "candidate:3218bee1bbcfb6e2c0361f49ffe9925815d9fdee44711edb3eda72778eb23c1e",
+                      "factId": "fact:3ea1b57b3f05b161c557ac11c05e76ad081c48731b875864b25644fe6a8d3721",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:4e66977b519bcdec0e62d020c5cb3aab8ae5e4c4f0b8bd8c288aa02ae776fc51",
+                      "candidateId": "candidate:35fabed5e65f4008f236c07533915444a77a220365f257666a88531f2f1e5994",
+                      "factId": "fact:4e1739cd082e9fabecf411efa9b6412a19f5aba1615e40cec46879edc1ab41be",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:48b6570a8680c37cf455cdad58bbf33751924454d5252fe74f8924fedde31971",
+                      "candidateId": "candidate:c6cbc1ea3ab345af5a9d64bf51ecb92155ae37aba479de5db00dc80b36d92b6c",
+                      "factId": "fact:6339c8eec64e5204b2b6bc2fd6dc970c9b94611c04fbe2fe31b529ac443bc9a6",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:35d9034a045d810bcedecfc7fc6c24579d9080683861b76e4bb4bc35f939fa1c",
+                      "candidateId": "candidate:373392cbbf20b88b5b6d7d4958c1e2044d7185de29c5d31839f9e24c5adf5488",
+                      "factId": "fact:934aed128c688aff28202f630e10f09d2cdcae988d5b081225c1f7daef09be08",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:4ccfa0ad589f592225f9607d1f651850d5a967b73ee5ec88873688cafb76bf43",
+                      "candidateId": "candidate:8abfc84232b81ec33a42dea716f935ea0af0ea8b5846703305c5e51ca35bf091",
+                      "factId": "fact:b30e98ff174a38ead03efdd9cf48364f0168170a1966349f91dc19d4bb7098a8",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:afecaa2923782ec22a8cfb59563cde371fd25f8a3875b17496e29e33c545b20a",
+                      "candidateId": "candidate:0e0a3c4a80d05898d0ba98ffa1b1e27383d97bbf818f95f011381e01f241af53",
+                      "factId": "fact:26619d8414d1caf9ac2ab90d52a77433440a29262335c845b4df7c7ead33c35a",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:6d63e12f2b823d685180812c3f1d5428e3966f33d57a6b4576fb20ab92c9b3e5",
+                      "candidateId": "candidate:3ff4e4c1b1c16ccfda60646171efd4f6733195c0012585ff45a847701d59a7c6",
+                      "factId": "fact:5c03daec35c66d6922da23f63159959700cf61b59f973ef0c85a804aa7f7811d",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:cd06d36297d093a50665a88933294ef75331f85c36e870b48637820122b26b55",
+                      "candidateId": "candidate:7b2d5a61c3ff15d5135742e6dffae1775a6bcfd31d623322ae59413d3487d088",
+                      "factId": "fact:3893757759b384bb75cdc3e535bd1950613fdec0801a43c8f81a781d7776b2f2",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:1d41b1e1076b25e7b9157869f4e222439505ce208a764fa6e3b3219b183db41a",
+                      "candidateId": "candidate:7eb196c17f78069948e761eddcc00c7b7e4a68a0aea3c57b2e3c0c15f310c312",
+                      "factId": "fact:4eb53bc10df2a3471118bfaed3bb4bef4fb76fe27ff1bbf6fb72fe9a663f948b",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:cb1b6b8ac24bb8168275cf47e6e2fc479f5a389cf5160a7dec1f9c800eb88fc9",
+                      "candidateId": "candidate:17aeaf4acad62d71ce05ba665f1b55f8e71fc8e03e1655ad9ffb9fecb4d68765",
+                      "factId": "fact:6e9f30bee3ace54b2a7bcab3ff1fceb239215d18619f0fb53def950305ba0cff",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:f26e11958ef018853f6b04f614d4d2684692765d45263796029fd02b462870db",
+                      "candidateId": "candidate:4fa79b84df829020898571e9340e74f67d836065affcf92ea2b8e95e08e4ba48",
+                      "factId": "fact:8bcb62c1d4621c023cef890b54070a52832a2c5c11c7667771f64380345510b1",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:471b44b5bbd6ffb91d037bc9667e6460d23cf1e087f484897ac13f54905c649e",
+                      "candidateId": "candidate:9894a0828830bb15949b6d6f7d6394a8575b8a83e6d98c84e282551cbe885f55",
+                      "factId": "fact:bee747e81d7c7f7e25dd5e880f77652cfb7e6666abee45bafbe16330f325760a",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:ae8de81c73c8e85e652cfceac594d27164c355564aa15101e6ae7a5335e50a4d",
+                      "candidateId": "candidate:a438e9457e5cfdd2d0945853354731ccb429e23f5b8cdf79c96fb3e8d12cfecd",
+                      "factId": "fact:ff9f96ca8ab7dfff000dbac9d5a67234cd3edd46d0ddf519fc40d210d51e1c52",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:f5431e55ee10e5ecccfef94207ba87ff1982a1c35c2c76b3b69fefe79bffe7a3",
+                      "candidateId": "candidate:9c08bdeb851b024249df968fb51b406e5ed6ca79c061aa699335a710641e961d",
+                      "factId": "fact:caabca98caa6eb99c8cba96b15cebc26f44a8b5bd764bb839660ab7057b854b4",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:185337426deddebfc494afbae4a1595747a440b6d63732199d852de6a14dcdfa",
+                      "candidateId": "candidate:32c30f328a01b5224abdf3d84ae24a35e5fe9151df74d1ba0da605efd9436e1e",
+                      "factId": "fact:74ec64ea4cc5725f322bcc69ce539231e587ce88c2b615512ca395981b4080a2",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:6ba1e0bc072ddfcb938debed16e01e55c90a434f040bf7000401fc475f3dc052",
+                      "candidateId": "candidate:131f2ef96187b09202aae96f087a3dd25b1680fe5d009d970f0023ea8a29684d",
+                      "factId": "fact:8b68370eedf5973f87c4de9097f2984d1bd20c5e5f0b7a18914b4ad65814e428",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:d8702625bd7cbf860cb7aba1cb276ed741ea4413ddc337111f232a6d450241fe",
+                      "candidateId": "candidate:b7aec5fc9d53a2bc7131c6db49e7f0a41d35fef3947b216d6a41f344cfd8a208",
+                      "factId": "fact:8140f0c559d1a398c88b51a733935374a99765f13975239b7a8bb32cd3beb35e",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:7dbd06f21078be17bbbd4cc3e96b2d5297f4671da6679cc030b33c84d4d1184f",
+                      "candidateId": "candidate:5e5d8efc37756fd06bdfc615f6761a59d3d5a92d4300fea67f2c950bde44cc7d",
+                      "factId": "fact:b37aa9ebb41e7db3168670bf0d0b700a326b4981a4c186408820a716ea29c691",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:9dc856c1c3ece360ad814c4225f5da35d6653f1ab72209c6b9b1c37e178f546b",
+                      "candidateId": "candidate:0df5847f978d35848bcfa3436883526fdf725784de1364ecd73ab6d4f6fcfc1a",
+                      "factId": "fact:073dd41ff698bc94d6b11d9875cfbbe8a425d21cc24a7232af78153b080b113f",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:171e0cfa51b58aa2ff045255bb320b1c3c98956f382e4573481a8dc58de33833",
+                      "candidateId": "candidate:7c4d0ec9cfc4f9ddd34e74d0f8f6856733a89edf6c5c5dcd3fefc85ebd08791d",
+                      "factId": "fact:db02bd843416727422c43124e2af0a1d7b112adbaa58d27ce493da61f7ec5814",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:be3382e244742d86a738288719c7f65997ade6cfd4875f7eadc4a5a83f1fb569",
+                      "candidateId": "candidate:933c79fc78b79c4c2364195dd80f323dcb7dc22d04bd102b5d6005fd6155037c",
+                      "factId": "fact:4e1739cd082e9fabecf411efa9b6412a19f5aba1615e40cec46879edc1ab41be",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    },
+                    {
+                      "bindingId": "binding:de14f9a991e44a37e21bf8d0cfa517daa414b6bc37a290d454397f989aee88cb",
+                      "candidateId": "candidate:778c55491fe1ad8ca5aa7f5760b37c998a8f6246e51e74ea00a82bb27e37b680",
+                      "factId": "fact:02279e66185b0692ca446c38e2873b85d410a48050d06434d29bbbc186166cf3",
+                      "attemptId": "direct-1c9fdafb-27cf-46b0-bc13-4765a47298e2"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "conflicts": {
+            "status": "CLEAR",
+            "blocker": null,
+            "evidence": [
+              {
+                "path": "$/html[0]/body[1]/div[1]/div[1]/div[3]/div[4]/div[4]/main[1]/div[0]/div[7]/section[0]/div[1]/div[11]/span[0]/div[0]/div[1]/div[1]",
+                "status": "CLEAR",
+                "blocker": null,
+                "evidence": {
+                  "reasons": [],
+                  "commercialReasons": [],
+                  "marketConflicts": [],
+                  "competingMonetaryEvidence": []
+                }
+              }
+            ]
+          }
+        },
+        "blockers": [],
+        "status": "V2_VERIFIED",
+        "productionPromotion": false
+      }
+    }
+  ]
+}

@@ -7,6 +7,7 @@ let token = null;
 let generation = 0;
 let analyticsRange="30d", analyticsMonth="", analyticsSegment="top-services";
 let expiryTimer;
+let disposeOperations;
 let browserAbort;
 const $ = id => document.getElementById(id);
 const message = text => {$("message").textContent = text;};
@@ -19,6 +20,7 @@ if (!api) {
   throw new Error("ADMIN_ORIGIN_DENIED");
 }
 function clearSession() {
+  disposeOperations?.();disposeOperations=null;
   token = null; browserAbort?.abort(); clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();
 }
 async function request(path, options = {}) {
@@ -45,11 +47,16 @@ async function refresh() {
     const data=await request(`overview?market=${encodeURIComponent($("market").value)}`);
     if(current!==generation || !token)return;
     if($("market").options.length===1) for(const [code,name] of data.markets) {const option=document.createElement("option");option.value=code;option.textContent=name;$("market").append(option);}
+    disposeOperations?.();disposeOperations=null;
     $("results").replaceChildren();
+    const navigation=document.createElement("nav");navigation.setAttribute("aria-label","Admin reports");
+    const analyticsLink=document.createElement("a");analyticsLink.href="#analytics";analyticsLink.textContent="Analytics";
+    navigation.append(analyticsLink);$("results").append(navigation);
     paragraph($("results"),`Collection ${data.collectionEnabled ? "enabled" : "disabled"}. Catalog services: ${data.catalogServices}.`);
     for(const note of data.notes)paragraph($("results"),note);
     paragraph($("results"),`Data quality: ${data.dataQuality.selectableMarkets} selectable markets; ${data.dataQuality.registryRows} registry fallbacks in scope.`);
     table("Persisted provider-price records (not user spending)",[["verification","Verification"],["prices","Prices"]],data.dataQuality.persistedPrices);
+    const analyticsHeading=document.createElement("h2");analyticsHeading.id="analytics";analyticsHeading.textContent="Analytics";$("results").append(analyticsHeading);
     if(data.analyticsV2Enabled) {
       const analytics=await request(`analytics?range=${encodeURIComponent(analyticsRange)}`);
       if(current!==generation || !token)return;
@@ -57,7 +64,8 @@ async function refresh() {
       const segments=await request(`analytics/segments?report=${encodeURIComponent(analyticsSegment)}&month=${encodeURIComponent(analyticsMonth)}`);
       if(current!==generation || !token)return;
       renderAnalytics(analytics,segments);
-    } else paragraph($("results"),"Analytics v2 is disabled. No user-level viewer is provided.");
+    } else paragraph($("results"),"Analytics reporting is disabled by the API configuration. Enable ANALYTICS_V2_REPORTING_ENABLED, ANALYTICS_PRIVACY_REVIEWED and ANALYTICS_MAINTENANCE_ENABLED on the API to use the prepared Growth, Plans and Product reports. Collection is configured separately. No user-level viewer is provided.");
+    if(data.v2OperationsEnabled){const link=document.createElement("a");link.href="#v2-operations";link.textContent="V2 Operations";navigation.append(link);const {mountOperations}=await import("./v2-operations.js");if(current===generation&&token)disposeOperations=await mountOperations($("results"),request,()=>current===generation&&!!token);}
     message("Loaded.");
   } catch(error) {if(current===generation)message(error.message);}
 }

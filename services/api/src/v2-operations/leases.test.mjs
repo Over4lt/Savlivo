@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {claimLeases,releaseLeases,transferLeases} from './leases.mjs';
+const setup=()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'operations-lease-'));return [path.join(dir,'worker.lock'),path.join(dir,'runner.lock')];};
+test('active Terminal PID lock is never replaced and partial acquisition rolls back',()=>{const files=setup();fs.writeFileSync(files[1],String(process.pid));assert.throws(()=>claimLeases(files),/CONFLICT/);assert.equal(fs.readFileSync(files[1],'utf8'),String(process.pid));assert.equal(fs.existsSync(files[0]),false);});
+test('unknown empty owner fails closed',()=>{const files=setup();fs.writeFileSync(files[1],'');assert.throws(()=>claimLeases(files),/CONFLICT/);assert.equal(fs.readFileSync(files[1],'utf8'),'');});
+test('release requires ownership and transfer preserves exclusion',()=>{const files=setup();claimLeases(files);releaseLeases(files,process.pid+100000);assert(files.every(f=>fs.existsSync(f)));transferLeases(files,process.pid,process.pid);assert.throws(()=>claimLeases(files));releaseLeases(files,process.pid);assert(files.every(f=>!fs.existsSync(f)));});
+test('dead-owner lease can be reclaimed without resetting research state',()=>{const files=setup();for(const file of files)fs.writeFileSync(file,'2147483647');claimLeases(files);assert(files.every(f=>Number(fs.readFileSync(f))===process.pid));releaseLeases(files,process.pid);});

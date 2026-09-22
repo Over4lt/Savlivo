@@ -1,0 +1,298 @@
+{
+  "researchMarkets": {
+    "acp": [
+      "PT"
+    ],
+    "actic": [
+      "SE",
+      "NO",
+      "DE"
+    ],
+    "activ-fitness": [
+      "CH"
+    ],
+    "ad": [
+      "NL"
+    ],
+    "adac": [
+      "DE"
+    ],
+    "airlearn": [
+      "IN",
+      "US"
+    ],
+    "all-inclusive-fitness": [
+      "DE"
+    ],
+    "arlo-secure": [
+      "GB"
+    ],
+    "asken": [
+      "JP"
+    ],
+    "autoliitto": [
+      "FI"
+    ],
+    "avast-premium": [
+      "US"
+    ],
+    "avg": [
+      "US"
+    ],
+    "bannatyne": [
+      "GB"
+    ],
+    "belfast-telegraph": [
+      "GB"
+    ],
+    "bharatmatrimony": [
+      "IN"
+    ],
+    "bild-plus": [
+      "DE"
+    ],
+    "bj-s-wholesale-club": [
+      "US"
+    ],
+    "blue-tv": [
+      "CH"
+    ],
+    "bn-destem": [
+      "NL"
+    ],
+    "brabants-dagblad": [
+      "NL"
+    ],
+    "cabana-club-elite": [
+      "CA"
+    ],
+    "choice-australia": [
+      "AU"
+    ],
+    "clube-ifood": [
+      "BR"
+    ],
+    "consumer-reports": [
+      "US"
+    ],
+    "corriere": [
+      "IT"
+    ],
+    "cricut-access": [
+      "US"
+    ],
+    "de-gelderlander": [
+      "NL"
+    ],
+    "de-stentor": [
+      "NL"
+    ],
+    "de-volkskrant": [
+      "NL"
+    ],
+    "eindhovens-dagblad": [
+      "NL"
+    ],
+    "el-mundo": [
+      "ES"
+    ],
+    "el-pais": [
+      "ES"
+    ],
+    "estadao": [
+      "BR"
+    ],
+    "everlast-gyms": [
+      "GB"
+    ],
+    "folha-de-s-paulo": [
+      "BR"
+    ],
+    "gazeta-wyborcza": [
+      "PL"
+    ],
+    "gazzetta": [
+      "IT"
+    ],
+    "halfords-motoring-club": [
+      "GB"
+    ],
+    "healthify": [
+      "IN"
+    ],
+    "herald-sun": [
+      "AU"
+    ],
+    "hln": [
+      "BE"
+    ],
+    "iheartradio": [
+      "US"
+    ],
+    "irish-independent": [
+      "IE"
+    ],
+    "jaf": [
+      "JP"
+    ],
+    "jd-gyms": [
+      "GB"
+    ],
+    "kieser": [
+      "DE"
+    ],
+    "klarna-memberships": [
+      "US",
+      "NO",
+      "FR",
+      "BE"
+    ],
+    "kurly-members": [
+      "KR"
+    ],
+    "kuwo-music": [
+      "CN"
+    ],
+    "le-figaro": [
+      "FR"
+    ],
+    "le-journal-de-quebec": [
+      "CA"
+    ],
+    "le-monde": [
+      "FR"
+    ],
+    "life360": [
+      "NO"
+    ],
+    "lifelock": [
+      "US"
+    ],
+    "lunaluna": [
+      "JP"
+    ],
+    "mediapart": [
+      "FR"
+    ],
+    "millie-s-library": [
+      "KR"
+    ],
+    "moneycontrol-pro": [
+      "IN"
+    ],
+    "national-geographic": [
+      "US"
+    ],
+    "naver-plus-membership": [
+      "KR"
+    ],
+    "nikkei-digital": [
+      "JP"
+    ],
+    "nutracheck": [
+      "GB"
+    ],
+    "nz-herald-premium": [
+      "NZ"
+    ],
+    "oamtc": [
+      "AT"
+    ],
+    "pandora": [
+      "US"
+    ],
+    "peloton": [
+      "US",
+      "CA",
+      "GB",
+      "DE",
+      "AU"
+    ],
+    "physicswallah": [
+      "IN"
+    ],
+    "racq": [
+      "AU"
+    ],
+    "racv": [
+      "AU"
+    ],
+    "sabc-plus": [
+      "ZA"
+    ],
+    "seekho": [
+      "IN"
+    ],
+    "shaadi-com": [
+      "IN"
+    ],
+    "suddeutsche": [
+      "DE"
+    ],
+    "tata-play-binge": [
+      "IN"
+    ],
+    "the-advertiser": [
+      "AU"
+    ],
+    "the-australian": [
+      "AU"
+    ],
+    "the-courier-mail": [
+      "AU"
+    ],
+    "the-daily-telegraph-australia": [
+      "AU"
+    ],
+    "the-globe-and-mail": [
+      "CA"
+    ],
+    "the-post": [
+      "NZ"
+    ],
+    "the-press": [
+      "NZ"
+    ],
+    "tile-premium": [
+      "US",
+      "GB",
+      "AU"
+    ],
+    "tok-fm-premium": [
+      "PL"
+    ],
+    "trouw": [
+      "NL"
+    ],
+    "tubantia": [
+      "NL"
+    ],
+    "viva-leisure": [
+      "AU"
+    ],
+    "waikato-times": [
+      "NZ"
+    ],
+    "bonnier-news-plus-allt": [
+      "SE"
+    ],
+    "caa": [
+      "CA"
+    ],
+    "m-up-holdings": [
+      "JP"
+    ],
+    "meitu": [
+      "CN"
+    ],
+    "nrma": [
+      "AU"
+    ],
+    "raa": [
+      "AU"
+    ],
+    "rac-wa": [
+      "AU"
+    ]
+  }
+}

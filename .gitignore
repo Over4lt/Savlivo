@@ -47,3 +47,10 @@ apps/mobile/src/providerRouting.ts.failed-in-app-browser
 services/api/src/pricing-adapters.test.ts.failed-max-us-experiment-*
 services/api/src/pricing-adapters.ts.failed-max-us-experiment-*
 apps/mobile/assets/service-logos-invalid/
+
+# Canonical local Research-v1 active runtime state
+.savlivo/research-v1/active/
+
+# Local runtime corpus, mutable queues, ledgers, leases and generated inputs.
+# Reviewed immutable manifests/config remain under docs/catalog/... in Git.
+/.savlivo/

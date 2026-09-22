@@ -1,0 +1,245 @@
+{
+  "version": 1,
+  "purpose": "Exact service/host identity declarations for existing repository references. No per-market URL list; no new URLs; no evidence or market inheritance.",
+  "limitations": [
+    "Hosted exxen support tenant not admitted without provider-control evidence.",
+    "SEC and unrelated corporate/editorial destinations are not provider domains.",
+    "Group corporate sources are discovery context only."
+  ],
+  "bindings": [
+    {
+      "service": "apple-arcade",
+      "hostname": "support.apple.com",
+      "role": "SUPPORT",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "apple-arcade"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "crave",
+      "hostname": "www.crave.ca",
+      "role": "PRIMARY",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "crave"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "fpt-play",
+      "hostname": "fpt.vn",
+      "role": "PROVIDER_PRODUCT",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "fpt-play"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "magenta-tv-gr",
+      "hostname": "www.magentatv.gr",
+      "role": "PRIMARY",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "magenta-tv-gr"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "melon",
+      "hostname": "search.melon.com",
+      "role": "PROVIDER_CHECKOUT",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "melon"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "stc-tv",
+      "hostname": "www.stc.com.sa",
+      "role": "PROVIDER_PRODUCT",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "stc-tv"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "sting-plus",
+      "hostname": "www.stingtv.co.il",
+      "role": "PRIMARY",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "sting-plus"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "tsn",
+      "hostname": "www.bellmedia.ca",
+      "role": "PROVIDER_CORPORATE",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "tsn"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "tving",
+      "hostname": "www.tving.com",
+      "role": "PRIMARY",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "tving"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "vision-plus",
+      "hostname": "packages.visionplus.id",
+      "role": "PROVIDER_CHECKOUT",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "vision-plus"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "win-play",
+      "hostname": "www.winsports.co",
+      "role": "PROVIDER_EDITORIAL",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "win-play"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "yes-plus",
+      "hostname": "ir.bezeq.co.il",
+      "role": "PROVIDER_CORPORATE",
+      "reference": {
+        "path": "docs/catalog/global-47/market-expansion-evidence.json",
+        "collection": "services",
+        "key": "slug",
+        "value": "yes-plus"
+      },
+      "reason": "EXPLICIT_REPOSITORY_SERVICE_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "amazon-prime",
+      "hostname": "www.aboutamazon.ca",
+      "role": "PROVIDER_EDITORIAL_OR_PRODUCT",
+      "reference": {
+        "path": "docs/catalog/global-47/evidence.json",
+        "collection": null,
+        "key": "id",
+        "value": "canada-prime"
+      },
+      "reason": "REPOSITORY_PROVIDER_OR_GROUP_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "apple-arcade",
+      "hostname": "www.apple.com",
+      "role": "PROVIDER_EDITORIAL_OR_PRODUCT",
+      "reference": {
+        "path": "docs/catalog/global-47/evidence.json",
+        "collection": null,
+        "key": "id",
+        "value": "arcade"
+      },
+      "reason": "REPOSITORY_PROVIDER_OR_GROUP_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "iqiyi",
+      "hostname": "ir.iqiyi.com",
+      "role": "PROVIDER_EDITORIAL_OR_PRODUCT",
+      "reference": {
+        "path": "docs/catalog/global-47/evidence.json",
+        "collection": null,
+        "key": "id",
+        "value": "iqiyi-2026"
+      },
+      "reason": "REPOSITORY_PROVIDER_OR_GROUP_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "qq-music",
+      "hostname": "www.tencent.com",
+      "role": "PROVIDER_EDITORIAL_OR_PRODUCT",
+      "reference": {
+        "path": "docs/catalog/global-47/evidence.json",
+        "collection": null,
+        "key": "id",
+        "value": "tencent"
+      },
+      "reason": "REPOSITORY_PROVIDER_OR_GROUP_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "tencent-video",
+      "hostname": "www.tencent.com",
+      "role": "PROVIDER_EDITORIAL_OR_PRODUCT",
+      "reference": {
+        "path": "docs/catalog/global-47/evidence.json",
+        "collection": null,
+        "key": "id",
+        "value": "tencent"
+      },
+      "reason": "REPOSITORY_PROVIDER_OR_GROUP_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    },
+    {
+      "service": "xbox-game-pass",
+      "hostname": "www.xbox.com",
+      "role": "PROVIDER_EDITORIAL_OR_PRODUCT",
+      "reference": {
+        "path": "docs/catalog/global-47/evidence.json",
+        "collection": null,
+        "key": "id",
+        "value": "canada-game-pass"
+      },
+      "reason": "REPOSITORY_PROVIDER_OR_GROUP_SOURCE_ASSOCIATION_REVIEWED_FOR_DISCOVERY",
+      "scope": "DOMAIN_IDENTITY_ONLY_NOT_PRICE_OR_MARKET"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+export type ResearchObjective = 'MATURE_LIFECYCLE' | 'LOGIN_MANAGE' | 'PRICE_REFRESH' | 'PRICE_INTELLIGENCE' | 'CATALOG_EXPANSION';
+export type RunOrigin = 'CLI' | 'ADMIN' | 'SCHEDULED' | 'UNKNOWN/HISTORICAL';
+export type RunStatus = 'PREFLIGHT' | 'QUEUED' | 'RUNNING' | 'COMPLETE' | 'PARTIAL' | 'INTERRUPTED' | 'FAILED' | 'STOPPED' | 'RESUMABLE' | 'SKIPPED_CONFLICT' | 'SKIPPED_NOT_DUE';
+export type RunConfiguration = {objective: 'MATURE_LIFECYCLE'; scope: 'FULL_CATALOG' | 'UNRESOLVED_ONLY' | 'SELECTED_SERVICES'; services: string[];} | {objective: 'LOGIN_MANAGE'; scope: 'FULL_CATALOG' | 'UNRESOLVED_ONLY' | 'SELECTED_SERVICES'; services: string[]; reads: 1 | 2; discovery: boolean; totalRequests: number;}
+export interface ResearchSchedule {id: string; enabled: boolean; config: RunConfiguration; frequency: 'MANUAL' | 'DAILY' | 'EVERY_3_DAYS' | 'WEEKLY' | 'EVERY_2_WEEKS' | 'MONTHLY' | 'CUSTOM'; intervalDays: number; time: string; timezone: string; weekday: number; monthDay: number; anchor: string; nextRunAt: string | null; updatedBy: string; updatedAt: string;}
+export interface EvidenceReference {domain: 'LOGIN' | 'MANAGEMENT' | 'PRICE'; url: string | null; text: string | null; sourceHash: string | null; origin: string; scope: unknown;}

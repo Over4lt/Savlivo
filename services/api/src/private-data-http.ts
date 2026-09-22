@@ -1,3 +1,4 @@
+import { operationsRequest } from "./v2-operations/http.mjs";
 import { reportingEnabled, reportFilters, globalReport, segmentReport } from "./analytics-v2.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { privateDataPool as pool } from "./private-data-db.js";
@@ -142,6 +143,18 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
       await audit(userId,"sessions_revoked",config.days);
       respond(res,200,{ok:true});return true;
     }
+    if (url.pathname.startsWith("/v1/admin/v2-operations/")) {
+      await audit(userId,"dashboard_read",config.days);
+      try {
+        const body = req.method === "POST" ? await boundedJson(req,32768) : undefined;
+        const result = await operationsRequest({method:req.method ?? "GET",url,body,actor:userId});
+        respond(res,200,result);
+      } catch (error) {
+        const e=error as Error & {status?:number};
+        respond(res,e.status ?? 503,{error:e.status ? e.message : "OPERATIONS_UNAVAILABLE"});
+      }
+      return true;
+    }
     if (["/v1/admin/analytics", "/v1/admin/analytics/segments"].includes(url.pathname) && req.method === "GET") {
       if (!reportingEnabled()) {respond(res,404,{error:"NOT_FOUND"});return true;}
       const segmented=url.pathname.endsWith("/segments");
@@ -152,7 +165,7 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
     if (url.pathname === "/v1/admin/overview" && req.method === "GET") {
       const {market} = dashboardFilters(url);
       await audit(userId,"dashboard_read",config.days); // Failure denies the read.
-      respond(res,200,await dashboardData(market));return true;
+      respond(res,200,{...await dashboardData(market),v2OperationsEnabled:process.env.ANALYTICS_V2_OPERATIONS_ENABLED === "true"});return true;
     }
     respond(res,404,{error:"NOT_FOUND"});return true;
   } catch (error) {

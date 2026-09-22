@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "cohortManifest": "docs/catalog/global-47/research-v2/v15-discovery-20260921/manifest.json",
+  "universe": "docs/catalog/global-47/research-v2/v15-discovery-20260921/expanded-service-universe.json",
+  "reviewedBindings": "docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/reviewed-provider-bindings.json",
+  "providerWorklist": "docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/review-worklist.json",
+  "researchScopes": "docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/research-scope.json",
+  "quarantineFile": "docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/price-output-quarantine.json",
+  "legacyDirectory": ".savlivo/research-v2/universe-expansion/runs/v15-new-services-full-v2-20260921",
+  "runsRoot": ".savlivo/research-v2/universe-expansion/runs",
+  "frozenHashes": {
+    "docs/catalog/global-47/research-v2/v15-discovery-20260921/manifest.json": "ba5014492e0921dcf3edd7451391706b81877aa3d91b9d6a7aac5e38eee262f4",
+    "docs/catalog/global-47/research-v2/v15-discovery-20260921/expanded-service-universe.json": "557c8b95f2afbeaea7a22177db30869d1c63c6ecd66cdfda621ff287a729e65f"
+  }
+}

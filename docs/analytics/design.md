@@ -124,3 +124,7 @@ Technical policy facts for human/legal review: first-party pseudonymous events a
 ## Cost and scale
 
 No new recurring service, tracking vendor, deployment or dependency. At most two additional database connections per API instance, created lazily. Current clients emit zero events. After future instrumentation, estimate events/day as active users × reviewed events/user (e.g. 1,000 × 10 = 10,000/day; 30-day retention = about 300,000 rows plus indexes, not a storage-size guarantee). Bound frequency before activation; do not emit per keystroke. Query timeouts deliberately fail closed when reporting exceeds capacity. Raw aggregation will eventually need completed-day aggregates and query-plan review. Dedicated analytics infrastructure is justified only by measured PostgreSQL/write/query pressure. Price observations grow only on initial/changed snapshots, not every unchanged refresh.
+
+## Research-v2 Operations
+
+Admin now has a separately flagged research Operations control plane. Its artifact adapters, durable single-host worker, scheduling, authorization, safety boundaries, and activation requirements are documented in [Admin V2 Operations](../catalog/global-47/research-v2/admin-v2-operations-20260920.md). All execution/scheduling flags default off. This does not change Growth, Plans, Product, catalog eligibility, or provider-price semantics.

@@ -39,6 +39,7 @@ button {
   font-weight:600;cursor:pointer;white-space:normal;
 }
 button:hover {background:rgba(255,255,255,.10)}
+nav a {color:var(--accent);display:inline-block;padding:.65rem 0;min-height:44px}
 button:disabled {opacity:.55;cursor:not-allowed}
 #login button {background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 #login button:hover {background:#bcebd2;border-color:#bcebd2}
@@ -76,3 +77,11 @@ li {margin:.4rem 0;color:var(--muted)}
 .plan-graph .preview {fill:#d5f4e3}
 .plan-graph .manual {fill:#8fb7e5}
 .plan-graph .premium {fill:#f1c879}
+
+/* V2 Operations follows the existing admin visual language. */
+#v2-operations nav{display:flex;flex-wrap:wrap;gap:.5rem}
+.ops-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.75rem;margin:1rem 0}
+.ops-form>p,.ops-form>details,.ops-form>div{flex-basis:100%}
+#v2-operations a{color:var(--accent);overflow-wrap:anywhere}
+#v2-operations td{max-width:32rem;overflow-wrap:anywhere}
+@media(max-width:600px){.ops-form>label{width:100%}#v2-operations nav button{flex:1 1 40%}}

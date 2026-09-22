@@ -1,0 +1,23 @@
+[
+  {
+    "service": "gain",
+    "disposition": "ONLY_NONCANONICAL_NO_MONTHLY_ALTERNATIVE",
+    "evidenceFingerprint": "8534148c9d3fc17ee7b05958f66be111bbb5c30d124ab1164e293bd65cdd50e5",
+    "review": "docs/catalog/global-47/research-v2/tavily-zero-service-activation-audit-20260917.md",
+    "reason": "Only first-three-month promotional membership amount retained."
+  },
+  {
+    "service": "headspace",
+    "disposition": "ONLY_NONCANONICAL_NO_MONTHLY_ALTERNATIVE",
+    "evidenceFingerprint": "d4b812b4714d1d4e528a5964cdf8d8cde2a4291ea2f52b6b15bf9f10b75d4fbe",
+    "review": "docs/catalog/global-47/research-v2/tavily-zero-service-activation-audit-20260917.md",
+    "reason": "Retained student USD9.99 object is annual; ordinary eligible monthly offer for applicable market not established."
+  },
+  {
+    "service": "stc-tv",
+    "disposition": "ONLY_NONCANONICAL_NO_MONTHLY_ALTERNATIVE",
+    "evidenceFingerprint": "a1c7c603c1a29ec91bd5e181b13a4ce7c115df588d18dce588c4487f10ea6d44",
+    "review": "docs/catalog/global-47/research-v2/tavily-zero-service-activation-audit-20260917.md",
+    "reason": "Special-offer amount remains noncanonical; no explicit ordinary post-offer amount."
+  }
+]

@@ -25,6 +25,20 @@ const response=(data,status=200)=>({ok:status===200,status,json:async()=>data});
 const overview={markets:[["NO","Norway","NOK"]],collectionEnabled:false,catalogServices:43,newUsers:123456,notes:["<script>bad()</script>"],
   dataQuality:{selectableMarkets:30,registryRows:364,persistedPrices:[]},serviceDistribution:[],events:[{event:"PRIVATE_EVENT_SENTINEL",count:10,actors:10}],entitlements:[],subscriptions:[]};
 const submit={preventDefault(){}};
+test("Analytics navigation is available after authentication without bypassing disabled reporting",async()=>{
+  const requests=[];
+  const nodes=harness(async url=>{requests.push(url);return url.endsWith("authenticate/verify")
+    ? response({token:"adm_test",expiresInSeconds:900}) : response({...overview,analyticsV2Enabled:false});});
+  await nodes.login.listeners.submit(submit);
+  const descendants=e=>[e,...e.children.flatMap(descendants)];
+  const elements=descendants(nodes.results);
+  assert.ok(elements.some(e=>e.href==="#analytics"&&e.textContent==="Analytics"));
+  assert.ok(elements.some(e=>e.id==="analytics"));
+  assert.ok(elements.some(e=>e.textContent.includes("ANALYTICS_V2_REPORTING_ENABLED")));
+  assert.equal(requests.some(url=>url.includes("/analytics")),false);
+  await nodes.logout.listeners.click();
+  assert.equal(nodes.results.children.length,0);
+});
 test("production client has only the fixed API target, including reads and logout",async()=>{
   const requests=[];const page={hostname:"admin.savlivo.com",protocol:"https:",origin:"https://admin.savlivo.com",search:"?api=https://evil.invalid"};
   const nodes=harness(async(url,options)=>{requests.push({url,options});return response(url.endsWith("authenticate/verify")?{token:"adm_test",expiresInSeconds:900}:overview);},undefined,page);

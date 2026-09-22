@@ -1,4 +1,26 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { verifiedExpansionPrices } from "./verified-expansion-prices.js";
+// Opt-in dependency boundary. Runtime calls outside this async context are unchanged.
+// No research dependency, transport, truth decision or geo admission lives here.
+type PricingAcquisitionContext = {
+  fetch: typeof globalThis.fetch;
+  at: string;
+  candidates: PriceCandidate[];
+};
+const acquisitionContext = new AsyncLocalStorage<PricingAcquisitionContext>();
+const pricingFetch: typeof globalThis.fetch = (...args) =>
+  (acquisitionContext.getStore()?.fetch ?? globalThis.fetch)(...args);
+
+export async function withPricingAcquisition(serviceSlug: string, ctx: AdapterContext,
+  options: { fetch: typeof globalThis.fetch; at: string }) {
+  if (!Object.hasOwn(providerAdapters, serviceSlug)) throw new Error("UNKNOWN_PRICING_CAPABILITY");
+  const state: PricingAcquisitionContext = { ...options, candidates: [] };
+  return acquisitionContext.run(state, async () => {
+    const prices = await providerAdapters[serviceSlug as keyof typeof providerAdapters](ctx);
+    return { prices, candidates: state.candidates };
+  });
+}
+
 export type BillingProviderSlug =
   | "direct"
   | "apple"
@@ -48,7 +70,7 @@ async function fetchText(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
-    const response = await fetch(url, {
+    const response = await pricingFetch(url, {
       headers: {
         accept: "text/html,application/xhtml+xml",
         "accept-language": acceptLanguage,
@@ -167,7 +189,7 @@ export async function fetchCountryText(
     "en";
 
   const config =
-    geoFetchConfigFromEnv();
+    acquisitionContext.getStore() ? null : geoFetchConfigFromEnv();
 
   /*
    * GeoFetch is disabled by default.
@@ -230,7 +252,7 @@ export async function fetchCountryText(
     }
 
     const response =
-      await fetch(
+      await pricingFetch(
         config.endpoint,
         {
           method: "POST",
@@ -403,7 +425,7 @@ function exact(
     countryCode,
     currency,
     monthlyPriceMinor: Math.round(amount * 100),
-    updatedAt: new Date().toISOString(),
+    updatedAt: acquisitionContext.getStore()?.at ?? new Date().toISOString(),
     source: `official-provider-adapter:${serviceSlug}`,
     sourceUrl,
     confidence: "official-provider-adapter",
@@ -428,7 +450,7 @@ function exactForRoute(
       countryCode,
       currency,
       monthlyPriceMinor: Math.round(amount * 100),
-      updatedAt: new Date().toISOString(),
+      updatedAt: acquisitionContext.getStore()?.at ?? new Date().toISOString(),
       source: `official-provider-adapter:${serviceSlug}`,
       sourceUrl,
       confidence: "official-provider-adapter",
@@ -2596,6 +2618,7 @@ export function resolvePriceCandidates(
   ctx: AdapterContext,
   candidates: PriceCandidate[]
 ): AdapterPrice[] {
+  acquisitionContext.getStore()?.candidates.push(...structuredClone(candidates));
   const valid = candidates.filter(({ item }) =>
     item.countryCode === ctx.countryCode &&
     item.currency === ctx.currency &&
@@ -3513,6 +3536,23 @@ export function parseGoogleOneStructuredPrices(
 
 
 
+// Diagnostic only; existing feed parsing and runtime selection are unchanged.
+export function diagnoseGoogleOnePriceMarket(json: string, url: string, scope: {
+  serviceSlug: string; countryCode: string; plan: string; cadence: string;
+  billingRoute: string; currency: string; offerType: string; taxTreatment: string;
+}): { observedMarket: string; parserVersion: string } | null {
+  try {
+    const u = new URL(url), data = JSON.parse(json);
+    if (scope.serviceSlug !== "google-one" || scope.cadence !== "MONTH" ||
+        scope.billingRoute !== "direct" || scope.offerType !== "ORDINARY_RECURRING" || scope.taxTreatment !== "UNKNOWN" ||
+        u.origin !== "https://one.google.com" || u.search ||
+        !new RegExp("^/intl/ALL_" + scope.countryCode.toLowerCase() + "/about/feeds/pricing_\\d{4}_\\d{2}_\\d{2}\\.json$").test(u.pathname) ||
+        !/^[A-Z]{2}$/.test(data.COUNTRY_CODE) || data.COUNTRY_CODE === scope.countryCode ||
+        !parseGoogleOnePricingFeed(json, data.COUNTRY_CODE, scope.currency).some(p => p.planName === scope.plan)) return null;
+    return { observedMarket: data.COUNTRY_CODE, parserVersion: "GOOGLE_ONE_FEED_V1" };
+  } catch { return null; }
+}
+
 export function parseGoogleOnePricingFeed(
   json: string,
   expectedCountryCode: string,
@@ -3771,7 +3811,7 @@ export async function discoverGoogleOnePricingFilename(): Promise<string | null>
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 4000);
   const read = async (path: string) => {
-    const response = await fetch(`https://one.google.com${path}`, {
+    const response = await pricingFetch(`https://one.google.com${path}`, {
       signal: controller.signal,
       redirect: "error"
     });
@@ -3800,6 +3840,7 @@ let googleOneDiscoveryCache: {
 } | undefined;
 
 function cachedGoogleOnePricingFilename() {
+  if (acquisitionContext.getStore()) return discoverGoogleOnePricingFilename();
   if (!googleOneDiscoveryCache || googleOneDiscoveryCache.expiresAt <= Date.now()) {
     // Share in-flight work across markets and cache failures too.
     googleOneDiscoveryCache = {
@@ -4419,7 +4460,7 @@ async function netflixAdapter(
             currency: ctx.currency,
             monthlyPriceMinor: Math.round(min * 100),
             monthlyPriceMaxMinor: Math.round(max * 100),
-            updatedAt: new Date().toISOString(),
+            updatedAt: acquisitionContext.getStore()?.at ?? new Date().toISOString(),
             source: "official-provider-adapter:netflix",
             sourceUrl: url,
             confidence: "official-provider-adapter",
@@ -6502,6 +6543,12 @@ let iCloudSupportCache: { expiresAt: number; html: Promise<string> } | undefined
 async function iCloudSupportAdapter(ctx: AdapterContext, candidates: PriceCandidate[]) {
   if (iCloudSupportMarkets[ctx.countryCode]?.[1] === ctx.currency) {
     try {
+      if (acquisitionContext.getStore()) {
+        const prices = parseICloudSupportPrices(await fetchText(iCloudSupportUrl), ctx.countryCode, ctx.currency);
+        for (const price of prices) candidates.push(...officialStructuredCandidates(exactForRoute(
+          "icloud-plus", price.planName, ctx.countryCode, ctx.currency, price.amount, iCloudSupportUrl, "apple")));
+        return resolvePriceCandidates(ctx, candidates);
+      }
       if (!iCloudSupportCache || iCloudSupportCache.expiresAt <= Date.now()) {
         iCloudSupportCache = {
           expiresAt: Date.now() + 5 * 60 * 1000,
@@ -8156,7 +8203,7 @@ async function appleTvAdapter(
 
     try {
       const response =
-        await fetch(url, {
+        await pricingFetch(url, {
           redirect: "follow",
           headers: {
             "user-agent":
@@ -8254,7 +8301,7 @@ async function appleTvAdapter(
 
   try {
     const response =
-      await fetch(url, {
+      await pricingFetch(url, {
         redirect: "follow",
         ...(addedMarket ? { signal: AbortSignal.timeout(12000) } : {}),
         headers: {
@@ -8594,7 +8641,7 @@ async function amazonPrimeAdapter(
 
   try {
     const response =
-      await fetch(
+      await pricingFetch(
         url,
         {
           redirect: "follow",
@@ -11670,4 +11717,18 @@ export async function fetchProviderLocalPrices(
     ...adapterItems,
     ...registryOnlyItems
   ];
+}
+
+// Read existing configured knowledge only. Shared runtime/research callers cannot
+// accidentally turn snapshot inspection into IO or environment-driven geo.
+export async function readProviderPriceSnapshots(countryCode: string, currency: string, at: string) {
+  return acquisitionContext.run({at, candidates: [], fetch: async () => { throw new Error("PRIOR_KNOWLEDGE_ONLY"); }},
+    () => fetchProviderLocalPrices(countryCode, currency));
+}
+
+// Existing normalization, reused only after the research owner accepts a finding.
+export function projectAcceptedResearchPrice(serviceSlug: string, planName: string, countryCode: string,
+  currency: string, amount: number, sourceUrl: string, billingProviderSlug: BillingProviderSlug, at: string) {
+  return exactForRoute(serviceSlug, planName, countryCode, currency, amount, sourceUrl, billingProviderSlug)
+    .map(item => ({...item, updatedAt: at}));
 }

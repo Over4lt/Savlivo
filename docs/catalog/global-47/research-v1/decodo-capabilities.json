@@ -1,0 +1,1144 @@
+{
+  "schemaVersion": 1,
+  "checkedAt": "2026-09-11",
+  "sourceUrl": "https://help.decodo.com/docs/residential-proxy-endpoints-and-ports",
+  "method": "EXPLICIT_PUBLISHED_COUNTRY_ENDPOINT_ROWS",
+  "rows": [
+    {
+      "country": "US",
+      "host": "us.decodo.com",
+      "ports": [
+        10001,
+        29999
+      ]
+    },
+    {
+      "country": "EU",
+      "host": "eu.decodo.com",
+      "ports": [
+        10001,
+        29999
+      ]
+    },
+    {
+      "country": "AE",
+      "host": "ae.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "MY",
+      "host": "my.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "PH",
+      "host": "ph.decodo.com",
+      "ports": [
+        40001,
+        49999
+      ]
+    },
+    {
+      "country": "IN",
+      "host": "in.decodo.com",
+      "ports": [
+        10001,
+        19999
+      ]
+    },
+    {
+      "country": "TW",
+      "host": "tw.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "JP",
+      "host": "jp.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "BE",
+      "host": "be.decodo.com",
+      "ports": [
+        40001,
+        49999
+      ]
+    },
+    {
+      "country": "ES",
+      "host": "es.decodo.com",
+      "ports": [
+        10001,
+        19999
+      ]
+    },
+    {
+      "country": "PT",
+      "host": "pt.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "GR",
+      "host": "gr.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "PE",
+      "host": "pe.decodo.com",
+      "ports": [
+        40001,
+        49999
+      ]
+    },
+    {
+      "country": "AR",
+      "host": "ar.decodo.com",
+      "ports": [
+        10001,
+        19999
+      ]
+    },
+    {
+      "country": "SE",
+      "host": "se.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "AZ",
+      "host": "az.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "UA",
+      "host": "ua.decodo.com",
+      "ports": [
+        40001,
+        49999
+      ]
+    },
+    {
+      "country": "HK",
+      "host": "hk.decodo.com",
+      "ports": [
+        10001,
+        19999
+      ]
+    },
+    {
+      "country": "DE",
+      "host": "de.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "IR",
+      "host": "ir.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "ZA",
+      "host": "za.decodo.com",
+      "ports": [
+        40001,
+        49999
+      ]
+    },
+    {
+      "country": "KR",
+      "host": "kr.decodo.com",
+      "ports": [
+        10001,
+        19999
+      ]
+    },
+    {
+      "country": "EC",
+      "host": "ec.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "CL",
+      "host": "cl.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "RU",
+      "host": "ru.decodo.com",
+      "ports": [
+        40001,
+        49999
+      ]
+    },
+    {
+      "country": "ID",
+      "host": "id.decodo.com",
+      "ports": [
+        10001,
+        19999
+      ]
+    },
+    {
+      "country": "EG",
+      "host": "eg.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "CN",
+      "host": "cn.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "GB",
+      "host": "gb.decodo.com",
+      "ports": [
+        30001,
+        49999
+      ]
+    },
+    {
+      "country": "NL",
+      "host": "nl.decodo.com",
+      "ports": [
+        10001,
+        19999
+      ]
+    },
+    {
+      "country": "IT",
+      "host": "it.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "AU",
+      "host": "au.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "KZ",
+      "host": "kz.decodo.com",
+      "ports": [
+        40001,
+        49999
+      ]
+    },
+    {
+      "country": "SG",
+      "host": "sg.decodo.com",
+      "ports": [
+        10001,
+        19999
+      ]
+    },
+    {
+      "country": "MX",
+      "host": "mx.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "TH",
+      "host": "th.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "TR",
+      "host": "tr.decodo.com",
+      "ports": [
+        40001,
+        49999
+      ]
+    },
+    {
+      "country": "BR",
+      "host": "br.decodo.com",
+      "ports": [
+        10001,
+        19999
+      ]
+    },
+    {
+      "country": "PL",
+      "host": "pl.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "CO",
+      "host": "co.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "FR",
+      "host": "fr.decodo.com",
+      "ports": [
+        40001,
+        49999
+      ]
+    },
+    {
+      "country": "PK",
+      "host": "pk.decodo.com",
+      "ports": [
+        10001,
+        19999
+      ]
+    },
+    {
+      "country": "CA",
+      "host": "ca.decodo.com",
+      "ports": [
+        20001,
+        29999
+      ]
+    },
+    {
+      "country": "IL",
+      "host": "il.decodo.com",
+      "ports": [
+        30001,
+        39999
+      ]
+    },
+    {
+      "country": "MA",
+      "host": "ma.decodo.com",
+      "ports": [
+        40001,
+        40999
+      ]
+    },
+    {
+      "country": "MZ",
+      "host": "mz.decodo.com",
+      "ports": [
+        41001,
+        41999
+      ]
+    },
+    {
+      "country": "NG",
+      "host": "ng.decodo.com",
+      "ports": [
+        42001,
+        42999
+      ]
+    },
+    {
+      "country": "GH",
+      "host": "gh.decodo.com",
+      "ports": [
+        43001,
+        43999
+      ]
+    },
+    {
+      "country": "CI",
+      "host": "ci.decodo.com",
+      "ports": [
+        44001,
+        44999
+      ]
+    },
+    {
+      "country": "KE",
+      "host": "ke.decodo.com",
+      "ports": [
+        45001,
+        45999
+      ]
+    },
+    {
+      "country": "LR",
+      "host": "lr.decodo.com",
+      "ports": [
+        46001,
+        46999
+      ]
+    },
+    {
+      "country": "MG",
+      "host": "mg.decodo.com",
+      "ports": [
+        47001,
+        47999
+      ]
+    },
+    {
+      "country": "ML",
+      "host": "ml.decodo.com",
+      "ports": [
+        48001,
+        48999
+      ]
+    },
+    {
+      "country": "MT",
+      "host": "mt.decodo.com",
+      "ports": [
+        49001,
+        49999
+      ]
+    },
+    {
+      "country": "MC",
+      "host": "mc.decodo.com",
+      "ports": [
+        10001,
+        10999
+      ]
+    },
+    {
+      "country": "MD",
+      "host": "md.decodo.com",
+      "ports": [
+        11001,
+        11999
+      ]
+    },
+    {
+      "country": "ME",
+      "host": "me.decodo.com",
+      "ports": [
+        12001,
+        12999
+      ]
+    },
+    {
+      "country": "NO",
+      "host": "no.decodo.com",
+      "ports": [
+        13001,
+        13999
+      ]
+    },
+    {
+      "country": "PY",
+      "host": "py.decodo.com",
+      "ports": [
+        14001,
+        14999
+      ]
+    },
+    {
+      "country": "UY",
+      "host": "uy.decodo.com",
+      "ports": [
+        15001,
+        15999
+      ]
+    },
+    {
+      "country": "VE",
+      "host": "ve.decodo.com",
+      "ports": [
+        16001,
+        16999
+      ]
+    },
+    {
+      "country": "DM",
+      "host": "dm.decodo.com",
+      "ports": [
+        17001,
+        17999
+      ]
+    },
+    {
+      "country": "HT",
+      "host": "ht.decodo.com",
+      "ports": [
+        18001,
+        18999
+      ]
+    },
+    {
+      "country": "HN",
+      "host": "hn.decodo.com",
+      "ports": [
+        19001,
+        19999
+      ]
+    },
+    {
+      "country": "JM",
+      "host": "jm.decodo.com",
+      "ports": [
+        20001,
+        20999
+      ]
+    },
+    {
+      "country": "AW",
+      "host": "aw.decodo.com",
+      "ports": [
+        21001,
+        21999
+      ]
+    },
+    {
+      "country": "LV",
+      "host": "lv.decodo.com",
+      "ports": [
+        22001,
+        22999
+      ]
+    },
+    {
+      "country": "LI",
+      "host": "li.decodo.com",
+      "ports": [
+        23001,
+        23999
+      ]
+    },
+    {
+      "country": "LT",
+      "host": "lt.decodo.com",
+      "ports": [
+        24001,
+        24999
+      ]
+    },
+    {
+      "country": "LU",
+      "host": "lu.decodo.com",
+      "ports": [
+        25001,
+        25999
+      ]
+    },
+    {
+      "country": "JO",
+      "host": "jo.decodo.com",
+      "ports": [
+        26001,
+        26999
+      ]
+    },
+    {
+      "country": "LB",
+      "host": "lb.decodo.com",
+      "ports": [
+        27001,
+        27999
+      ]
+    },
+    {
+      "country": "MV",
+      "host": "mv.decodo.com",
+      "ports": [
+        28001,
+        28999
+      ]
+    },
+    {
+      "country": "MN",
+      "host": "mn.decodo.com",
+      "ports": [
+        29001,
+        29999
+      ]
+    },
+    {
+      "country": "OM",
+      "host": "om.decodo.com",
+      "ports": [
+        30001,
+        30999
+      ]
+    },
+    {
+      "country": "SD",
+      "host": "sd.decodo.com",
+      "ports": [
+        31001,
+        31999
+      ]
+    },
+    {
+      "country": "TG",
+      "host": "tg.decodo.com",
+      "ports": [
+        32001,
+        32999
+      ]
+    },
+    {
+      "country": "TN",
+      "host": "tn.decodo.com",
+      "ports": [
+        33001,
+        33999
+      ]
+    },
+    {
+      "country": "UG",
+      "host": "ug.decodo.com",
+      "ports": [
+        34001,
+        34999
+      ]
+    },
+    {
+      "country": "ZM",
+      "host": "zm.decodo.com",
+      "ports": [
+        35001,
+        35999
+      ]
+    },
+    {
+      "country": "AF",
+      "host": "af.decodo.com",
+      "ports": [
+        36001,
+        36999
+      ]
+    },
+    {
+      "country": "BH",
+      "host": "bh.decodo.com",
+      "ports": [
+        37001,
+        37999
+      ]
+    },
+    {
+      "country": "FJ",
+      "host": "fj.decodo.com",
+      "ports": [
+        38001,
+        38999
+      ]
+    },
+    {
+      "country": "NZ",
+      "host": "nz.decodo.com",
+      "ports": [
+        39001,
+        39999
+      ]
+    },
+    {
+      "country": "BO",
+      "host": "bo.decodo.com",
+      "ports": [
+        40001,
+        40999
+      ]
+    },
+    {
+      "country": "BD",
+      "host": "bd.decodo.com",
+      "ports": [
+        41001,
+        41099
+      ]
+    },
+    {
+      "country": "AM",
+      "host": "am.decodo.com",
+      "ports": [
+        42001,
+        42999
+      ]
+    },
+    {
+      "country": "GE",
+      "host": "ge.decodo.com",
+      "ports": [
+        43001,
+        43999
+      ]
+    },
+    {
+      "country": "IQ",
+      "host": "iq.decodo.com",
+      "ports": [
+        44001,
+        44999
+      ]
+    },
+    {
+      "country": "BT",
+      "host": "bt.decodo.com",
+      "ports": [
+        45001,
+        45999
+      ]
+    },
+    {
+      "country": "MM",
+      "host": "mm.decodo.com",
+      "ports": [
+        46001,
+        46999
+      ]
+    },
+    {
+      "country": "KH",
+      "host": "kh.decodo.com",
+      "ports": [
+        47001,
+        47999
+      ]
+    },
+    {
+      "country": "CY",
+      "host": "cy.decodo.com",
+      "ports": [
+        48001,
+        48999
+      ]
+    },
+    {
+      "country": "SN",
+      "host": "sn.decodo.com",
+      "ports": [
+        49001,
+        49999
+      ]
+    },
+    {
+      "country": "SC",
+      "host": "sc.decodo.com",
+      "ports": [
+        10001,
+        10999
+      ]
+    },
+    {
+      "country": "ZW",
+      "host": "zw.decodo.com",
+      "ports": [
+        11001,
+        11999
+      ]
+    },
+    {
+      "country": "SS",
+      "host": "ss.decodo.com",
+      "ports": [
+        12001,
+        12999
+      ]
+    },
+    {
+      "country": "RO",
+      "host": "ro.decodo.com",
+      "ports": [
+        13001,
+        13999
+      ]
+    },
+    {
+      "country": "RS",
+      "host": "rs.decodo.com",
+      "ports": [
+        14001,
+        14999
+      ]
+    },
+    {
+      "country": "SK",
+      "host": "sk.decodo.com",
+      "ports": [
+        15001,
+        15999
+      ]
+    },
+    {
+      "country": "SI",
+      "host": "si.decodo.com",
+      "ports": [
+        16001,
+        16999
+      ]
+    },
+    {
+      "country": "BS",
+      "host": "bs.decodo.com",
+      "ports": [
+        17001,
+        17999
+      ]
+    },
+    {
+      "country": "BZ",
+      "host": "bz.decodo.com",
+      "ports": [
+        18001,
+        18999
+      ]
+    },
+    {
+      "country": "VG",
+      "host": "vg.decodo.com",
+      "ports": [
+        19001,
+        19999
+      ]
+    },
+    {
+      "country": "PA",
+      "host": "pa.decodo.com",
+      "ports": [
+        20001,
+        20999
+      ]
+    },
+    {
+      "country": "PR",
+      "host": "pr.decodo.com",
+      "ports": [
+        21001,
+        21999
+      ]
+    },
+    {
+      "country": "TT",
+      "host": "tt.decodo.com",
+      "ports": [
+        22001,
+        22999
+      ]
+    },
+    {
+      "country": "IS",
+      "host": "is.decodo.com",
+      "ports": [
+        23001,
+        23999
+      ]
+    },
+    {
+      "country": "IE",
+      "host": "ie.decodo.com",
+      "ports": [
+        24001,
+        24999
+      ]
+    },
+    {
+      "country": "CZ",
+      "host": "cz.decodo.com",
+      "ports": [
+        26001,
+        26999
+      ]
+    },
+    {
+      "country": "DK",
+      "host": "dk.decodo.com",
+      "ports": [
+        27001,
+        27999
+      ]
+    },
+    {
+      "country": "EE",
+      "host": "ee.decodo.com",
+      "ports": [
+        28001,
+        28999
+      ]
+    },
+    {
+      "country": "CH",
+      "host": "ch.decodo.com",
+      "ports": [
+        29001,
+        29999
+      ]
+    },
+    {
+      "country": "MK",
+      "host": "mk.decodo.com",
+      "ports": [
+        30001,
+        30999
+      ]
+    },
+    {
+      "country": "CR",
+      "host": "cr.decodo.com",
+      "ports": [
+        31001,
+        31999
+      ]
+    },
+    {
+      "country": "CU",
+      "host": "cu.decodo.com",
+      "ports": [
+        32001,
+        32999
+      ]
+    },
+    {
+      "country": "AL",
+      "host": "al.decodo.com",
+      "ports": [
+        33001,
+        33999
+      ]
+    },
+    {
+      "country": "AD",
+      "host": "ad.decodo.com",
+      "ports": [
+        34001,
+        34999
+      ]
+    },
+    {
+      "country": "AT",
+      "host": "at.decodo.com",
+      "ports": [
+        35001,
+        35999
+      ]
+    },
+    {
+      "country": "BA",
+      "host": "ba.decodo.com",
+      "ports": [
+        37001,
+        37999
+      ]
+    },
+    {
+      "country": "BG",
+      "host": "bg.decodo.com",
+      "ports": [
+        38001,
+        38999
+      ]
+    },
+    {
+      "country": "BY",
+      "host": "by.decodo.com",
+      "ports": [
+        39001,
+        39999
+      ]
+    },
+    {
+      "country": "HR",
+      "host": "hr.decodo.com",
+      "ports": [
+        40001,
+        40999
+      ]
+    },
+    {
+      "country": "FI",
+      "host": "fi.decodo.com",
+      "ports": [
+        41001,
+        41099
+      ]
+    },
+    {
+      "country": "HU",
+      "host": "hu.decodo.com",
+      "ports": [
+        43001,
+        43999
+      ]
+    },
+    {
+      "country": "QA",
+      "host": "qa.decodo.com",
+      "ports": [
+        44001,
+        44999
+      ]
+    },
+    {
+      "country": "SA",
+      "host": "sa.decodo.com",
+      "ports": [
+        45001,
+        45999
+      ]
+    },
+    {
+      "country": "VN",
+      "host": "vn.decodo.com",
+      "ports": [
+        46001,
+        46999
+      ]
+    },
+    {
+      "country": "TM",
+      "host": "tm.decodo.com",
+      "ports": [
+        47001,
+        47999
+      ]
+    },
+    {
+      "country": "UZ",
+      "host": "uz.decodo.com",
+      "ports": [
+        48001,
+        48999
+      ]
+    },
+    {
+      "country": "YE",
+      "host": "ye.decodo.com",
+      "ports": [
+        49001,
+        49999
+      ]
+    },
+    {
+      "country": "CF",
+      "host": "cf.decodo.com",
+      "ports": [
+        10001,
+        10999
+      ]
+    },
+    {
+      "country": "TD",
+      "host": "td.decodo.com",
+      "ports": [
+        11001,
+        11999
+      ]
+    },
+    {
+      "country": "BJ",
+      "host": "bj.decodo.com",
+      "ports": [
+        12001,
+        12999
+      ]
+    },
+    {
+      "country": "ET",
+      "host": "et.decodo.com",
+      "ports": [
+        13001,
+        13999
+      ]
+    },
+    {
+      "country": "DJ",
+      "host": "dj.decodo.com",
+      "ports": [
+        14001,
+        14999
+      ]
+    },
+    {
+      "country": "GM",
+      "host": "gm.decodo.com",
+      "ports": [
+        15001,
+        15999
+      ]
+    },
+    {
+      "country": "MR",
+      "host": "mr.decodo.com",
+      "ports": [
+        16001,
+        16999
+      ]
+    },
+    {
+      "country": "MU",
+      "host": "mu.decodo.com",
+      "ports": [
+        17001,
+        17999
+      ]
+    },
+    {
+      "country": "AO",
+      "host": "ao.decodo.com",
+      "ports": [
+        18001,
+        18999
+      ]
+    },
+    {
+      "country": "CM",
+      "host": "cm.decodo.com",
+      "ports": [
+        19001,
+        19999
+      ]
+    },
+    {
+      "country": "SY",
+      "host": "sy.decodo.com",
+      "ports": [
+        20001,
+        20999
+      ]
+    }
+  ]
+}

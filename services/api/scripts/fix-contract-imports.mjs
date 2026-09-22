@@ -1,4 +1,4 @@
-import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { readFile, readdir, stat, writeFile, mkdir, copyFile } from 'node:fs/promises';
 import { dirname, extname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
@@ -45,6 +45,14 @@ async function main() {
     if (result.source !== original) pending.push({ file, source: result.source });
   }
   for (const { file, source } of pending) await writeFile(file, source);
+  const research = new URL('../dist/services/api/src/research-v1/', import.meta.url);
+  await mkdir(research, { recursive: true });
+  await copyFile(new URL('../src/research-v1/research-item.schema.json', import.meta.url), new URL('research-item.schema.json', research));
+  await copyFile(new URL('../src/research-v1/decodo-runtime-config.json', import.meta.url), new URL('decodo-runtime-config.json', research));
+  await mkdir(new URL('browser-isolation/', research), { recursive: true });
+  for (const name of ['bridge.cjs', 'seccomp-chromium.json']) {
+    await copyFile(new URL('../src/research-v1/browser-isolation/' + name, import.meta.url), new URL('browser-isolation/' + name, research));
+  }
   console.log(`Shared-contract ESM imports: updated ${pending.length} compiled files`);
 }
 
