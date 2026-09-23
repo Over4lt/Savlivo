@@ -71,3 +71,42 @@ test('result publication failure is distinct from successful pages publication',
 test('incompatible needs retain existing blocked behavior and exact diagnostic',async t=>{
  const f=fixture(t),e=await fails(f,async()=>({...result(),priceEvidenceNeeds:{version:999}}));assert.equal(e.message,'PRICE_NEEDS_SCHEMA_OR_SCOPE');assert.equal(f.progress().stage,'PRICE_EVIDENCE_NEEDS_MERGE');assert.equal(retainedReplayFailure(e,f.directory).diagnostic.error.code,e.message);assert(!fs.existsSync(f.directory+'/retained-replay.json'));
 });
+// Fault injection is restored synchronously before fixture cleanup or other tests.
+for(const code of ['DIRECT_PROVIDER_HASH_MISMATCH','PRICE_NEEDS_SIZE_BOUND'])for(const fault of ['log','filesystem','construction','serialization','cleanup'])test(`${fault} failure preserves exact ${code} exception`,async t=>{
+ const f=fixture(t),original=Error(code);const saved={log:console.error,open:fs.openSync,clone:globalThis.structuredClone,stringify:JSON.stringify,write:fs.writeSync,unlink:fs.unlinkSync};let e;
+ try{
+  e=await fails(f,async()=>{
+   if(fault==='log')console.error=()=>{throw Error('LOG_SINK_FAILED');};
+   if(fault==='filesystem')fs.openSync=(file,...args)=>{if(String(file).endsWith('replay-progress.json.pending'))throw Error('DIAGNOSTIC_IO_FAILED');return saved.open(file,...args);};
+   if(fault==='construction')globalThis.structuredClone=()=>{throw Error('DIAGNOSTIC_CLONE_FAILED');};
+   if(fault==='serialization')JSON.stringify=(value,...args)=>{if(value?.meaning==='DIAGNOSTIC_ONLY_NOT_ADMISSION_OR_RECOVERY'||value?.event==='V2_RETAINED_REPLAY_FAILED')throw Error('DIAGNOSTIC_SERIALIZATION_FAILED');return saved.stringify(value,...args);};
+   if(fault==='cleanup'){fs.writeSync=()=>0;fs.unlinkSync=()=>{throw Error('CLEANUP_FAILED');};}
+   throw original;
+  });
+ }finally{console.error=saved.log;fs.openSync=saved.open;globalThis.structuredClone=saved.clone;JSON.stringify=saved.stringify;fs.writeSync=saved.write;fs.unlinkSync=saved.unlink;}
+ assert.equal(e,original);
+ if(code.includes('HASH'))assert.throws(()=>retainedReplayFailure(e,f.directory),x=>x===original);
+ else assert.equal(retainedReplayFailure(e,f.directory).reason,'RETAINED_INTERPRETATION_REVIEW_REQUIRED');
+});
+test('short diagnostic writes complete byte-exact UTF-8 before publication',t=>{
+ const f=fixture(t);fs.mkdirSync(f.directory);const p=replayDiagnostics(f.directory,f.target.id),write=fs.writeSync;let calls=0;
+ try{fs.writeSync=(fd,buffer,offset,length)=>{calls++;return write(fd,buffer,offset,Math.min(length,7));};p.source({...f.pages[0],url:'https://provider.example/å'},1);}finally{fs.writeSync=write;}
+ assert(calls>1);assert.equal(f.progress().current.ordinal,1);assert.equal(f.progress().current.url,new URL('https://provider.example/å').href);assert(!fs.existsSync(f.directory+'/replay-progress.json.pending'));
+});
+test('zero-progress write preserves old diagnostic and removes incomplete pending file',t=>{
+ const f=fixture(t);fs.mkdirSync(f.directory);const p=replayDiagnostics(f.directory,f.target.id);p.inputs(1);const before=fs.readFileSync(f.directory+'/replay-progress.json','utf8'),write=fs.writeSync;
+ try{fs.writeSync=()=>0;p.source(f.pages[0],1);}finally{fs.writeSync=write;}
+ assert.equal(fs.readFileSync(f.directory+'/replay-progress.json','utf8'),before);assert(!fs.existsSync(f.directory+'/replay-progress.json.pending'));
+});
+test('measurement failure before diagnostic call cannot replace original merge exception',async t=>{
+ const f=fixture(t),original=Error('PRICE_NEEDS_SIZE_BOUND');let accesses=0;
+ const e=await fails(f,async args=>{
+  Object.defineProperty(args.target,'priceEvidenceNeeds',{enumerable:true,get(){if(++accesses===1)throw original;throw Error('METRIC_ACCESS_FAILED');}});
+  return {verified:[],priceEvidenceNeeds:needs(f.target,args.page)};
+ });
+ assert.equal(e,original);assert(accesses>=2);assert.equal(retainedReplayFailure(e,f.directory).reason,'RETAINED_INTERPRETATION_REVIEW_REQUIRED');
+});
+test('unattachable original integrity error still rethrows identically',async t=>{
+ const f=fixture(t),original=Object.freeze(Error('DIRECT_PROVIDER_HASH_MISMATCH'));
+ const e=await fails(f,async()=>{throw original;});assert.equal(e,original);assert.throws(()=>retainedReplayFailure(e,f.directory),x=>x===original);assert.equal(f.progress().error.code,original.message);
+});

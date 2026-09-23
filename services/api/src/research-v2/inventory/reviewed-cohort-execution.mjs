@@ -77,7 +77,7 @@ export async function replayTarget({target,directory,sourceDirectory,registry,in
  at('PAGES_PUBLICATION');atomic(directory+'/pages.json',accepted);
  at('CANCELLATION_REVIEW');const cancellation=accepted.map(p=>({url:p.url,...cancellationReview(t,p)}));
  const result={target:t,rejected,accepted:accepted.length,cancellation,executionComplete:true,researchComplete:false,completionMeaning:'RETAINED_REPLAY_NOT_SERVICE_QUALIFICATION',networkCalls:0};at('RESULT_PUBLICATION');atomic(resultFile,result);progress.complete();return result;
- }catch(error){progress.fail(error,stage==='PRICE_EVIDENCE_NEEDS_MERGE'?{prior:projectionMetrics(t?.priceEvidenceNeeds),incoming:projectionMetrics(price?.priceEvidenceNeeds),aggregateByteLimit:priceNeedsBounds.bytes}:null);throw error;}
+ }catch(error){try{progress.fail(error,stage==='PRICE_EVIDENCE_NEEDS_MERGE'?{prior:projectionMetrics(t?.priceEvidenceNeeds),incoming:projectionMetrics(price?.priceEvidenceNeeds),aggregateByteLimit:priceNeedsBounds.bytes}:null);}catch{/* Diagnostics must never replace the research exception. */}throw error;}
 }
 
 export async function runNativeTargets({directory,targets,retainedStates=[],createAdapters,offline=true,shouldStop=()=>false,onTransition=()=>{},isolateFailures=false,evidenceUpdates=[]}){

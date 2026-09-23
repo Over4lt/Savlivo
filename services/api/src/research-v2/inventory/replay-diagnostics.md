@@ -41,3 +41,15 @@ not reinterpreted. A progress-write failure can leave an older progress artifact
 `retained-replay.json` remains the existing authoritative replay completion marker.
 
 Overflow handling and validated recovery are intentionally deferred to Commit 2.
+
+Commit 1b isolates every progress callback and the complete failure-reporting call,
+including metric calculation. Diagnostic construction, attachment, logging and
+filesystem errors cannot replace the original research exception. Short writes
+are completed using byte offsets; zero progress aborts publication. Only fully
+written/fsynced pending data is renamed, followed by best-effort directory fsync
+using the storage/core pattern. Owned pending files are removed best-effort after
+failure. Missing/stale diagnostics remain possible and confer no recovery authority.
+
+The 4 MiB measurement stop bounds emitted measurement work, not peak allocation:
+an individual string can be serialized before the sink checks its byte count.
+No full projection payload is retained in diagnostics.
