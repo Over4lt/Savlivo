@@ -72,3 +72,20 @@ test('same actor after relogin sees expired operation without token; another act
  assert.throws(()=>preflightStatus(reloaded,'different-user-id',operation.id),/NOT_FOUND/);
  assert.deepEqual(reloaded.db().jobs,[]);
 });
+
+test('30-minute review clock starts after validation, is independent of login, and never renews on recovery',t=>{
+ const loginAt=Date.UTC(2026,8,23),completedAt=loginAt+336000;
+ t.mock.timers.enable({apis:['Date'],now:loginAt});const ops=fixture();let plans=0;
+ ops.plan=()=>{plans++;if(plans===1)t.mock.timers.setTime(completedAt);return {config:input,catalogHash:'authenticated-current',manifest:{},liveReady:true};};
+ const operation=beginPreflight(ops,input,'stable-user',(_c,_i,actor,done)=>done({result:ops.preflight(input,actor)}));
+ const saved=preflightStatus(ops,'stable-user',operation.id).result,expiry=completedAt+30*60000;
+ assert.equal(Date.parse(saved.expiresAt),expiry);assert.equal(ops.db().jobs.length,0);
+ const original=ops.db().preflights[0];
+ // Session loss/relogin changes neither the durable record nor its owner/expiry.
+ const relogged=new Operations(ops.config);
+ for(const time of [completedAt+60000,expiry-1]){t.mock.timers.setTime(time);assert.equal(preflightStatus(relogged,'stable-user',operation.id).result.expiresAt,saved.expiresAt);assert.deepEqual(ops.db().preflights[0],original);}
+ assert.equal(preflightStatus(relogged,'other-user').rows.length,0);
+ ops.enqueue=()=>({validationPassed:true});assert.deepEqual(ops.start(saved.token,'stable-user',true),{validationPassed:true});assert.equal(plans,2);
+ for(const time of [expiry,expiry+1]){t.mock.timers.setTime(time);assert(time<loginAt+60*60000);assert.equal(preflightStatus(relogged,'stable-user',operation.id).status,'EXPIRED');assert.throws(()=>ops.start(saved.token,'stable-user',true),/PREFLIGHT_EXPIRED/);}
+ assert.equal(plans,2);assert.deepEqual(ops.db().jobs,[]);assert.equal(ops.db().preflights[0].expiresAt,saved.expiresAt);
+});

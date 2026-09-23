@@ -80,7 +80,7 @@ test("passkey protocol, migration, RBAC and session integration",{skip:process.e
         const response=await post("authenticate/verify",{challengeId:a.challengeId,response:key.assert(a.options.challenge,production.origin,production.rpID,r.options.user.id)});
         assert.equal(response.status,200);
         const session=await response.json() as {token:string;expiresInSeconds:number};
-        assert.equal(session.expiresInSeconds,900);assert.equal(await authenticatedAdmin(`Bearer ${session.token}`),id);
+        assert.equal(session.expiresInSeconds,3600);assert.equal(await authenticatedAdmin(`Bearer ${session.token}`),id);
         assert.equal((await fetch(`${base}/v1/admin/session`,{method:"DELETE",headers:{Origin:production.origin,Authorization:`Bearer ${session.token}`}})).status,200);
         assert.equal(await authenticatedAdmin(`Bearer ${session.token}`),null);
       } finally {process.env.NODE_ENV="test";process.env.ADMIN_ALLOWED_ORIGIN=config.origin;process.env.ADMIN_RP_ID=config.rpID;}
@@ -131,11 +131,11 @@ test("passkey protocol, migration, RBAC and session integration",{skip:process.e
       await assert.rejects(finishAuthentication(a.challengeId,response,config),/PASSKEY_DENIED/);
       assert.equal((await pool.query("SELECT count(*)::int n FROM admin_sessions WHERE user_id=$1",[f.id])).rows[0].n,0);
     });
-    await t.test("valid signature issues hashed 15-minute session; replay and counter regression fail; synced zero counters work",async()=>{
+    await t.test("valid signature issues hashed 60-minute session; replay and counter regression fail; synced zero counters work",async()=>{
       const f=await enrolled(),a=await beginAuthentication(config),reply=f.key.assert(a.options.challenge,config.origin,config.rpID,f.handle);
       const result=await finishAuthentication(a.challengeId,reply,config);assert.equal(await authenticatedAdmin(`Bearer ${result.token}`),f.id);
       const row=(await pool.query("SELECT *,extract(epoch FROM expires_at-now()) seconds FROM admin_sessions WHERE token_hash=$1",[hashSession(result.token)])).rows[0];
-      assert.ok(row.seconds>880&&row.seconds<=900);assert.equal(row.credential_id,f.key.id);assert.notEqual(row.token_hash,result.token);
+      assert.ok(row.seconds>3580&&row.seconds<=3600);assert.equal(row.credential_id,f.key.id);assert.notEqual(row.token_hash,result.token);
       await assert.rejects(finishAuthentication(a.challengeId,reply,config),/PASSKEY_DENIED/);
       await assert.rejects(login(f,1),/PASSKEY_DENIED/);await assert.rejects(login(f,0),/PASSKEY_DENIED/);await login(f,2);
       const synced=await enrolled();await login(synced,0);await login(synced,0);

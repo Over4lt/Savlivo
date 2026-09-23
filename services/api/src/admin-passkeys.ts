@@ -3,6 +3,7 @@ import type {RegistrationResponseJSON, AuthenticationResponseJSON} from "@simple
 import {privateDataPool as pool} from "./private-data-db.js";
 import type {PoolClient} from "pg";
 export type PasskeyConfig = {days:number; origin:string; rpID:string};
+export const adminSessionLifetimeSeconds = 60 * 60; // Absolute; authenticated reads never renew it.
 export const hashSession = (token:string) => createHash("sha256").update(token).digest("hex");
 const deny = ():never => {throw new Error("PASSKEY_DENIED");};
 function tokenHash(authorization:string|undefined) {
@@ -138,9 +139,9 @@ export async function finishAuthentication(id:string,response:AuthenticationResp
     if(!verified.verified)return deny();
     await client.query("UPDATE admin_passkeys SET counter=$2 WHERE id=$1",[credential.id,verified.authenticationInfo.newCounter]);
     const token=`adm_${randomBytes(32).toString("base64url")}`;
-    await client.query("INSERT INTO admin_sessions(token_hash,user_id,credential_id,expires_at) VALUES($1,$2,$3,now()+interval '15 minutes')",[hashSession(token),userId,credential.id]);
+    await client.query("INSERT INTO admin_sessions(token_hash,user_id,credential_id,expires_at) VALUES($1,$2,$3,now()+$4*interval '1 second')",[hashSession(token),userId,credential.id,adminSessionLifetimeSeconds]);
     await audit(client,userId,"session_created",config.days);
-    return {token,expiresInSeconds:900};
+    return {token,expiresInSeconds:adminSessionLifetimeSeconds};
   });
 }
 

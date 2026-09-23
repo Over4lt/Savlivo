@@ -4,7 +4,7 @@ The previous HTTP handler called `Operations.preflight` → `lifecyclePlan` →
 `spawnSync(--check)`. A 336-second check blocked the API event loop for that entire
 period, including passkey/auth requests (normally a 10-second client deadline).
 The Preflight client deadline was 630 seconds, not the limiting auth deadline.
-Admin sessions independently expire after 15 minutes, with a browser expiry timer.
+Admin sessions independently expire after 60 minutes, with a browser expiry timer.
 An abort/502 does not revoke a session; a current-token 401 or that timer clears it.
 Production diagnostics prove native completion, not the exact logout timing or
 any Render proxy limit. No production traffic is needed to identify the synchronous
@@ -15,7 +15,7 @@ and promptly returns RUNNING. A bounded worker-thread isolate invokes the SAME
 Operations.preflight, retaining all native Genesis/selection/revision/capability/
 storage checks. It does not enqueue research. The native check remains bounded at
 600 seconds; the isolate has a 256 MiB heap limit and a 15-minute outer deadline.
-The normal 15-minute token begins at successful validation, unchanged.
+The fixed 30-minute Preflight token begins after successful validation.
 
 Authenticated GET `/preflights/:id` returns actor-owned status/result; GET
 `/preflights` supports recovery. Admin polls every five seconds, at most 180 times,
@@ -24,7 +24,13 @@ validation. Recover Preflight after refresh/relogin restores its exact filters,
 services and capabilities, verifies preview revision/membership, and presents the
 normal review/confirmed-Start boundary. Valid reauthentication as the SAME admin
 actor is allowed; another actor or an unauthenticated session cannot claim it.
-No session duration or authorization policy changed.
+Both lifetimes are absolute and independent. Polling, recovery and relogin never
+renew a Preflight token. Authenticated requests never renew the Admin session.
+Existing sessions/tokens keep their stored expiry; new lifetimes apply at issuance.
+Logout revokes the current session server-side; if the server is unreachable,
+the browser clears its credential but cannot guarantee server revocation.
+Reauthentication is required after session expiry. Multiple sessions remain
+independently revocable; all resolve to the same user ID for the same account.
 
 Equivalent actor/input requests reuse an in-flight or unexpired successful result.
 Only one validation operation is admitted globally per Operations store; different

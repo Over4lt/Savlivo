@@ -11,14 +11,14 @@ class Element {
   setAttribute(key,value){this[key]=value;}
   set innerHTML(_){throw new Error("HTML injection");}
 }
-function harness(fetch, credentials, page={hostname:"localhost",protocol:"http:",origin:"http://localhost:8080"}) {
+function harness(fetch, credentials, page={hostname:"localhost",protocol:"http:",origin:"http://localhost:8080"}, timers={setTimeout:()=>1,clearTimeout:()=>{}}) {
   const nodes=Object.fromEntries(["login","register","enrollment","revoke","message","dashboard","filters","market","logout","results"].map(id=>[id,new Element()]));
   nodes.market.options=[new Element()];
   const mockCredential={id:"AA",rawId:new Uint8Array([0]).buffer,type:"public-key",getClientExtensionResults:()=>({}),response:{clientDataJSON:new Uint8Array([0]).buffer,authenticatorData:new Uint8Array([0]).buffer,signature:new Uint8Array([0]).buffer,userHandle:new Uint8Array([0]).buffer,attestationObject:new Uint8Array([0]).buffer}};
   const context={location:page,document:{getElementById:id=>nodes[id],createElement:()=>new Element(),createElementNS:()=>new Element()},
     window:{addEventListener:()=>{},PublicKeyCredential:function(){}},navigator:{credentials:credentials??{get:async()=>mockCredential,create:async()=>mockCredential}},
     fetch:async(url,options)=>url.endsWith("authenticate/options")?response({challengeId:"test",options:{challenge:"AA",rpId:page.hostname,userVerification:"required"}}):fetch(url,options),
-    atob,btoa,AbortController,AbortSignal,setTimeout:()=>1,clearTimeout:()=>{},encodeURIComponent};
+    atob,btoa,AbortController,AbortSignal,...timers,encodeURIComponent};
   vm.runInNewContext(source,context);return nodes;
 }
 const response=(data,status=200)=>({ok:status===200,status,json:async()=>data});
@@ -217,4 +217,13 @@ test('Preflight transport failure does not clear an authenticated session; only 
  vm.runInNewContext(source.slice(source.indexOf('function clearSession()'),source.indexOf('function paragraph(')),context);
  await assert.rejects(vm.runInNewContext("request('v2-operations/preflight')",context),/aborted/);assert.equal(context.token,'session');
  mode='unauthorized';await assert.rejects(vm.runInNewContext("request('v2-operations/preflights/id')",context),/Access denied/);assert.equal(context.token,null);
+});
+
+test('60-minute absolute browser session timer is not renewed by authenticated activity',async()=>{
+ const timers=[];const nodes=harness(async url=>response(url.endsWith('authenticate/verify')?{token:'adm_test',expiresInSeconds:3600}:overview),undefined,undefined,{setTimeout:(fn,ms)=>{timers.push({fn,ms});return timers.length;},clearTimeout:()=>{}});
+ await nodes.login.listeners.submit(submit);
+ assert.equal(timers.filter(t=>t.ms===3600000).length,1);
+ await nodes.filters.listeners.submit(submit);
+ assert.equal(timers.filter(t=>t.ms===3600000).length,1);
+ timers.find(t=>t.ms===3600000).fn();assert.equal(nodes.dashboard.hidden,true);assert.match(nodes.message.textContent,/Session expired/);
 });

@@ -133,13 +133,13 @@ $("register").addEventListener("submit",async event=>{
 $("revoke").addEventListener("click",async()=>{
   const previous=token;clearSession();message("Signed out locally.");
   try{await request("sessions",{method:"DELETE",headers:{Authorization:`Bearer ${previous}`}});if(!token)message("All admin sessions revoked.");}
-  catch{if(!token)message("Server revocation could not be confirmed. Sessions expire within 15 minutes.");}
+  catch{if(!token)message("Server revocation could not be confirmed. Sessions expire within 60 minutes.");}
 });
 $("filters").addEventListener("submit",event=>{event.preventDefault();refresh();});
 $("logout").addEventListener("click",async()=>{
   const previous=token;clearSession();message("Signed out locally.");
   try{await request("session",{method:"DELETE",headers:{Authorization:`Bearer ${previous}`}});}
-  catch {if(!token)message("Signed out locally. Any unreachable server session expires within 15 minutes.");}
+  catch {if(!token)message("Signed out locally. Any unreachable server session expires within 60 minutes.");}
 });
 window.addEventListener("pagehide",clearSession);
 
