@@ -14,13 +14,13 @@ export function validateDirectProviderPage({target,page,directory}){
  if(!page.accessDecisions?.length||page.accessDecisions.some(d=>!['ALLOWED','NO_ROBOTS_POLICY'].includes(d.decision)))throw Error('DIRECT_PROVIDER_POLICY_UNPROVEN');
  return {...page,rawSource:{text:body},acquisitionChannel:'DIRECT_PROVIDER'};
 }
-export async function interpretDirectProvider({target,page,directory,interpret=interpretRun,verify=verifyRetainedRun}){
- const retained=validateDirectProviderPage({target,page,directory});
- const dir=path.join(directory,'direct-acquisitions','direct-'+randomUUID());fs.mkdirSync(dir,{recursive:true});
+export async function interpretDirectProvider({target,page,directory,interpret=interpretRun,verify=verifyRetainedRun,onReplayStage=()=>{}}){
+ onReplayStage('SOURCE_VALIDATION');const retained=validateDirectProviderPage({target,page,directory});
+ const dir=path.join(directory,'direct-acquisitions','direct-'+randomUUID());onReplayStage('ACQUISITION_RECORD',{runDirectory:dir});fs.mkdirSync(dir,{recursive:true});
  const manifest={version:'RESEARCH_V2_LIVE_V1',id:path.basename(dir),createdAt:new Date().toISOString(),inventory:[target],capabilities:{decodo:false,groq:false,browser:false,providerContact:false,productionVerified:false},productionVerified:false};
  fs.writeFileSync(dir+'/manifest.json',JSON.stringify(manifest,null,2));
  const store=openMarketRunStore(dir+'/journal');try{store.append('V2_ACQUISITION_RESULT',{target,result:{outcome:'OBSERVED',attempts:[{id:path.basename(dir),method:'DIRECT_PUBLIC',outcome:'OBSERVED',page:retained}]}});}finally{store.close();}
- await interpret(dir);const verification=await verify(dir);
+ onReplayStage('INTERPRETATION',{runDirectory:dir});await interpret(dir);onReplayStage('TARGETED_VERIFICATION',{runDirectory:dir});const verification=await verify(dir);
  return {priceEvidenceNeeds:verification.priceEvidenceNeedsByTarget?.[target.id]??null,url:page.url,runDirectory:dir,classification:verification.verified.length?'VERIFIED_OUTPUT':'DIRECT_FIELDS_INSUFFICIENT',acquired:true,usable:verification.usable,monetary:verification.monetaryFacts,verified:verification.verified,sufficient:verification.verified.length>0,blockers:verification.blockers,channel:'DIRECT_PROVIDER',hardStop:false};
 }
 export function directGeoGap(outcome){

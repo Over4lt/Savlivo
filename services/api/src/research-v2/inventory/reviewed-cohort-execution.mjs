@@ -1,3 +1,5 @@
+import {replayDiagnostics,projectionMetrics,retainedReplayFailure} from './replay-diagnostics.mjs';
+import {priceNeedsBounds} from '../intelligence/price-evidence-needs.mjs';
 import {mergePriceEvidenceNeeds} from '../intelligence/price-evidence-needs.mjs';
 import {readLeadSnapshot,leadContext,candidateLeads} from '../human-leads/snapshot.mjs';
 import {leadOutcomeRecorder} from '../human-leads/outcomes.mjs';
@@ -48,29 +50,36 @@ export function cancellationReview(target,page){
 }
 export async function replayTarget({target,directory,sourceDirectory,registry,interpret=interpretDirectProvider,quarantine=[]}) {
  fs.mkdirSync(directory,{recursive:true});const resultFile=directory+'/retained-replay.json';if(fs.existsSync(resultFile))return json(resultFile);
- const pages=json(sourceDirectory+'/pages.json'),accepted=[],rejected=[],t=structuredClone(target);t.leads=[];
- for(const p of pages){const admission=admitRetained({target:t,page:p,directory:sourceDirectory,registry});if(!admission.accepted){rejected.push({url:p.url,reason:admission.reason});continue;}
+ const progress=replayDiagnostics(directory,target.id);let t,price,stage='INPUT_LOAD';
+ const at=(name,identity)=>{stage=name;progress.stage(name,identity);};
+ try{
+ const pages=json(sourceDirectory+'/pages.json'),accepted=[],rejected=[];t=structuredClone(target);t.leads=[];progress.inputs(pages.length);
+ for(const [index,p] of pages.entries()){price=null;progress.source(p,index+1);at('SOURCE_PREPARATION');const admission=admitRetained({target:t,page:p,directory:sourceDirectory,registry});if(!admission.accepted){rejected.push({url:p.url,reason:admission.reason});continue;}
   const page=admission.page;fs.mkdirSync(directory+'/bodies',{recursive:true});fs.copyFileSync(sourceDirectory+'/'+page.bodyFile,directory+'/'+page.bodyFile);accepted.push(page);
-  const body=fs.readFileSync(directory+'/'+page.bodyFile,'utf8');
+  const body=fs.readFileSync(directory+'/'+page.bodyFile,'utf8');at('ACCOUNT_ACCESS_INSPECTION');
   const proof=inspectLoginManage({body,sourceHash:page.bodyHash,url:page.url,service:t.service,provider:t.serviceName,market:t.market,authorityEstablished:true,reference:{path:directory+'/'+page.bodyFile,hash:page.bodyHash}});
   if(t.researchObjective==='CATALOG_ONLY')mergeTargetCapabilities(t,proof);
-  for(const link of providerNavigation(t,body,page.url,{maxBytes:2097152,depth:0}).links)t.leads.push({...link,title:link.label,rank:0,from:{url:page.url,bodyHash:page.bodyHash}});
+  at('NAVIGATION_EXTRACTION');for(const link of providerNavigation(t,body,page.url,{maxBytes:2097152,depth:0}).links)t.leads.push({...link,title:link.label,rank:0,from:{url:page.url,bodyHash:page.bodyHash}});
   if(t.researchObjective!=='CATALOG_ONLY'){
    // Normal V2 journal/interpretation, never a synthetic result or regenerated acquisition.
-   const key=digest([page.bodyHash,t.market]),record=directory+'/price-'+key+'.json',pending=record+'.dispatched';
-   let price;
-   if(fs.existsSync(record))price=json(record);
-   else{if(fs.existsSync(pending))throw Error('HANDOFF_RETAINED_INTERPRETATION_RECONCILIATION_REQUIRED');fs.writeFileSync(pending,'reserved',{flag:'wx'});price=await interpret({target:t,page,directory});atomic(record,price);fs.unlinkSync(pending);}
-   t.verified??=[];t.verified.push(...price.verified??[]);mergePriceEvidenceNeeds(t,price.priceEvidenceNeeds);applyPriceQuarantine(t,quarantine);const retained=retainedPriceReview(price.runDirectory,t);if(retained)t.retainedPriceReview=retained;
+   at('REPLAY_RECORD_LOOKUP');const key=digest([page.bodyHash,t.market]),record=directory+'/price-'+key+'.json',pending=record+'.dispatched';progress.record(record);
+   if(fs.existsSync(record)){price=json(record);progress.record(record,price);progress.persisted();}
+   else{at('INTERPRETATION_RESERVATION');if(fs.existsSync(pending))throw Error('HANDOFF_RETAINED_INTERPRETATION_RECONCILIATION_REQUIRED');fs.writeFileSync(pending,'reserved',{flag:'wx'});at('INTERPRETATION');price=await interpret({target:t,page,directory,onReplayStage:at});progress.record(record,price);at('REPLAY_RECORD_PERSISTENCE');atomic(record,price);progress.persisted();at('RESERVATION_REMOVAL');fs.unlinkSync(pending);}
+   at('VERIFIED_RESULT_INTEGRATION');t.verified??=[];t.verified.push(...price.verified??[]);
+   at('PRICE_EVIDENCE_NEEDS_MERGE');mergePriceEvidenceNeeds(t,price.priceEvidenceNeeds);
+   at('QUARANTINE_REVIEW_INTEGRATION');applyPriceQuarantine(t,quarantine);const retained=retainedPriceReview(price.runDirectory,t);if(retained)t.retainedPriceReview=retained;
   }
+  progress.integrated();
  }
  // Old network usage remains in lineage; memory suppresses repeated attempted provider routes.
- t.researchMemory=createResearchMemory({...t,reads:pages,queries:[]},{path:sourceDirectory+'/pages.json',hash:digest(fs.readFileSync(sourceDirectory+'/pages.json'))});
- t.leads=[...new Map([...t.leads,...t.urls.map(url=>({url,title:t.serviceName,rank:0}))].map(l=>[l.url,l])).values()];
- atomic(directory+'/pages.json',accepted);
- const cancellation=accepted.map(p=>({url:p.url,...cancellationReview(t,p)}));
- const result={target:t,rejected,accepted:accepted.length,cancellation,executionComplete:true,researchComplete:false,completionMeaning:'RETAINED_REPLAY_NOT_SERVICE_QUALIFICATION',networkCalls:0};atomic(resultFile,result);return result;
+ at('RESEARCH_MEMORY');t.researchMemory=createResearchMemory({...t,reads:pages,queries:[]},{path:sourceDirectory+'/pages.json',hash:digest(fs.readFileSync(sourceDirectory+'/pages.json'))});
+ at('LEAD_INTEGRATION');t.leads=[...new Map([...t.leads,...t.urls.map(url=>({url,title:t.serviceName,rank:0}))].map(l=>[l.url,l])).values()];
+ at('PAGES_PUBLICATION');atomic(directory+'/pages.json',accepted);
+ at('CANCELLATION_REVIEW');const cancellation=accepted.map(p=>({url:p.url,...cancellationReview(t,p)}));
+ const result={target:t,rejected,accepted:accepted.length,cancellation,executionComplete:true,researchComplete:false,completionMeaning:'RETAINED_REPLAY_NOT_SERVICE_QUALIFICATION',networkCalls:0};at('RESULT_PUBLICATION');atomic(resultFile,result);progress.complete();return result;
+ }catch(error){progress.fail(error,stage==='PRICE_EVIDENCE_NEEDS_MERGE'?{prior:projectionMetrics(t?.priceEvidenceNeeds),incoming:projectionMetrics(price?.priceEvidenceNeeds),aggregateByteLimit:priceNeedsBounds.bytes}:null);throw error;}
 }
+
 export async function runNativeTargets({directory,targets,retainedStates=[],createAdapters,offline=true,shouldStop=()=>false,onTransition=()=>{},isolateFailures=false,evidenceUpdates=[]}){
  if(!targets.length)return {complete:true,completionMeaning:'NO_AUTHORITY_READY_TARGETS',targets:{}};
  // One existing adaptive action per turn permits safe operator stop between native checkpoints.
@@ -174,7 +183,7 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
     fs.mkdirSync(dest+'/input/bodies',{recursive:true});const pages=[];for(const x of unique){fs.copyFileSync(x.directory+'/'+x.page.bodyFile,dest+'/input/'+x.page.bodyFile);pages.push(x.page);}atomic(dest+'/input/pages.json',pages);
     // Reinterpret price under current generic safety rules before reusing old sufficiency.
     if(phase==='pricing'){seed.priorVerifiedRequiringCurrentSafetyReview=seed.verified??[];seed.verified=[];delete seed.retainedPriceReview;}
-    let replay;try{replay=await replayTarget({target:seed,directory:dest+'/evidence',sourceDirectory:dest+'/input',registry,interpret:async args=>enrich(args,await interpretDirectProvider(args)),quarantine:lifecycle.quarantine??[]});}catch(error){if(/HASH|AUTHORITY|POLICY/.test(error.message))throw error;seed.executionBlocked='RETAINED_INTERPRETATION_REVIEW_REQUIRED';seed.retainedFailure={reason:seed.executionBlocked,artifact:dest+'/evidence',rawEvidencePreserved:true};replay={target:seed};}
+    let replay;try{replay=await replayTarget({target:seed,directory:dest+'/evidence',sourceDirectory:dest+'/input',registry,interpret:async args=>{const result=await interpretDirectProvider(args);args.onReplayStage?.('SOURCE_ENRICHMENT');return enrich(args,result);},quarantine:lifecycle.quarantine??[]});}catch(error){seed.retainedFailure=retainedReplayFailure(error,dest+'/evidence');seed.executionBlocked=seed.retainedFailure.reason;replay={target:seed};}
 
     replay.target.leads=[...new Map([...(seed.leads??[]),...(replay.target.leads??[])].map(l=>[l.url,l])).values()];
     replay.target.researchMemory=combineResearchMemory(replay.target,[seed.researchMemory,replay.target.researchMemory].filter(Boolean));
