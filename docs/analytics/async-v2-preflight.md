@@ -119,3 +119,21 @@ are not a sanitized public artifact contract. Only sanitized status is added her
 Deploy backend/runtime code through the established API deployment and publish
 `apps/web/admin/v2-operations.js` to the existing Webhuset Admin static deployment.
 Deploy the backend endpoint first. No Genesis migration or state repair is required.
+
+Live polling mutates existing status/timestamp text nodes only. Opening an owned
+run Inspect shares the same exact-job monitor; it does not start another loop for
+an already tracked job. The former 15-second Inspect timer that rebuilt the whole
+Operations view is removed. Polls never call the Operations renderer, summary,
+targeting, service explorer or artifact endpoints. Scroll, focused inputs, open
+Inspect panels and builder selections therefore remain undisturbed. Run evidence,
+counters and artifact tables are explicitly labeled inspection snapshots; updating
+those requires the operator's Refresh operations action. Switching tabs is still
+an explicit navigation, and monitoring continues independently until terminal
+status, logout/disposal or the existing bounded retry limits.
+
+This incremental-rendering refinement changes only the Admin module. Upload the
+committed `apps/web/admin/v2-operations.js` as `v2-operations.js` in the existing
+Webhuset Admin directory. It requires the actor-owned job-status endpoint from
+56016d3 on Render; no additional API deployment, migration or Genesis change is
+needed if that runtime is already deployed. A Render deploy alone does not update
+Webhuset static files.

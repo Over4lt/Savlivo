@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {mountOperations,capabilityGuidance,previewTargeting,monitorJob} from './v2-operations.js';
-class Element{children=[];listeners={};textContent='';value='';append(...n){this.children.push(...n);}replaceChildren(...n){this.children=n;}addEventListener(k,v){this.listeners[k]=v;}setAttribute(k,v){this[k]=v;}remove(){this.removed=true;}set innerHTML(_){throw Error('Unsafe HTML');}}
+class Element{children=[];listeners={};textContent='';value='';append(...n){this.children.push(...n);}replaceChildren(...n){this.replacements=(this.replacements??0)+1;this.children=n;}addEventListener(k,v){this.listeners[k]=v;}setAttribute(k,v){this[k]=v;}remove(){this.removed=true;}set innerHTML(_){throw Error('Unsafe HTML');}}
 const descendants=n=>[n,...n.children.flatMap(descendants)],text=n=>descendants(n).map(x=>x.textContent).join(' '),button=(n,name)=>descendants(n).find(x=>x.textContent===name&&x.listeners.click);
 function setup(){globalThis.document={createElement:()=>new Element()};globalThis.window={confirm:()=>false};return new Element();}
 const summary={flags:{read:true,control:false,scheduling:false},worker:{at:new Date().toISOString()},metrics:{catalog:2,complete:1,noPrice:1},refresh:null,health:{running:0,resumable:0,nextAutomatic:null,enabledSchedules:0},timezone:'Europe/Oslo'};
@@ -21,7 +21,7 @@ const targetRows=[{service:'film',name:'Film House',eligible:true,selectable:tru
 const targetModel={revision:'fixture',rows:targetRows,counts:{eligible:2,baselineExcluded:275,reviewed:1,humanReview:1,retainedServices:1,retainedTargets:2},facets:{markets:[{id:'NO',name:'Norway',services:1},{id:'SE',name:'Sweden',services:2}],categories:[{id:'video',name:'Video & TV',services:1},{id:'audio',name:'Music & Audio',services:1}]},presets:[{id:'ALL',name:'All eligible',services:2},{id:'UNRESOLVED',name:'Unresolved',services:2},{id:'HUMAN_REVIEW',name:'Needs human review',services:1},{id:'REVIEWED',name:'Reviewed providers',services:1},{id:'RETAINED',name:'Retained work',services:1}],marketMeaning:'Investigation scopes, not availability.',categoryMeaning:'Frozen categories.'};
 const availability=Object.fromEntries(['direct','tavily','decodo','browser','groq'].map(k=>[k,{available:k!=='browser',reason:k==='browser'?'DOCKER_UNAVAILABLE':null}]));
 const checkbox=(root,label)=>descendants(root).find(n=>n.textContent===label&&n.children.some(c=>c.type==='checkbox'))?.children.find(c=>c.type==='checkbox');
-async function builder(t,overrides={},history=[],starts=[]){const {selectTargeting}=await import('../../../services/api/src/v2-operations/targeting.mjs');const root=setup(),calls=[];const dispose=await mountOperations(root,async(p,options)=>{const body=options?.body?JSON.parse(options.body):null;calls.push({p,body});if(p.endsWith('/summary'))return {...summary,lifecycleConfigured:true,flags:{read:true,control:true,scheduling:false},capabilityAvailability:availability};if(p.endsWith('/targeting'))return {...targetModel,...selectTargeting(targetModel,body??{})};if(p.endsWith('/preflight'))return {id:'fixture-operation',status:'SUCCEEDED',result:{token:'safe-token',servicesConsidered:body.services.length,totalSafetyCeiling:100,liveReady:true,conflicts:[],storage:{admissionAllowed:true,researchDisk:{admissionAllowed:true}},capabilityCheck:{capabilities:body.capabilities,availability},preflight:{retainedTargets:2},...overrides}};if(p.endsWith('/preflights'))return {rows:history};if(p.endsWith('/starts'))return {rows:starts};if(p.includes('/jobs/')){const id=p.split('/').at(-1);return {id,status:'COMPLETE',terminal:true,services:['music'],maximumRequests:10};}if(p.endsWith('/start'))return {id:'start-operation',status:'SUCCEEDED',result:{id:'job',status:'QUEUED'}};return {rows:[],total:0};});t.after(dispose);return {root,calls};}
+async function builder(t,overrides={},history=[],starts=[],jobStatus=null){const {selectTargeting}=await import('../../../services/api/src/v2-operations/targeting.mjs');const root=setup(),calls=[];const dispose=await mountOperations(root,async(p,options)=>{const body=options?.body?JSON.parse(options.body):null;calls.push({p,body});if(p.endsWith('/summary'))return {...summary,lifecycleConfigured:true,flags:{read:true,control:true,scheduling:false},capabilityAvailability:availability};if(p.endsWith('/targeting'))return {...targetModel,...selectTargeting(targetModel,body??{})};if(p.endsWith('/preflight'))return {id:'fixture-operation',status:'SUCCEEDED',result:{token:'safe-token',servicesConsidered:body.services.length,totalSafetyCeiling:100,liveReady:true,conflicts:[],storage:{admissionAllowed:true,researchDisk:{admissionAllowed:true}},capabilityCheck:{capabilities:body.capabilities,availability},preflight:{retainedTargets:2},...overrides}};if(p.endsWith('/preflights'))return {rows:history};if(p.endsWith('/starts'))return {rows:starts};if(p.includes('/jobs/')){const id=p.split('/').at(-1);if(jobStatus)return jobStatus(id);return {id,status:'COMPLETE',terminal:true,services:['music'],maximumRequests:10};}if(p.endsWith('/start'))return {id:'start-operation',status:'SUCCEEDED',result:{id:'job',status:'QUEUED'}};return {rows:[],total:0};});t.after(dispose);return {root,calls};}
 test('builder immediately browses eligible names and separates baseline and retained target counts',async t=>{const {root,calls}=await builder(t);assert(text(root).includes('Film House'));assert(text(root).includes('Music Club'));assert(text(root).includes('Existing catalog: 275 — excluded'));assert(text(root).includes('1 services / 2 targets'));assert(text(root).includes('2 selected services · 3 service-market targets'));assert(!text(root).includes('FULL_CATALOG'));assert(!button(root,'Preflight').disabled);assert.equal(calls.filter(c=>c.p.endsWith('/targeting')).length,1);assert.equal(checkbox(root,'Direct').checked,true);assert.equal(checkbox(root,'Tavily').checked,true);for(const k of ['Decodo','Browser/Web','Groq'])assert.equal(checkbox(root,k).checked,false);assert.equal(checkbox(root,'Browser/Web').disabled,false);assert(text(root).includes('Unavailable on this server'));assert(!text(root).includes('DOCKER_UNAVAILABLE'));});
 test('market/category filters, zero results, clear filters and dynamic all matching update preview',async t=>{const {root}=await builder(t);const no=checkbox(root,'Norway (1)');no.checked=true;await no.listeners.change();assert(text(root).includes('1 selected services · 1 service-market targets'));const audio=checkbox(root,'Music & Audio (1)');audio.checked=true;await audio.listeners.change();assert(text(root).includes('No eligible services selected'));assert(button(root,'Preflight').disabled);assert(text(root).includes('Norway · Music & Audio'));await button(root,'Clear filters').listeners.click();assert(text(root).includes('2 selected services'));await button(root,'Clear selection').listeners.click();assert(button(root,'Preflight').disabled);await button(root,'Select all matching (2)').listeners.click();assert(!button(root,'Preflight').disabled);});
 test('manual checkboxes select/deselect and filter change explicitly returns to all matching',async t=>{const {root}=await builder(t);const row=()=>descendants(root).find(n=>n.className==='ops-service-row'&&text(n).includes('Film House'));let c=row().children[0];c.checked=false;await c.listeners.change();assert(text(root).includes('1 selected services'));assert(text(root).includes('Manual selection'));c=row().children[0];c.checked=true;await c.listeners.change();assert(text(root).includes('2 selected services'));const no=checkbox(root,'Norway (1)');no.checked=true;await no.listeners.change();assert(text(root).includes('All matching services (follows filters)'));assert(text(root).includes('1 selected services'));});
@@ -200,4 +200,49 @@ test('logout prevents further live status requests and repeated failures have a 
  await Promise.resolve();active=false;await pending.shift()();assert.equal(requests,1);
  active=true;monitorJob('job',async()=>{requests++;throw Error('offline');},()=>{},()=>active,fn=>{pending.push(fn);return fn;},()=>{});
  await Promise.resolve();while(pending.length)await pending.shift()();assert.equal(requests,6);
+});
+
+test('live polls mutate stable fields without resetting targeting, focus, expanded sections or shell',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});let status='QUEUED';
+ const {root,calls}=await builder(t,{},[],[],id=>({id,status,terminal:status==='COMPLETE',services:['music'],maximumRequests:20,updatedAt:status}));
+ const search=descendants(root).find(n=>n.placeholder==='Browse below, or type a name');search.value='Music';await search.listeners.input();
+ const market=checkbox(root,'Sweden (2)');market.checked=true;await market.listeners.change();
+ const groq=checkbox(root,'Groq');groq.checked=true;groq.listeners.change();
+ await button(root,'Preflight').listeners.click();globalThis.window.confirm=()=>true;await button(root,'Confirm and queue run').listeners.click();
+ document.activeElement=search;root.scrollTop=427;const panels=descendants(root).filter(n=>n.children.some(c=>c.textContent==='Markets — optional'));for(const p of panels)p.open=true;
+ const before=descendants(root),counts=before.map(n=>n.replacements??0),requests=calls.length;
+ for(const next of ['RUNNING','RUNNING','COMPLETE']){status=next;t.mock.timers.tick(10000);await Promise.resolve();await Promise.resolve();assert(text(root).includes('Job job: '+next));}
+ assert.deepEqual(descendants(root),before);assert.deepEqual(before.map(n=>n.replacements??0),counts);
+ assert.equal(document.activeElement,search);assert.equal(search.value,'Music');assert.equal(root.scrollTop,427);assert(market.checked);assert(groq.checked);assert(panels.every(p=>p.open));assert(text(root).includes('1 selected services'));
+ assert(calls.slice(requests).every(c=>c.p==='v2-operations/jobs/job'&&!c.body));assert.equal(calls.filter(c=>c.p.endsWith('/targeting')).length,1);
+ const done=calls.length;t.mock.timers.tick(60000);await Promise.resolve();assert.equal(calls.length,done);
+});
+
+test('run Inspect polls only exact job fields; open artifacts, service inspection and typed inputs remain',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const root=setup(),calls=[];let status='QUEUED';
+ const run={id:'run-projection',jobId:'owned-job',owned:true,name:'Fixture run',objective:'MATURE_LIFECYCLE',origin:'ADMIN',status:'QUEUED',actor:'owner'};
+ const dispose=await mountOperations(root,async(p)=>{calls.push(p);
+  if(p.endsWith('/summary'))return summary;
+  if(p.includes('/jobs/'))return {id:'owned-job',status,terminal:status==='COMPLETE',services:['music'],maximumRequests:20};
+  if(p==='v2-operations/runs/run-projection')return {run,efficiency:{},events:[]};
+  if(p.includes('/artifacts/'))return {status:'QUEUED'};
+  if(p.startsWith('v2-operations/services?'))return {rows:[{service:'music',name:'Music Club'}],total:1};
+  if(p.startsWith('v2-operations/services/music'))return {name:'Music Club',evidence:[],priceEvidence:[]};
+  if(p.startsWith('v2-operations/runs?'))return {rows:[run],total:1};return {rows:[],total:0};
+ });t.after(dispose);
+ await button(root,'Runs').listeners.click();await button(root,'Inspect').listeners.click();
+ const firstJobReads=calls.filter(p=>p==='v2-operations/jobs/owned-job').length;
+ await button(root,'Runs').listeners.click();await button(root,'Inspect').listeners.click();
+ assert.equal(calls.filter(p=>p==='v2-operations/jobs/owned-job').length,firstJobReads,'reopening the tracked job shares the existing poll loop');
+ await button(root,'checkpoint').listeners.click();await button(root,'Inspect').listeners.click();
+ const search=descendants(root).find(n=>n.textContent==='Search services').children[0];
+ // Set an existing control's draft value and focus; polling must not replace it.
+ search.value='unsaved draft';document.activeElement=search;root.scrollTop=620;
+ const nodes=descendants(root),replacements=nodes.map(n=>n.replacements??0),requestCount=calls.length;
+ assert(text(root).includes('Structured checkpoint'));assert(text(root).includes('Music Club'));
+ status='RUNNING';t.mock.timers.tick(10000);await Promise.resolve();await Promise.resolve();
+ status='COMPLETE';t.mock.timers.tick(10000);await Promise.resolve();await Promise.resolve();
+ assert.deepEqual(descendants(root),nodes);assert.deepEqual(nodes.map(n=>n.replacements??0),replacements);assert.equal(search.value,'unsaved draft');assert.equal(document.activeElement,search);assert.equal(root.scrollTop,620);
+ assert(text(root).includes('MATURE_LIFECYCLE · ADMIN · COMPLETE'));assert(calls.slice(requestCount).every(p=>p==='v2-operations/jobs/owned-job'));
+ assert(nodes.filter(n=>n.open).length>=2);const done=calls.length;t.mock.timers.tick(30000);await Promise.resolve();assert.equal(calls.length,done);
 });
