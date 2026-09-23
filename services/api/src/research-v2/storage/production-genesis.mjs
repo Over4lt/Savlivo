@@ -20,17 +20,23 @@ function scope(root,input,source,expected){
  return h;
 }
 function assertExclusions(entries,excluded){if(!Array.isArray(excluded)||!excluded.length||excluded.some(e=>!e.path||!/^[a-f0-9]{64}$/.test(e.sha256??'')||e.reason!=='UNSEALED_HISTORICAL_CONTROL_SNAPSHOT_NOT_USED_AS_GENESIS_INPUT'))fail('EXCLUSION_SCHEMA');if(entries.some(e=>excluded.some(x=>e.path===x.path||e.sha256===x.sha256)))fail('UNTRUSTED_INPUT');}
-export function validateProductionGenesis(root,file,{full=true}={}){
+export function validateProductionGenesis(root,file,{full=true,onTiming=()=>{}}={}){
+ let timingAt=performance.now();const timed=stage=>{const now=performance.now();onTiming({stage,durationMs:Math.round(now-timingAt)});timingAt=now;};
  const g=read(safe(root,file)),{genesisHash,...payload}=g;if(g.schema!==schema||genesisHash!==digest(payload)||g.lineage.kind!=='NEW_PRODUCTION_GENESIS'||g.lineage.continuesHistoricalSnapshot!==false)fail('SEAL');
  assertExclusions(g.protectedReferences.entries,g.excludedUntrustedHistoricalArtifacts);
+ timed('genesis-seal');
  for(const e of g.protectedReferences.entries)if(sha(stableBytes(safe(root,e.path)))!==e.sha256)fail('DEPENDENCY_HASH:'+e.path);
+ timed('protected-file-hashes');
  const receipt=verifySeal(g.protectedReferences,'V2_FINALIZED_REFERENCES_V1');if(receipt.boundaryKind!==schema)fail('REFERENCE_BOUNDARY');
  if(full){const r=closure(root,g.sourceRoots,{genesisArchive:true});if(!r.complete)fail('CLOSURE:'+r.errors.join(';'));if(digest(r.entries.map(e=>[e.path,e.sha256]))!==digest(receipt.entries.map(e=>[e.path,e.sha256])))fail('CLOSURE_CHANGED');}
+ timed('reference-closure');
  const source=snapshot(root,g.stateSource.path);if(source.hash!==g.stateSource.sha256)fail('SOURCE_HASH');const h=scope(root,g.lifecycle.originalInput,source.s,g.expected);
+ timed('source-scope-accounting');
  if(digest(resolveCapabilities(h.config.capabilities))!==digest(g.capabilities)||digest(g.cohort)!==digest(source.s.cohort))fail('CAPABILITIES_OR_COHORT');
  const inputBytes=stableBytes(safe(root,g.lifecycle.productionInput));if(sha(inputBytes)!==g.lifecycle.productionInputHash)fail('PRODUCTION_INPUT_HASH');const config=JSON.parse(inputBytes);
  if(config.productionGenesis!==file||config.runsRoot!==g.lifecycle.executionRoot||config.runsRoot===h.config.runsRoot||digest(resolveCapabilities(config.capabilities))!==digest(g.capabilities))fail('NEW_EXECUTION_NAMESPACE');
  if(digest(g.budgets)!==digest(lifecycleBudgets(h)))fail('BUDGET_POLICY');
+ timed('capabilities-budgets');
  return {root:path.resolve(root),genesis:g,source:source.s,handoff:h};
 }
 export function buildProductionGenesis({root,destination,snapshotPath,lifecycleInput,expected,excluded,createdAt,creationIdentity,versions}){

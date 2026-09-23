@@ -5,7 +5,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {safePath,hash,json} from './artifacts.mjs';
+// Full Genesis validation is cohort-wide even for a single selected service.
+export const nativeCheckTimeoutMs=600_000;
 export function lifecyclePlan(settings,input,selection=null){
+ const preparationStarted=performance.now();
  if(input.objective!=='MATURE_LIFECYCLE'||!['FULL_CATALOG','UNRESOLVED_ONLY','SELECTED_SERVICES'].includes(input.scope))throw Error('LIFECYCLE_REQUIRES_FROZEN_COHORT');
  if(!settings.lifecycleInput)throw Error('LIFECYCLE_INPUT_NOT_CONFIGURED');
  const source=safePath(settings.repo,settings.lifecycleInput),sourceConfig=json(source),ids=json(safePath(settings.repo,sourceConfig.cohortManifest)).serviceIds;
@@ -19,7 +22,11 @@ export function lifecyclePlan(settings,input,selection=null){
  // Service-wide authority/login/manage work remains service-wide; no availability claim.
  if(input.researchMarkets?.length){if(!selection||hash([...selection.services].sort())!==hash([...selected].sort()))throw Error('TARGETING_PREVIEW_MISMATCH');const scope={researchMarkets:selection.researchMarkets};const scopeFile=path.join(directory,hash(scope)+'.json');if(!fs.existsSync(scopeFile))fs.writeFileSync(scopeFile,JSON.stringify(scope,null,2),{flag:'wx',mode:0o600});else if(hash(json(scopeFile))!==hash(scope))throw Error('LIFECYCLE_SCOPE_CHANGED');derived.researchScopes=path.relative(settings.repo,scopeFile);}
  const file=path.join(directory,hash(derived)+'.json');if(!fs.existsSync(file))fs.writeFileSync(file,JSON.stringify(derived,null,2),{flag:'wx',mode:0o600});else if(hash(json(file))!==hash(derived))throw Error('LIFECYCLE_INPUT_CHANGED');
- const result=spawnSync(process.execPath,['--import','tsx','docs/catalog/global-47/research-v2/run-mature-v2.mjs','--input',file,'--check'],{cwd:settings.repo,encoding:'utf8',timeout:120000,maxBuffer:4*1024*1024,env:process.env});
+ console.error(JSON.stringify({event:'V2_NATIVE_CHECK_STAGE',stage:'derived-input',status:'FINISHED',durationMs:Math.round(performance.now()-preparationStarted)}));
+ const started=performance.now();
+ const result=spawnSync(process.execPath,['--import','tsx','docs/catalog/global-47/research-v2/run-mature-v2.mjs','--input',file,'--check'],{cwd:settings.repo,encoding:'utf8',timeout:nativeCheckTimeoutMs,maxBuffer:4*1024*1024,env:process.env});
+ for(const line of String(result.stderr??'').split('\n'))try{const t=JSON.parse(line);if(t.event==='V2_NATIVE_CHECK_STAGE'&&/^[a-z-]{1,48}$/.test(t.stage)&&['STARTED','FINISHED'].includes(t.status))console.error(JSON.stringify({event:t.event,stage:t.stage,status:t.status,...(Number.isFinite(t.durationMs)&&t.durationMs>=0?{durationMs:t.durationMs}:{})}));}catch{}
+ console.error(JSON.stringify({event:'V2_NATIVE_CHECK_COMPLETED',durationMs:Math.round(performance.now()-started),timeoutMs:nativeCheckTimeoutMs,success:!result.error&&result.status===0}));
  if(result.error||result.status!==0)throw Object.assign(Error('MATURE_LIFECYCLE_PREFLIGHT_FAILED'),{operationsDiagnostic:childDiagnostic(result)});
  const p=JSON.parse(result.stdout),output=safePath(settings.repo,p.output);
  if(p.networkCalls!==0||p.onlineStarted!==false||p.servicesSelected!==selected.length)throw Error('INVALID_LIFECYCLE_PREFLIGHT');

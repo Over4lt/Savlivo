@@ -224,3 +224,33 @@ failures preserve exit status, signal and recognized filesystem/timeout codes.
 Raw stderr, argv, environment, filesystem paths and stacks are never forwarded.
 The public error remains unchanged. Use the structured event from the failed
 request to identify the cause before changing configuration or validation.
+
+## Bounded native Preflight duration
+
+Operations native --check has a 600,000 ms ceiling (previously 120,000); Admin
+Preflight/Start use 630,000 ms (previously 150,000). Start independently validates
+again. No timeout is removed and no validation/cache trust is bypassed. The API
+has no separate application response deadline around this synchronous adapter;
+Node request-receipt deadlines are not native execution deadlines. Platform proxy
+limits must be considered separately and have not been measured here.
+
+A one-service check still authenticates the full Genesis protected closure. On
+the isolated certified fixture, the measured check stages totaled ~66.5 seconds:
+deployment input 1.345s, handoff .349s, code hashes .015s, Genesis 64.265s,
+continuation snapshot .524s, location .006s. Genesis included 5.688s file hashing,
+54.839s closure traversal and 3.593s source/scope/accounting. All 161 retained
+states remained available; requests consumed stayed zero. No transports ran.
+
+The prior 120s ceiling had less than 2x local headroom, and production conclusively
+hit it. Ten minutes provides ~9x measured local headroom / 5x the observed failed
+limit for slower production CPU/storage. This is sizing, not proof of a measured
+Render completion time. The complete validation remains mandatory. Future timing
+logs identify whether hardware/closure growth requires a different architecture.
+
+V2_NATIVE_CHECK_STAGE reports stage start/completion and elapsed milliseconds on
+stderr, leaving CLI stdout JSON intact. Operations relays only sanitized stage
+records after subprocess completion or timeout, plus total duration and outcome.
+These logs are not live progress streaming; the existing adapter is synchronous.
+Regression tests simulate a healthy 180s check without sleeping, assert the finite
+600s bound, and preserve zero-execution checks. Full fixture profiling was separate
+from the synthetic test suite; the optional real fixture regression remains opt-in.

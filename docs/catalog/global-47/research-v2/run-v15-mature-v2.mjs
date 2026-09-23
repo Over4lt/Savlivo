@@ -40,16 +40,17 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(path.resolve(process.argv[1]
 export async function lifecycleMain(args,control={}){
  const at=args.indexOf('--input'),file=at>=0?args[at+1]:null,rest=args.filter((a,i)=>i!==at&&i!==at+1&&a!=='--lifecycle');
  if(!file||rest.length!==1||!['--check','--live'].includes(rest[0])||args.length!==4)throw Error('Usage: --lifecycle --input <frozen-input.json> --check|--live');
- ensureGenesisRepositoryInputs(process.cwd(),file,{repair:false,allowExecutionSelection:true});
- const h=inspectLifecycleInput(file);h.config.capabilities=resolveCapabilities(h.config.capabilities);const capabilityCheck=capabilityPreflight(h.config.capabilities);const markets=structuredClone(h.config.researchScopes?json(h.config.researchScopes).researchMarkets:{});
+ const stage=(name,fn)=>{const started=performance.now();console.error(JSON.stringify({event:'V2_NATIVE_CHECK_STAGE',stage:name,status:'STARTED'}));try{return fn();}finally{console.error(JSON.stringify({event:'V2_NATIVE_CHECK_STAGE',stage:name,status:'FINISHED',durationMs:Math.round(performance.now()-started)}));}};
+ stage('deployment-inputs',()=>ensureGenesisRepositoryInputs(process.cwd(),file,{repair:false,allowExecutionSelection:true}));
+ const h=stage('handoff',()=>inspectLifecycleInput(file));h.config.capabilities=resolveCapabilities(h.config.capabilities);const capabilityCheck=stage('capabilities',()=>capabilityPreflight(h.config.capabilities));const markets=structuredClone(h.config.researchScopes?json(h.config.researchScopes).researchMarkets:{});
  // Explicit project market hints are research scopes only, never availability.
  for(const c of h.cohort.candidates)if(!markets[c.slug]?.length&&c.markets?.length)markets[c.slug]=[...c.markets];
  priceTargets(h.targets,markets,h.cohort.manifest.serviceIds);
  const codeFiles=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?codeFiles(path.join(dir,e.name)):e.isFile()&&e.name.endsWith('.mjs')?[path.join(dir,e.name)]:[]);
- const codeHash=digest(codeFiles('services/api/src/research-v2').sort().map(f=>[f,digest(fs.readFileSync(f))]));
- const genesis=h.config.productionGenesis?validateProductionGenesis(process.cwd(),h.config.productionGenesis):null;
- const lifecycle=snapshotLifecycle({handoff:h,researchMarkets:markets,runsRoot:h.config.runsRoot,baselineIds:h.baselineIds,legacyDirectory:genesis?null:h.config.legacyDirectory,quarantine:h.config.quarantineFile?json(h.config.quarantineFile).entries:[],codeHash,genesis});
- const location=continuationLocation(h,markets,false,null,null,lifecycle);
+ const codeHash=stage('engine-code-hashes',()=>digest(codeFiles('services/api/src/research-v2').sort().map(f=>[f,digest(fs.readFileSync(f))])));
+ const genesis=h.config.productionGenesis?stage('genesis-validation',()=>validateProductionGenesis(process.cwd(),h.config.productionGenesis,{onTiming:t=>console.error(JSON.stringify({event:'V2_NATIVE_CHECK_STAGE',...t,status:'FINISHED'}))})):null;
+ const lifecycle=stage('continuation-snapshot',()=>snapshotLifecycle({handoff:h,researchMarkets:markets,runsRoot:h.config.runsRoot,baselineIds:h.baselineIds,legacyDirectory:genesis?null:h.config.legacyDirectory,quarantine:h.config.quarantineFile?json(h.config.quarantineFile).entries:[],codeHash,genesis}));
+ const location=stage('continuation-location',()=>continuationLocation(h,markets,false,null,null,lifecycle));
  const preflight={servicesSelected:h.config.executionServices?.length??h.cohort.manifest.serviceIds.length,cohort:h.cohort.manifest.serviceIds.length,reviewed:h.targets.length,humanReview:(h.config.executionServices?.length??h.cohort.manifest.serviceIds.length)-h.targets.length,baselineExcluded:h.baselineIds.length,capabilityCheck,capabilities:h.config.capabilities,liveReady:capabilityCheck.ready,output:location.directory,maximumNewRequests:lifecycleBudgets(h).total,historicalRequests:lifecycle.historicalRequests,parentRequests:lifecycle.parentRequests,retainedTargets:Object.keys(lifecycle.states).length,requestsConsumed:0,executionStarted:false,networkCalls:0,onlineStarted:false,credentials:'VALIDATED_AT_LIVE_START'};
  if(control.expectedOutput&&control.expectedOutput!==location.directory)throw Error('LIFECYCLE_CHECKPOINT_CHANGED');
  console.log(JSON.stringify(preflight,null,2));if(rest[0]==='--check')return preflight;

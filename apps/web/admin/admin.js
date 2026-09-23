@@ -24,7 +24,7 @@ function clearSession() {
   token = null; browserAbort?.abort(); clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();
 }
 function operationsRequestTimeout(path) {
-  if (["v2-operations/preflight","v2-operations/start"].includes(path)) return 150000;
+  if (["v2-operations/preflight","v2-operations/start"].includes(path)) return 630000;
   if (path === "v2-operations/targeting") return 30000;
   return 10000;
 }
