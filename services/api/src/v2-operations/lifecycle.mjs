@@ -1,3 +1,4 @@
+import {childDiagnostic} from './diagnostics.mjs';
 import {resolveCapabilities} from '../research-v2/capabilities/config.mjs';
 // Control-plane adapter only: preflight and execution use the CLI's mature entrypoint.
 import fs from 'node:fs';
@@ -19,7 +20,7 @@ export function lifecyclePlan(settings,input,selection=null){
  if(input.researchMarkets?.length){if(!selection||hash([...selection.services].sort())!==hash([...selected].sort()))throw Error('TARGETING_PREVIEW_MISMATCH');const scope={researchMarkets:selection.researchMarkets};const scopeFile=path.join(directory,hash(scope)+'.json');if(!fs.existsSync(scopeFile))fs.writeFileSync(scopeFile,JSON.stringify(scope,null,2),{flag:'wx',mode:0o600});else if(hash(json(scopeFile))!==hash(scope))throw Error('LIFECYCLE_SCOPE_CHANGED');derived.researchScopes=path.relative(settings.repo,scopeFile);}
  const file=path.join(directory,hash(derived)+'.json');if(!fs.existsSync(file))fs.writeFileSync(file,JSON.stringify(derived,null,2),{flag:'wx',mode:0o600});else if(hash(json(file))!==hash(derived))throw Error('LIFECYCLE_INPUT_CHANGED');
  const result=spawnSync(process.execPath,['--import','tsx','docs/catalog/global-47/research-v2/run-mature-v2.mjs','--input',file,'--check'],{cwd:settings.repo,encoding:'utf8',timeout:120000,maxBuffer:4*1024*1024,env:process.env});
- if(result.error||result.status!==0)throw Error('MATURE_LIFECYCLE_PREFLIGHT_FAILED');
+ if(result.error||result.status!==0)throw Object.assign(Error('MATURE_LIFECYCLE_PREFLIGHT_FAILED'),{operationsDiagnostic:childDiagnostic(result)});
  const p=JSON.parse(result.stdout),output=safePath(settings.repo,p.output);
  if(p.networkCalls!==0||p.onlineStarted!==false||p.servicesSelected!==selected.length)throw Error('INVALID_LIFECYCLE_PREFLIGHT');
  return {config:{objective:'MATURE_LIFECYCLE',scope:input.scope,services:input.services??[],capabilities,...(input.researchMarkets!==undefined?{researchMarkets:input.researchMarkets}:{})},manifest:{capabilities,objective:'MATURE_LIFECYCLE',catalog:[],targets:[],lifecycle:{input:file,output:p.output,inputHash:hash(fs.readFileSync(file,'utf8'))},limits:{totalRequests:p.maximumNewRequests}},source:null,catalogHash:hash(p),actionable:p.servicesSelected,servicesConsidered:p.servicesSelected,servicesExpectedNetwork:null,totalSafetyCeiling:p.maximumNewRequests,baselineExcluded:p.baselineExcluded,reviewed:p.reviewed,humanReview:p.humanReview,liveReady:p.liveReady,capabilityCheck:p.capabilityCheck,discovery:capabilities.tavily,decodo:capabilities.decodo,browser:capabilities.browser,runner:'mature lifecycleMain',checkpoint:output,preflight:p};

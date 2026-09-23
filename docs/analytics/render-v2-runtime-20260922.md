@@ -202,3 +202,25 @@ Identical missing compiled imports cannot resolve differently merely on retry;
 the historical later success requires failed/successful artifact hashes and
 process/build logs to establish what changed. Do not infer a restoration race
 from that observation alone.
+
+## Preflight 503 diagnostics
+
+Startup Genesis READY certifies input restoration, not an Operations request.
+The API lazily creates Operations from inherited environment settings. Disabled
+read/control gates return OPERATIONS_DISABLED (404) / RUN_CONTROL_DISABLED (403),
+not generic OPERATIONS_UNAVAILABLE. The supervisor passes its configured env and
+repository cwd to API and poller; relative state paths resolve from that cwd.
+
+Authenticated POST preflight enters private-data-http → operationsRequest →
+Operations.preflight → plan/configInput → lifecyclePlan → native CLI --check,
+then conflict/storage evaluation and token-store persistence. Every untyped
+exception in that route previously became an unlogged generic 503. Causes include
+input/hash/path errors, filesystem permissions, native check failure/timeout,
+invalid CLI JSON, discovery errors, and store writes. A ready startup cannot rule
+these out. No unique production cause can be inferred from that HTTP body alone.
+
+V2_OPERATIONS_FAILURE now records a sanitized reason and stage. Native-check
+failures preserve exit status, signal and recognized filesystem/timeout codes.
+Raw stderr, argv, environment, filesystem paths and stacks are never forwarded.
+The public error remains unchanged. Use the structured event from the failed
+request to identify the cause before changing configuration or validation.

@@ -18,3 +18,20 @@ test('Find services exposes full legitimate universe while only frozen 188 are s
 test('control/API rejects visible baseline injection before preflight or schedule persistence',async t=>{const {ops,dir}=pickerFixture(t);const config={objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:['netflix']};await assert.rejects(operationsRequest({method:'POST',url:new URL('http://local/v1/admin/v2-operations/preflight'),body:config,actor:'test'},ops),/INVALID_LIFECYCLE_SELECTION/);assert.throws(()=>ops.configInput(config),/INVALID_LIFECYCLE_SELECTION/);assert(!fs.existsSync(path.join(dir,'ops')));assert.deepEqual(ops.configInput({...config,services:['candidate-0']}).services,['candidate-0']);for(const scope of ['FULL_CATALOG','UNRESOLVED_ONLY']){assert.deepEqual(ops.configInput({...config,scope,services:[]}).services,[]);assert.throws(()=>ops.configInput({...config,scope}),/INVALID_LIFECYCLE_SCOPE/);}});
 
 test('full and unresolved plans remain manifest-bounded; selected plans preserve cohort order',async t=>{const {ops,dir,ids}=pickerFixture(t);const child=await import('node:child_process'),{syncBuiltinESMExports}=await import('node:module');const captured=[];const stub=t.mock.method(child.default,'spawnSync',(_command,args)=>{const input=JSON.parse(fs.readFileSync(args[args.indexOf('--input')+1]));captured.push(input.executionServices);return {status:0,stdout:JSON.stringify({output:'output',networkCalls:0,onlineStarted:false,servicesSelected:input.executionServices.length,baselineExcluded:275,maximumNewRequests:0,liveReady:false})};});syncBuiltinESMExports();try{for(const scope of ['FULL_CATALOG','UNRESOLVED_ONLY']){const plan=lifecyclePlan(ops.config,{objective:'MATURE_LIFECYCLE',scope,services:[]});assert.equal(plan.servicesConsidered,188);assert.deepEqual(captured.at(-1),ids);}lifecyclePlan(ops.config,{objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:[ids[2],ids[0]]});assert.deepEqual(captured.at(-1),[ids[0],ids[2]]);assert(captured.every(rows=>!rows.includes('netflix')));}finally{stub.mock.restore();syncBuiltinESMExports();}});
+
+test('enabled production Operations preflight invokes only native check and persists no job',async t=>{
+ const {ops,dir}=pickerFixture(t);ops.config.scheduling=false;
+ const child=await import('node:child_process'),{syncBuiltinESMExports}=await import('node:module');
+ const stub=t.mock.method(child.default,'spawnSync',(_command,args,options)=>{
+  assert(args.includes('--check'));assert(!args.includes('--live'));assert.equal(options.cwd,dir);assert.equal(options.env,process.env);
+  return {status:0,stdout:JSON.stringify({output:'output',networkCalls:0,onlineStarted:false,servicesSelected:1,baselineExcluded:275,maximumNewRequests:36,liveReady:true})};
+ });syncBuiltinESMExports();
+ try{const result=await operationsRequest({method:'POST',url:new URL('http://local/v1/admin/v2-operations/preflight'),actor:'admin',body:{objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:['candidate-0'],capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false}}},ops);
+ assert(result.token);assert.equal(result.servicesConsidered,1);assert.equal(ops.db().jobs.length,0);assert.equal(ops.db().preflights.length,1);
+ }finally{stub.mock.restore();syncBuiltinESMExports();}
+});
+test('native preflight failure retains safe subprocess reason instead of discarding it',async t=>{
+ const {ops}=pickerFixture(t),child=await import('node:child_process'),{syncBuiltinESMExports}=await import('node:module');
+ const stub=t.mock.method(child.default,'spawnSync',()=>({status:1,stderr:JSON.stringify({event:'V2_OPERATIONS_FAILURE',reason:'GENESIS_DEPLOYMENT_REPOSITORY_INPUTS_MISSING'})}));syncBuiltinESMExports();
+ try{assert.throws(()=>ops.preflight({objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:['candidate-0']},'admin'),e=>e.message==='MATURE_LIFECYCLE_PREFLIGHT_FAILED'&&e.operationsDiagnostic.reason==='GENESIS_DEPLOYMENT_REPOSITORY_INPUTS_MISSING');assert.equal(ops.db().jobs.length,0);}finally{stub.mock.restore();syncBuiltinESMExports();}
+});

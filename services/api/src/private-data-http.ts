@@ -1,3 +1,4 @@
+import {operationsDiagnostic} from './v2-operations/diagnostics.mjs';
 import { operationsRequest } from "./v2-operations/http.mjs";
 import { reportingEnabled, reportFilters, globalReport, segmentReport } from "./analytics-v2.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -151,6 +152,7 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
         respond(res,200,result);
       } catch (error) {
         const e=error as Error & {status?:number};
+        if(!e.status || e.status>=500)console.error(JSON.stringify(operationsDiagnostic(e,req.method === "POST" && url.pathname.endsWith("/preflight") ? "preflight" : "request")));
         respond(res,e.status ?? 503,{error:e.status ? e.message : "OPERATIONS_UNAVAILABLE"});
       }
       return true;
