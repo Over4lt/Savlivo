@@ -1,3 +1,4 @@
+import {recoverInertMoney} from './inert-state.mjs';
 import {billingCadence} from './cadence-family.mjs';
 import {bindRecurringSkus} from './recurring-sku-binding.mjs';
 import {bindNestedOptions} from './nested-option-binding.mjs';
@@ -210,6 +211,21 @@ export function extract(body){if(Buffer.byteLength(body)>4000000)throw Error('SO
   c.productOwnerEvidence={raw:b.name,path:b.proof.namePath,method:'JSON_OBJECT',structuredPlanBinding:b.proof};c.marketOwnerEvidence=[];c.structuredPlanBinding=b.proof;c.materialization=b.materialization;
   c.offerRole={role:b.role,basis:'EXPLICIT_CONTAINED_TEXT_RUN_TRANSITION',evidence:b.proof};
   preserveQualifiers(c,{localText:b.local,ownerText:b.local,localPath:b.path,ownerPath:b.proof.objectPath,ownerStrong:true});result.push(c);
+ }
+ const inert=recoverInertMoney(tree,hash(body));
+ diagnostics.inertState={diagnostics:inert.diagnostics,bounds:inert.bounds,observations:inert.observations.length};
+ for(const o of inert.observations){
+  // A literal is not proof of the active offer. Keep relationship/role observations,
+  // but require independently established offer ownership before price admission.
+  const local=[o.plan,o.role==='TRIAL'?'trial':o.role==='CREDIT'?'benefit credit':o.role,o.currency,o.amount??o.rawAmount,o.cadence?'per '+o.cadence.value+' '+o.cadence.unit.toLowerCase():''].filter(Boolean).join(' ');
+  const c=base({raw:o.rawAmount,amount:o.amount,currencyRaw:o.currency},local,{name:o.plan,strong:false,method:'INERT_STRUCTURED_MONEY'},local);
+  c.sourceType='JSON';c.structuredPath=o.source.path+'/amount';c.rawEvidenceSnippet=body.slice(...o.source.span);c.discoveryCoordinates={start:o.source.span[0],end:o.source.span[1],coordinate:'UTF16_RETAINED_BODY_NEW_ANALYSIS'};
+  c.productOwnerEvidence={raw:o.plan,path:o.owner.path,method:'INERT_STRUCTURED_MONEY'};c.embeddedState=o;c.marketOwnerEvidence=[];
+  c.qualifierAmbiguous=true;c.qualifier.push('EMBEDDED_OFFER_ACTIVATION_UNRESOLVED');
+  if(['CREDIT','DISCOUNT','TAX'].includes(o.role))c.qualifier.push('SAVINGS_AMOUNT_NOT_CHARGE');
+  if(o.role==='TRIAL')c.promotionOrTrial='PROMOTION_OR_TRIAL';
+  if(o.cadence){c.billingPeriod=o.cadence.normalized;c.structuredContext={billingPeriod:o.cadence.normalized};}
+  result.push(c);
  }
  const materialized=materializeStructured(tree,hash(body));
  diagnostics.structuredMaterialization={...materialized,payloads:materialized.payloads.map(p=>({path:p.path,metadata:p.metadata}))};
