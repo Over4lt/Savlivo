@@ -22,3 +22,7 @@ export function executableAction(t,action,{bounds=executionBounds,usage={reads:0
  if(route==='CONDITIONAL_DECODO'){if(available.decodo===false)return no('DECODO_DISABLED');if(!action.escalation?.eligible)return no('ACQUISITION_FAILURE_PROOF_REQUIRED');if((t.decisions??[]).filter(d=>d.acquisitionReserved).length>=bounds.perServiceAcquisitions||usage.acquisitions>=bounds.acquisitions)return no('DECODO_BUDGET_EXHAUSTED');return yes();}
  return no('NON_RUNNABLE_RESEARCH_STATE');
 }
+
+// Exact failure semantics: an ALLOWED result is never evidence of exhaustion.
+const exhaustedBudgetReasons=new Set(['DIRECT_BUDGET_EXHAUSTED','DISCOVERY_BUDGET_EXHAUSTED','DECODO_BUDGET_EXHAUSTED']);
+export const exhaustedExecutionBudget=result=>result?.executable===false&&exhaustedBudgetReasons.has(result.reason);

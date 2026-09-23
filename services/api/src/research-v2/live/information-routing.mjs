@@ -1,7 +1,7 @@
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {catalogObjective,capabilityDestination} from '../intelligence/login-manage.mjs';
 import {retainedSuccesses} from './retained-success.mjs';
-import {executableAction} from './execution-capabilities.mjs';
+import {executableAction,exhaustedExecutionBudget} from './execution-capabilities.mjs';
 // Ordinal information value, not a probability or provider fact. No transport.
 import {normalizeFrontierUrl,semanticReasons} from './source-frontier.mjs';
 const norm=u=>normalizeFrontierUrl(u).url;
@@ -18,7 +18,7 @@ export function destinationInformation(t,url,{diagnosis=null,unresolvedFields=[]
  if(!ranked&&(t.knownCommercialUrls??[]).some(x=>norm(x)===normalized))gain+=1;
  return {url:normalized,eligible:gain>0,informationGain:gain,relativeCost:1,value:gain,reason,discoveryRank:lead?.rank??0,traversalOrder:lead?(t.leads??[]).indexOf(lead):(t.urls??[]).indexOf(url),marketApplicabilityEstablished:false};
 }
-export function chooseInformationAction(t,{knowledge,retained=null,configurationDemonstrated=false,renderingDemonstrated=false,urls=t.urls??[],discoveryAllowed=true,executionContext}={}){
+export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionContext}={}){
  const k=knowledge??{attempts:[],blockedOrigins:[],unresolvedFields:[]},attempts=k.attempts??[],evaluated=[...new Set(urls)].map(url=>{const x=destinationInformation(t,url,k);return {...x,capability:x.url?executableAction(t,{route:'DIRECT',url:x.url},executionContext):{executable:false,reason:'UNSAFE_URL'}};});
  const valid=evaluated.filter(x=>x.eligible&&!k.blockedOrigins?.includes(new URL(x.url).origin));
  const completed=a=>a.completed&&a.route==='DIRECT',seen=new Set(attempts.filter(completed).flatMap(a=>[a.url,a.finalUrl].map(norm).filter(Boolean)));
@@ -26,6 +26,11 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  const refresh=t.refreshReview?.approved===true&&typeof t.refreshReview.reason==='string'&&!!t.refreshReview.reference;
  const successes=t.adaptiveExecution&&!catalogObjective(t)?retainedSuccesses(t):[],reuse=successes.filter(r=>r.intact&&!r.reviewed&&!r.stale).sort((a,b)=>Number(!!b.sufficient)-Number(!!a.sufficient)||a.url.localeCompare(b.url))[0],reacquire=new Set(successes.filter(r=>r.intact&&(r.reviewed||r.stale)&&!r.sufficient).map(r=>r.url));
  const candidates=valid.map(x=>reacquire.has(x.url)?{...x,value:x.value+1,reason:'PREVIOUS_PROVIDER_SUCCESS_INSUFFICIENT_REACQUIRE_ONCE'}:x).filter(x=>x.capability.executable&&(refresh||!seen.has(x.url)||reacquire.has(x.url)&&x.informationGain>=4)).sort((a,b)=>b.value-a.value||a.discoveryRank-b.discoveryRank||a.traversalOrder-b.traversalOrder||a.url.localeCompare(b.url));
+ const budgetBlocked=valid.filter(x=>exhaustedExecutionBudget(x.capability)&&(refresh||!seen.has(x.url)||reacquire.has(x.url)&&x.informationGain>=4));
+ return {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked};
+}
+export function chooseInformationAction(t,{knowledge,retained=null,configurationDemonstrated=false,renderingDemonstrated=false,urls=t.urls??[],discoveryAllowed=true,executionContext}={}){
+ const {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked}=actionableDestinations(t,{knowledge,urls,executionContext});
  let route,reason,url=null;
  if(!catalogObjective(t)&&retained?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
  else if(k.memoryRejected){route='STOP';reason='RESEARCH_MEMORY_RECONCILIATION_REQUIRED';}
@@ -41,9 +46,10 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(valid.length&&valid.every(x=>seen.has(x.url))&&(k.unresolvedFields??[]).length>0&&k.unresolvedFields.every(x=>/STRUCTUR|OWNERSHIP|CONFLICT|PRODUCT_UNRESOLVED|PLAN_UNRESOLVED/.test(x))){route='STRUCTURED_REINTERPRETATION';reason='RETAINED_STRUCTURE_REQUIRES_REVIEW';}
  else if(attempts.filter(a=>a.route==='DISCOVERY'&&a.completed).length>=2){route='STOP';reason='DISCOVERY_EXHAUSTED';}
  else if(k.blockedOrigins?.length&&evaluated.some(x=>x.url)&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))){route='STOP';reason='PROVIDER_ACCESS_POLICY_STOP';}
+ else if(t.capabilities?.tavily===false){route='STOP';reason='CAPABILITY_DISABLED_TAVILY';}
  else if(!discoveryAllowed){route='STOP';reason='KNOWN_DESTINATION_NEEDS_EVIDENCE_NOT_SEARCH';}
  else if(!executableAction(t,{route:'DISCOVERY'},executionContext).executable){route='STOP';reason=executableAction(t,{route:'DISCOVERY'},executionContext).reason;}
  else {route='DISCOVERY';reason='NO_USEFUL_PROVIDER_DESTINATION';}
  }
- return {route,reason,url,retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DISCOVERY','REUSE_RETAINED'].includes(route),evaluated,candidates,attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5},ordinalOnly:true};
+ return {route,reason,url,retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DISCOVERY','REUSE_RETAINED'].includes(route),evaluated,candidates,budgetBlocked,attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5},ordinalOnly:true};
 }

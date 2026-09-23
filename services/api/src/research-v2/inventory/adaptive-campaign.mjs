@@ -7,7 +7,7 @@ import fs from 'node:fs';import path from 'node:path';import {createHash} from '
 import {atomic,recoverInterrupted} from './expansion-campaign.mjs';
 import {runOpenWebResearch,destinationDiscoveryNeeded,rankPlannerLeads} from '../live/open-web-discovery.mjs';
 import {planResearch} from '../live/research-planner.mjs';
-import {executableAction,executionBounds,resourceKey} from '../live/execution-capabilities.mjs';
+import {executableAction,executionBounds,resourceKey,exhaustedExecutionBudget} from '../live/execution-capabilities.mjs';
 import {navigationRank} from '../live/provider-navigation.mjs';
 const hash=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 export const adaptiveBounds=Object.freeze({reads:4,searches:2,acquisitions:2,retainedReviews:32,turns:512});
@@ -45,13 +45,13 @@ export function assessAdaptiveService(state,service){
  else if(cap.executable&&['DIRECT','DISCOVERY',...(t.researchObjective==='CATALOG_ONLY'?['AUTHORITY_DISCOVERY']:[])].includes(p.route)){value=p.route==='DIRECT'?(p.candidates?.[0]?.value??0):1;decision=value>0?'ACTIVATE':'REJECT';reason=value>0?p.reason:'NO_POSITIVE_INFORMATION_VALUE';}
  else if(p.route==='CONDITIONAL_DECODO'){reason='FRESH_ACCESS_REVIEW_REQUIRED';}
  else if(['RESEARCH_MEMORY_RECONCILIATION_REQUIRED','AUTHORITY_UNRESOLVED','CONFIGURATOR_REQUIRED','RENDERING_REQUIRED','PROVIDER_ACCESS_POLICY_STOP','RETAINED_STRUCTURE_REQUIRES_REVIEW'].includes(p.reason)){reason=p.reason;}
- else if(p.evaluated?.some(x=>x.eligible&&/BUDGET/.test(x.capability?.reason??''))||/BUDGET|LIMIT/.test(cap.reason)||s.used.reads>=state.bounds.reads&&s.used.searches>=state.bounds.searches){reason='BUDGET_EXHAUSTED';}
+ else if(exhaustedExecutionBudget(cap)||exhaustedExecutionBudget({executable:false,reason:p.reason})||p.reason==='KNOWN_DESTINATION_NEEDS_EVIDENCE_NOT_SEARCH'&&p.budgetBlocked?.length>0){reason='BUDGET_EXHAUSTED';}
  else {decision='REJECT';reason=p.reason??'NO_POSITIVE_VALUE_FOLLOWUP';}
  const row={targetId:t.id,service,market:t.market,provider:t.serviceName,originatingState:signature,trigger:t.researchDiagnosis??t.previousFailureReason??'INITIAL_RESEARCH',unresolvedFields:p.knowledge?.unresolvedFields??[],expectedInformationValue:value,expectedCost:p.route==='REUSE_RETAINED'?0:p.route==='DIRECT'?1:['DISCOVERY','AUTHORITY_DISCOVERY'].includes(p.route)?3:5,capability:cap,budgetAllocation:context.catalogBudgetAllocation,historyCount:p.attemptsConsidered??0,decision,reason,plan:{...p,runnable:decision==='ACTIVATE'&&cap.executable},actionIdentity:actionKey(service,p),initial:state.initialIds.includes(t.id)};rows.push(row);
  }
  const positive=rows.filter(r=>r.decision==='ACTIVATE').sort((a,b)=>b.expectedInformationValue-a.expectedInformationValue||Number(b.initial)-Number(a.initial)||(state.targets[a.targetId].priority??0)-(state.targets[b.targetId].priority??0)||a.targetId.localeCompare(b.targetId));const best=positive[0];
  for(const r of positive.slice(1)){r.decision=r.actionIdentity===best.actionIdentity?'SUPERSEDED':'DEFER';r.reason=r.decision==='SUPERSEDED'?'EQUIVALENT_TO_SELECTED_ACTION':'BETTER_ACTION_SELECTED_REASSESS_AFTER_RESULT';r.supersededBy=best.targetId;r.plan.runnable=false;}
- let stop=null;if(!best){const deferred=rows.filter(r=>r.decision==='DEFER'),budget=deferred.some(r=>r.reason==='BUDGET_EXHAUSTED');stop={kind:budget?'BUDGET_LIMITED':deferred.length?'BLOCKED':'RESEARCH_OPTIMAL_STOP',reason:enough??(budget?'BUDGET_EXHAUSTED':deferred[0]?.reason??'NO_POSITIVE_VALUE_FOLLOWUP'),scope:'KNOWN_REVIEWED_ACTION_SPACE_ONLY',assessedTargets:rows.length,state:signature};}
+ let stop=null;if(!best){const deferred=rows.filter(r=>r.decision==='DEFER'),budget=deferred.some(r=>r.reason==='BUDGET_EXHAUSTED');stop={kind:budget?'BUDGET_LIMITED':deferred.length?'BLOCKED':'RESEARCH_OPTIMAL_STOP',reason:enough??(budget?'BUDGET_EXHAUSTED':deferred[0]?.reason??rows[0]?.reason??'NO_POSITIVE_VALUE_FOLLOWUP'),scope:'KNOWN_REVIEWED_ACTION_SPACE_ONLY',assessedTargets:rows.length,state:signature};}
  return {service,state:signature,rows,next:best??null,stop};
 }
 function recordAssessment(state,a){for(const row of a.rows){const old=state.decisions[row.targetId];if(!old||hash(old)!==hash(row))state.decisionHistory.push({...row,turn:state.turn});state.decisions[row.targetId]=row;}state.services[a.service].stop=a.stop;}

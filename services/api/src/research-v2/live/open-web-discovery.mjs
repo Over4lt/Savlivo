@@ -1,3 +1,6 @@
+import {actionableDestinations} from './information-routing.mjs';
+import {researchKnowledge} from './research-memory.mjs';
+import {missingCatalogFields} from '../intelligence/management-targeting.mjs';
 import {inspectLoginManage,mergeTargetCapabilities} from '../intelligence/login-manage.mjs';
 import {consumeRetainedSuccess} from './retained-success.mjs';
 import {executableAction,resourceKey,destinationReadAllowed} from './execution-capabilities.mjs';
@@ -36,7 +39,11 @@ export function destinationDiscoveryNeeded(t,bounds,usage){
  // Discovery locates a destination; it does not fill interpretation/verification fields.
  if(t.authorities?.length&&(t.reads.length>=bounds.perServiceReads||usage.reads>=bounds.reads))return false;
  const available=l=>!t.blockedOrigins.includes(new URL(l.url).origin);
- if(t.leads.some(l=>available(l)&&usefulProviderDestination(t,l)))return false;
+ if(t.smartResearch?.version===2){
+  if(t.researchObjective==='CATALOG_ONLY'?!missingCatalogFields(t).length:!(t.gaps?.length))return false;
+  const destinations=actionableDestinations(t,{knowledge:researchKnowledge(t),urls:t.leads.map(l=>l.url),executionContext:{bounds,usage}});
+  if(destinations.candidates.length||destinations.reuse)return false;
+ }else if(t.leads.some(l=>available(l)&&usefulProviderDestination(t,l)))return false;
  if((t.providerInterpretations??[]).some(o=>o.needsGeo&&!t.blockedOrigins.includes(new URL(o.url).origin)))return false;
  if(t.authorities?.length&&t.authorities.every(a=>t.blockedOrigins.includes('https://'+a.hostname)))return false;
  return true;
