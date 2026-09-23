@@ -1,3 +1,4 @@
+import {presentationProof} from './offer-presentation.mjs';
 import {recoverInertMoney} from './inert-state.mjs';
 import {billingCadence} from './cadence-family.mjs';
 import {bindRecurringSkus} from './recurring-sku-binding.mjs';
@@ -40,7 +41,7 @@ export function htmlTree(body){const root={tag:'root',start:0,end:body.length,ch
  const re=/<!--[\s\S]*?-->|<![^>]*>|<\/?[A-Za-z][^>]*>|[^<]+|</g;let m;
  while((m=re.exec(body))){const t=m[0],p=stack.at(-1);if(t.startsWith('<!--')||t.startsWith('<!'))continue;
   if(t.startsWith('</')){const tag=t.match(/^<\/\s*([\w:-]+)/)?.[1].toLowerCase();let i=stack.length-1;while(i>0&&stack[i].tag!==tag)i--;if(!i){malformed=true;continue;}while(stack.length>i){const n=stack.pop();n.end=re.lastIndex;}continue;}
-  if(t.startsWith('<')&&t.length>1){const tag=t.match(/^<([\w:-]+)/)?.[1].toLowerCase();if(!tag)continue;const attrs={};for(const a of t.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g))attrs[a[1].toLowerCase()]=decode(a[2]??a[3]??a[4]);if(/\shidden(?:\s|=|>)/i.test(t))attrs.hidden??='';const n={tag,attrs,start:m.index,openEnd:re.lastIndex,end:re.lastIndex,children:[],parent:p,index:p.children.length};p.children.push(n);nodes.push(n);
+  if(t.startsWith('<')&&t.length>1){const tag=t.match(/^<([\w:-]+)/)?.[1].toLowerCase();if(!tag)continue;const attrs={};for(const a of t.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g))attrs[a[1].toLowerCase()]=decode(a[2]??a[3]??a[4]);for(const flag of ['hidden','disabled','inert'])if(new RegExp('\\s'+flag+'(?:\\s|=|>)','i').test(t))attrs[flag]??='';const n={tag,attrs,start:m.index,openEnd:re.lastIndex,end:re.lastIndex,children:[],parent:p,index:p.children.length};p.children.push(n);nodes.push(n);
    if(skip.has(tag)){const close=new RegExp(`<\\/${tag}\\s*>`,'gi');close.lastIndex=re.lastIndex;const c=close.exec(body);n.raw=body.slice(re.lastIndex,c?.index??body.length);n.end=c?close.lastIndex:body.length;re.lastIndex=n.end;continue;}
    if(!voids.has(tag)&&!t.endsWith('/>'))stack.push(n);continue;}
   const n={tag:'#text',start:m.index,end:re.lastIndex,text:decode(t),children:[],parent:p,index:p.children.length};p.children.push(n);nodes.push(n);
@@ -201,14 +202,14 @@ export function extract(body){if(Buffer.byteLength(body)>4000000)throw Error('SO
   const local=b.name+' '+b.currency+' '+b.raw+' per month';
   const c=base({raw:b.raw,amount:b.value,currencyRaw:b.currency},local,{name:b.name,strong:true,method:'JSON_OBJECT'},local);
   c.sourceType='HTML';c.structuredPath=b.proof.cardPath;c.rawEvidenceSnippet=body.slice(...b.proof.cardSpan).slice(0,6000);c.productOwnerEvidence={raw:b.name,path:b.namePath,method:'JSON_OBJECT',structuredPlanBinding:b.proof};c.marketOwnerEvidence=[];
-  c.structuredContext={priceField:'amount',name:b.name,currency:b.currency,billingPeriod:'MONTH',recurring:true};c.structuredPlanBinding=b.proof;
+  c.structuredContext={priceField:'amount',name:b.name,currency:b.currency,billingPeriod:'MONTH',recurring:true};c.structuredPlanBinding=b.proof;c.offerPresentation=presentationProof(b);
   preserveQualifiers(c,{localText:local,ownerText:local,localPath:b.path,ownerPath:b.proof.objectPath,ownerStrong:true});result.push(c);
  }
  const nested=bindNestedOptions(tree,{monetary},hash(body));
  for(const b of [...nested.bindings,...bindRecurringSkus(tree,{monetary},hash(body)).bindings]){
   const c=base(b.monetary,b.local,{name:b.name,strong:true,method:'JSON_OBJECT'},b.local);
   c.sourceType='JSON';c.structuredPath=b.path;c.rawEvidenceSnippet=JSON.stringify(b.proof.rawSubtitle);c.normalizedEvidenceSnippet=b.local;
-  c.productOwnerEvidence={raw:b.name,path:b.proof.namePath,method:'JSON_OBJECT',structuredPlanBinding:b.proof};c.marketOwnerEvidence=[];c.structuredPlanBinding=b.proof;c.materialization=b.materialization;
+  c.productOwnerEvidence={raw:b.name,path:b.proof.namePath,method:'JSON_OBJECT',structuredPlanBinding:b.proof};c.marketOwnerEvidence=[];c.structuredPlanBinding=b.proof;c.materialization=b.materialization;c.offerPresentation=presentationProof(b);
   c.offerRole={role:b.role,basis:'EXPLICIT_CONTAINED_TEXT_RUN_TRANSITION',evidence:b.proof};
   preserveQualifiers(c,{localText:b.local,ownerText:b.local,localPath:b.path,ownerPath:b.proof.objectPath,ownerStrong:true});result.push(c);
  }
