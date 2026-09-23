@@ -1,3 +1,4 @@
+import { limitPricingMarket, settledPricingMap } from "./pricing-concurrency.js";
 import { countryCurrencies } from "../../../packages/contracts/src/markets.js";
 import {
   fetchProviderLocalPrices,
@@ -189,11 +190,8 @@ export async function runPricingRefreshBatch(
     ...countries
   ].sort();
 
-  const results = await Promise.allSettled(
-    orderedCountries.map(
-      (countryCode) =>
-        refreshCountry(countryCode)
-    )
+  const results = await settledPricingMap(orderedCountries, 2,
+    countryCode => limitPricingMarket(() => refreshCountry(countryCode))
   );
 
   const failures = results
@@ -208,6 +206,13 @@ export async function runPricingRefreshBatch(
     );
 
   return {
+    marketsAttempted: orderedCountries.length,
+    marketsCompleted: results.length - failures.length,
+    // Fulfillment is not proof of acquisition, verification, or persistence.
+    acquisition: null,
+    verification: null,
+    persistence: null,
+    // Compatibility aliases for existing explicit callers.
     checked: orderedCountries.length,
     refreshed:
       results.length - failures.length,

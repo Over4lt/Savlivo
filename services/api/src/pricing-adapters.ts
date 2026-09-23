@@ -1,3 +1,4 @@
+import { limitPricingAdapter, settledPricingMap } from "./pricing-concurrency.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { verifiedExpansionPrices } from "./verified-expansion-prices.js";
 // Opt-in dependency boundary. Runtime calls outside this async context are unchanged.
@@ -3821,7 +3822,8 @@ export async function discoverGoogleOnePricingFilename(): Promise<string | null>
   try {
     const paths = parseGoogleOnePricingAssets(await read("/intl/ALL_se/about/"));
     if (!paths.length) return null;
-    const assets = await Promise.all(paths.map(read));
+    const assets: string[] = [];
+    for (const path of paths) assets.push(await read(path));
     const pricingAssets = assets.filter(asset => asset.includes("g1-localized-price"));
     const filenames = pricingAssets.map(parseGoogleOnePricingFilename);
     if (!filenames.length || filenames.some(filename => filename === null)) return null;
@@ -11650,17 +11652,16 @@ export async function fetchProviderLocalPrices(
    * These adapters may combine verified registry values with
    * independently verified official sources.
    */
-  const results = await Promise.allSettled(
-    Object.entries(providerAdapters).map(
-      async ([serviceSlug, adapter]) => {
+  const results = await settledPricingMap(
+    Object.entries(providerAdapters), 4,
+      ([serviceSlug, adapter]) => limitPricingAdapter(async () => {
         const items = await adapter(ctx);
 
         return items.map((item) => ({
           ...item,
           serviceSlug
         }));
-      }
-    )
+      })
   );
 
   const adapterItems = results.flatMap((result) =>

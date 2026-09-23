@@ -40,8 +40,7 @@ import { storeVerifier, planForProduct } from "./billing.js";
 import { applyVerifiedPurchase } from "./repositories-billing.js";
 import { getProviderRoute } from "./provider-routing.js";
 import {
-  getRegionalPricing,
-  refreshVerifiedPricingCountries
+  getRegionalPricing
 } from "./pricing.js";
 import {
   dispatchDueNotifications,
@@ -1019,39 +1018,7 @@ ensureSubscriptionMarketSchema()
 
   void runBackgroundJobs();
 
-  const runPricingVerification = async () => {
-    try {
-      const result =
-        await refreshVerifiedPricingCountries();
-
-      console.log(
-        `pricing verification checked ${result.checked} countries; ` +
-        `refreshed ${result.refreshed}; ` +
-        `failed ${result.failed.length}`
-      );
-    } catch (err) {
-      console.error(
-        "pricing verification failed",
-        err
-      );
-    }
-  };
-
-  // Verify official pricing once when the API starts.
-  void runPricingVerification();
-
-  // Re-check all verified pricing countries every 24 hours.
-  const pricingVerificationTimer = setInterval(
-    () => void runPricingVerification(),
-    24 * 60 * 60 * 1000
-  );
-
-  if (
-    typeof pricingVerificationTimer === "object" &&
-    "unref" in pricingVerificationTimer
-  ) {
-    pricingVerificationTimer.unref();
-  }
+  // Live pricing is on-demand/explicit only; startup must not acquire provider prices.
 
   const backgroundTimer = setInterval(
     () => void runBackgroundJobs(),
