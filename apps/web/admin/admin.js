@@ -24,7 +24,7 @@ function clearSession() {
   token = null; browserAbort?.abort(); clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();
 }
 function operationsRequestTimeout(path) {
-  if (["v2-operations/preflight","v2-operations/start"].includes(path)) return 630000;
+  if (path === "v2-operations/start") return 630000;
   if (path === "v2-operations/targeting") return 30000;
   return 10000;
 }
@@ -34,7 +34,7 @@ async function request(path, options = {}) {
     headers:{"Content-Type":"application/json", ...(authorization ? {Authorization:authorization} : {}), ...options.headers}});
   if (response.status === 401 && (authorization === `Bearer ${token}` || (!authorization && !token))) {clearSession();message("Access denied or session expired.");}
   if (!response.ok) {
-    const messages={TARGETING_STALE_REFRESH_PREVIEW:"The lifecycle changed. Refresh the service preview and run Preflight again.",TARGETING_PREVIEW_MISMATCH:"The selection changed. Refresh the service preview before Preflight.",INVALID_LIFECYCLE_SELECTION:"That selection includes a service outside the frozen lifecycle.",PREFLIGHT_STALE:"Research inputs changed. Run Preflight again before starting.",PREFLIGHT_EXPIRED:"Preflight expired. Run Preflight again before starting."};
+    const messages={PREFLIGHT_BUSY:"Another Preflight is still running. Use Recover Preflight or wait for it to finish.",PREFLIGHT_NOT_FOUND:"This Preflight is no longer available. Run Preflight again.",TARGETING_STALE_REFRESH_PREVIEW:"The lifecycle changed. Refresh the service preview and run Preflight again.",TARGETING_PREVIEW_MISMATCH:"The selection changed. Refresh the service preview before Preflight.",INVALID_LIFECYCLE_SELECTION:"That selection includes a service outside the frozen lifecycle.",PREFLIGHT_STALE:"Research inputs changed. Run Preflight again before starting.",PREFLIGHT_EXPIRED:"Preflight expired. Run Preflight again before starting."};
     const detail=path.startsWith("v2-operations/")?await response.json().catch(()=>null):null;
     throw new Error(response.status === 401 ? "Access denied or session expired." : messages[detail?.error]??"Request unavailable. Check configuration or try again later.");
   }

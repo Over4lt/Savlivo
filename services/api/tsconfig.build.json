@@ -1,5 +1,6 @@
 {
   "extends": "./tsconfig.json",
+  "files": ["src/v2-operations/preflight-worker.mjs"],
   "compilerOptions": {
     "rootDir": "../..",
     "outDir": "./dist",

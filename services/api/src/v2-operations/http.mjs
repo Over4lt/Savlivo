@@ -1,3 +1,4 @@
+import {beginPreflight,preflightStatus} from './preflight-operations.mjs';
 import {storageView} from '../research-v2/storage/runtime.mjs';
 import {historyIndex} from '../research-v2/storage/history.mjs';
 import {Operations,settings,OperationError} from './control.mjs';import {publicRun,json,lifecycleEvents} from './artifacts.mjs';import path from 'node:path';
@@ -16,7 +17,8 @@ export async function operationsRequest({method,url,body,actor},ops=operations()
  if(method==='GET'&&parts[0]==='runs'&&parts.length===2){const r=ops.run(parts[1]),services=ops.services({runId:r.id,limit:100});return {run:publicRun(r),services,efficiency:{requestsPerFreshService:r.freshResolutions>0&&r.requests!==null?r.requests/r.freshResolutions:null,freshPer100Requests:r.requests>0&&r.freshResolutions!==null?r.freshResolutions*100/r.requests:null},events:[...ops.db().events.filter(e=>e.jobId===r.jobId).slice(-100),...(r.lifecycle?lifecycleEvents(r._directory):[])]};}
  if(method==='GET'&&parts[0]==='services'&&parts.length===2){const service=parts[1];if(!/^[a-z0-9-]+$/.test(service))throw new OperationError('INVALID_SERVICE');return ops.evidence(service,url.searchParams.get('run')??undefined);}
  if(method==='GET'&&route==='/schedules')return {rows:ops.db().schedules.map(s=>({...s,lastRun:ops.db().jobs.find(j=>j.id===s.lastRunId)??null,lastSuccessfulRun:ops.db().jobs.find(j=>j.id===s.lastSuccessfulRunId)??null}))};
- if(method==='POST'&&route==='/preflight')return ops.preflight(body,actor);
+ if(method==='POST'&&route==='/preflight')return beginPreflight(ops,body,actor);
+ if(method==='GET'&&parts[0]==='preflights'&&parts.length<=2)return preflightStatus(ops,actor,parts[1]);
  if(method==='POST'&&route==='/start'){if(!body||Object.keys(body).some(k=>!['token','confirmed'].includes(k)))throw new OperationError('INVALID_BODY');return ops.start(body.token,actor,body.confirmed);}
  if(method==='POST'&&parts[0]==='jobs'&&parts.length===3)return ops.control(parts[1],parts[2],actor);
  if(method==='POST'&&route==='/schedules')return ops.saveSchedule(body,actor);

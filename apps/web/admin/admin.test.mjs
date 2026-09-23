@@ -208,5 +208,13 @@ for(const [name,flows,expected] of [
 });
 test('Operations authentication checks have bounded timeouts beyond the old ten-second limit',()=>{
  const block=source.slice(source.indexOf('function operationsRequestTimeout('),source.indexOf('async function request('));const timeout=vm.runInNewContext(block+'; operationsRequestTimeout');
- assert.equal(timeout('v2-operations/preflight'),630000);assert.equal(timeout('v2-operations/start'),630000);assert.equal(timeout('v2-operations/targeting'),30000);assert.equal(timeout('overview'),10000);assert.equal(timeout('v2-operations/other'),10000);assert(source.includes('AbortSignal.timeout(operationsRequestTimeout(path))'));
+ assert.equal(timeout('v2-operations/preflight'),10000);assert.equal(timeout('v2-operations/start'),630000);assert.equal(timeout('v2-operations/targeting'),30000);assert.equal(timeout('overview'),10000);assert.equal(timeout('v2-operations/other'),10000);assert(source.includes('AbortSignal.timeout(operationsRequestTimeout(path))'));
+});
+
+test('Preflight transport failure does not clear an authenticated session; only 401 does',async()=>{
+ let mode='transport';const nodes=Object.fromEntries(['login','dashboard','results','message'].map(id=>[id,new Element()]));
+ const context={token:'session',generation:0,browserAbort:null,expiryTimer:null,disposeOperations:null,$:id=>nodes[id],message:t=>{nodes.message.textContent=t;},clearTimeout(){},AbortSignal,api:'https://offline.invalid',fetch:async()=>{if(mode==='transport')throw Error('aborted');return response({},401);}};
+ vm.runInNewContext(source.slice(source.indexOf('function clearSession()'),source.indexOf('function paragraph(')),context);
+ await assert.rejects(vm.runInNewContext("request('v2-operations/preflight')",context),/aborted/);assert.equal(context.token,'session');
+ mode='unauthorized';await assert.rejects(vm.runInNewContext("request('v2-operations/preflights/id')",context),/Access denied/);assert.equal(context.token,null);
 });
