@@ -1,3 +1,4 @@
+import {mergePriceEvidenceNeeds} from '../intelligence/price-evidence-needs.mjs';
 import {readLeadSnapshot,leadContext,candidateLeads} from '../human-leads/snapshot.mjs';
 import {leadOutcomeRecorder} from '../human-leads/outcomes.mjs';
 import {finalizeRun} from '../storage/finalize.mjs';
@@ -60,7 +61,7 @@ export async function replayTarget({target,directory,sourceDirectory,registry,in
    let price;
    if(fs.existsSync(record))price=json(record);
    else{if(fs.existsSync(pending))throw Error('HANDOFF_RETAINED_INTERPRETATION_RECONCILIATION_REQUIRED');fs.writeFileSync(pending,'reserved',{flag:'wx'});price=await interpret({target:t,page,directory});atomic(record,price);fs.unlinkSync(pending);}
-   t.verified??=[];t.verified.push(...price.verified??[]);applyPriceQuarantine(t,quarantine);const retained=retainedPriceReview(price.runDirectory,t);if(retained)t.retainedPriceReview=retained;
+   t.verified??=[];t.verified.push(...price.verified??[]);mergePriceEvidenceNeeds(t,price.priceEvidenceNeeds);applyPriceQuarantine(t,quarantine);const retained=retainedPriceReview(price.runDirectory,t);if(retained)t.retainedPriceReview=retained;
   }
  }
  // Old network usage remains in lineage; memory suppresses repeated attempted provider routes.

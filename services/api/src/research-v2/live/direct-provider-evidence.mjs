@@ -21,7 +21,7 @@ export async function interpretDirectProvider({target,page,directory,interpret=i
  fs.writeFileSync(dir+'/manifest.json',JSON.stringify(manifest,null,2));
  const store=openMarketRunStore(dir+'/journal');try{store.append('V2_ACQUISITION_RESULT',{target,result:{outcome:'OBSERVED',attempts:[{id:path.basename(dir),method:'DIRECT_PUBLIC',outcome:'OBSERVED',page:retained}]}});}finally{store.close();}
  await interpret(dir);const verification=await verify(dir);
- return {url:page.url,runDirectory:dir,classification:verification.verified.length?'VERIFIED_OUTPUT':'DIRECT_FIELDS_INSUFFICIENT',acquired:true,usable:verification.usable,monetary:verification.monetaryFacts,verified:verification.verified,sufficient:verification.verified.length>0,blockers:verification.blockers,channel:'DIRECT_PROVIDER',hardStop:false};
+ return {priceEvidenceNeeds:verification.priceEvidenceNeedsByTarget?.[target.id]??null,url:page.url,runDirectory:dir,classification:verification.verified.length?'VERIFIED_OUTPUT':'DIRECT_FIELDS_INSUFFICIENT',acquired:true,usable:verification.usable,monetary:verification.monetaryFacts,verified:verification.verified,sufficient:verification.verified.length>0,blockers:verification.blockers,channel:'DIRECT_PROVIDER',hardStop:false};
 }
 export function directGeoGap(outcome){
  // A successful body with unresolved fields is not an acquisition failure.

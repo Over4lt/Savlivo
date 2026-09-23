@@ -1,3 +1,4 @@
+import {priceNeedsStop,priceNeedRelevance,researchablePriceNeeds} from '../intelligence/price-evidence-needs.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {catalogObjective,capabilityDestination} from '../intelligence/login-manage.mjs';
 import {retainedSuccesses} from './retained-success.mjs';
@@ -16,6 +17,7 @@ export function destinationInformation(t,url,{diagnosis=null,unresolvedFields=[]
  const ranked=Number.isFinite(lead?.navigationPriority);let gain=ranked?Math.max(0,6-lead.navigationPriority/10):sem.priority<=10?5:p==='/'?2:3,reason='COMMERCIAL_DESTINATION';if(support){gain=terms?8:ranked?gain:/pricing|price|plans|membership|subscription|abonnement|tarif/.test(p)?4:1;reason=terms?'RESOLVE_TERM_OR_RENEWAL_FIELD':'SUBSCRIPTION_SUPPORT';}
  if(/cancel|downgrade|delete/.test(p)&&!terms){gain=0;reason='LOW_VALUE_FOR_PRICE_DISCOVERY';}
  if(!ranked&&(t.knownCommercialUrls??[]).some(x=>norm(x)===normalized))gain+=1;
+ const need=priceNeedRelevance(t,normalized,lead?.label??lead?.title??'');if(need&&gain>0){gain+=need.bonus;reason=need.reason;}
  return {url:normalized,eligible:gain>0,informationGain:gain,relativeCost:1,value:gain,reason,discoveryRank:lead?.rank??0,traversalOrder:lead?(t.leads??[]).indexOf(lead):(t.urls??[]).indexOf(url),marketApplicabilityEstablished:false};
 }
 export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionContext}={}){
@@ -39,11 +41,12 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(renderingDemonstrated){route='PARK_RENDERING';reason='RENDERING_REQUIRED';}
  else if(!t.authorities?.some(a=>a.provider===t.serviceName&&a.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(a.sourceType))){route='AUTHORITY_DISCOVERY';reason='AUTHORITY_UNRESOLVED';}
  else if(reuse){route='REUSE_RETAINED';reason='HASH_BOUND_PROVIDER_SUCCESS_REUSE';url=reuse.url;}
+ else if(priceNeedsStop(t)){route='STOP';reason=k.blockedOrigins?.length&&evaluated.filter(x=>x.url).length&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))?'PROVIDER_ACCESS_POLICY_STOP':attempts.filter(a=>a.route==='DISCOVERY'&&a.completed).length>=2?'DISCOVERY_EXHAUSTED':priceNeedsStop(t);}
  else if(candidates.length){route='DIRECT';url=candidates[0].url;reason=candidates[0].reason;}
  else {
  const failed=attempts.filter(a=>completed(a)&&a.permittedEscalation===true&&valid.some(x=>x.url===norm(a.url))&&!attempts.some(b=>b.route==='DECODO'&&b.completed&&norm(b.url)===norm(a.url))&&!attempts.some(b=>completed(b)&&b.outcome==='OK'&&norm(b.url)===norm(a.url))).at(-1);
  if(failed){route='CONDITIONAL_DECODO';url=norm(failed.url);reason='EXACT_PERMITTED_FAILED_DESTINATION';}
- else if(valid.length&&valid.every(x=>seen.has(x.url))&&(k.unresolvedFields??[]).length>0&&k.unresolvedFields.every(x=>/STRUCTUR|OWNERSHIP|CONFLICT|PRODUCT_UNRESOLVED|PLAN_UNRESOLVED/.test(x))){route='STRUCTURED_REINTERPRETATION';reason='RETAINED_STRUCTURE_REQUIRES_REVIEW';}
+ else if(!researchablePriceNeeds(t).length&&valid.length&&valid.every(x=>seen.has(x.url))&&(k.unresolvedFields??[]).length>0&&k.unresolvedFields.every(x=>/STRUCTUR|OWNERSHIP|CONFLICT|PRODUCT_UNRESOLVED|PLAN_UNRESOLVED/.test(x))){route='STRUCTURED_REINTERPRETATION';reason='RETAINED_STRUCTURE_REQUIRES_REVIEW';}
  else if(attempts.filter(a=>a.route==='DISCOVERY'&&a.completed).length>=2){route='STOP';reason='DISCOVERY_EXHAUSTED';}
  else if(k.blockedOrigins?.length&&evaluated.some(x=>x.url)&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))){route='STOP';reason='PROVIDER_ACCESS_POLICY_STOP';}
  else if(t.capabilities?.tavily===false){route='STOP';reason='CAPABILITY_DISABLED_TAVILY';}

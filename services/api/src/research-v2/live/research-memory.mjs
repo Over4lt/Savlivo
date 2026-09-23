@@ -1,3 +1,4 @@
+import {readPriceEvidenceNeeds} from '../intelligence/price-evidence-needs.mjs';
 import {catalogRouteOutcome} from '../intelligence/management-targeting.mjs';
 // Routing memory only. Never authority, market, currency or price evidence.
 import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';
@@ -23,5 +24,5 @@ export function usableResearchMemory(t,{verifyReferences=true}={}){
 export function researchKnowledge(t){
  const prior=usableResearchMemory(t),current=(t.reads??[]).map(r=>({...catalogRouteOutcome(t,r),route:'DIRECT',url:normalizeFrontierUrl(r.requestedUrl??r.url).url,finalUrl:normalizeFrontierUrl(r.url??r.requestedUrl).url,completed:true,outcome:r.outcome,failure:r.failure?.code,permittedEscalation:!!providerAccessGap(r)}));
  const attempts=[...prior.attempts,...current,...(t.queries??[]).map(q=>({route:'DISCOVERY',query:q.query,completed:true})),...(t.acquisitionOutcomes??[]).map(o=>({route:'DECODO',url:o.url,completed:true}))];
- return {version:1,scope:memoryScope(t),attempts,blockedOrigins:[...new Set([...prior.blockedOrigins,...(t.blockedOrigins??[])])],unresolvedFields:[...new Set([...(prior.unresolvedFields??[]),...(t.providerInterpretations??[]).flatMap(o=>o.blockers??[])])],diagnosis:t.researchDiagnosis??prior.diagnosis??null,priceStrategy:t.priceStrategy??'UNSPECIFIED',memoryRejected:prior.rejected,meaning:'DECISION_STATE_NOT_ADMISSION'};
+ return {version:1,priceEvidenceNeeds:readPriceEvidenceNeeds(t),scope:memoryScope(t),attempts,blockedOrigins:[...new Set([...prior.blockedOrigins,...(t.blockedOrigins??[])])],unresolvedFields:[...new Set([...(prior.unresolvedFields??[]),...(t.providerInterpretations??[]).flatMap(o=>o.blockers??[])])],diagnosis:t.researchDiagnosis??prior.diagnosis??null,priceStrategy:t.priceStrategy??'UNSPECIFIED',memoryRejected:prior.rejected,meaning:'DECISION_STATE_NOT_ADMISSION'};
 }

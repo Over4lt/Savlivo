@@ -1,3 +1,4 @@
+import {readPriceEvidenceNeeds} from '../intelligence/price-evidence-needs.mjs';
 import {usableResearchMemory} from '../live/research-memory.mjs';
 import {managementInformation,missingCatalogFields} from '../intelligence/management-targeting.mjs';
 import {mergeTargetCapabilities} from '../intelligence/login-manage.mjs';
@@ -31,7 +32,7 @@ export function targetExecutionContext(state,t){
 function sufficient(state,service){const catalogTargets=Object.values(state.targets).filter(t=>t.service===service&&t.researchObjective==='CATALOG_ONLY');if(catalogTargets.length){const proofs=catalogTargets.flatMap(t=>t.catalogCapabilityProofs??[]);for(const t of catalogTargets){for(const p of proofs)mergeTargetCapabilities(t,p);}return catalogTargets.some(t=>t.loginManageEstablished)?'LOGIN_MANAGE_ESTABLISHED':null;}const ts=Object.values(state.targets).filter(t=>t.service===service),r=ts.find(t=>t.retainedPriceReview?.sourceBound&&['HIGH','MEDIUM'].includes(t.retainedPriceReview.confidence));return r?r.priceStrategy==='USER_PRICE_PREFERRED'?'USER_PRICE_PREFERRED_SUFFICIENT':r.retainedPriceReview.confidence==='HIGH'?'HIGH_SUFFICIENT':'MEDIUM_SUFFICIENT':null;}
 function actionKey(service,p){return JSON.stringify([service,p.route,p.route==='DIRECT'?resourceKey(p.url):p.url??p.query,p.retainedKey]);}
 export function assessAdaptiveService(state,service){
- const s=state.services[service],ts=Object.values(state.targets).filter(t=>t.service===service),enough=sufficient(state,service),signature=hash(ts.map(t=>[t.id,counts(t),t.retainedPriceReview,t.researchDiagnosis,t.blockedOrigins,t.catalogEligibility])),rows=[];
+ const s=state.services[service],ts=Object.values(state.targets).filter(t=>t.service===service),enough=sufficient(state,service),signature=hash(ts.map(t=>[t.id,counts(t),t.retainedPriceReview,t.researchDiagnosis,t.blockedOrigins,t.catalogEligibility,readPriceEvidenceNeeds(t)?.evidenceDigest??null])),rows=[];
  const attempted=new Set(ts.flatMap(t=>(t.reads??[]).map(r=>resourceKey(r.requestedUrl))));
  for(const t of ts){rankPlannerLeads(t);const context=targetExecutionContext(state,t),p=planResearch(t,{executionContext:context,unreadUrls:t.leads.map(l=>l.url),discoveryAllowed:destinationDiscoveryNeeded(t,context.bounds,context.usage)}),cap=executableAction(t,p,context);let decision='DEFER',reason=p.reason,value=0;
  if(enough){decision='REJECT';reason=enough;}

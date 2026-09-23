@@ -18,6 +18,8 @@ for(const s of sources)for(const o of s.occurrences){let loaded;try{loaded=loadL
 const strong=plans.filter(p=>p.strongRecurringMonthly),key=p=>JSON.stringify([p.service,p.market,p.providerPlanId??p.plan.normalize('NFKC').toLowerCase()]);
 const ledger=strong.map(p=>verifyIdentity(p,decisions,{canonicalConflict:strong.filter(q=>key(q)===key(p)).length!==1}));
 const verified=ledger.filter(p=>p.status==='V2_VERIFIED'),facts=read(out+'/monthly/facts.json');
-const report={usable:usable.length>0,usableEvidence:usable,sourceChecks:checks,monetaryFacts:facts.length,monthlyFacts:facts.filter(f=>f.commercial.type==='RECURRING_MONTHLY').length,strongMonthly:strong.length,verified,blocked:ledger.filter(p=>p.status!=='V2_VERIFIED'),types: [...new Set(facts.map(f=>f.commercial.type))],marketEvidence:read(out+'/monthly/sources-analyzed.json'),blockers:[...new Set(cs.flatMap(c=>c.blockingReasons??[]))],offline:assertOffline()};
+// Produced by the same current offline adjudication; no second extraction pass.
+const priceEvidenceNeedsByTarget=read(out+'/provider-price-intelligence.json').priceEvidenceNeedsByTarget??{};
+const report={priceEvidenceNeedsByTarget,usable:usable.length>0,usableEvidence:usable,sourceChecks:checks,monetaryFacts:facts.length,monthlyFacts:facts.filter(f=>f.commercial.type==='RECURRING_MONTHLY').length,strongMonthly:strong.length,verified,blocked:ledger.filter(p=>p.status!=='V2_VERIFIED'),types: [...new Set(facts.map(f=>f.commercial.type))],marketEvidence:read(out+'/monthly/sources-analyzed.json'),blockers:[...new Set(cs.flatMap(c=>c.blockingReasons??[]))],offline:assertOffline()};
 fs.writeFileSync(out+'/targeted-verification.json',JSON.stringify(report,null,2)+'\n',{flag:'wx'});
 console.log(JSON.stringify({usable:report.usable,monetary:report.monetaryFacts,verified:verified.length}));
