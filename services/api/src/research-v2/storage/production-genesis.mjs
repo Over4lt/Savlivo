@@ -1,7 +1,7 @@
 // New lineage from independently sealed sources; never a legacy exception.
 import fs from 'node:fs';
 import path from 'node:path';
-import {canonical,digest,sha,safe,stableBytes,read,sealed,verifySeal} from './core.mjs';
+import {canonical,digest,sha,safe,stableBytes,stableHash,jsonDigest,releaseValidationTemporaries,read,sealed,verifySeal} from './core.mjs';
 import {closure} from './references.mjs';
 import {inspectLifecycleInput} from '../inventory/reviewed-cohort-handoff.mjs';
 import {resolveCapabilities} from '../capabilities/config.mjs';
@@ -10,11 +10,19 @@ import {priceTargets} from '../inventory/reviewed-cohort-execution.mjs';
 import {planResearch} from '../live/research-planner.mjs';
 const schema='PRODUCTION_GENESIS_V1';
 const fail=(code)=>{throw Error('GENESIS_'+code);};
-function snapshot(root,file){const bytes=stableBytes(safe(root,file)),s=JSON.parse(bytes),{snapshotHash,...payload}=s;if(s.version!==1||!snapshotHash||sha(JSON.stringify(payload))!==snapshotHash)fail('INDEPENDENT_SEALED_SOURCE_REQUIRED');return {s,hash:sha(bytes)};}
+function snapshot(root,file){const bytes=stableBytes(safe(root,file)),s=JSON.parse(bytes),{snapshotHash,...payload}=s;if(s.version!==1||!snapshotHash||jsonDigest(payload)!==snapshotHash)fail('INDEPENDENT_SEALED_SOURCE_REQUIRED');return {s,hash:sha(bytes)};}
 function scope(root,input,source,expected){
  const h=inspectLifecycleInput(input,root),actual={cohort:h.cohort.manifest.serviceIds.length,baseline:h.baselineIds.length,reviewed:h.targets.length,retainedTargets:Object.keys(source.states??{}).length,historicalRequests:source.historicalRequests,parentRequests:source.parentRequests};
  if(digest(actual)!==digest(expected)||digest(source.cohort)!==digest(h.cohort.manifest.serviceIds)||source.cohort.some(id=>h.baselineIds.includes(id)))fail('SCOPE');
- for(const [id,row]of Object.entries(source.states??{})){if(row.target?.id!==id||!source.cohort.includes(row.target.service)||!row.reference?.path)fail('STATE_PROVENANCE');const bytes=stableBytes(safe(root,row.reference.path));if(sha(bytes)!==row.reference.hash||digest(JSON.parse(bytes).targets?.[id])!==digest(row.target))fail('STATE_PROVENANCE');}
+ // Validate each independently authenticated state file once per call, never once
+ // per target. Retain only row references, not a cache of parsed state files.
+ const groups=new Map();for(const [id,row]of Object.entries(source.states??{})){
+  if(row.target?.id!==id||!source.cohort.includes(row.target.service)||!row.reference?.path)fail('STATE_PROVENANCE');
+  const rows=groups.get(row.reference.path)??[];rows.push([id,row]);groups.set(row.reference.path,rows);
+ }
+ for(const [file,rows]of groups){releaseValidationTemporaries();const bytes=stableBytes(safe(root,file)),hash=sha(bytes),state=JSON.parse(bytes);
+  for(const [id,row]of rows)if(hash!==row.reference.hash||digest(state.targets?.[id])!==digest(row.target))fail('STATE_PROVENANCE');
+ }
  for(const parent of source.parents??[]){const summary=read(safe(root,parent.directory+'/summary.json')),p=parent.directory+'/network.jsonl',events=fs.existsSync(safe(root,p))?String(stableBytes(safe(root,p))).trim().split('\n').filter(Boolean).map(JSON.parse):[];if(summary.executionComplete!==true||summary.additionalRequests!==events.length||parent.requests!==events.length||events.some(e=>!source.cohort.includes(e.service)))fail('ACCOUNTING');}
  if((source.parents??[]).reduce((n,p)=>n+p.requests,0)!==source.parentRequests||h.summary.historicalRequests!==source.historicalRequests)fail('ACCOUNTING');
  return h;
@@ -25,11 +33,11 @@ export function validateProductionGenesis(root,file,{full=true,onTiming=()=>{}}=
  const g=read(safe(root,file)),{genesisHash,...payload}=g;if(g.schema!==schema||genesisHash!==digest(payload)||g.lineage.kind!=='NEW_PRODUCTION_GENESIS'||g.lineage.continuesHistoricalSnapshot!==false)fail('SEAL');
  assertExclusions(g.protectedReferences.entries,g.excludedUntrustedHistoricalArtifacts);
  timed('genesis-seal');
- for(const e of g.protectedReferences.entries)if(sha(stableBytes(safe(root,e.path)))!==e.sha256)fail('DEPENDENCY_HASH:'+e.path);
+ for(const e of g.protectedReferences.entries)if(stableHash(safe(root,e.path))!==e.sha256)fail('DEPENDENCY_HASH:'+e.path);
  timed('protected-file-hashes');
  const receipt=verifySeal(g.protectedReferences,'V2_FINALIZED_REFERENCES_V1');if(receipt.boundaryKind!==schema)fail('REFERENCE_BOUNDARY');
  if(full){const r=closure(root,g.sourceRoots,{genesisArchive:true});if(!r.complete)fail('CLOSURE:'+r.errors.join(';'));if(digest(r.entries.map(e=>[e.path,e.sha256]))!==digest(receipt.entries.map(e=>[e.path,e.sha256])))fail('CLOSURE_CHANGED');}
- timed('reference-closure');
+ timed('reference-closure');releaseValidationTemporaries();
  const source=snapshot(root,g.stateSource.path);if(source.hash!==g.stateSource.sha256)fail('SOURCE_HASH');const h=scope(root,g.lifecycle.originalInput,source.s,g.expected);
  timed('source-scope-accounting');
  if(digest(resolveCapabilities(h.config.capabilities))!==digest(g.capabilities)||digest(g.cohort)!==digest(source.s.cohort))fail('CAPABILITIES_OR_COHORT');
@@ -66,7 +74,7 @@ export function buildProductionGenesis({root,destination,snapshotPath,lifecycleI
  const manifest=sealed({schema:'PRODUCTION_GENESIS_EXPORT_V1',genesis:file,genesisHash:g.genesisHash,productionInput,files:[...entries.map(e=>({path:e.path,sha256:e.sha256,bytes:e.bytes,classification:e.classification})),{path:productionInput,sha256:sha(inputBytes),bytes:inputBytes.length,classification:'PERMANENT_CANONICAL'},{path:file,sha256:sha(canonical(g)),bytes:Buffer.byteLength(canonical(g)),classification:'PERMANENT_CANONICAL'}],sourceFootprintInspected:r.logicalBytes,brokenReferences:0});
  fs.writeFileSync(path.join(dest,'genesis-export.json'),canonical(manifest),{flag:'wx'});return {genesis:g,manifest};
 }
-export function validateGenesisExport(root){const m=verifySeal(read(safe(root,'genesis-export.json')),'PRODUCTION_GENESIS_EXPORT_V1');for(const e of m.files)if(sha(stableBytes(safe(root,e.path)))!==e.sha256)fail('EXPORT_HASH');const result=validateProductionGenesis(root,m.genesis);if(result.genesis.genesisHash!==m.genesisHash)fail('EXPORT_GENESIS_HASH');return result;}
+export function validateGenesisExport(root){const m=verifySeal(read(safe(root,'genesis-export.json')),'PRODUCTION_GENESIS_EXPORT_V1');for(const e of m.files)if(stableHash(safe(root,e.path))!==e.sha256)fail('EXPORT_HASH');const result=validateProductionGenesis(root,m.genesis);if(result.genesis.genesisHash!==m.genesisHash)fail('EXPORT_GENESIS_HASH');return result;}
 export function prepareGenesisActions(validated){
  const {genesis:g,source,handoff:h}=validated;if(!validated.root)fail('ISOLATED_ROOT_REQUIRED');const markets=h.config.researchScopes?read(safe(validated.root,h.config.researchScopes)).researchMarkets:{};
  for(const c of h.cohort.candidates)if(!markets[c.slug]?.length&&c.markets?.length)markets[c.slug]=[...c.markets];

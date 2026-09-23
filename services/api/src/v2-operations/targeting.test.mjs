@@ -27,10 +27,10 @@ test('selected market scope is passed into native check; normalized queued confi
 });
 test('market/category all and narrowed previews never include baseline; edited API selections cannot add it',async t=>{const ops=controlFixture(t);for(const filters of [{},{markets:['SE']},{categories:['video']},{markets:['SE'],categories:['video'],preset:'UNRESOLVED'}]){const p=ops.targeting(filters);assert(!p.services.includes('netflix'));await assert.rejects(operationsRequest({method:'POST',url:new URL('http://local/v1/admin/v2-operations/preflight'),body:{objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:[...p.services,'netflix'],targeting:p.targeting,targetingRevision:p.revision,capabilities:caps},actor:'admin'},ops),/INVALID_LIFECYCLE_SELECTION/);}assert(!fs.existsSync(ops.config.root));});
 test('authenticated Genesis fixture exposes current counts and a real combined filter without research',{skip:!process.env.SAVLIVO_TARGETING_FIXTURE_ROOT},async()=>{
- const {loadTargeting}=await import('./targeting.mjs');const repo=fs.realpathSync(process.env.SAVLIVO_TARGETING_FIXTURE_ROOT);
+ const {loadTargeting,loadTargetingIsolated}=await import('./targeting.mjs');const repo=fs.realpathSync(process.env.SAVLIVO_TARGETING_FIXTURE_ROOT);
  assert(!repo.startsWith(path.resolve(process.cwd(),'.savlivo')+path.sep),'Use an isolated restored fixture, never source runtime state');
  const lifecycleInput=process.env.SAVLIVO_TARGETING_FIXTURE_INPUT;assert(lifecycleInput);
- const m=loadTargeting({repo,lifecycleInput});assert.deepEqual(m.counts,{eligible:188,baselineExcluded:275,reviewed:104,humanReview:84,retainedServices:104,retainedTargets:161,unscopedServices:94});
+ const m=loadTargetingIsolated({repo,lifecycleInput});assert.deepEqual(m,loadTargeting({repo,lifecycleInput}));assert.deepEqual(m.counts,{eligible:188,baselineExcluded:275,reviewed:104,humanReview:84,retainedServices:104,retainedTargets:161,unscopedServices:94});
  assert(m.facets.markets.some(m=>m.id==='NO'));assert(m.facets.markets.some(m=>m.id==='SE'));assert(m.facets.categories.some(c=>c.id==='other'));
  const p=selectTargeting(m,{markets:['NO','SE'],categories:['other'],preset:'REVIEWED'});assert.deepEqual(p.services,['actic','klarna-memberships','life360']);assert.equal(p.serviceMarketTargets,4);assert(!p.services.includes('netflix'));
 });
@@ -39,4 +39,16 @@ test('confirmed Start validates mature plan once and passes that exact frozen pl
  ops.transaction=fn=>fn({preflights:[{token:'p',actor:'admin',expiresAt:'2999-01-01',config,catalogHash:'frozen'}]});ops.plan=()=>{plans++;return plan;};ops.enqueue=(...args)=>{enqueued=args;return {status:'QUEUED'};};
  assert.throws(()=>ops.start('p','admin',false),/CONFIRMATION_REQUIRED/);assert.equal(plans,0);assert.equal(ops.start('p','admin',true).status,'QUEUED');assert.equal(plans,1);assert.equal(enqueued.at(-1),plan);
  ops.plan=()=>({...plan,catalogHash:'changed'});assert.throws(()=>ops.start('p','admin',true),/PREFLIGHT_STALE/);
+});
+
+test('targeting projection runs in one bounded read-only child and returns only the compact model',async t=>{
+ const {loadTargetingIsolated}=await import('./targeting.mjs'),child=await import('node:child_process'),{syncBuiltinESMExports}=await import('node:module');let calls=0;
+ const model=modelFixture();const stub=t.mock.method(child.default,'spawnSync',(_cmd,args,options)=>{
+  calls++;assert(args.includes('--max-old-space-size=512'));assert(args.includes('--expose-gc'));assert.equal(args.at(-1),'--read-model');assert(!args.includes('--live'));assert(!args.includes('--check'));assert.equal(options.timeout,120000);assert.equal(options.maxBuffer,4*1024*1024);
+  assert.deepEqual(JSON.parse(options.input),{repo:'/tmp/isolated',lifecycleInput:'input.json'});return {status:0,stdout:JSON.stringify(model)};
+ });syncBuiltinESMExports();try{assert.deepEqual(loadTargetingIsolated({repo:'/tmp/isolated',lifecycleInput:'input.json',unrelated:'not forwarded'}),model);assert.equal(calls,1);}finally{stub.mock.restore();syncBuiltinESMExports();}
+});
+test('targeting child failure never falls back to an unauthenticated projection',async t=>{
+ const {loadTargetingIsolated}=await import('./targeting.mjs'),child=await import('node:child_process'),{syncBuiltinESMExports}=await import('node:module');
+ const stub=t.mock.method(child.default,'spawnSync',()=>({status:null,signal:'SIGKILL'}));syncBuiltinESMExports();try{assert.throws(()=>loadTargetingIsolated({repo:'/tmp',lifecycleInput:'input.json'}),/TARGETING_READ_MODEL_FAILED/);}finally{stub.mock.restore();syncBuiltinESMExports();}
 });

@@ -2,7 +2,7 @@ import {prepareGenesisStartup} from '../src/research-v2/storage/genesis-deployme
 // Process supervision only. No research planning, credentials or transport here.
 import fs from 'node:fs';
 import path from 'node:path';
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
 export const shutdownGraceMs=20_000;
@@ -57,14 +57,22 @@ export async function supervise({children,cwd,env=process.env,graceMs=shutdownGr
  }
  const exitCode=await result;emit('STOPPED',{exitCode,forced});return exitCode;
 }
+// Deployment authentication can allocate hundreds of MB. Do not keep that
+// allocator footprint resident for the lifetime of the API + poller service.
+export function prepareGenesisStartupIsolated(root,input){
+ if(!input)return prepareGenesisStartup(root,input);
+ const result=spawnSync(process.execPath,['--max-old-space-size=512',fileURLToPath(import.meta.url),'--genesis-startup'],{cwd:root,input:JSON.stringify({root,input}),encoding:'utf8',timeout:120000,maxBuffer:1024*1024,env:process.env});
+ if(result.error||result.status!==0){const reason=String(result.stderr??'').split('\n').find(s=>/^(GENESIS_DEPLOYMENT_|STORAGE_)/.test(s));throw Error(reason??'GENESIS_STARTUP_VALIDATION_FAILED');}
+ const ready=JSON.parse(result.stdout);if(ready.researchStarted!==false||!['READY','NOT_GENESIS','NOT_CONFIGURED'].includes(ready.status))throw Error('GENESIS_STARTUP_INVALID_RESULT');return ready;
+}
 export async function main(){
  const config=runtimeConfiguration();
- const genesis=prepareGenesisStartup(config.cwd,config.env.V2_OPERATIONS_LIFECYCLE_INPUT);
+ const genesis=prepareGenesisStartupIsolated(config.cwd,config.env.V2_OPERATIONS_LIFECYCLE_INPUT);
  if(genesis.status!=='NOT_CONFIGURED')console.log(JSON.stringify({component:'savlivo-runtime',event:'GENESIS_DEPLOYMENT_PREFLIGHT',...genesis}));
  for(const file of [config.children[0].args[0],config.children[1].args[2]])if(!fs.existsSync(file))throw Error('RUNTIME_FILE_MISSING:'+path.relative(config.cwd,file));
  import.meta.resolve('tsx');
  return supervise(config);
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
- try{process.exitCode=await main();}catch(e){console.error('SAVLIVO_RUNTIME_START_FAILED',e.message);process.exitCode=1;}
+ try{if(process.argv[2]==='--genesis-startup'){const {root,input}=JSON.parse(fs.readFileSync(0,'utf8'));console.log(JSON.stringify(prepareGenesisStartup(root,input)));}else process.exitCode=await main();}catch(e){console.error(process.argv[2]==='--genesis-startup'?e.message:'SAVLIVO_RUNTIME_START_FAILED '+e.message);process.exitCode=1;}
 }

@@ -12,7 +12,7 @@ test('tampered genesis and dependency are rejected',t=>{const f=fixture(t),r=bui
 test('baseline cannot enter genesis',t=>{const f=fixture(t);f.s.cohort[0]='existing-0';f.save();assert.throws(()=>buildProductionGenesis(f.args),/SCOPE/);});
 test('unknown required reference prevents genesis publication',t=>{const f=fixture(t);f.put('unknown.json',{unknownPath:'missing.json'});f.s.inputHashes['unknown.json']=sha(fs.readFileSync(f.root+'/unknown.json'));f.save();assert.throws(()=>buildProductionGenesis(f.args),/CLOSURE/);assert(!fs.existsSync(f.args.destination));});
 test('genesis closure follows only declared sealed roots and keeps untrusted audit locator non-executable',t=>{const f=fixture(t),g=buildProductionGenesis(f.args);const c=closure(f.args.destination,[{path:g.manifest.genesis,format:'JSON',classification:'PERMANENT_CANONICAL'}]);assert(c.complete,JSON.stringify(c.errors));assert(!c.entries.some(e=>e.path==='unsealed.json'));});
-test('ordinary lifecycle enters a new execution namespace with imported state, not old ownership',t=>{const f=fixture(t),g=buildProductionGenesis(f.args),v=validateGenesisExport(f.args.destination),before=fs.readFileSync(f.root+'/sealed.json'),old=process.cwd();try{process.chdir(f.args.destination);const h=inspectLifecycleInput(g.manifest.productionInput);const s=snapshotLifecycle({handoff:h,researchMarkets:{},runsRoot:h.config.runsRoot,baselineIds:h.baselineIds,codeHash:'fixture',genesis:v});assert.equal(s.productionGenesisHash,g.genesis.genesisHash);assert.deepEqual(s.parents,[]);assert.equal(s.cohort.length,188);assert(!s.cohort.includes('existing-0'));assert.equal(prepareGenesisActions(v).executionStarted,false);}finally{process.chdir(old);}assert.deepEqual(fs.readFileSync(f.root+'/sealed.json'),before);});
+test('ordinary lifecycle enters a new execution namespace with imported state, not old ownership',t=>{const f=fixture(t);f.s.sources['candidate-0']=[{directory:'.savlivo/old',page:{url:'https://example.test/',outcome:'EMPTY'}}];f.save();const g=buildProductionGenesis(f.args),v=validateGenesisExport(f.args.destination),before=fs.readFileSync(f.root+'/sealed.json'),old=process.cwd(),sourceBefore=JSON.stringify(v.source);try{process.chdir(f.args.destination);const h=inspectLifecycleInput(g.manifest.productionInput);const s=snapshotLifecycle({handoff:h,researchMarkets:{},runsRoot:h.config.runsRoot,baselineIds:h.baselineIds,codeHash:'fixture',genesis:v});assert.equal(JSON.stringify(v.source),sourceBefore);assert.notEqual(s.sources['candidate-0'],v.source.sources['candidate-0']);assert.equal(s.sources['candidate-0'][0],v.source.sources['candidate-0'][0]);assert.equal(s.productionGenesisHash,g.genesis.genesisHash);assert.deepEqual(s.parents,[]);assert.equal(s.cohort.length,188);assert(!s.cohort.includes('existing-0'));assert.equal(prepareGenesisActions(v).executionStarted,false);}finally{process.chdir(old);}assert.deepEqual(fs.readFileSync(f.root+'/sealed.json'),before);});
 
 test('Genesis timing diagnostics preserve all validation and do not expose paths',t=>{
  const f=fixture(t),built=buildProductionGenesis(f.args),timings=[];
@@ -22,4 +22,16 @@ test('Genesis timing diagnostics preserve all validation and do not expose paths
  assert(timings.every(e=>Number.isFinite(e.durationMs)&&e.durationMs>=0&&Object.keys(e).length===2));
  fs.writeFileSync(f.args.destination+'/bindings.json','{}');
  assert.throws(()=>validateProductionGenesis(f.args.destination,built.manifest.genesis,{onTiming:()=>{}}),/DEPENDENCY_HASH/);
+});
+
+test('shared target provenance is parsed once per validation and every target remains compared',t=>{
+ const f=fixture(t),targets=Object.fromEntries(Array.from({length:20},(_,i)=>['t'+i,{id:'t'+i,service:'candidate-'+i,status:'UNRESOLVED'}]));
+ f.put('state.json',{targets});const hash=sha(fs.readFileSync(f.root+'/state.json'));
+ f.s.states=Object.fromEntries(Object.entries(targets).map(([id,target])=>[id,{target,reference:{path:'state.json',hash}}]));f.s.inputHashes['state.json']=hash;f.save();
+ const built=buildProductionGenesis({...f.args,expected:{...f.args.expected,retainedTargets:20}});
+ const original=fs.readFileSync;let reads=0;t.mock.method(fs,'readFileSync',(...args)=>{if(args[0]===f.args.destination+'/state.json')reads++;return original(...args);});
+ const checked=validateProductionGenesis(f.args.destination,built.manifest.genesis,{full:false});assert.equal(Object.keys(checked.source.states).length,20);assert.equal(reads,1);
+ // A different expected target cannot acquire provenance merely by sharing the file.
+ f.s.states.t19.target={...targets.t19,status:'VERIFIED'};f.save();
+ assert.throws(()=>buildProductionGenesis({...f.args,destination:f.base+'/invalid',expected:{...f.args.expected,retainedTargets:20}}),/STATE_PROVENANCE/);
 });

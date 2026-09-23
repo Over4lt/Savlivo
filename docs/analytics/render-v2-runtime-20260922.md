@@ -254,3 +254,76 @@ These logs are not live progress streaming; the existing adapter is synchronous.
 Regression tests simulate a healthy 180s check without sleeping, assert the finite
 600s bound, and preserve zero-execution checks. Full fixture profiling was separate
 from the synthetic test suite; the optional real fixture regression remains opt-in.
+
+## Native Preflight memory (OOM follow-up)
+
+The 600s deadline does not solve instance OOM. One selected service still requires
+complete authenticated Genesis verification. The HTTP process previously built
+the targeting model from a 77,446,377-byte sealed snapshot in process, retaining
+substantial allocator/heap footprint while a second process validated the same
+source. This is separate from Genesis deployment-overlay readiness.
+
+Targeting now authenticates in a short-lived read-only child and returns only the
+compact projection. Forced revision refresh at Preflight is unchanged. This child
+finishes before native validation begins. Both validation children have a 512 MiB
+V8 old-space ceiling; this is **not** an RSS limit. Targeting keeps its bounded 120s
+deadline and 4 MiB response limit. Native --check retains the 600s deadline.
+
+Exact-byte file hashing uses 64 KiB reads. JSONL validation consumes one record at
+a time. Canonical and legacy insertion-order hashes stream the identical JSON
+serialization without a document-sized sorted clone/string. Snapshot publication
+preserves its existing pretty JSON bytes and atomic pending-file rename. Schema
+adapters share unchanged subgraphs; execution seeds still clone before mutation.
+Shared target-provenance files are parsed once per validation, with every target
+and hash compared. The journal cache is bounded by both 16 records and 4 MiB of
+encoded input, and is local to that traversal. There is no cross-request trust cache.
+
+The bounded children explicitly expose GC so unreachable parser temporaries can
+be collected at most once per 128 newly visited closure files when heap/external
+pressure is high, and at major phase boundaries. This never drops reachable
+state or skips verification. Entire JSON documents must still be parsed when their
+schema requires it; this is not a claim of constant-memory JSON validation.
+
+Stage diagnostics include RSS, heap used and process peak RSS (KiB), without
+paths or evidence content. Subprocess failures distinguish TIMEOUT,
+HEAP_LIMIT_EXCEEDED, PROCESS_KILLED_OOM_POSSIBLE and ordinary validation/process
+exit. SIGKILL alone cannot prove OOM; an instance-wide kill may prevent API logging
+entirely, so Render's OOM event remains authoritative. Logs are still relayed after
+the synchronous child returns, not streamed live.
+
+Local Node 24 measurements use an isolated authenticated restore, network denied,
+and no research. The original native check reached 1,793,712 KiB peak RSS even
+with a 768 MiB test heap cap; API targeting alone left 1,208,942,592 bytes resident.
+After isolation, API-side history + targeting + selection validation measured
+218,791,936 bytes RSS; offline compiled API startup reached 165,920,768 bytes.
+The supervisor also ran deployment validation in its own long-lived process: its
+measured post-validation RSS was 397,639,680 bytes. This now runs in a bounded
+512 MiB old-space / 120s startup child, which must finish before either runtime
+child starts. Hash conflicts still stop startup; missing authenticated inputs are
+restored through the unchanged deployment mechanism. Supervisor RSS after that
+child exited measured 52,707,328 bytes. An empty-queue, controls-off poller tick
+measured 291,586,048 bytes. These are local component measurements, not production
+process telemetry or additive PSS.
+A 384 MiB native heap was experimentally insufficient and is not deployed.
+
+Do not increase RAM or retry production Preflight automatically on the strength
+of a timeout change. Preserve all validation and inspect aggregate instance memory
+when a controlled production validation is separately authorized. No research,
+credential change, scheduling activation or Genesis reseal accompanies this fix.
+
+The final repeat native check (existing continuation snapshot) measured 1,405,872
+KiB peak RSS (~1.34 GiB), down from ~1.71 GiB. Its derived result retained the 188
+cohort, 275 exclusions and 161 retained targets, with one reviewed service selected,
+3,838 historical requests / 1,125 parent requests, and zero new requests or execution.
+The independent targeting fixture still reported 104 reviewed / 84 human-review
+services and produced exactly the same projection/revision in the isolated child.
+No historical accounting or Genesis bytes were changed.
+
+The measured sum of supervisor-ready, API history/targeting, idle poller and native
+peak RSS is ~1.87 GiB. RSS sums can double-count shared pages; this also excludes
+unmeasured production traffic/DB overhead. A 2 GiB instance has modest local
+headroom for this controlled path, not a certified production capacity guarantee.
+No RAM increase or production Preflight was performed. Keep the 600s native / 630s
+Admin deadlines: final native stages totaled about 72 seconds locally, with other
+instrumented full checks near 110 seconds. Memory sizing and timeout sizing are
+separate protections.

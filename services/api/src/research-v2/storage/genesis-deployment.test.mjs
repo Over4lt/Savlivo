@@ -44,3 +44,12 @@ test('execution selection cannot change Genesis trust inputs or widen research s
  f.put(f.dest,file,JSON.stringify({researchMarkets:{film:['DE']}}));assert.throws(()=>check({...c,researchScopes:file}),/EXECUTION_SCOPE_HASH/);
  const wrong={researchMarkets:{film:['DE']}},wrongFile='.savlivo/v2-operations-inputs/'+sha(JSON.stringify(wrong))+'.json';f.put(f.dest,wrongFile,JSON.stringify(wrong));assert.throws(()=>check({...c,researchScopes:wrongFile}),/EXECUTION_SCOPE_EXPANSION/);
 });
+
+test('bounded startup child restores authenticated inputs before supervision and conflicts remain fatal',async t=>{
+ const {prepareGenesisStartupIsolated}=await import('../../../scripts/production-runtime.mjs');const f=fixture(t);
+ restoreGenesisFiles(f.source,f.dest,f.g.genesisHash);registerGenesisOverlay(f.dest,f.manifest,f.g.genesisHash);
+ fs.renameSync(f.dest+'/'+f.data,f.dest+'/'+f.data+'.backup');
+ const r=prepareGenesisStartupIsolated(f.dest,f.input);assert.equal(r.status,'READY');assert.equal(r.restored,1);assert.equal(r.researchStarted,false);
+ assert.deepEqual(fs.readFileSync(f.dest+'/'+f.data),fs.readFileSync(f.source+'/'+f.data));assert.equal(prepareGenesisStartupIsolated(f.dest,f.input).restored,0);
+ f.put(f.dest,f.data,'conflict');assert.throws(()=>prepareGenesisStartupIsolated(f.dest,f.input),/HASH_CONFLICT/);
+});

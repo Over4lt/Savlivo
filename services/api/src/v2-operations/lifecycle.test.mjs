@@ -41,7 +41,7 @@ test('production-scale healthy native check beyond the old 120s deadline remains
  const simulatedHealthyDuration=180000;
  const stub=t.mock.method(child.default,'spawnSync',(_command,args,options)=>{
   assert(args.includes('--check'));assert(!args.includes('--live'));
-  assert.equal(options.timeout,600000);assert(options.timeout>simulatedHealthyDuration);
+  assert(args.includes('--max-old-space-size=512'));assert(args.includes('--expose-gc'));assert.equal(options.timeout,600000);assert(options.timeout>simulatedHealthyDuration);
   return {status:0,stdout:JSON.stringify({output:'output',networkCalls:0,onlineStarted:false,servicesSelected:1,maximumNewRequests:36,liveReady:true}),stderr:JSON.stringify({event:'V2_NATIVE_CHECK_STAGE',stage:'reference-closure',status:'FINISHED',durationMs:simulatedHealthyDuration})};
  });syncBuiltinESMExports();
  try{const p=lifecyclePlan(ops.config,{objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:['candidate-0']});assert.equal(p.servicesConsidered,1);assert.equal(p.preflight.networkCalls,0);assert.equal(ops.db().jobs.length,0);}finally{stub.mock.restore();syncBuiltinESMExports();}

@@ -2,6 +2,15 @@
 import path from 'node:path';
 import {safe,read,sha,stableBytes,files} from './core.mjs';
 const stages=['IDENTITY_SUBSCRIPTION','MARKETS','LOGIN','MANAGEMENT','CANCELLATION','PRICING','VALIDATION'];
+// Keep unchanged subgraphs shared with the parsed document; validate every locator.
+function adaptLocators(v){
+ if(Array.isArray(v)){const rows=v.map(adaptLocators);return rows.every((x,i)=>x===v[i])?v:rows;}
+ if(!v||typeof v!=='object')return v;
+ let changed=false;const rows=Object.entries(v).map(([k,x])=>{
+  if(k==='path'&&typeof x==='string'&&x.startsWith('$/')){if(!/^\$(?:\/[a-zA-Z0-9_:@#.-]+(?:\[\d+\])?)+$/.test(x))throw Error('STORAGE_DOM_LOCATOR_SCHEMA');changed=true;return ['domLocator',x];}
+  const value=adaptLocators(x);if(value!==x)changed=true;return [k,value];
+ });return changed?Object.fromEntries(rows):v;
+}
 function priorInterpretations(root,target,base,references){
  if(!target?.providerInterpretations)return target;
  if(!Array.isArray(target.providerInterpretations))throw Error('STORAGE_PRIOR_INTERPRETATIONS_SCHEMA');
@@ -118,9 +127,7 @@ export function adaptDocument(root,value,owner){
   return {value:{...value,observations:adapted.value.observations},references:[],schema:'PROVIDER_PRICE_INTELLIGENCE_V1'};
  }
  if(value?.version==='V2_FIELD_VERIFICATION_V1'||(value?.version===2&&typeof value.requestedMarket==='string'&&typeof value.productOwnershipEstablished==='boolean'&&typeof value.marketApplicabilityEstablished==='boolean')||(typeof value?.candidateId==='string'&&typeof value?.structuredPath==='string'&&typeof value?.rawEvidenceSnippet==='string'&&/^[a-f0-9]{64}$/.test(value?.bodyHash??'')&&['HTML','JSON','SCRIPT_LITERAL'].includes(value.sourceType))){
-  function locators(v){if(Array.isArray(v))return v.map(locators);if(!v||typeof v!=='object')return v;return Object.fromEntries(Object.entries(v).map(([k,x])=>{
-   if(k==='path'&&typeof x==='string'&&x.startsWith('$/')){if(!/^\$(?:\/[a-zA-Z0-9_:@#.-]+(?:\[\d+\])?)+$/.test(x))throw Error('STORAGE_DOM_LOCATOR_SCHEMA');return ['domLocator',x];}return [k,locators(x)];
-  }));}return {value:locators(value),references:[],schema:'V2_FIELD_VERIFICATION_V1'};
+  return {value:adaptLocators(value),references:[],schema:'V2_FIELD_VERIFICATION_V1'};
  }
  if(owner.endsWith('/checkpoint.json')&&value?.version===1&&value.services&&typeof value.fingerprint==='string'&&['requests','searches','reads'].every(k=>Number.isSafeInteger(value[k]))){
   // new-service-controller V1 stores stage artifacts relative to its run,
@@ -214,11 +221,9 @@ export function adaptSnapshot(root,snapshot){
  }));
  const parents=snapshot.parents.map(p=>{const {directory,...rest}=p;local(directory);return rest;});
  function stateReferences(v){
-  if(Array.isArray(v))return v.map(stateReferences);if(!v||typeof v!=='object')return v;
+  if(Array.isArray(v)){const rows=v.map(stateReferences);return rows.every((x,i)=>x===v[i])?v:rows;}if(!v||typeof v!=='object')return v;
   if(v.version==='V2_FIELD_VERIFICATION_V1'){
-   function locators(x){if(Array.isArray(x))return x.map(locators);if(!x||typeof x!=='object')return x;const out={};for(const [key,value]of Object.entries(x)){
-    if(key==='path'&&typeof value==='string'&&value.startsWith('$/')){if(!/^\$(?:\/[a-zA-Z0-9_:@#.-]+(?:\[\d+\])?)+$/.test(value))throw Error('STORAGE_DOM_LOCATOR_SCHEMA');out.domLocator=value;}else out[key]=locators(value);
-   }return out;}v=locators(v);
+   v=adaptLocators(v);
   }
   const result={};for(const [k,x]of Object.entries(v))if(k!=='bodyFile'){
    if(k==='quarantinedVerified'){
@@ -233,7 +238,7 @@ export function adaptSnapshot(root,snapshot){
    const matches=Object.values(snapshot.sources).flat().filter(s=>s.page?.bodyFile===v.bodyFile&&s.page?.bodyHash===v.bodyHash&&s.page?.url===v.url);
    if(!matches.length)throw Error('STORAGE_LIFECYCLE_STATE_BODY_UNRESOLVED');
    result.bodyReferences=matches.map(s=>({path:local(s.directory+'/'+s.page.bodyFile),sha256:v.bodyHash}));
-  }return result;
+  }return Object.keys(result).length===Object.keys(v).length&&Object.keys(result).every(k=>Object.hasOwn(v,k)&&result[k]===v[k])?v:result;
  }
  const states=Object.fromEntries(Object.entries(snapshot.states).map(([id,state])=>{
   const target=state.target;if(!target?.providerInterpretations)return [id,state];

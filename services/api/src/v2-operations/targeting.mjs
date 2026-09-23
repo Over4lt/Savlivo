@@ -1,9 +1,12 @@
+import {childDiagnostic,operationsDiagnostic} from './diagnostics.mjs';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 // Read-only targeting projection. The mature executor still owns research and admission.
 import fs from 'node:fs';
 import path from 'node:path';
 import {inspectLifecycleInput} from '../research-v2/inventory/reviewed-cohort-handoff.mjs';
 import {deploymentContract} from '../research-v2/storage/genesis-deployment.mjs';
-import {safe,read,sha,stableBytes,digest} from '../research-v2/storage/core.mjs';
+import {safe,read,sha,stableBytes,digest,jsonDigest} from '../research-v2/storage/core.mjs';
 
 export const presets = Object.freeze([
  ['ALL','All eligible'], ['UNRESOLVED','Unresolved'], ['HUMAN_REVIEW','Needs human review'],
@@ -58,7 +61,7 @@ export function loadTargeting(settings){
   const bytes=stableBytes(safe(root,g.stateSource.path));
   if(!entry||entry.sha256!==g.stateSource.sha256||sha(bytes)!==entry.sha256)error('TARGETING_STATE_HASH');
   const source=JSON.parse(bytes),{snapshotHash,...payload}=source;
-  if(!snapshotHash||sha(JSON.stringify(payload))!==snapshotHash||digest(source.cohort)!==digest(g.cohort))error('TARGETING_STATE_SEAL');
+  if(!snapshotHash||jsonDigest(payload)!==snapshotHash||digest(source.cohort)!==digest(g.cohort))error('TARGETING_STATE_SEAL');
   genesis={genesis:contract.genesis,source};
  }
  const handoff=inspectLifecycleInput(file,root);
@@ -93,4 +96,15 @@ export function selectTargeting(model,value={}){
  return {revision:model.revision,targeting:{preset,markets:[...markets].sort(),categories:[...categories].sort(),q,services:services===null?null:[...services].sort()},
   matchingServices:matching.length,selectedServices:rows.length,serviceMarketTargets:rows.reduce((n,s)=>n+s.researchMarkets.length,0),unscopedServices:rows.filter(s=>!s.researchMarkets.length).length,
   matching,rows,services:rows.map(s=>s.service),researchMarkets:Object.fromEntries(rows.map(s=>[s.service,s.researchMarkets]))};
+}
+
+// Authenticate in a short-lived bounded process; retain only the compact read model
+// in the HTTP process, never the 77 MB sealed source and its parsed graphs.
+export function loadTargetingIsolated(settings){
+ const child=spawnSync(process.execPath,['--expose-gc','--max-old-space-size=512','--import',import.meta.resolve('tsx'),fileURLToPath(import.meta.url),'--read-model'],{cwd:settings.repo,input:JSON.stringify({repo:settings.repo,lifecycleInput:settings.lifecycleInput}),encoding:'utf8',timeout:120000,maxBuffer:4*1024*1024,env:process.env});
+ if(child.error||child.status!==0)throw Object.assign(Error('TARGETING_READ_MODEL_FAILED'),{code:child.error?.code,operationsDiagnostic:{...childDiagnostic(child),stage:'targeting-read-model'}});
+ return JSON.parse(child.stdout);
+}
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)&&process.argv[2]==='--read-model'){
+ try{process.stdout.write(JSON.stringify(loadTargeting(JSON.parse(fs.readFileSync(0,'utf8')))));}catch(e){console.error(JSON.stringify(operationsDiagnostic(e,'targeting-read-model')));process.exitCode=1;}
 }
