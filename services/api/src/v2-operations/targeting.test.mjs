@@ -36,7 +36,7 @@ test('authenticated Genesis fixture exposes current counts and a real combined f
 });
 test('confirmed Start validates mature plan once and passes that exact frozen plan to enqueue',t=>{
  const ops=controlFixture(t),config={objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:['film'],capabilities:caps},plan={config,catalogHash:'frozen'};let plans=0,enqueued=null;
- ops.transaction=fn=>fn({preflights:[{token:'p',actor:'admin',expiresAt:'2999-01-01',config,catalogHash:'frozen'}]});ops.plan=()=>{plans++;return plan;};ops.enqueue=(...args)=>{enqueued=args;return {status:'QUEUED'};};
+ const db={jobs:[],preflights:[{token:'p',actor:'admin',expiresAt:'2999-01-01',config,catalogHash:'frozen'}]};ops.db=()=>db;ops.transaction=fn=>fn(db);ops.plan=()=>{plans++;return plan;};ops.enqueue=(...args)=>{enqueued=args;return {status:'QUEUED'};};
  assert.throws(()=>ops.start('p','admin',false),/CONFIRMATION_REQUIRED/);assert.equal(plans,0);assert.equal(ops.start('p','admin',true).status,'QUEUED');assert.equal(plans,1);assert.equal(enqueued.at(-1),plan);
  ops.plan=()=>({...plan,catalogHash:'changed'});assert.throws(()=>ops.start('p','admin',true),/PREFLIGHT_STALE/);
 });

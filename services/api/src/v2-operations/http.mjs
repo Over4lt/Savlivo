@@ -1,4 +1,4 @@
-import {beginPreflight,preflightStatus} from './preflight-operations.mjs';
+import {beginPreflight,beginStart,preflightStatus} from './preflight-operations.mjs';
 import {storageView} from '../research-v2/storage/runtime.mjs';
 import {historyIndex} from '../research-v2/storage/history.mjs';
 import {Operations,settings,OperationError} from './control.mjs';import {publicRun,json,lifecycleEvents} from './artifacts.mjs';import path from 'node:path';
@@ -19,7 +19,8 @@ export async function operationsRequest({method,url,body,actor},ops=operations()
  if(method==='GET'&&route==='/schedules')return {rows:ops.db().schedules.map(s=>({...s,lastRun:ops.db().jobs.find(j=>j.id===s.lastRunId)??null,lastSuccessfulRun:ops.db().jobs.find(j=>j.id===s.lastSuccessfulRunId)??null}))};
  if(method==='POST'&&route==='/preflight')return beginPreflight(ops,body,actor);
  if(method==='GET'&&parts[0]==='preflights'&&parts.length<=2)return preflightStatus(ops,actor,parts[1]);
- if(method==='POST'&&route==='/start'){if(!body||Object.keys(body).some(k=>!['token','confirmed'].includes(k)))throw new OperationError('INVALID_BODY');return ops.start(body.token,actor,body.confirmed);}
+ if(method==='GET'&&parts[0]==='starts'&&parts.length<=2)return preflightStatus(ops,actor,parts[1],'START');
+ if(method==='POST'&&route==='/start'){if(!body||Object.keys(body).some(k=>!['token','confirmed'].includes(k)))throw new OperationError('INVALID_BODY');return beginStart(ops,body,actor);}
  if(method==='POST'&&parts[0]==='jobs'&&parts.length===3)return ops.control(parts[1],parts[2],actor);
  if(method==='POST'&&route==='/schedules')return ops.saveSchedule(body,actor);
  if(method==='POST'&&parts[0]==='schedules'&&parts.length===2)return ops.saveSchedule(body,actor,parts[1]);

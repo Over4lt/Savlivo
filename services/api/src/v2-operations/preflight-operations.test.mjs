@@ -51,5 +51,13 @@ test('real isolated Preflight native subprocess can block while HTTP status stay
   for(let i=0;i<500;i++){status=preflightStatus(ops,'a',operation.id);if(status.status!=='RUNNING')break;await new Promise(r=>setTimeout(r,10));}
   assert.equal(status.status,'SUCCEEDED',JSON.stringify(status));assert(status.result.token);assert(ticks>20);
   assert.deepEqual(ops.db().jobs,[]);assert.equal(ops.db().preflights.length,1);
+  // Recover successful Preflight, explicitly confirm Start, then detach the request.
+  const token=preflightStatus(new Operations(ops.config),'a',operation.id).result.token;
+  const start=await operationsRequest({method:'POST',url:new URL('https://offline.invalid/v1/admin/v2-operations/start'),actor:'a',body:{token,confirmed:true}},ops);
+  assert.equal(start.status,'RUNNING');const before=ticks;
+  const retry=await operationsRequest({method:'POST',url:new URL('https://offline.invalid/v1/admin/v2-operations/start'),actor:'a',body:{token,confirmed:true}},ops);assert.equal(retry.id,start.id);
+  for(let i=0;i<500;i++){status=preflightStatus(ops,'a',start.id,'START');if(status.status!=='RUNNING')break;await new Promise(r=>setTimeout(r,10));}
+  assert.equal(status.status,'SUCCEEDED',JSON.stringify(status));assert(ticks-before>20);assert.equal(ops.db().jobs.length,1);
+  const recovered=preflightStatus(new Operations(ops.config),'a',start.id,'START');assert.equal(recovered.result.id,ops.db().jobs[0].id);
  }finally{clearInterval(timer);}
 });

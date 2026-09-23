@@ -35,6 +35,51 @@ not an assumed success. No automatic replay or research job is created. Tokens a
 results live in the existing atomic Operations state on persistent storage.
 
 Start still requires the existing actor-bound token, confirmed:true, expiry,
-frozen selection/revision, storage/capability/conflict rechecks. Its existing
-synchronous revalidation is unchanged; this change addresses Preflight transport,
-not a trust cache or a shortcut around Start verification. Scheduling is unchanged.
+frozen selection/revision, storage/capability/conflict rechecks. Confirmed Start now
+uses the durable worker path described below, without a trust cache or shortcut
+around verification. Scheduling is unchanged.
+
+## Confirmed Start (durable and recoverable)
+
+Start previously called `Operations.start` → `plan` → `lifecyclePlan` → synchronous
+native `--check`, inside the global control-store lock on the API thread. The same
+full Genesis validation seen at Preflight therefore could take another ~336 seconds
+(reference closure ~283 seconds) on the observed production instance. That timing
+is an expectation from the same path, not a new production measurement. A timeout
+could arrive after a job was committed. The existing manual token idempotency key
+prevented duplicate committed jobs, but retries needlessly revalidated first and
+there was no dedicated result-recovery route.
+
+POST `/start` still accepts ONLY `{token, confirmed:true}` and requires authenticated
+Run Control. It atomically reserves a START operation bound to the actor/token,
+returns promptly, and uses the SAME bounded validation worker. GET `/starts/:id`
+and `/starts` are authenticated, actor-isolated recovery routes. Admin polls with
+short requests and exposes Recover Start after refresh/relogin. A lost response
+means outcome unknown, never an assertion that no job exists. Recover Start does
+not submit another confirmation or enqueue anything.
+
+Every new enqueue still performs full native authentication/closure validation;
+there is no trust cache and no skipped Genesis work. The immutable Preflight token
+record supplies the frozen selection/capabilities, but its existence does not prove
+current readiness. The worker revalidates the plan and catalog hash outside the
+publication lock, then rechecks token expiry and exact record integrity under the
+lock. Existing storage, live-readiness, and conflict checks apply at enqueue. Token
+expiry is checked both before validation and immediately before publication.
+
+Committed jobs are authoritative receipts. A retry with the same actor/token returns
+that job before doing new validation, including after token expiry; this is receipt
+retrieval, never a new Start authorization. New work still requires an unexpired
+Preflight. Job identity is deterministically bound to actor + manual token, protecting
+against a crash after artifact writes but before atomic state publication. The poller
+only executes jobs present in the authoritative state. Retries cannot allocate a second
+job directory for that confirmation; conflicting/non-initial on-disk job records fail
+closed. Existing random-ID jobs remain recoverable by their idempotency key.
+
+If worker completion reporting is lost after enqueue, status resolves from jobs rather
+than reporting failure. Active confirmation retries reuse the operation. Distinct
+Preflight/Start validation operations cannot overlap within the store. Interrupted
+validation creates no automatic retry; explicit retry must pass current authorization
+and expiry again. The shared 32-record/24-hour operation retention applies, while the
+existing durable job history remains the receipt after operation retention expires.
+Neither these HTTP handlers nor the validation worker executes research: only the
+existing poller can execute a deliberately queued job. Scheduling remains unchanged.

@@ -24,7 +24,6 @@ function clearSession() {
   token = null; browserAbort?.abort(); clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();
 }
 function operationsRequestTimeout(path) {
-  if (path === "v2-operations/start") return 630000;
   if (path === "v2-operations/targeting") return 30000;
   return 10000;
 }

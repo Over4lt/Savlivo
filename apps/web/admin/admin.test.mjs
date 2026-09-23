@@ -208,7 +208,7 @@ for(const [name,flows,expected] of [
 });
 test('Operations authentication checks have bounded timeouts beyond the old ten-second limit',()=>{
  const block=source.slice(source.indexOf('function operationsRequestTimeout('),source.indexOf('async function request('));const timeout=vm.runInNewContext(block+'; operationsRequestTimeout');
- assert.equal(timeout('v2-operations/preflight'),10000);assert.equal(timeout('v2-operations/start'),630000);assert.equal(timeout('v2-operations/targeting'),30000);assert.equal(timeout('overview'),10000);assert.equal(timeout('v2-operations/other'),10000);assert(source.includes('AbortSignal.timeout(operationsRequestTimeout(path))'));
+ assert.equal(timeout('v2-operations/preflight'),10000);assert.equal(timeout('v2-operations/start'),10000);assert.equal(timeout('v2-operations/targeting'),30000);assert.equal(timeout('overview'),10000);assert.equal(timeout('v2-operations/other'),10000);assert(source.includes('AbortSignal.timeout(operationsRequestTimeout(path))'));
 });
 
 test('Preflight transport failure does not clear an authenticated session; only 401 does',async()=>{

@@ -14,9 +14,14 @@ test('compiled HTTP Preflight dispatch finds its emitted worker on the first req
  const pending=await operationsRequest({method:'POST',url:new URL('https://offline.invalid/v1/admin/v2-operations/preflight'),actor:'fixture',body:{objective:'MATURE_LIFECYCLE'}},ops);
  if(pending.status!=='RUNNING')throw Error('NOT_ASYNC');
  for(let n=0;n<200;n++){await new Promise(r=>setTimeout(r,10));const state=preflightStatus(ops,'fixture',pending.id);if(state.status==='FAILED'){
- if(state.error!=='INVALID_LIFECYCLE_SCOPE'||ops.db().jobs.length)throw Error(JSON.stringify(state));console.log('COMPILED_PREFLIGHT_WORKER_PASS');process.exit(0);}}
+ if(state.error!=='INVALID_LIFECYCLE_SCOPE'||ops.db().jobs.length)throw Error(JSON.stringify(state));console.log('COMPILED_PREFLIGHT_WORKER_PASS');
+ ops.transaction(db=>db.preflights.push({token:'start-token',actor:'fixture',expiresAt:'2999-01-01',config:{objective:'MATURE_LIFECYCLE'},catalogHash:'fixture'}));
+ const start=await operationsRequest({method:'POST',url:new URL('https://offline.invalid/v1/admin/v2-operations/start'),actor:'fixture',body:{token:'start-token',confirmed:true}},ops);
+ if(start.status!=='RUNNING')throw Error('START_NOT_ASYNC');
+ for(let i=0;i<200;i++){await new Promise(r=>setTimeout(r,10));const check=preflightStatus(ops,'fixture',start.id,'START');if(check.status==='FAILED'){if(check.error!=='INVALID_LIFECYCLE_SCOPE'||ops.db().jobs.length)throw Error(JSON.stringify(check));console.log('COMPILED_START_WORKER_PASS');process.exit(0);}}
+ throw Error('START_NO_COMPLETION');}}
  throw Error('NO_COMPLETION');`;
  const entry=path.join(temp,'check.mjs');fs.writeFileSync(entry,script.replaceAll("'./services/api/dist/","'"+pathToFileURL(root+'/services/api/dist/').href));
  const result=spawnSync(process.execPath,[entry],{cwd:root,encoding:'utf8',timeout:15000});
- assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/COMPILED_PREFLIGHT_WORKER_PASS/);
+ assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/COMPILED_PREFLIGHT_WORKER_PASS/);assert.match(result.stdout,/COMPILED_START_WORKER_PASS/);
 });
