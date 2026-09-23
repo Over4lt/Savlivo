@@ -12,3 +12,8 @@ export function childDiagnostic(result){
  const failureKind=result.error?.code==='ETIMEDOUT'?'TIMEOUT':/FATAL ERROR:.*(?:heap|Allocation)/i.test(String(result.stderr??''))?'HEAP_LIMIT_EXCEEDED':result.signal==='SIGKILL'?'PROCESS_KILLED_OOM_POSSIBLE':result.signal?'PROCESS_SIGNAL':'VALIDATION_OR_PROCESS_EXIT';
  return {stage:'native-check',failureKind,reason,exitStatus:Number.isInteger(result.status)?result.status:null,signal:['SIGTERM','SIGKILL','SIGABRT'].includes(result.signal)?result.signal:null,code:operationsDiagnostic(result.error).code??childCode};
 }
+
+export function diagnosticContext(value={}){
+ const result={};if(['PREFLIGHT','START','WORKER_PREPARE','EXECUTION'].includes(value.purpose))result.purpose=value.purpose;
+ for(const key of ['jobId','operationId'])if(/^[a-f0-9-]{36}$/.test(value[key]??''))result[key]=value[key];return result;
+}

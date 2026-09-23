@@ -89,3 +89,33 @@ and expiry again. The shared 32-record/24-hour operation retention applies, whil
 existing durable job history remains the receipt after operation retention expires.
 Neither these HTTP handlers nor the validation worker executes research: only the
 existing poller can execute a deliberately queued job. Scheduling remains unchanged.
+
+## Live admitted-job monitoring
+
+After confirmed Start returns a job, Admin monitors that exact ID through the
+actor-owned read-only `GET /v1/admin/v2-operations/jobs/:id` endpoint. The source
+is Operations `state.json`, not the original Start receipt or cached run index.
+The monitor survives Operations tab navigation; logout/disposal cancels it.
+Requests run sequentially every 10 seconds, stop on terminal status, and are
+bounded to 360 attempts or five consecutive failures. Failures preserve the last
+known status. Recover Start can reconnect monitoring without submitting Start.
+No targeting reload, token renewal, state mutation or acquisition occurs on reads.
+
+The view shows recorded services, status, timestamps and request ceiling; it does
+not estimate usage or percentages. Detailed existing run views remain available
+for evidence/usage. `execution-phase.json` is a best-effort diagnostic observation,
+not admission or lease state. A matching preparation record with a live reporting
+PID owning the control lock can label QUEUED as “Validating execution”. It never changes QUEUED to RUNNING.
+Preparation completion/failure clears that label. Diagnostics do not authorize work.
+
+`V2_JOB_EXECUTION` records preparation started/completed/failed, child spawned,
+RUNNING published and mature execution outcomes, with job ID and timestamp.
+Native check logs carry PREFLIGHT/START operation IDs or WORKER_PREPARE job IDs;
+execution lifecycle stage logs carry EXECUTION/job ID in the existing worker log.
+No tokens, environment values or evidence bodies are included in these fields.
+Raw worker.log is deliberately not exposed: its existing free-form errors/output
+are not a sanitized public artifact contract. Only sanitized status is added here.
+
+Deploy backend/runtime code through the established API deployment and publish
+`apps/web/admin/v2-operations.js` to the existing Webhuset Admin static deployment.
+Deploy the backend endpoint first. No Genesis migration or state repair is required.

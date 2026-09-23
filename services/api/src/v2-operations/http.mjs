@@ -1,3 +1,4 @@
+import {jobStatus} from './job-status.mjs';
 import {beginPreflight,beginStart,preflightStatus} from './preflight-operations.mjs';
 import {storageView} from '../research-v2/storage/runtime.mjs';
 import {historyIndex} from '../research-v2/storage/history.mjs';
@@ -21,6 +22,7 @@ export async function operationsRequest({method,url,body,actor},ops=operations()
  if(method==='GET'&&parts[0]==='preflights'&&parts.length<=2)return preflightStatus(ops,actor,parts[1]);
  if(method==='GET'&&parts[0]==='starts'&&parts.length<=2)return preflightStatus(ops,actor,parts[1],'START');
  if(method==='POST'&&route==='/start'){if(!body||Object.keys(body).some(k=>!['token','confirmed'].includes(k)))throw new OperationError('INVALID_BODY');return beginStart(ops,body,actor);}
+ if(method==='GET'&&parts[0]==='jobs'&&parts.length===2)return jobStatus(ops,parts[1],actor);
  if(method==='POST'&&parts[0]==='jobs'&&parts.length===3)return ops.control(parts[1],parts[2],actor);
  if(method==='POST'&&route==='/schedules')return ops.saveSchedule(body,actor);
  if(method==='POST'&&parts[0]==='schedules'&&parts.length===2)return ops.saveSchedule(body,actor,parts[1]);

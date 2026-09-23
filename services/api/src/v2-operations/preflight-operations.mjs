@@ -55,7 +55,7 @@ function dispatch(ops,record,input,actor,launch,action='PREFLIGHT'){
 activeOperations.add(record.id);console.error(JSON.stringify({event:'V2_CONTROL_OPERATION',kind:action,id:record.id,status:'RUNNING'}));const complete=(outcome,attempt=0)=>{try{const published=ops.transaction(db=>{const r=db.preflightOperations?.find(r=>r.id===record.id);if(!r||r.status!=='RUNNING')return;
   r.status=outcome.result?'SUCCEEDED':'FAILED';if(outcome.result)r.result=outcome.result;else r.error=outcome.error??'PREFLIGHT_FAILED';
   return {event:'V2_CONTROL_OPERATION',kind:action,id:r.id,status:r.status,durationMs:Date.now()-Date.parse(r.createdAt)};
- });if(published)console.error(JSON.stringify(published));activeOperations.delete(record.id);}catch(error){if(error.message==='CONTROL_BUSY'&&attempt<40)setTimeout(()=>complete(outcome,attempt+1),50);else {activeOperations.delete(record.id);console.error(JSON.stringify(operationsDiagnostic(error,'preflight-publication')));}}};try{launch(ops.config,input,actor,complete,action);}catch(error){complete({error:'PREFLIGHT_WORKER_FAILED'});}
+ });if(published)console.error(JSON.stringify(published));activeOperations.delete(record.id);}catch(error){if(error.message==='CONTROL_BUSY'&&attempt<40)setTimeout(()=>complete(outcome,attempt+1),50);else {activeOperations.delete(record.id);console.error(JSON.stringify(operationsDiagnostic(error,'preflight-publication')));}}};try{launch({...ops.config,diagnosticContext:{purpose:action,operationId:record.id}},input,actor,complete,action);}catch(error){complete({error:'PREFLIGHT_WORKER_FAILED'});}
 }
 
 export function beginStart(ops,body,actor,launch=launchPreflight){
