@@ -159,3 +159,10 @@ test('Recover Start after relogin displays the committed job without submitting 
  await button(root,'Recover Start').listeners.click();assert(text(root).includes('Job existing-job: RUNNING'));
  assert(!calls.some(c=>c.p.endsWith('/start')));assert(!calls.some(c=>c.p.endsWith('/preflight')));
 });
+
+for(const [status,message]of [['EXPIRED','Preflight expired. Run Preflight again before Start.'],['FAILED','Preflight failed. Run Preflight again before Start. No research has started.'],[null,'No recoverable Preflight. No research has started.']])test(`recovery ${status??'without a record'} clears stale Start permission and explains outcome`,async t=>{
+ const history=status?[{id:'latest',status,input:{objective:'MATURE_LIFECYCLE'}},{id:'older',status:'SUCCEEDED',input:{objective:'MATURE_LIFECYCLE'}}]:[];
+ const {root,calls}=await builder(t,{},history);await button(root,'Preflight').listeners.click();const staleStart=button(root,'Confirm and queue run');assert(staleStart);
+ await button(root,'Recover Preflight').listeners.click();assert(text(root).includes(message));assert(!button(root,'Confirm and queue run'));
+ globalThis.window.confirm=()=>true;await staleStart.listeners.click();assert(!calls.some(c=>c.p.endsWith('/start')));assert.equal(calls.filter(c=>c.p.endsWith('/preflight')).length,1);
+});

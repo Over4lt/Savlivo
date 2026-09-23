@@ -61,3 +61,14 @@ test('real isolated Preflight native subprocess can block while HTTP status stay
   const recovered=preflightStatus(new Operations(ops.config),'a',start.id,'START');assert.equal(recovered.result.id,ops.db().jobs[0].id);
  }finally{clearInterval(timer);}
 });
+
+test('same actor after relogin sees expired operation without token; another actor sees nothing',async()=>{
+ const ops=fixture(),expired={...result(),expiresAt:new Date(Date.now()-1000).toISOString()};
+ const operation=beginPreflight(ops,input,'stable-user-id',(_c,_i,_a,done)=>done({result:expired}));
+ const reloaded=new Operations(ops.config),url=new URL('https://offline.invalid/v1/admin/v2-operations/preflights');
+ const history=await operationsRequest({method:'GET',url,actor:'stable-user-id'},reloaded);
+ assert.equal(history.rows[0].id,operation.id);assert.equal(history.rows[0].status,'EXPIRED');assert.equal(history.rows[0].result,undefined);
+ assert.deepEqual((await operationsRequest({method:'GET',url,actor:'different-user-id'},reloaded)).rows,[]);
+ assert.throws(()=>preflightStatus(reloaded,'different-user-id',operation.id),/NOT_FOUND/);
+ assert.deepEqual(reloaded.db().jobs,[]);
+});

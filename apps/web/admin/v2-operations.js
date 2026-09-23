@@ -129,9 +129,13 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   for(const [key,title]of [['markets','Markets'],['categories','Categories']]){const detail=el('details'),options=el('div',undefined,'ops-facet-options');detail.append(el('summary',title+' — optional'));button(detail,'All '+key,async()=>{filters[key]=[];await changeFilters();});
    for(const facet of data.facets[key]){const label=el('label',`${facet.name} (${facet.services})`),check=el('input');check.type='checkbox';check.checked=false;check.addEventListener('change',async()=>{filters[key]=check.checked?[...filters[key],facet.id]:filters[key].filter(v=>v!==facet.id);await changeFilters();});facetChecks[key].push([facet.id,check]);label.append(check);options.append(label);}detail.append(options);facetsBox.append(detail);}
   text(facetsBox,data.marketMeaning+' '+data.categoryMeaning+' Changing filters returns to All matching services.');renderRows();
-  const recover=async()=>{const history=await request('v2-operations/preflights');if(!isCurrent())return;
-   const prior=(history.rows??[]).find(r=>['RUNNING','SUCCEEDED'].includes(r.status)&&r.input?.objective==='MATURE_LIFECYCLE');
+  const recover=async()=>{invalidate();const generation=epoch;const history=await request('v2-operations/preflights');if(!isCurrent()||builderGeneration!==viewGeneration||generation!==epoch)return;
+   // The authenticated endpoint returns newest-first, actor-owned records.
+   const prior=(history.rows??[]).find(r=>r.input?.objective==='MATURE_LIFECYCLE');
    if(!prior){text(result,'No recoverable Preflight. No research has started.');return;}
+   if(prior.status==='EXPIRED'){text(result,'Preflight expired. Run Preflight again before Start.');return;}
+   if(prior.status==='FAILED'){text(result,'Preflight failed. Run Preflight again before Start. No research has started.');return;}
+   if(!['RUNNING','SUCCEEDED'].includes(prior.status)){text(result,'No recoverable Preflight. No research has started.');return;}
    if(prior.input.targetingRevision!==model.revision){text(result,'Recovered selection is stale. Refresh targeting and run Preflight again.');return;}
    Object.assign(filters,prior.input.targeting??{preset:'ALL',markets:[],categories:[],q:'',services:prior.input.services});search.value=filters.q;
    capabilities={...prior.input.capabilities};for(const k of Object.keys(labels)){capChecks[k].checked=capabilities[k]===true;capStatuses[k]();}
