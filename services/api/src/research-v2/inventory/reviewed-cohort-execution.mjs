@@ -1,3 +1,5 @@
+import {readLeadSnapshot,leadContext,candidateLeads} from '../human-leads/snapshot.mjs';
+import {leadOutcomeRecorder} from '../human-leads/outcomes.mjs';
 import {finalizeRun} from '../storage/finalize.mjs';
 import {resolveCapabilities,requireCapability} from '../capabilities/config.mjs';
 import {capabilityLedger} from '../capabilities/ledger.mjs';
@@ -33,7 +35,7 @@ export function priceTargets(targets,researchMarkets,ids){
  return targets.flatMap(t=>(researchMarkets[t.service]??[]).map(m=>({...t,id:t.service+'-price-'+m,market:m,researchObjective:'SERVICE_COVERAGE',gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],marketApplicabilityEstablished:false,currency:null,scopeBasis:'OPERATOR_RESEARCH_HYPOTHESIS_NOT_AVAILABILITY'})));
 }
 export function continuationLocation(handoff,researchMarkets,candidateRound=false,reconciliation=null,continuation=null,lifecycle=null){
- const code=['provider-review-input.mjs','reviewed-cohort-execution.mjs','reviewed-cohort-handoff.mjs','native-authority-evidence.mjs','provider-authority-bootstrap.mjs','adaptive-campaign.mjs'].map(f=>digest(fs.readFileSync(new URL(f,import.meta.url))));
+ const code=['provider-review-input.mjs','reviewed-cohort-execution.mjs','reviewed-cohort-handoff.mjs','native-authority-evidence.mjs','provider-authority-bootstrap.mjs','adaptive-campaign.mjs','../human-leads/snapshot.mjs','../human-leads/outcomes.mjs'].map(f=>digest(fs.readFileSync(new URL(f,import.meta.url))));
  const fingerprint=digest({input:handoff.inputHashes,review:handoff.document,researchMarkets,candidateRound,reconciliation,continuation,lifecycle:lifecycle?[lifecycle.key,lifecycle.snapshotHash]:null,code,limits:nativeLimits});
  return {fingerprint,directory:(lifecycle?(handoff.config?.runsRoot??'.savlivo/research-v2/universe-expansion/runs')+'/mature-lifecycle-':'.savlivo/research-v2/universe-expansion/runs/v15-mature-continuation-')+fingerprint.slice(0,16)};
 }
@@ -75,6 +77,9 @@ export async function runNativeTargets({directory,targets,retainedStates=[],crea
  return state;
 }
 export async function executeHandoff({handoff,researchMarkets,directory,mode='plan',key,shouldStop=()=>false,candidateRound=false,reconciliation=null,continuation=null,lifecycle=null}) {
+ const leadBinding=handoff.config?.humanLeadSnapshot;
+ const leadSnapshot=Object.hasOwn(handoff.config??{},'humanLeadSnapshot')?readLeadSnapshot(process.cwd(),leadBinding,leadContext(handoff.config,process.cwd())):null;
+ const recordLead=leadOutcomeRecorder(directory,leadBinding,leadSnapshot);
  const capabilities=resolveCapabilities(handoff.config?.capabilities);
  if(!['plan','replay','live'].includes(mode))throw Error('HANDOFF_MODE');
  if(lifecycle){validateLifecycleSnapshot(lifecycle);if(candidateRound||continuation||reconciliation)throw Error('HANDOFF_LIFECYCLE_MODE');}
@@ -95,7 +100,7 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
  if(fs.existsSync(lock)){const pid=Number(fs.readFileSync(lock));if(!Number.isInteger(pid)||pid<1)throw Error('HANDOFF_LOCK');try{process.kill(pid,0);throw Error('HANDOFF_ACTIVE');}catch(e){if(e.code!=='ESRCH')throw e;}fs.unlinkSync(lock);}fs.writeFileSync(lock,String(process.pid),{flag:'wx'});
  let cohortLeases=[];try{
  if(lifecycle)cohortLeases=claimLeases([path.join(parent,'cohort-'+digest(handoff.cohort.manifest.serviceIds).slice(0,16)+'.lock')]);
- const lineage={storageBoundaryVersion:1,capabilities,fingerprint:location.fingerprint,cohort:handoff.cohort.manifest.serviceIds,inputHashes:handoff.inputHashes,historicalRequests:handoff.summary.historicalRequests,historicalSearches:handoff.summary.historicalSearches,historicalReads:handoff.summary.historicalReads,previousRun:runDirectory,review:handoff.document,researchMarkets,candidateRound,reconciliation,continuation,lifecycle:lifecycle?{key:lifecycle.key,parents:lifecycle.parents,inputHashes:lifecycle.inputHashes}:null,parentRequests:lifecycle?.parentRequests??continuationState?.parentRequests??reconciliationState?.parentRequests??0,additionalRequestCeiling:reconciliation?0:lifecycle?lifecycleBudget.total:continuation?selected.length*additionalRequestLimit:188*additionalRequestLimit};
+ const lineage={storageBoundaryVersion:1,...(leadBinding?{humanLeadSnapshot:leadBinding}:{}),capabilities,fingerprint:location.fingerprint,cohort:handoff.cohort.manifest.serviceIds,inputHashes:handoff.inputHashes,historicalRequests:handoff.summary.historicalRequests,historicalSearches:handoff.summary.historicalSearches,historicalReads:handoff.summary.historicalReads,previousRun:runDirectory,review:handoff.document,researchMarkets,candidateRound,reconciliation,continuation,lifecycle:lifecycle?{key:lifecycle.key,parents:lifecycle.parents,inputHashes:lifecycle.inputHashes}:null,parentRequests:lifecycle?.parentRequests??continuationState?.parentRequests??reconciliationState?.parentRequests??0,additionalRequestCeiling:reconciliation?0:lifecycle?lifecycleBudget.total:continuation?selected.length*additionalRequestLimit:188*additionalRequestLimit};
  if(fs.existsSync(directory+'/lineage.json')&&json(directory+'/lineage.json').fingerprint!==lineage.fingerprint)throw Error('HANDOFF_LINEAGE_CHANGED');if(!fs.existsSync(directory+'/lineage.json'))atomic(directory+'/lineage.json',lineage);
  const ledgerFile=directory+'/network.jsonl',events=fs.existsSync(ledgerFile)?fs.readFileSync(ledgerFile,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[],used=new Map();
  for(const e of events)used.set(e.service,(used.get(e.service)??0)+1);
@@ -115,11 +120,12 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
   // Reuse the mature direct-access proof and gated geo fallback unchanged.
   const fallback=mode==='live'&&capabilities.decodo?(await createTavilyDiscovery({inventory:targets,readKeychain:async()=>key,bounds:nativeLimits,coveredServices:[],searchEnabled:capabilities.tavily})).bind({dir:nativeDirectory,runtime,bundle:{...bundle,transport:{...bundle.transport,request:async r=>{charge(targets[0].service,'DECODO');return bundle.transport.request(r);}}},runLive,dependencies:{}}):null;
   return {
+  onSourceObservation:({target,url,page,proof,directory:sourceDirectory})=>recordLead(target,url,'VERIFIER_RESULT',{route:'DIRECT',bodyHash:page.bodyHash,source:{path:sourceDirectory+'/'+page.bodyFile,sha256:page.bodyHash},verificationHash:digest(proof),verifierOutcome:'CATALOG_CAPABILITY_INTERPRETATION'}),
   search:async args=>{requireCapability(capabilities,'tavily');if(mode!=='live')throw Error('OFFLINE_NETWORK_FORBIDDEN');let search=searches.get(args.target.service);if(!search){search=await createTavilySearch({readKeychain:async()=>key,maxCalls:4});searches.set(args.target.service,search);}charge(args.target.service,'DISCOVERY');return search(args);},
-  read:async({url,target})=>{requireCapability(capabilities,'direct');if(mode!=='live')throw Error('OFFLINE_NETWORK_FORBIDDEN');const reader=createV2RobotsPublicAdapter({authorities:target.authorities,retainRaw:true,maxLinks:80,maxReads:1,maxRequests:4,network:{timeoutMs:15000,maxBytes:2097152,maxRedirects:1}});const page=await reader.read({url,targetCountry:target.market,maxRedirects:1,consumeNetwork:k=>charge(target.service,k)});if(page.outcome==='OK'&&page.authority?.status==='CONFIGURED_REVIEWED'){if(lifecycle)fs.appendFileSync(nativeDirectory+'/field-review.jsonl',JSON.stringify({service:target.service,...matureFieldReview(target,page)})+'\n');fs.appendFileSync(nativeDirectory+'/cancellation-review.jsonl',JSON.stringify({service:target.service,url:page.url,...cancellationReview(target,page)})+'\n');}return page;},
+  read:async({url,target})=>{requireCapability(capabilities,'direct');if(mode!=='live')throw Error('OFFLINE_NETWORK_FORBIDDEN');const reader=createV2RobotsPublicAdapter({authorities:target.authorities,retainRaw:true,maxLinks:80,maxReads:1,maxRequests:4,network:{timeoutMs:15000,maxBytes:2097152,maxRedirects:1}});recordLead(target,url,'ACQUISITION_ATTEMPTED',{route:'DIRECT'});const page=await reader.read({url,targetCountry:target.market,maxRedirects:1,consumeNetwork:k=>charge(target.service,k)});recordLead(target,url,'ACQUISITION_RESULT',{route:'DIRECT',outcome:page.outcome??null,bodyHash:page.bodyHash??null});if(page.outcome==='OK'&&page.authority?.status==='CONFIGURED_REVIEWED'){if(lifecycle)fs.appendFileSync(nativeDirectory+'/field-review.jsonl',JSON.stringify({service:target.service,...matureFieldReview(target,page)})+'\n');fs.appendFileSync(nativeDirectory+'/cancellation-review.jsonl',JSON.stringify({service:target.service,url:page.url,...cancellationReview(target,page)})+'\n');}return page;},
   classify:async({target,page})=>officialCandidate(target,{url:page.url??page.requestedUrl,label:'consumer subscription account pricing'},registry.domains),
-  consumeProvider:async args=>{let result=await (fallback?.consumeProvider??interpretDirectProvider)(args);result=await enrich(args,result);return filterQuarantinedResult(args.target,result,lifecycle?.quarantine??continuationState?.quarantine??[]);},
-  ...(fallback?{acquire:async args=>{requireCapability(capabilities,'decodo');return filterQuarantinedResult(args.target,await fallback.acquire(args),lifecycle?.quarantine??continuationState?.quarantine??[]);}}:{})
+  consumeProvider:async args=>{let result=await (fallback?.consumeProvider??interpretDirectProvider)(args);result=await enrich(args,result);const verifiedResult=filterQuarantinedResult(args.target,result,lifecycle?.quarantine??continuationState?.quarantine??[]);recordLead(args.target,args.candidate.url,'VERIFIER_RESULT',{route:'DIRECT',bodyHash:args.page.bodyHash??null,...(args.page.bodyFile?{source:{path:args.directory+'/'+args.page.bodyFile,sha256:args.page.bodyHash}}:{}),verifierOutcome:verifiedResult.classification??null,verifiedCount:verifiedResult.verified?.length??0,verificationHash:digest(verifiedResult.verified??[]),...(verifiedResult.runDirectory?{evidence:{path:verifiedResult.runDirectory}}:{})});return verifiedResult;},
+  ...(fallback?{acquire:async args=>{requireCapability(capabilities,'decodo');recordLead(args.target,args.candidate.url,'ACQUISITION_ATTEMPTED',{route:'DECODO'});const result=filterQuarantinedResult(args.target,await fallback.acquire(args),lifecycle?.quarantine??continuationState?.quarantine??[]);recordLead(args.target,args.candidate.url,'VERIFIER_RESULT',{route:'DECODO',verifierOutcome:result.classification??null,verifiedCount:result.verified?.length??0,verificationHash:digest(result.verified??[]),...(result.runDirectory?{evidence:{path:result.runDirectory}}:{})});return result;}}:{})
  };};
  const bootstrap=[];
  if(candidateRound||lifecycle){
@@ -179,6 +185,8 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
    retained.push((await replayTarget({target,directory:dest,sourceDirectory:reconciliation?.sources[target.service]??runDirectory+'/services/'+target.service,registry,quarantine:reconciliationState?.quarantine??[]})).target);
   }
   if(stopped())break;
+  if(leadSnapshot)for(let i=0;i<retained.length;i++)retained[i]=candidateLeads(retained[i],leadSnapshot,leadBinding);
+  if(leadSnapshot)for(let i=0;i<targets.length;i++)targets[i]=candidateLeads(targets[i],leadSnapshot,leadBinding);
   phases[phase]=await runNativeTargets({directory:directory+(mode==='plan'?'/plan/':'/')+phase,targets,retainedStates:retained,createAdapters:adapters,offline:mode!=='live',shouldStop:stopped,isolateFailures:!!lifecycle,onTransition:(event,state)=>{observe(phase,event,state);console.log(JSON.stringify({phase,event}));}});
   if(lifecycle)writeLifecycleDisposition({directory,handoff,phases,events,bootstrap,researchMarkets,executionComplete:false});
   if(lifecycle&&phase==='catalog'){

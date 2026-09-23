@@ -10,7 +10,7 @@ export function finalizeRun(root,{directory,baseline,engine,createdAt}){
  if(lineage.storageBoundaryVersion!==1)return {status:'LEGACY_PROTECTED'};
  const all=files(root,directory),roots=[];
  const add=(p,classification)=>{if(fs.existsSync(safe(root,p)))roots.push({path:p,format:format(p),classification,reason:'MATURE_FINALIZATION_INPUT'});};
- for(const f of ['lineage.json','summary.json','final-dispositions.json','network.jsonl','capability-ledger.jsonl','provider-review-queue.json','provider-binding-drafts.json'])add(directory+'/'+f,'PERMANENT_HISTORY');
+ for(const f of ['lineage.json','summary.json','final-dispositions.json','network.jsonl','capability-ledger.jsonl','provider-review-queue.json','provider-binding-drafts.json','human-lead-outcomes.jsonl'])add(directory+'/'+f,'PERMANENT_HISTORY');
  const states=all.filter(f=>/\/(catalog|pricing)\/adaptive-state\.json$/.test(f));
  const pages=all.filter(f=>f.endsWith('/pages.json')||f.endsWith('/open-web-discovery/state.json'));
  for(const f of [...states,...pages,...all.filter(f=>/\/(field-review|cancellation-review)\.jsonl$/.test(f))])add(f,'REFERENCED_EVIDENCE');

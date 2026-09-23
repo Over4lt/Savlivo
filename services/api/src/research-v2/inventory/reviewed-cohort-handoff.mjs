@@ -1,3 +1,4 @@
+import {readLeadSnapshot,leadContext} from '../human-leads/snapshot.mjs';
 // Thin cohort/evidence adapter to the existing reviewed-authority and adaptive V2 path.
 // No authority inference, transport or automatic review approval.
 import fs from 'node:fs';
@@ -101,10 +102,11 @@ export function inspectLifecycleInput(file,root=process.cwd()){
  const baseline=universe.existing.map(s=>s.service??s.slug);if(!Array.isArray(ids)||ids.length!==manifest.expectedServices||new Set(ids).size!==ids.length||ids.some(id=>baseline.includes(id))||digest([...ids].sort())!==digest(candidates.map(c=>c.slug).sort()))throw Error('LIFECYCLE_COHORT_SCOPE');
  const aliases=new Map();for(const c of candidates){if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(c.slug))throw Error('LIFECYCLE_ID');for(const label of [c.slug,c.name,...c.aliases??[]]){const k=label.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');if(aliases.has(k)&&aliases.get(k)!==c.slug)throw Error('LIFECYCLE_ALIAS_COLLISION');aliases.set(k,c.slug);}}
  if(config.executionServices!==undefined&&(!Array.isArray(config.executionServices)||!config.executionServices.length||new Set(config.executionServices).size!==config.executionServices.length||config.executionServices.some(id=>!ids.includes(id))))throw Error('LIFECYCLE_EXECUTION_SCOPE');
+ if(Object.hasOwn(config,'humanLeadSnapshot'))readLeadSnapshot(root,config.humanLeadSnapshot,leadContext(config,root));
  const derived=reviewedTargets(candidates,document,root),work=config.providerWorklist?readAt(config.providerWorklist):[],rows=ids.map(id=>({service:id,providerReview:work.find(w=>w.service===id)?.providerReview??{}}));
  if(work.some(w=>!ids.includes(w.service))||new Set(work.map(w=>w.service)).size!==work.length)throw Error('LIFECYCLE_CANDIDATE_SCOPE');
  if(config.productionGenesis&&!/^\.savlivo\/research-v2\/storage\/genesis\/[a-f0-9]{64}\.json$/.test(config.productionGenesis))throw Error('LIFECYCLE_GENESIS_PATH');
- let historicalRequests=0;const files=[file,config.cohortManifest,config.universe,config.reviewedBindings,...[config.providerWorklist,config.researchScopes,config.quarantineFile,config.productionGenesis].filter(Boolean)];
+ let historicalRequests=0;const files=[file,...(config.humanLeadSnapshot?[config.humanLeadSnapshot.path]:[]),config.cohortManifest,config.universe,config.reviewedBindings,...[config.providerWorklist,config.researchScopes,config.quarantineFile,config.productionGenesis].filter(Boolean)];
  if(config.legacyDirectory){const ledger=config.legacyDirectory+'/network.jsonl',checkpoint=config.legacyDirectory+'/checkpoint.json',events=fs.readFileSync(path.resolve(root,ledger),'utf8').trim().split('\n').filter(Boolean).map(JSON.parse),state=readAt(checkpoint);if(events.some(e=>!ids.includes(e.service))||state.requests!==events.length)throw Error('LIFECYCLE_LEGACY_LEDGER');historicalRequests=events.length;files.push(ledger,checkpoint);}
  return {config,baselineIds:baseline,cohort:{manifest,candidates},document,targets:derived.launchTargets.filter(t=>!config.executionServices||config.executionServices.includes(t.service)),rows:rows.filter(r=>!config.executionServices||config.executionServices.includes(r.service)),inputHashes:Object.fromEntries(files.map(f=>[path.relative(root,path.resolve(root,f)),hashAt(f)])),summary:{cohort:ids.length,baselineExcluded:baseline.length,historicalRequests}};
 }

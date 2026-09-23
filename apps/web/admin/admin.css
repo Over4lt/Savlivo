@@ -116,3 +116,16 @@ li {margin:.4rem 0;color:var(--muted)}
 
 .ops-tool-switch-availability[hidden]{display:none}
 .ops-tool-switch-warning{color:#ffd49b;font-weight:600}
+
+/* Operations summary cards: no horizontal table dependency. */
+.ops-service-results,.ops-inspect {min-width:0}
+.ops-result-card {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:1rem;align-items:start;padding:1rem;border:1px solid var(--border);border-radius:12px;margin:.65rem 0;overflow-wrap:anywhere}
+.ops-result-card p {margin:.35rem 0}
+.ops-inspect {border:1px solid var(--border);border-radius:12px;padding:1rem;margin:1rem 0;overflow-wrap:anywhere}
+.ops-inspect-section {padding:.75rem 0;border-bottom:1px solid var(--border)}
+.ops-inspect pre {white-space:pre-wrap;overflow-wrap:anywhere;max-height:28rem;overflow:auto}
+.ops-inspect label {display:block;margin:.75rem 0}
+.ops-inspect input,.ops-inspect select,.ops-inspect textarea {display:block;max-width:100%;box-sizing:border-box;width:100%}
+.ops-lead {display:grid;gap:.35rem;padding:.75rem;margin:.5rem 0;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow-wrap:anywhere}
+.ops-pagination {display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
+@media(max-width:760px){.ops-result-card {grid-template-columns:minmax(0,1fr)}.ops-result-card button {justify-self:start}}

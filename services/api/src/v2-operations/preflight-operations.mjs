@@ -37,12 +37,13 @@ export function launchPreflight(config,input,actor,done,action='PREFLIGHT'){
  worker.once('exit',code=>finish({error:'PREFLIGHT_WORKER_EXITED'}));
 }
 export function beginPreflight(ops,input,actor,launch=launchPreflight){
+ if(input&&Object.hasOwn(input,'humanLeadSnapshot'))fail('CLIENT_LEAD_SNAPSHOT_FORBIDDEN',400);
  if(!ops.config.control)fail('RUN_CONTROL_DISABLED',403);
  if(!input||!['MATURE_LIFECYCLE','LOGIN_MANAGE'].includes(input.objective))fail('INVALID_CONFIG',400);
  // No authenticated lifecycle work on the HTTP thread. The worker performs all original checks.
- const key=hash(canonical({...input,...(Array.isArray(input.services)?{services:[...input.services].sort()}: {})}));
+ const requestKey=hash(canonical({...input,...(Array.isArray(input.services)?{services:[...input.services].sort()}: {})}));
  let created=false;
- const record=ops.transaction(db=>{prune(db);const same=db.preflightOperations.find(r=>r.kind!=='START'&&r.actor===actor&&r.key===key&&['RUNNING','SUCCEEDED'].includes(r.status));if(same)return view(same);
+ const record=ops.transaction(db=>{prune(db);const key=input.objective==='MATURE_LIFECYCLE'?hash(canonical({requestKey,leads:(db.humanLeads??[]).filter(l=>l.status==='UNVERIFIED'&&(!input.services?.length||input.services.includes(l.serviceId))).sort((a,b)=>a.leadId.localeCompare(b.leadId))})):requestKey;const same=db.preflightOperations.find(r=>r.kind!=='START'&&r.actor===actor&&r.key===key&&['RUNNING','SUCCEEDED'].includes(r.status));if(same)return view(same);
   if(db.preflightOperations.some(r=>r.status==='RUNNING'))fail('PREFLIGHT_BUSY');
   if(db.preflightOperations.length>=32)db.preflightOperations.shift();
   const r={id:randomUUID(),key,actor,input:structuredClone(input),createdAt:new Date().toISOString(),ownerPid:process.pid,ownerBoot:bootId,status:'RUNNING'};db.preflightOperations.push(r);created=true;return view(r);

@@ -1,3 +1,4 @@
+import {humanLeadsRequest} from './human-leads.mjs';
 import {jobStatus} from './job-status.mjs';
 import {beginPreflight,beginStart,preflightStatus} from './preflight-operations.mjs';
 import {storageView} from '../research-v2/storage/runtime.mjs';
@@ -16,6 +17,7 @@ export async function operationsRequest({method,url,body,actor},ops=operations()
  if(method==='GET'&&['/services','/unresolved'].includes(route)){const result=ops.services({runId:url.searchParams.get('run')??undefined,q:url.searchParams.get('q')??'',unresolvedOnly:route==='/unresolved',state:url.searchParams.get('state')??'',...page()});return {...result,rows:result.rows.map(({evidence,...row})=>row)};}
  if(method==='GET'&&parts[0]==='runs'&&parts[2]==='artifacts'&&parts.length===4){const r=ops.run(parts[1]),kind=parts[3];if(kind==='manifest')return {objective:r.objective,version:r.engineVersion,bounds:r.bounds,targets:(r._manifest?.targets??[]).slice(0,500).map(t=>({service:t.service,market:t.market,objective:t.researchObjective}))};if(kind==='summary'||kind==='report')return {run:publicRun(r),before:r.before,after:r.after,meaning:'SANITIZED_STRUCTURED_ARTIFACT_VIEW'};if(kind==='checkpoint')return {status:r.status,checkpoint:r.checkpoint,checkedAt:r.checkpointAt,progress:r.routes?.current??null};throw new OperationError('ARTIFACT_NOT_AVAILABLE',404);}
  if(method==='GET'&&parts[0]==='runs'&&parts.length===2){const r=ops.run(parts[1]),services=ops.services({runId:r.id,limit:100});return {run:publicRun(r),services,efficiency:{requestsPerFreshService:r.freshResolutions>0&&r.requests!==null?r.requests/r.freshResolutions:null,freshPer100Requests:r.requests>0&&r.freshResolutions!==null?r.freshResolutions*100/r.requests:null},events:[...ops.db().events.filter(e=>e.jobId===r.jobId).slice(-100),...(r.lifecycle?lifecycleEvents(r._directory):[])]};}
+ if(parts[0]==='services'&&parts[2]==='leads'&&[3,4].includes(parts.length)&&['GET','POST'].includes(method)){return humanLeadsRequest(ops,parts[1],actor,method==='GET'?undefined:body,parts[3]);}
  if(method==='GET'&&parts[0]==='services'&&parts.length===2){const service=parts[1];if(!/^[a-z0-9-]+$/.test(service))throw new OperationError('INVALID_SERVICE');return ops.evidence(service,url.searchParams.get('run')??undefined);}
  if(method==='GET'&&route==='/schedules')return {rows:ops.db().schedules.map(s=>({...s,lastRun:ops.db().jobs.find(j=>j.id===s.lastRunId)??null,lastSuccessfulRun:ops.db().jobs.find(j=>j.id===s.lastSuccessfulRunId)??null}))};
  if(method==='POST'&&route==='/preflight')return beginPreflight(ops,body,actor);

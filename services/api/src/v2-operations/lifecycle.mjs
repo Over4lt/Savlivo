@@ -1,3 +1,4 @@
+import {freezeLeads,readLeadSnapshot,leadContext} from '../research-v2/human-leads/snapshot.mjs';
 import {diagnosticContext} from './diagnostics.mjs';
 import {childDiagnostic} from './diagnostics.mjs';
 import {resolveCapabilities} from '../research-v2/capabilities/config.mjs';
@@ -22,6 +23,10 @@ export function lifecyclePlan(settings,input,selection=null){
  // Narrow investigation markets through the existing researchScopes input contract.
  // Service-wide authority/login/manage work remains service-wide; no availability claim.
  if(input.researchMarkets?.length){if(!selection||hash([...selection.services].sort())!==hash([...selected].sort()))throw Error('TARGETING_PREVIEW_MISMATCH');const scope={researchMarkets:selection.researchMarkets};const scopeFile=path.join(directory,hash(scope)+'.json');if(!fs.existsSync(scopeFile))fs.writeFileSync(scopeFile,JSON.stringify(scope,null,2),{flag:'wx',mode:0o600});else if(hash(json(scopeFile))!==hash(scope))throw Error('LIFECYCLE_SCOPE_CHANGED');derived.researchScopes=path.relative(settings.repo,scopeFile);}
+ const contextLeads=leadContext(derived,settings.repo);
+ const storeFile=path.join(settings.root,'state.json');
+ derived.humanLeadSnapshot=Object.hasOwn(input,'humanLeadSnapshot')?input.humanLeadSnapshot:freezeLeads(settings.repo,contextLeads,fs.existsSync(storeFile)?JSON.parse(fs.readFileSync(storeFile,'utf8')).humanLeads??[]:[]);
+ const leadSnapshot=readLeadSnapshot(settings.repo,derived.humanLeadSnapshot,contextLeads);
  const file=path.join(directory,hash(derived)+'.json');if(!fs.existsSync(file))fs.writeFileSync(file,JSON.stringify(derived,null,2),{flag:'wx',mode:0o600});else if(hash(json(file))!==hash(derived))throw Error('LIFECYCLE_INPUT_CHANGED');
  console.error(JSON.stringify({...context,event:'V2_NATIVE_CHECK_STAGE',stage:'derived-input',status:'FINISHED',durationMs:Math.round(performance.now()-preparationStarted),rssBytes:process.memoryUsage().rss,heapUsedBytes:process.memoryUsage().heapUsed,maxRssKiB:process.resourceUsage().maxRSS}));
  const started=performance.now();
@@ -31,5 +36,5 @@ export function lifecyclePlan(settings,input,selection=null){
  if(result.error||result.status!==0)throw Object.assign(Error('MATURE_LIFECYCLE_PREFLIGHT_FAILED'),{operationsDiagnostic:childDiagnostic(result)});
  const p=JSON.parse(result.stdout),output=safePath(settings.repo,p.output);
  if(p.networkCalls!==0||p.onlineStarted!==false||p.servicesSelected!==selected.length)throw Error('INVALID_LIFECYCLE_PREFLIGHT');
- return {config:{objective:'MATURE_LIFECYCLE',scope:input.scope,services:input.services??[],capabilities,...(input.researchMarkets!==undefined?{researchMarkets:input.researchMarkets}:{})},manifest:{capabilities,objective:'MATURE_LIFECYCLE',catalog:[],targets:[],lifecycle:{input:file,output:p.output,inputHash:hash(fs.readFileSync(file,'utf8'))},limits:{totalRequests:p.maximumNewRequests}},source:null,catalogHash:hash(p),actionable:p.servicesSelected,servicesConsidered:p.servicesSelected,servicesExpectedNetwork:null,totalSafetyCeiling:p.maximumNewRequests,baselineExcluded:p.baselineExcluded,reviewed:p.reviewed,humanReview:p.humanReview,liveReady:p.liveReady,capabilityCheck:p.capabilityCheck,discovery:capabilities.tavily,decodo:capabilities.decodo,browser:capabilities.browser,runner:'mature lifecycleMain',checkpoint:output,preflight:p};
+ return {humanLeads:leadSnapshot.leads.map(({createdBy,note,...l})=>l),config:{humanLeadSnapshot:derived.humanLeadSnapshot,objective:'MATURE_LIFECYCLE',scope:input.scope,services:input.services??[],capabilities,...(input.researchMarkets!==undefined?{researchMarkets:input.researchMarkets}:{})},manifest:{humanLeadSnapshot:derived.humanLeadSnapshot,capabilities,objective:'MATURE_LIFECYCLE',catalog:[],targets:[],lifecycle:{input:file,output:p.output,inputHash:hash(fs.readFileSync(file,'utf8'))},limits:{totalRequests:p.maximumNewRequests}},source:null,catalogHash:hash(p),actionable:p.servicesSelected,servicesConsidered:p.servicesSelected,servicesExpectedNetwork:null,totalSafetyCeiling:p.maximumNewRequests,baselineExcluded:p.baselineExcluded,reviewed:p.reviewed,humanReview:p.humanReview,liveReady:p.liveReady,capabilityCheck:p.capabilityCheck,discovery:capabilities.tavily,decodo:capabilities.decodo,browser:capabilities.browser,runner:'mature lifecycleMain',checkpoint:output,preflight:p};
 }

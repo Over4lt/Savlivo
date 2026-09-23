@@ -74,7 +74,7 @@ export function closure(root,roots,{maxFiles=100000,maxBytes=4*1024**3,genesisAr
      for(const r of v.sourceRoots){const e=boundary.entries.find(e=>e.path===r.path);if(!e)throw Error('STORAGE_GENESIS_ROOT_HASH');enqueue({...r,sha256:e.sha256},'PRODUCTION_GENESIS_SOURCE');}
      enqueue({path:v.lifecycle.productionInput,sha256:v.lifecycle.productionInputHash,format:'JSON',classification:'PERMANENT_CANONICAL'},'PRODUCTION_GENESIS_EXECUTION_INPUT');continue;
     }
-    if(v?.schema&& !['V2_EVIDENCE_OBSERVATION_V1','V2_BLOB_V1','V2_ANALYTICS_RUN_V1','V2_ANALYTICS_SERVICE_V1','V2_ANALYTICS_INDEX_V1','V2_HISTORY_INDEX_POINTER_V1'].includes(v.schema))throw Error('STORAGE_UNKNOWN_SCHEMA:'+v.schema);const adapted=adaptDocument(root,v,ref.path);for(const r of adapted.references)enqueue(r,r.reason);scan(adapted.value,ref.path);}
+    if(v?.schema&& !['V2_HUMAN_LEADS_V1','V2_HUMAN_LEAD_OUTCOME_V1','V2_EVIDENCE_OBSERVATION_V1','V2_BLOB_V1','V2_ANALYTICS_RUN_V1','V2_ANALYTICS_SERVICE_V1','V2_ANALYTICS_INDEX_V1','V2_HISTORY_INDEX_POINTER_V1'].includes(v.schema))throw Error('STORAGE_UNKNOWN_SCHEMA:'+v.schema);const adapted=adaptDocument(root,v,ref.path);for(const r of adapted.references)enqueue(r,r.reason);scan(adapted.value,ref.path);}
   }}catch(e){errors.push(e.message?.startsWith('STORAGE_')?e.message:'STORAGE_UNREADABLE_OR_UNKNOWN_REFERENCE');}
  const result=[...entries.values()].sort((a,b)=>a.path.localeCompare(b.path));return {complete:errors.length===0,errors,errorReference:errors.length?currentReference:null,errorField:errors.length?currentField:null,entries:result,rootGeneration:digest(result.map(e=>[e.path,e.sha256])),logicalBytes:result.reduce((n,e)=>n+e.bytes,0)};
 }

@@ -37,7 +37,7 @@ test('production worker validates off the HTTP thread and reports failure withou
 test('real isolated Preflight native subprocess can block while HTTP status stays responsive; completion persists token only',async()=>{
  const ops=fixture();ops.config.lifecycleInput='input.json';
  const put=(name,value)=>{const file=path.join(ops.config.repo,name);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value));};
- put('input.json',{cohortManifest:'manifest.json'});put('manifest.json',{serviceIds:['example']});
+ put('input.json',{cohortManifest:'manifest.json',universe:'universe.json'});put('universe.json',{existing:[],new_include:[{slug:'example',markets:['NO']}],research:[]});put('manifest.json',{serviceIds:['example']});
  fs.symlinkSync(new URL('../../../../node_modules',import.meta.url),path.join(ops.config.repo,'node_modules'),'dir');
  const cli=path.join(ops.config.repo,'docs/catalog/global-47/research-v2/run-mature-v2.mjs');fs.mkdirSync(path.dirname(cli),{recursive:true});
  fs.writeFileSync(cli,`if(!process.argv.includes('--check')||process.argv.includes('--live'))throw Error('UNSAFE');

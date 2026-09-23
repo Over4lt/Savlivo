@@ -1,3 +1,4 @@
+import {readLeadSnapshot,leadContext} from '../human-leads/snapshot.mjs';
 import {resolveCapabilities} from '../capabilities/config.mjs';
 // Deployment placement only. No research, authority changes or historical rewrites.
 import fs from 'node:fs';
@@ -53,8 +54,9 @@ export function registerGenesisOverlay(root,manifest,expectedGenesisHash){
 export function validateGenesisExecutionSelection(root,relative,config,g){
  const original=JSON.parse(readFile(root,g.lifecycle.productionInput));
  if(sha(JSON.stringify(config))!==path.basename(relative,'.json')||!/^\.savlivo\/v2-operations-inputs\/[a-f0-9]{64}\.json$/.test(relative))fail('EXECUTION_INPUT_IDENTITY');
- const omit=x=>Object.fromEntries(Object.entries(x).filter(([k])=>!['capabilities','executionServices','researchScopes'].includes(k)));
+ const omit=x=>Object.fromEntries(Object.entries(x).filter(([k])=>!['capabilities','executionServices','researchScopes','humanLeadSnapshot'].includes(k)));
  if(digest(omit(config))!==digest(omit(original)))fail('EXECUTION_INPUT_CHANGED');
+ if(Object.hasOwn(config,'humanLeadSnapshot'))readLeadSnapshot(root,config.humanLeadSnapshot,leadContext(config,root));
  resolveCapabilities(config.capabilities);
  const ids=config.executionServices;
  if(!Array.isArray(ids)||!ids.length||new Set(ids).size!==ids.length||ids.some(id=>!g.cohort.includes(id)))fail('EXECUTION_COHORT');

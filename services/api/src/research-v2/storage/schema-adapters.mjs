@@ -1,6 +1,7 @@
+import {snapshotDocument} from '../human-leads/snapshot.mjs';
 // Recognize versioned contracts, never grant path semantics by field name alone.
 import path from 'node:path';
-import {safe,read,sha,stableBytes,files} from './core.mjs';
+import {safe,read,sha,stableBytes,files,canonical} from './core.mjs';
 const stages=['IDENTITY_SUBSCRIPTION','MARKETS','LOGIN','MANAGEMENT','CANCELLATION','PRICING','VALIDATION'];
 // Keep unchanged subgraphs shared with the parsed document; validate every locator.
 function adaptLocators(v){
@@ -17,6 +18,9 @@ function priorInterpretations(root,target,base,references){
  return {...target,providerInterpretations:target.providerInterpretations.map(p=>{if(p.runDirectory==null)return p;safe(root,p.runDirectory);if(typeof p.url!=='string'||!Array.isArray(p.blockers))throw Error('STORAGE_PRIOR_INTERPRETATIONS_SCOPE');if(!p.runDirectory.startsWith(base+'/direct-acquisitions/direct-')){if(!target.id)throw Error('STORAGE_PRIOR_INTERPRETATIONS_SCOPE');const m=read(safe(root,p.runDirectory+'/manifest.json'));if(!target.id||m.version!=='RESEARCH_V2_LIVE_V1'||!m.inventory?.some(t=>t.id===target.id&&t.service===target.service&&t.market===target.market))throw Error('STORAGE_PRIOR_INTERPRETATIONS_SCOPE');}references.push({path:p.runDirectory,format:'TREE',classification:'REFERENCED_EVIDENCE',reason:'PRIOR_PROVIDER_INTERPRETATION'});const {runDirectory,...rest}=p;return rest;})};
 }
 export function adaptDocument(root,value,owner){
+ if(value?.schema==='V2_HUMAN_LEAD_OUTCOME_V1'){const {observationHash,...record}=value;if(sha(JSON.stringify(record))!==observationHash||!['ACQUISITION_ATTEMPTED','ACQUISITION_RESULT','VERIFIER_RESULT'].includes(value.event)||!/^[a-f0-9]{64}$/.test(value.snapshotHash??'')||Object.keys(value).some(k=>!['schema','runId','leadId','snapshotHash','serviceId','market','event','at','route','outcome','bodyHash','source','evidence','verificationHash','verifierOutcome','verifiedCount','observationHash'].includes(k)))throw Error('STORAGE_HUMAN_LEAD_OUTCOME');return {value,references:[{path:'.savlivo/v2-operations-inputs/human-leads/'+value.snapshotHash+'.json',sha256:value.snapshotHash,format:'JSON',classification:'PERMANENT_HISTORY',reason:'HUMAN_LEAD_INPUT'}],schema:value.schema};}
+ if(value?.schema==='V2_HUMAN_LEADS_V1'){if(canonical(snapshotDocument(value.context,value.leads))!==canonical(value)||owner!=='.savlivo/v2-operations-inputs/human-leads/'+sha(canonical(value))+'.json')throw Error('STORAGE_HUMAN_LEAD_SCHEMA');return {value:{schema:value.schema},references:[],schema:value.schema};}
+
  if(value?.version===1&&value.productionGenesis&&value.cohortManifest&&value.universe&&value.frozenHashes){if(!/^\.savlivo\/research-v2\/storage\/genesis\/[a-f0-9]{64}\.json$/.test(value.productionGenesis))throw Error('STORAGE_GENESIS_INPUT_PATH');const {productionGenesis,...rest}=value;return {value:rest,references:[{path:productionGenesis,format:'JSON',classification:'PERMANENT_CANONICAL',reason:'PRODUCTION_GENESIS_TRUST_ROOT'}],schema:'GENESIS_LIFECYCLE_INPUT_V1'};}
  if(/\/services\/[a-z0-9-]+\/result\.json$/.test(owner)&&value?.productionPromoted===false&&value.stages&&typeof value.service==='string'){
   const run=path.posix.dirname(path.posix.dirname(path.posix.dirname(owner))),checkpointPath=run+'/checkpoint.json',checkpoint=read(safe(root,checkpointPath)),entry=checkpoint.services?.[value.service];
