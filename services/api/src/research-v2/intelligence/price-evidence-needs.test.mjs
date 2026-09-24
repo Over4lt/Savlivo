@@ -72,3 +72,28 @@ test('incomplete projection retains actionable Direct needs and query intent',()
 test('incomplete projection preserves bounded discovery, history, and capability stops',()=>{const t=exhausted(incomplete(target()));assert.equal(assess(t).result.next.plan.route,'DISCOVERY');assert.equal(assess(exhausted(incomplete(target()),2)).result.stop.reason,'DISCOVERY_EXHAUSTED');t.capabilities.tavily=false;assert.equal(assess(t).result.stop.reason,'CAPABILITY_DISABLED_TAVILY');const direct=incomplete(target());direct.capabilities.direct=false;assert.notEqual(assess(direct).result.next?.plan.route,'DIRECT');});
 test('incomplete evidence change reassesses without changing accounting or sufficiency',()=>{const t=incomplete(target()),before=assess(t);mergePriceEvidenceNeeds(t,projectPriceEvidenceNeeds(t,[observation({amount:26,source:{...observation().source,hash:'b'.repeat(64)}})]));const after=assess(t);assert.notEqual(after.result.state,before.result.state);assert.deepEqual(after.state.services.fixture.used,before.state.services.fixture.used);assert.equal(t.priceEvidenceNeeds.coverage.complete,false);for(const confidence of ['HIGH','MEDIUM']){t.retainedPriceReview={sourceBound:true,amount:'12',confidence};assert.equal(assess(t).result.stop.reason,confidence+'_SUFFICIENT');}});
 test('incomplete coverage never bypasses represented authority, integrity, conflict or interpretation stops',()=>{for(const change of [{missing:['service']},{missing:['provenance']},{blockers:['SAME_SCOPE_INCOMPATIBLE_AMOUNTS']},{cadence:null,missing:['billingInterval']}]){const t=target();t.priceEvidenceNeeds=projectPriceEvidenceNeeds(t,[observation(change),observation({plan:'x'.repeat(20000),source:{...observation().source,url:'https://provider.example/omitted'}})]);assert.equal(t.priceEvidenceNeeds.coverage.complete,false);assert.equal(researchablePriceNeeds(t).length,0);assert.equal(assess(t).result.next,null);assert.notEqual(assess(t).result.stop.reason,'BUDGET_EXHAUSTED');}});
+
+function aggregateObservationProjection(t){return projectPriceEvidenceNeeds(t,Array.from({length:60},(_,i)=>observation({amount:10+i,missing:['market'],blockers:[],trustworthy:true,source:{kind:'ORIGINAL_PROVIDER',url:known,hash:'a'.repeat(64),path:'$/offers/'+i}})));}
+test('merged claim larger than a source contribution round-trips without FIELD_BOUND or digest failure',()=>{
+ const t=target(),incoming=JSON.parse(JSON.stringify(aggregateObservationProjection(t)));
+ assert.equal(incoming.claims.length,1);assert(Buffer.byteLength(JSON.stringify(incoming.claims[0]))>16384);assert.equal(incoming.coverage.complete,true);
+ assert.deepEqual(readPriceEvidenceNeeds({...t,priceEvidenceNeeds:incoming}),incoming);
+ mergePriceEvidenceNeeds(t,incoming);assert.equal(t.priceEvidenceNeeds.coverage.complete,true);assert.deepEqual(t.priceEvidenceNeeds.claims,incoming.claims);
+ const once=structuredClone(t.priceEvidenceNeeds);mergePriceEvidenceNeeds(t,incoming);assert.deepEqual(t.priceEvidenceNeeds,once);
+ const damaged=structuredClone(incoming);damaged.claims[0].established[0].value='tampered';assert.throws(()=>readPriceEvidenceNeeds({...t,priceEvidenceNeeds:damaged}),/PRICE_NEEDS_DIGEST/);
+});
+test('large aggregate survives real adaptive Decodo result handoff, adopts objectives and preserves access stop',async()=>{
+ const t={...target(),capabilities:{direct:false,tavily:false,decodo:true,browser:false,groq:false}},incoming=aggregateObservationProjection(t);
+ const acq=path.join(root,'aggregate-acquisition');fs.mkdirSync(acq+'/interpretation-0001',{recursive:true});
+ const projection={version:1,objectives:[{key:'generic-identity',identity:{service:t.service,market:t.market,plan:'Solo',amount:'25',currency:'NOK',interval:'P1M',sourceUrl:known,sourceHash:'a'.repeat(64)},status:'MARKET_NOT_VERIFIED',missingFact:'MARKET_PROOF'}],sources:[],leads:[{url:'https://provider.example/terms',label:'Membership terms'}],meaning:'PLANNING_ONLY_REOPEN_SOURCES_FOR_VERIFICATION'};
+ fs.writeFileSync(acq+'/interpretation-0001/market-proof-research.json',JSON.stringify({targets:{[t.id]:projection}}));
+ let calls=0;const forbidden=async()=>{throw Error('FORBIDDEN_NETWORK');};
+ const state=await runAdaptiveCampaign({directory:root+'/aggregate-controller',manifest:{targets:[t],conditionalFollowupTargets:[]},isolateFailures:false,maxActions:1,createAdapters:async()=>({read:forbidden,search:forbidden,classify:async()=>({eligible:true}),acquire:async()=>{calls++;return {classification:'PROVIDER_RESTRICTED',acquired:true,usable:true,verified:[],hardStop:true,runDirectory:acq,priceEvidenceNeeds:incoming};}})});
+ assert.equal(calls,1);assert.deepEqual(state.targets[t.id].marketProof,projection);assert.equal(state.targets[t.id].priceEvidenceNeeds.coverage.complete,true);assert(state.targets[t.id].blockedOrigins.includes('https://provider.example'));assert.equal(state.services.fixture.reconciliation,undefined);
+ const saved=JSON.parse(fs.readFileSync(root+'/aggregate-controller/targets/'+t.id+'/open-web-discovery/state.json'));assert.equal(saved.pending,null);assert.equal(saved.targets[0].marketProof.objectives[0].key,'generic-identity');
+});
+test('oversized individual contribution is still bounded and omission round-trips',()=>{
+ const t=target(),p=projectPriceEvidenceNeeds(t,[observation({plan:'X'.repeat(17000)})]);
+ assert.equal(p.coverage.complete,false);assert(p.coverage.reasons.includes('FIELD_BOUND'));assert.equal(p.claims.length,0);
+ assert.deepEqual(readPriceEvidenceNeeds({...t,priceEvidenceNeeds:JSON.parse(JSON.stringify(p))}),p);
+});

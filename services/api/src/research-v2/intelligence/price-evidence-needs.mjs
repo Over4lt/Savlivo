@@ -37,7 +37,16 @@ function legacyBuild(targetId,sources){
 }
 // Persist claims once. Source contributions are reconstructed from evidence IDs,
 // preserving replacement-by-source semantics without a second claim collection.
-function expand(p){return p.sources.map(s=>{const ids=new Set(s.references.map(r=>r.evidenceId));return {...s,claims:p.claims.map(c=>({...c,established:c.established.map(a=>({...a,evidence:a.evidence.filter(id=>ids.has(id))})).filter(a=>a.evidence.length),missing:c.missing.map(a=>({...a,evidence:a.evidence.filter(id=>ids.has(id))})).filter(a=>a.evidence.length)})).filter(c=>c.established.length||c.missing.length)};});}
+function expand(p){return p.sources.map(s=>{
+ // FIELD_BOUND applies to source observations, not the aggregate claim. Restore
+ // evidence-level contributions before reapplying the writer's admission bounds.
+ const claims=[];
+ for(const c of p.claims)for(const {evidenceId} of s.references){
+  const contribution={...c,established:c.established.filter(a=>a.evidence.includes(evidenceId)).map(a=>({...a,evidence:[evidenceId]})),missing:c.missing.filter(a=>a.evidence.includes(evidenceId)).map(a=>({...a,evidence:[evidenceId]}))};
+  if(contribution.established.length||contribution.missing.length)claims.push(contribution);
+ }
+ return {...s,claims};
+});}
 const compactReference=r=>Object.fromEntries(Object.entries(r).filter(([k])=>k!=='sourceUrl').map(([k,v])=>[k,typeof v==='string'&&v.length>256?{digest:digest(v),meaning:'LOCATOR_DIGEST_NOT_EVIDENCE'}:v]));
 function build(targetId,input,inherited=[],originDerivations=[priceNeedsDerivation],keepOmissions=false){
  const sources=[],claims=new Map(),omitted=[];
