@@ -1,5 +1,12 @@
 # Content-model prose: evidence boundary and offline proof
 
+Historical implementation record for the content-model and renewal-parser fixes.
+The later [independent proof audit](provider-price-proof-model.md) supersedes this
+record's requirement for visible corroboration of every embedded textual offer.
+Bounded, source-rederived named contractual assertions now prove ownership and
+commercial meaning directly; numeric embedded state still requires its existing
+activation safeguards. Authority and offer-specific market requirements remain.
+
 The September 24 production inspection located paid renewal prose in a valid
 `__NEXT_DATA__` application/json payload at a `fields/legalText/0/fields/variations/0/fields/text`
 leaf. It was 865 characters, not serialized JSON, and neither size nor traversal

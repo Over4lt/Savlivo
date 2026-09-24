@@ -37,9 +37,9 @@ test('included zero and separate product cannot contaminate the paid plan',()=>{
  assert.equal(r.rows[1].prosePriceRelationship.relationship.includedWith,'Plan C');assert.equal(r.rows[1].commercial.type,'OTHER_MONETARY_OFFER');
  assert.deepEqual(r.decisions.map(d=>d.status),['V2_VERIFIED','V2_VERIFICATION_BLOCKED','V2_VERIFIED']);assert(r.rows[1].commercial.reasons.includes('NON_POSITIVE_RECURRING_PROVIDER_PRICE'));
 });
-test('supported embedded text yields relationships but not active/verified offers',()=>{
+test('supported embedded text proves relationships but still needs market evidence',()=>{
  const text='10 €/month (Plan A) and 20 €/month (Plan B)',body='<script type="application/json">'+JSON.stringify({props:{legalDisclaimer:text,unrelated:text}})+'</script>',r=run(body);
- assert.equal(r.rows.length,2);assert(r.rows.every(c=>c.structuredPath.endsWith('/props/legalDisclaimer')));assert(r.rows.every(c=>c.prosePriceRelationship&&c.ownershipAmbiguous&&c.qualifier.includes('EMBEDDED_OFFER_ACTIVATION_UNRESOLVED')));assert(r.decisions.every(d=>d.status==='V2_VERIFICATION_BLOCKED'));
+ assert.equal(r.rows.length,2);assert(r.rows.every(c=>c.structuredPath.endsWith('/props/legalDisclaimer')));assert(r.rows.every(c=>c.prosePriceRelationship&&!c.ownershipAmbiguous&&!c.qualifier.includes('EMBEDDED_OFFER_ACTIVATION_UNRESOLVED')));assert(r.decisions.every(d=>d.status==='V2_VERIFICATION_BLOCKED'));
 });
 for(const text of ['10 €/month (Plan A or Plan B)','10 €/month (Plan A) (Plan B)','10 €/month (After Trial)','Plan A or Plan B at 10 €/month','Only 10 €/month'])test('ambiguous/contextual label does not gain prose ownership: '+text,()=>{
  const rows=extract(paragraph(text)).candidates;assert(rows.length);assert(rows.every(c=>!c.prosePriceRelationship));assert(rows.every(c=>grade(c,{authority:true,marketBound:true}).verificationLevel<3));
@@ -91,7 +91,7 @@ for(const prefix of ['', 'Informationen zur Mitgliedschaft. ', 'Plan Basic für 
  const text=prefix+reportedRenewal,body='<script id="__NEXT_DATA__" type="application/json">'+JSON.stringify({fields:{legalText:[{fields:{variations:[{fields:{text}}]}}]}})+'</script>';
  const cs=run(body).rows.filter(c=>['12.99','28.99'].includes(c.amountNormalized));assert.equal(cs.length,2);
  assert.deepEqual(cs.map(c=>[c.amountNormalized,c.product,c.currency,c.billingPeriod,c.prosePriceRelationship.relationship.phase]),[['12.99','App One','EUR','MONTH','RENEWAL'],['28.99','App+','EUR','MONTH','RENEWAL']]);
- for(const c of cs){const r=c.prosePriceRelationship.relationship;assert.equal(text.slice(...r.planSpan),c.product);assert.equal(monetary(text.slice(...r.amountSpan))[0].amount,c.amountNormalized);assert(text.slice(...r.transitionSpan).startsWith('Nach Ablauf'));assert.equal(c.commercial.type,'RECURRING_MONTHLY');assert.equal(c.commercial.strongRecurringMonthly,false);assert(c.qualifier.includes('EMBEDDED_OFFER_ACTIVATION_UNRESOLVED'));}
+ for(const c of cs){const r=c.prosePriceRelationship.relationship;assert.equal(text.slice(...r.planSpan),c.product);assert.equal(monetary(text.slice(...r.amountSpan))[0].amount,c.amountNormalized);assert(text.slice(...r.transitionSpan).startsWith('Nach Ablauf'));assert.equal(c.commercial.type,'RECURRING_MONTHLY');assert.equal(c.commercial.strongRecurringMonthly,false);assert(!c.qualifier.includes('EMBEDDED_OFFER_ACTIVATION_UNRESOLVED'));}
 });
 test('unbounded mid-sentence renewal text cannot gain ownership by suffix matching',()=>{
  const cs=extract(paragraph('This example is not an offer '+reportedRenewal)).candidates;

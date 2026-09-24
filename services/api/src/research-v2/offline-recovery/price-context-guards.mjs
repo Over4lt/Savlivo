@@ -2,7 +2,7 @@ import {positiveProviderAmount} from '../intelligence/recurring-price-eligibilit
 import {monetary,amount} from './extract.mjs';
 import {closedRenewalCommercial} from './closed-renewal.mjs';
 import {headingPriceOwnership} from './component-ownership.mjs';
-export const offerEligibilityVersion='SOURCE_BOUND_OFFER_ELIGIBILITY_V2';
+export const offerEligibilityVersion='SOURCE_BOUND_OFFER_ELIGIBILITY_V3';
 // Temporal clauses describe a phase, not a named product. These are language
 // predicates, independent of provider, URL, brand and monetary amount.
 const phaseHeading=/^(?:(?:after|following|during|before|at the end of)\s+(?:the\s+)?(?:free\s+)?(?:trial|introductory|promotion)|(?:nach|während|vor)\s+(?:Ablauf\s+)?(?:der\s+)?(?:Testphase|Probezeit)|(?:après|pendant|avant)\s+(?:la\s+)?(?:période d.essai|essai)|(?:después de|durante)\s+(?:la\s+)?prueba)/iu;
@@ -36,9 +36,12 @@ export function priceContextGuards(candidate,source){
  // A dollar-denominated benefit is not the provider's recurring charge.
  // Bind the veto to this monetary clause, not another benefit elsewhere in a plan.
  for(const m of ownMoney){const after=local.slice(m.end,m.end+100),before=local.slice(Math.max(0,m.start-70),m.start);
-  if(/^\s*(?:(?:monthly|annual|yearly|statement|shopping|travel|partner|service)\s+)*(?:credit|voucher|cashback|cash[ -]back|benefit)\b/iu.test(after)||/\b(?:credit|voucher|cashback)\s+(?:of|worth|up to)\s*$/iu.test(before))add('BENEFIT_CREDIT_NOT_SUBSCRIPTION_CHARGE',node,local);
+  if(/^\s*(?:(?:\/\s*(?:month|mo|Monat|year|week)|per\s+(?:month|year|week))\s*)?(?:(?:monthly|annual|yearly|statement|shopping|travel|partner|service)\s+)*(?:credit|voucher|cashback|cash[ -]back|benefit)\b/iu.test(after)||/\b(?:credit|voucher|cashback)\s+(?:of|worth|up to)\s*$/iu.test(before))add('BENEFIT_CREDIT_NOT_SUBSCRIPTION_CHARGE',node,local);
  }
  if(candidate.amountNormalized!==null&&candidate.amountRaw){const parsed=monetary(candidate.amountRaw);if(parsed.some(m=>m.amount===null))add('INVALID_GROUPING_OR_ADJACENT_AMOUNTS',node,candidate.amountRaw);}
+ // An amount explicitly labelled as a discount/tax component is not the charge.
+ // 'including tax' remains a qualification on a charge, not this component form.
+ for(const m of ownMoney)if(/^\s*(?:(?:\/\s*(?:month|mo|Monat|year|week)|per\s+(?:month|year|week))\s*)?(?:(?:monthly|annual|yearly)\s+)*(?:discount|tax)\b/iu.test(local.slice(m.end)))add('MONETARY_COMPONENT_NOT_SUBSCRIPTION_CHARGE',node,local);
  const joining=local.match(/innmeldingsavgift på\s+kr\s*([\d.,]+)/iu);
  if(joining&&amount(joining[1])===candidate.amountNormalized)add('JOINING_FEE_NOT_RECURRING',node,joining[0]);
  if(ownMoney.some(m=>/^\s*för kortet\b/iu.test(local.slice(m.end)))&&/så länge receptet gäller/iu.test(local))add('FIXED_CARD_FEE_NOT_RECURRING',node,local);

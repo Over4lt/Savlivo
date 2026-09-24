@@ -185,8 +185,8 @@ function subscriptionDeclaration(text,m){
  if(!label({text:plan}))return null;return {plan,raw:normalizeText(x[0]),offset:x.index,basis:'EXPLICIT_NAMED_MONTHLY_PAID_SERVICE_DECLARATION'};
 }
 function base(m,text,owned,local,original=false){const sem=semantics(text,local,original);return {product:owned.name,plan:owned.name,amountRaw:m.raw,amountNormalized:m.amount,currency:currency(m.currencyRaw,local),currencyRaw:m.currencyRaw,...sem,ownershipAmbiguous:!owned.strong,crossCardRisk:!!owned.cross,nonPriceNumericRisk:false,rawEvidenceSnippet:null,normalizedEvidenceSnippet:local,structuralContainer:owned.method,parentHeading:owned.name,siblingLabels:[],structuredPath:null,sourceType:'HTML',discoveryCoordinates:null};}
-function applyProse(c,r,{bodyHash,path,embedded=false}){
- c.product=c.plan=r.plan;c.structuralContainer='NAMED_PRICE_PROSE';c.ownershipAmbiguous=embedded;c.crossCardRisk=false;
+function applyProse(c,r,{bodyHash,path}){
+ c.product=c.plan=r.plan;c.structuralContainer='NAMED_PRICE_PROSE';c.ownershipAmbiguous=false;c.crossCardRisk=false;
  c.prosePriceRelationship={relationship:r,bodyHash,path,coordinate:'NORMALIZED_SOURCE_TEXT_UTF16'};
  c.normalizedEvidenceSnippet=r.raw;c.billingPeriod=r.monthly?'MONTH':null;c.cadenceFamily=r.monthly?'MONTHLY_FAMILY':null;
  c.billingInterval=r.monthly?{value:1,unit:'MONTH',normalized:'P1M',originalWording:r.raw}:null;
@@ -194,7 +194,8 @@ function applyProse(c,r,{bodyHash,path,embedded=false}){
  if(r.duration)c.qualifier.push('INTRO_DURATION:'+r.duration.value+':MONTH');
  if(r.phase==='INCLUDED')c.qualifier.push('SAVINGS_AMOUNT_NOT_CHARGE');
  if(r.phase==='RENEWAL'&&r.transition)c.qualifier.push('AFTER_INTRO');
- if(embedded){c.qualifierAmbiguous=true;c.qualifier.push('EMBEDDED_OFFER_ACTIVATION_UNRESOLVED');}
+ // Exact textual plan/amount/phase assertions do not require a duplicate
+ // visible rendering. Numeric embedded-state paths retain activation guards.
  return c;
 }
 // A content-model field is a discovery surface, never proof of activation or
@@ -212,7 +213,7 @@ export function extract(body){if(Buffer.byteLength(body)>4000000)throw Error('SO
    if(typeof x==='string'&&(/^(?:description|disclaimer|legalDisclaimer|officialDisclaimer|offerText|terms)$/i.test(k)||contentModelText(k,p,contentModel))&&x.length<=proseBounds.text&&proseFields<proseBounds.jsonFields&&proseCharacters+x.length<=proseBounds.jsonCharacters){
     proseFields++;proseCharacters+=x.length;const text=normalizeText(x),pricePath=p+'/'+k.replaceAll('~','~0').replaceAll('/','~1');
     for(const r of namedPriceProse(text,{monetary})){const m=monetary(text).find(m=>m.start===r.amountSpan[0]);const c=base(m,r.raw,{name:r.plan,strong:false,method:'NAMED_PRICE_PROSE'},r.raw);
-     preserveQualifiers(c,{localText:r.raw,ownerText:r.raw,localPath:pricePath,ownerPath:pricePath,ownerStrong:false});applyProse(c,r,{bodyHash:proseBodyHash??=hash(body),path:pricePath,embedded:true});
+     preserveQualifiers(c,{localText:r.raw,ownerText:r.raw,localPath:pricePath,ownerPath:pricePath,ownerStrong:true});applyProse(c,r,{bodyHash:proseBodyHash??=hash(body),path:pricePath});
      c.sourceType='JSON';c.structuredPath=pricePath;c.rawEvidenceSnippet=x;c.marketOwnerEvidence=markets;c.productOwnerEvidence={raw:r.plan,path:pricePath,method:'NAMED_PRICE_PROSE',span:r.planSpan};result.push(c);
     }
    }
