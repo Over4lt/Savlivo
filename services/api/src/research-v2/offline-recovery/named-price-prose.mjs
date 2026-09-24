@@ -13,6 +13,16 @@ function name(s){s=s.trim();return s.length<=80&&/\p{L}/u.test(s)&&/^(?:\p{Lu}[\
 export function namedPriceProse(text,{monetary}){
  if(text.length>proseBounds.text)return [];
  const money=monetary(text);if(!money.length||money.length>proseBounds.prices)return [];
+ // A legal/content leaf can contain preceding introductory sentences. Recognize
+ // explicit renewal starts at sentence boundaries, not arbitrary money windows.
+ // Keep every span relative to the original normalized leaf for source rechecking.
+ const starts=[0];for(const m of text.matchAll(/[.!?]\s+(?=[A-ZÄÖÜ])/gu)){
+  const at=m.index+m[0].length;if(renewalPrefix.test(text.slice(at)))starts.push(at);
+ }
+ if(starts.length>1)return starts.flatMap((at,i)=>namedPriceProse(text.slice(at,starts[i+1]??text.length),{monetary}).map(r=>{
+  const shift=span=>span?.map(n=>n+at)??null;
+  return {...r,amountSpan:shift(r.amountSpan),planSpan:shift(r.planSpan),clauseSpan:shift(r.clauseSpan),transitionSpan:shift(r.transitionSpan),previousPhase:r.previousPhase?{...r.previousPhase,clauseSpan:shift(r.previousPhase.clauseSpan)}:null};
+ }));
  const prefix=renewalPrefix.exec(text);let start=prefix?.[0].length??0;
  if(prefix){const a=automatic.exec(text.slice(start));if(a)start+=a[0].length;}
  const parts=[];separator.lastIndex=start;let last=start,join='';const cuts=[...text.matchAll(separator)];for(const [i,m]of cuts.entries()){if(m.index<start||!money.some(x=>x.start>=last&&x.end<=m.index)||!money.some(x=>x.start>=m.index+m[0].length&&x.end<=(cuts[i+1]?.index??text.length)))continue;parts.push({start:last,end:m.index,join});last=m.index+m[0].length;join=m[0];}parts.push({start:last,end:text.length,join});

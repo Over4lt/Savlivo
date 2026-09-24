@@ -93,3 +93,35 @@ presentation or identity-specific market applicability. Those require inspection
 of existing evidence or other evidence if absent. This patch alone therefore does
 not promise a verified production price. It establishes discovery and proves the
 remaining deterministic route when independent requirements are actually met.
+
+## Follow-up: renewal sentence within a longer leaf
+
+The exact reported German renewal sentence at HEAD 58a16d6 yields both 12.99 /
+App One and 28.99 / App+ as RENEWAL. Prefixing a separate sentence reproduces the
+production signature: first amount absent, second amount ORDINARY. The complete
+865-character production leaf was not supplied locally, so the precise preceding
+text is unknown; the anchored whole-leaf renewal-prefix rule is the reproduced
+failure mechanism, not the parenthetical names or `bzw.` punctuation.
+
+The parser now recognizes the existing explicit renewal grammar after a sentence
+boundary. It parses bounded segments and translates all amount/plan/clause/
+transition/previous-phase spans back to original normalized-leaf coordinates.
+The source/body/path recheck remains unchanged. It does not search arbitrary
+mid-sentence suffixes or introduce provider-specific vocabulary. Full-leaf text
+and monetary-count bounds are enforced before segmentation.
+
+`applyProse` deliberately sets `ownershipAmbiguous` and `qualifierAmbiguous` on
+embedded candidates; `grade` maps those flags to `STRUCTURAL_OWNERSHIP_WEAK` and
+`PROMOTION_QUALIFIER_UNRESOLVED`. Despite their broad labels, these flags enforce
+unresolved embedded activation, identified explicitly by
+`EMBEDDED_OFFER_ACTIVATION_UNRESOLVED`. Exact source-bound named-price spans prove
+a textual relationship; they do not prove active presentation. Therefore these
+guards were not removed. Visible independently grounded witnesses do not inherit
+them. Market requirements and verifier rules are also unchanged.
+
+Regression coverage includes the exact reported sentence, a prefixed version,
+and generic introductory totals preceding a coordinated renewal in the same
+content-model leaf. Real persisted interpretation/targeted verification succeeds
+for both paid identities with synthetic reviewed authority, corroborated market
+and visible presentation. JSON-only, missing-market and missing-authority cases
+remain blocked. This does not assert production possesses those missing proofs.

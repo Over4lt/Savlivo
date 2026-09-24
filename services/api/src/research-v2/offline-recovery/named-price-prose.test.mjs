@@ -84,3 +84,16 @@ test('a transition to a different plan cannot borrow the preceding introductory 
  const r=extract(paragraph('Plan A for 3 months total 10 €, then Plan B at 20 €/month'));
  assert.equal(r.candidates[0].prosePriceRelationship.relationship.plan,'Plan A');assert.equal(r.candidates[1].prosePriceRelationship,undefined);
 });
+
+// Exact reported grammar: surrounding leaf context, not the coordinator, was missing.
+const reportedRenewal='Nach Ablauf der ersten 3 Monate verlängert sich die Mitgliedschaft automatisch um jeweils 1 Monat zu 12,99 €/Monat (App One) bzw. 28,99 €/Monat (App+), sofern sie nicht zuvor gekündigt wurde.';
+for(const prefix of ['', 'Informationen zur Mitgliedschaft. ', 'Plan Basic für 3 Monate zum Gesamtpreis von 5 €; Plan Plus für 3 Monate zum Gesamtpreis von 8 €. '])test('renewal sentence retains both parenthetical identities and leaf-relative spans: '+prefix,()=>{
+ const text=prefix+reportedRenewal,body='<script id="__NEXT_DATA__" type="application/json">'+JSON.stringify({fields:{legalText:[{fields:{variations:[{fields:{text}}]}}]}})+'</script>';
+ const cs=run(body).rows.filter(c=>['12.99','28.99'].includes(c.amountNormalized));assert.equal(cs.length,2);
+ assert.deepEqual(cs.map(c=>[c.amountNormalized,c.product,c.currency,c.billingPeriod,c.prosePriceRelationship.relationship.phase]),[['12.99','App One','EUR','MONTH','RENEWAL'],['28.99','App+','EUR','MONTH','RENEWAL']]);
+ for(const c of cs){const r=c.prosePriceRelationship.relationship;assert.equal(text.slice(...r.planSpan),c.product);assert.equal(monetary(text.slice(...r.amountSpan))[0].amount,c.amountNormalized);assert(text.slice(...r.transitionSpan).startsWith('Nach Ablauf'));assert.equal(c.commercial.type,'RECURRING_MONTHLY');assert.equal(c.commercial.strongRecurringMonthly,false);assert(c.qualifier.includes('EMBEDDED_OFFER_ACTIVATION_UNRESOLVED'));}
+});
+test('unbounded mid-sentence renewal text cannot gain ownership by suffix matching',()=>{
+ const cs=extract(paragraph('This example is not an offer '+reportedRenewal)).candidates;
+ assert(!cs.some(c=>c.amountNormalized==='12.99'&&c.prosePriceRelationship));
+});
