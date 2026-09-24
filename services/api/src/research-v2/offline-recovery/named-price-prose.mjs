@@ -7,7 +7,7 @@ const separator=/;\s*|\s+(?:and|or|und|oder|bzw\.?)\s+|,?\s+(?:then|thereafter|d
 const transition=/^(?:,?\s*)?(?:then|thereafter|danach|ensuite)\b/iu;
 const renewalPrefix=/^(?:after (?:the )?(?:introductory period|first \d+ months|trial)|nach Ablauf der (?:ersten \d+ Monate|Testphase))(?:,\s*|\s+)/iu;
 // Shared renewal clauses use subscription vocabulary, never provider identities.
-const automatic=/^(?:verlängert sich (?:die Mitgliedschaft|das Abonnement) automatisch (?:um jeweils|um|für jeweils) (?:1|einen) Monat (?:zu|für)|the (?:membership|subscription) automatically renews (?:monthly|every month) at)\s+/iu;
+const automatic=/^(?:verlängert sich (?:die Mitgliedschaft|das Abonnement) automatisch (?:um jeweils|um|für jeweils) (?:1|einen) Monat (?:zu|für)|the (?:membership|subscription) (?:automatically )?renews (?:monthly|every month) at)\s+/iu;
 const forbidden=/\b(?:after|before|during|trial|introductory|total|then|included|credit|discount|benefit|tax|per|each|month|months|monthly|year|annual|billed|renew|renews|first|only|cancel|subscribe|limited|special|offer|contract|taxes|free|save|nach|Ablauf|Testphase|Monat|Monate|Gesamtpreis|je|pro|inklusive|kostenlos|from|ab|save|up to)\b/iu;
 function name(s){s=s.trim();return s.length<=80&&/\p{L}/u.test(s)&&/^(?:\p{Lu}[\p{L}\p{N}+'’.-]*|[0-9]+)(?:[ &]+(?:\p{Lu}[\p{L}\p{N}+'’.-]*|[0-9]+)){0,5}$/u.test(s)&&!forbidden.test(s)&&!/[.!?]$/.test(s)&&! /\b(?:and|or|und|oder)\b/iu.test(s)?s:null;}
 export function namedPriceProse(text,{monetary}){

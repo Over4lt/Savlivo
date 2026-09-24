@@ -197,24 +197,31 @@ function applyProse(c,r,{bodyHash,path,embedded=false}){
  if(embedded){c.qualifierAmbiguous=true;c.qualifier.push('EMBEDDED_OFFER_ACTIVATION_UNRESOLVED');}
  return c;
 }
+// A content-model field is a discovery surface, never proof of activation or
+// market applicability. Only legal/offer semantic containers in typed hydration
+// payloads qualify; arbitrary text/value leaves and translation dictionaries do not.
+function contentModelText(key,path,hydration){
+ return hydration&&key==='text'&&path.length<=1024&&path.split('/').length<=32
+  &&/\/fields\/(?:legalText|legalDisclaimer|officialDisclaimer|offerText|terms|description)\/(?:\d+\/)?fields(?:\/(?:variations|content)\/\d+\/fields)*$/i.test(path);
+}
 export function extract(body){if(Buffer.byteLength(body)>4000000)throw Error('SOURCE_BODY_BOUND');const result=[],tree=htmlTree(body);let jsonCount=0,proseFields=0,proseCharacters=0,proseBodyHash;const diagnostics={malformedHtml:tree.malformed,unsupportedScriptPayloads:0,jsonPayloads:0};
- function walkJSON(v,p,parentOwner=null,inheritedCurrency=null,inheritedMarkets=[],parentNamePath=null,materialized=null){if(!v||typeof v!=='object')return;if(++jsonCount>300000)throw Error('STRUCTURED_NODE_BOUND');if(Array.isArray(v)){v.forEach((x,i)=>walkJSON(x,p+'/'+i,parentOwner,inheritedCurrency,inheritedMarkets,parentNamePath,materialized));return;}
+ function walkJSON(v,p,parentOwner=null,inheritedCurrency=null,inheritedMarkets=[],parentNamePath=null,materialized=null,contentModel=false){if(!v||typeof v!=='object')return;if(++jsonCount>300000)throw Error('STRUCTURED_NODE_BOUND');if(Array.isArray(v)){v.forEach((x,i)=>walkJSON(x,p+'/'+i,parentOwner,inheritedCurrency,inheritedMarkets,parentNamePath,materialized,contentModel));return;}
   const offerOwned=materialized&&(v['@type']==='Offer'||v['@type']==='https://schema.org/Offer')&&parentOwner;
   const own=offerOwned?parentOwner:typeof(v.name??v.productName??v.planName??v.title)==='string'?(v.name??v.productName??v.planName??v.title):parentOwner;const nameKey=offerOwned?null:['name','productName','planName','title'].find(k=>typeof v[k]==='string');const namePath=nameKey?p+'/'+nameKey:parentNamePath;const cur=v.priceCurrency??v.currency??inheritedCurrency;const ownMarkets=structuredMarkets(v,p);const markets=ownMarkets.length?ownMarkets:inheritedMarkets;
   for(const [k,x]of Object.entries(v)){if(/^(?:price|amount|cost|regularPrice|salePrice|old_price|original_price|price_for_month)$/i.test(k)&&(typeof x==='number'||typeof x==='string')){const am=amount(x);if(am!==null){const raw=JSON.stringify(Object.fromEntries(Object.entries(v).filter(([k,v])=>['name','description','price','amount','cost','priceCurrency','currency','billingPeriod','billingInterval','duration','duration_type','recurring','valueAddedTaxIncluded','regularPrice','salePrice','old_price','original_price','price_for_month'].includes(k)&&typeof v!=='object')));const owned={name:own??null,strong:!!own&&!!label({text:own}),method:'JSON_OBJECT'};const m={raw:String(x),amount:am,currencyRaw:typeof cur==='string'?cur:''};const local=normalizeText([own,v.description,v.billingPeriod,v.billingInterval,v.duration,v.duration_type].filter(x=>x!==undefined).join(' '));const c=base(m,local,owned,local,/old|original|regular/i.test(k));preserveQualifiers(c,{localText:local,ownerText:local,localPath:p,ownerPath:p,ownerStrong:owned.strong});c.marketOwnerEvidence=markets;c.productOwnerEvidence={raw:own,path:namePath,method:'JSON_OBJECT'};c.sourceType='JSON';c.structuredPath=p+'/'+k;c.rawEvidenceSnippet=raw.slice(0,6000);c.snippetRepresentation='RESERIALIZED_RETAINED_FIELDS; ORIGINAL_OBJECT_AT_STRUCTURED_PATH';c.structuredContext={priceField:k,name:own??null,currency:cur??null,billingPeriod:v.billingPeriod??v.billingInterval??null,duration:v.duration??null,durationType:v.duration_type??null,recurring:v.recurring??null};const exactCadence=billingCadence('',c.structuredContext);if(exactCadence.interval&&exactCadence.interval.unit!=='MONTH'){c.billingInterval=exactCadence.interval;c.cadenceFamily=exactCadence.interval.cadenceFamily;c.billingPeriod=exactCadence.interval.normalized;}if(k==='price_for_month'){c.qualifier.push('DERIVED_DISPLAY_FIELD_UNRESOLVED');c.qualifierAmbiguous=true;}if(materialized?.[c.structuredPath])c.materialization=materialized[c.structuredPath];result.push(c);}}
-   if(typeof x==='string'&&/^(?:description|disclaimer|legalDisclaimer|offerText|terms)$/i.test(k)&&x.length<=proseBounds.text&&proseFields<proseBounds.jsonFields&&proseCharacters+x.length<=proseBounds.jsonCharacters){
+   if(typeof x==='string'&&(/^(?:description|disclaimer|legalDisclaimer|officialDisclaimer|offerText|terms)$/i.test(k)||contentModelText(k,p,contentModel))&&x.length<=proseBounds.text&&proseFields<proseBounds.jsonFields&&proseCharacters+x.length<=proseBounds.jsonCharacters){
     proseFields++;proseCharacters+=x.length;const text=normalizeText(x),pricePath=p+'/'+k.replaceAll('~','~0').replaceAll('/','~1');
     for(const r of namedPriceProse(text,{monetary})){const m=monetary(text).find(m=>m.start===r.amountSpan[0]);const c=base(m,r.raw,{name:r.plan,strong:false,method:'NAMED_PRICE_PROSE'},r.raw);
      preserveQualifiers(c,{localText:r.raw,ownerText:r.raw,localPath:pricePath,ownerPath:pricePath,ownerStrong:false});applyProse(c,r,{bodyHash:proseBodyHash??=hash(body),path:pricePath,embedded:true});
      c.sourceType='JSON';c.structuredPath=pricePath;c.rawEvidenceSnippet=x;c.marketOwnerEvidence=markets;c.productOwnerEvidence={raw:r.plan,path:pricePath,method:'NAMED_PRICE_PROSE',span:r.planSpan};result.push(c);
     }
    }
-   if(x&&typeof x==='object')walkJSON(x,p+'/'+k.replaceAll('~','~0').replaceAll('/','~1'),own,cur,markets,namePath,materialized);
+   if(x&&typeof x==='object')walkJSON(x,p+'/'+k.replaceAll('~','~0').replaceAll('/','~1'),own,cur,markets,namePath,materialized,contentModel);
   }
  }
- function json(raw,p){try{const v=JSON.parse(raw);if(v&&typeof v==='object'){diagnostics.jsonPayloads++;walkJSON(v,p);return true;}}catch{}return false;}
+ function json(raw,p,contentModel=false){try{const v=JSON.parse(raw);if(v&&typeof v==='object'){diagnostics.jsonPayloads++;walkJSON(v,p,null,null,[],null,null,contentModel);return true;}}catch{}return false;}
  if(/^[\s]*[\[{]/.test(body))json(body,'$');
- for(const n of tree.nodes.filter(n=>n.tag==='script')){if(!json(n.raw??'',pathOf(n))){diagnostics.unsupportedScriptPayloads++; // Do not eval machine code. Retain monetary literals as weak candidates.
+ for(const n of tree.nodes.filter(n=>n.tag==='script')){if(!json(n.raw??'',pathOf(n),n.attrs.id==='__NEXT_DATA__'&&n.attrs.type==='application/json')){diagnostics.unsupportedScriptPayloads++; // Do not eval machine code. Retain monetary literals as weak candidates.
    for(const m of monetary(decode(n.raw??''))){const c=base(m,'', {name:null,strong:false,method:'SCRIPT_LITERAL'},m.raw);c.sourceType='SCRIPT_LITERAL';c.rawEvidenceSnippet=m.raw;c.structuredPath=pathOf(n);result.push(c);}
   }}
  const linkedPlans=bindStructuredPlans(tree,{amount,monetary},hash(body));
