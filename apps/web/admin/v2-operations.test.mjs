@@ -1,8 +1,11 @@
+import fs from 'node:fs';
+import {liveStatusView,statusTone} from './live-status.js';
 import test from 'node:test';import assert from 'node:assert/strict';import {mountOperations,capabilityGuidance,capabilityControl,availablePermissions,previewTargeting,monitorJob} from './v2-operations.js';
 class Element{children=[];listeners={};textContent='';value='';append(...n){for(const child of n)child.parentElement=this;this.children.push(...n);}replaceChildren(...n){this.replacements=(this.replacements??0)+1;this.children=n;}addEventListener(k,v){this.listeners[k]=v;}dispatchEvent(e){return this.listeners[e.type]?.(e);}setAttribute(k,v){this[k]=v;}remove(){this.removed=true;}set innerHTML(_){throw Error('Unsafe HTML');}}
 const descendants=n=>[n,...n.children.flatMap(descendants)],text=n=>descendants(n).map(x=>x.textContent).join(' '),button=(n,name)=>descendants(n).find(x=>x.textContent===name&&x.listeners.click);
 function setup(){globalThis.document={createElement:()=>new Element()};globalThis.window={confirm:()=>false};return new Element();}
 const summary={flags:{read:true,control:false,scheduling:false},worker:{at:new Date().toISOString()},metrics:{catalog:2,complete:1,noPrice:1},refresh:null,health:{running:0,resumable:0,nextAutomatic:null,enabledSchedules:0},timezone:'Europe/Oslo'};
+const workspaceDetails=root=>descendants(root).find(n=>n.textContent==='View details'&&n.listeners.click&&!descendants(root).filter(x=>x.className?.startsWith('ops-live-card')).some(card=>descendants(card).includes(n)));
 const request=async p=>p.endsWith('/summary')?summary:{rows:[],total:0};
 test('operations empty/read-only state preserves price independence',async()=>{const root=setup();const dispose=await mountOperations(root,request);assert(text(root).includes('V2 Operations'));assert(text(root).includes('No provider price is not a catalog failure'));assert(button(root,'Preflight').disabled);dispose();});
 test('operations loading state before response',async()=>{const root=setup();let resolve;const pending=mountOperations(root,()=>new Promise(r=>{resolve=r;}));assert(text(root).includes('Loading operations'));resolve(summary);const dispose=await pending;dispose();});
@@ -214,7 +217,7 @@ test('live polls mutate stable fields without resetting targeting, focus, expand
  for(const next of ['RUNNING','RUNNING','COMPLETE']){status=next;t.mock.timers.tick(10000);await Promise.resolve();await Promise.resolve();assert(text(root).includes('Job job: '+next));}
  assert.deepEqual(descendants(root),before);assert.deepEqual(before.map(n=>n.replacements??0),counts);
  assert.equal(document.activeElement,search);assert.equal(search.value,'Music');assert.equal(root.scrollTop,427);assert(market.checked);assert(groq.checked);assert(panels.every(p=>p.open));assert(text(root).includes('1 selected services'));
- assert(calls.slice(requests).every(c=>c.p==='v2-operations/jobs/job'&&!c.body));assert.equal(calls.filter(c=>c.p.endsWith('/targeting')).length,1);
+ assert(calls.slice(requests).every(c=>!c.body&&(c.p==='v2-operations/jobs/job'||c.p.startsWith('v2-operations/runs'))));assert.equal(calls.filter(c=>c.p.endsWith('/targeting')).length,1);
  const done=calls.length;t.mock.timers.tick(60000);await Promise.resolve();assert.equal(calls.length,done);
 });
 
@@ -230,11 +233,11 @@ test('run Inspect polls only exact job fields; open artifacts, service inspectio
   if(p.startsWith('v2-operations/services/music'))return {name:'Music Club',evidence:[],priceEvidence:[]};
   if(p.startsWith('v2-operations/runs?'))return {rows:[run],total:1};return {rows:[],total:0};
  });t.after(dispose);
- await button(root,'Runs').listeners.click();await button(root,'Inspect').listeners.click();
+ await button(root,'Runs').listeners.click();await workspaceDetails(root).listeners.click();
  const firstJobReads=calls.filter(p=>p==='v2-operations/jobs/owned-job').length;
- await button(root,'Runs').listeners.click();await button(root,'Inspect').listeners.click();
+ await button(root,'Runs').listeners.click();await workspaceDetails(root).listeners.click();
  assert.equal(calls.filter(p=>p==='v2-operations/jobs/owned-job').length,firstJobReads,'reopening the tracked job shares the existing poll loop');
- await button(root,'checkpoint').listeners.click();await button(root,'Inspect').listeners.click();
+ await button(root,'checkpoint').listeners.click();await workspaceDetails(root).listeners.click();
  const search=descendants(root).find(n=>n.textContent==='Search services').children[0];
  // Set an existing control's draft value and focus; polling must not replace it.
  search.value='unsaved draft';document.activeElement=search;root.scrollTop=620;
@@ -243,7 +246,7 @@ test('run Inspect polls only exact job fields; open artifacts, service inspectio
  status='RUNNING';t.mock.timers.tick(10000);await Promise.resolve();await Promise.resolve();
  status='COMPLETE';t.mock.timers.tick(10000);await Promise.resolve();await Promise.resolve();
  assert.deepEqual(descendants(root),nodes);assert.deepEqual(nodes.map(n=>n.replacements??0),replacements);assert.equal(search.value,'unsaved draft');assert.equal(document.activeElement,search);assert.equal(root.scrollTop,620);
- assert(text(root).includes('MATURE_LIFECYCLE · ADMIN · COMPLETE'));assert(calls.slice(requestCount).every(p=>p==='v2-operations/jobs/owned-job'));
+ assert(text(root).includes('MATURE_LIFECYCLE · ADMIN · COMPLETE'));assert(calls.slice(requestCount).every(p=>p==='v2-operations/jobs/owned-job'||p==='v2-operations/runs/run-projection'));
  assert(nodes.filter(n=>n.open).length>=2);const done=calls.length;t.mock.timers.tick(30000);await Promise.resolve();assert.equal(calls.length,done);
 });
 
@@ -251,7 +254,7 @@ test('service summaries use responsive cards, readable reasons; Inspect retains 
  const root=setup(),calls=[],leads=[];const service={service:'film',name:'Film House',state:'PARTIAL',authority:'ESTABLISHED',identity:'ESTABLISHED',markets:'UNRESOLVED',login:'ESTABLISHED',management:'UNRESOLVED',cancellation:'UNRESOLVED',requests:0,evidenceCount:0,evidence:[],pricing:[],unresolvedReasons:[{kind:'BUDGET_LIMITED',reason:'BUDGET_EXHAUSTED',scope:'KNOWN_REVIEWED_ACTION_SPACE_ONLY'}]};
  const dispose=await mountOperations(root,async(p,o)=>{calls.push(p);if(p.endsWith('/summary'))return summary;if(p.endsWith('/leads')){if(o?.method==='POST'){const body=JSON.parse(o.body);leads.push({...body,leadId:'fixture',status:'UNVERIFIED',createdBy:'You',createdAt:'2026-09-23',canDeactivate:true});return leads.at(-1);}return {rows:leads,outcomes:[],types:['GENERAL','PRICING'],markets:['NO','SE'],canCreate:true};}if(p==='v2-operations/services/film')return service;if(p.startsWith('v2-operations/services?'))return {rows:[service],total:1};return {rows:[],total:0};});t.after(dispose);
  await button(root,'Services').listeners.click();assert(descendants(root).some(n=>n.className==='ops-result-card'));assert(text(root).includes('Budget exhausted'));assert(!text(root).includes('KNOWN_REVIEWED_ACTION_SPACE_ONLY'));
- await button(root,'Inspect').listeners.click();assert(text(root).includes('KNOWN_REVIEWED_ACTION_SPACE_ONLY'));for(const label of ['Provider / authority','Account access','Pricing','Research gaps','Human Review · Research leads'])assert(text(root).includes(label));
+ await button(root,'View details').listeners.click();assert(text(root).includes('KNOWN_REVIEWED_ACTION_SPACE_ONLY'));for(const label of ['Provider / authority','Account access','Pricing','Research gaps','Human Review · Research leads'])assert(text(root).includes(label));
  const field=name=>descendants(root).find(n=>n.textContent===name).children[0],url=field('Source URL'),note=field('Operator note (optional)');url.value='https://provider.example/pricing';note.value='<script>bad()</script>';document.activeElement=url;root.scrollTop=321;
  const operations=descendants(root).find(n=>n.id==='v2-operations'),replacements=operations.replacements,requests=calls.length;
  await button(root,'Save research lead').listeners.click();assert.equal(operations.replacements,replacements);assert.equal(document.activeElement,url);assert.equal(root.scrollTop,321);assert(text(root).includes('<script>bad()</script>'));assert(text(root).includes('Unverified'));assert(calls.slice(requests).every(p=>p.endsWith('/leads')));assert(!calls.some(p=>p.includes('/targeting')));
@@ -263,4 +266,35 @@ test('stored unavailable ON remains visible until explicitly switched off; viewi
  const dispose=await mountOperations(root,async(p,options)=>{if(options)writes.push(p);if(p.endsWith('/summary'))return {...summary,lifecycleConfigured:true,capabilityAvailability:availability};if(p.endsWith('/schedules'))return {rows:[schedule]};return {rows:[],total:0};});t.after(dispose);
  await button(root,'Schedules').listeners.click();const check=checkbox(root,'Browser / JavaScript');assert(check,text(root));assert.equal(check.checked,true);assert.equal(check.disabled,false);assert(text(root).includes('Permission ON · Unavailable'));assert(text(root).includes('Cannot run'));
  check.checked=false;await check.listeners.change();assert.equal(check.disabled,true);assert.equal(JSON.stringify(schedule),before);assert.deepEqual(writes,[]);
+});
+
+test('live projection uses measured accounting and final service states, never readiness as usage',()=>{
+ const job={id:'job',status:'COMPLETE',terminal:true,services:['fixture'],startedAt:'2026-01-01T00:00:00Z',finishedAt:'2026-01-01T00:02:05Z',maximumRequests:36};
+ const run={requests:5,capabilities:{browser:true,groq:true},routes:{BROWSER:0},acquisitionMetrics:{directPageRequests:2,robotsRequests:2,tavilySearches:1,decodoRequests:0},lifecycle:{executionComplete:true,researchComplete:false,humanReviewRequired:1}};
+ const v=liveStatusView(job,run,{total:1,rows:[{marketScope:['DE'],pricing:[{market:'DE',status:'UNRESOLVED'}]}]});
+ assert.equal(v.title,'Execution result');assert.equal(v.budget,'Requests: 5 / 36');assert.match(v.usage,/Direct requests: 4/);assert.match(v.usage,/Tavily searches: 1/);assert.match(v.usage,/Decodo requests: 0/);assert(!v.usage.includes('Browser'));assert(!v.usage.includes('Groq'));assert.match(v.review,/required: 1/);assert.match(v.pricing,/DE: UNRESOLVED/);assert.equal(v.research,'Research remains incomplete');assert.match(v.elapsed,/2m 5s/);assert.match(v.markets,/DE/);
+ const actual=liveStatusView(job,{...run,capabilityUsage:{browserExecutions:2,groqCalls:3}});assert.match(actual.usage,/Browser executions: 2/);assert.match(actual.usage,/Groq calls: 3/);
+ assert.equal(liveStatusView(job).research,'Research completion not reported');assert.equal(liveStatusView(job).usage,'Measured tool usage not reported');assert.equal(liveStatusView(job,{lifecycle:{researchComplete:true}}).research,'Research complete');
+});
+test('pipeline never invents validation or detailed research activity',()=>{
+ for(const status of ['QUEUED','RUNNING','COMPLETE','FAILED','INTERRUPTED','UNKNOWN']){const v=liveStatusView({id:'x',status,terminal:status==='COMPLETE'});assert(!v.pipeline.some(([label])=>label==='Validation'));assert(!v.activity.includes('Verifying offer'));assert.equal(v.tone,statusTone(status));}
+ const v=liveStatusView({id:'x',status:'QUEUED',phase:'Validating execution'});assert.equal(v.activity,'Validating execution');assert.equal(v.pipeline[0][1],'current');assert.equal(v.pipeline[1][1],'unknown');
+ assert.equal(liveStatusView({id:'x',status:'RUNNING'}).activity,'Running');
+});
+test('active job is above history; completion updates stable nodes, preserves Preflight and opens results',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const root=setup();let status='RUNNING',requests=2;const calls=[];
+ const run=()=>({id:'run',jobId:'job',owned:true,name:'Fixture',status,origin:'ADMIN',objective:'MATURE_LIFECYCLE',requests,lifecycle:{executionComplete:status==='COMPLETE',researchComplete:false,humanReviewRequired:status==='COMPLETE'?1:0}});
+ const dispose=await mountOperations(root,async(p,o)=>{calls.push(p);if(p.endsWith('/summary'))return {...summary,health:{...summary.health,latest:run()}};if(p.includes('/jobs/'))return {id:'job',status,terminal:status==='COMPLETE',services:['fixture'],maximumRequests:36};if(p.startsWith('v2-operations/runs?'))return {rows:[run(),{id:'legacy',name:'Legacy',status:'UNKNOWN',origin:'UNKNOWN/HISTORICAL'}],total:2};if(p==='v2-operations/runs/run')return {run:run(),services:{total:1,rows:[{service:'fixture',pricing:[{market:'DE',status:'UNRESOLVED'}],humanReview:['RETAINED_REVIEW']}]},events:[]};return {rows:[],total:0};});t.after(dispose);
+ const flush=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};await flush();await button(root,'Runs').listeners.click();await flush();
+ const card=descendants(root).find(n=>n.className?.startsWith('ops-live-card'));const all=descendants(root);assert(all.indexOf(card)<all.findIndex(n=>n.textContent==='Legacy'));assert(all.some(n=>n.className==='ops-historical'));assert(!button(root,'Inspect'));
+ const input=descendants(root).find(n=>n.type==='number');input.value='42 draft';document.activeElement=input;root.scrollTop=500;const preflight=button(root,'Preflight'),preflightDisabled=preflight.disabled,nodes=descendants(root),replacements=nodes.map(n=>n.replacements??0);
+ requests=5;status='COMPLETE';t.mock.timers.tick(10000);await flush();assert.deepEqual(descendants(root),nodes);assert.deepEqual(nodes.map(n=>n.replacements??0),replacements);assert.equal(document.activeElement,input);assert.equal(input.value,'42 draft');assert.equal(root.scrollTop,500);assert.equal(button(root,'Preflight'),preflight);assert.equal(preflight.disabled,preflightDisabled);
+ assert(text(card).includes('Execution result'));assert(text(card).includes('Requests: 5 / 36'));assert(text(card).includes('DE: UNRESOLVED'));assert(text(card).includes('Human Review required: 1'));assert(text(card).includes('Research remains incomplete'));
+ await button(root,'View results').listeners.click();const headings=descendants(root).filter(n=>n.className==='ops-inspect-section').map(n=>n.children[0].textContent);assert.deepEqual(headings.slice(0,6),['Summary','Research','Pricing','Evidence','Gaps','Human Review']);assert(text(root).includes('Technical'));assert(calls.includes('v2-operations/runs/run'));
+});
+
+test('status styling has text alternatives, reduced motion and a narrow-screen layout',()=>{
+ const css=fs.readFileSync(new URL('./admin.css',import.meta.url),'utf8');assert.match(css,/@media\(prefers-reduced-motion:reduce\)\{\.ops-stage-current\{animation:none/);assert.match(css,/@media\(max-width:600px\)/);
+ for(const [status,tone]of Object.entries({COMPLETE:'success',RUNNING:'active',QUEUED:'attention',FAILED:'error',UNKNOWN:'muted'}))assert.equal(statusTone(status),tone);
+ const v=liveStatusView({id:'x',status:'COMPLETE',terminal:true},{lifecycle:{humanReviewRequired:1}},{rows:[{pricing:[{status:'UNRESOLVED'}]}],total:1});assert.equal(v.reviewTone,'attention');assert.equal(v.pricingTone,'attention');assert.match(v.status,/COMPLETE/);assert.match(v.review,/required: 1/);
 });

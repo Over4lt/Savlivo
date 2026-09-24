@@ -132,3 +132,22 @@ li {margin:.4rem 0;color:var(--muted)}
 
 /* An unavailable permission is not an operational tool. */
 .ops-tool-switch-input:disabled+.ops-tool-switch-track{opacity:.4;filter:grayscale(1);cursor:not-allowed}
+
+/* Stable live region: polling changes field text, never the surrounding workspace. */
+.ops-live-card{border:1px solid var(--border);border-inline-start:4px solid #6e93bb;border-radius:12px;padding:1rem;margin:1rem 0;min-height:14rem;overflow-wrap:anywhere;background:var(--surface)}
+.ops-live-card[hidden]{display:none}
+.ops-live-card p{margin:.35rem 0}
+.ops-lifecycle{display:flex;flex-wrap:wrap;gap:.5rem 1rem;list-style:none;padding:0}
+.ops-lifecycle li{border:1px solid var(--border);border-radius:1rem;padding:.25rem .65rem}
+.ops-stage-current,.ops-status-active{border-color:#7ab6ef;color:#a8d5ff}
+.ops-stage-done,.ops-status-success{border-color:#67bd91;color:#a2dfbc}
+.ops-status-attention{border-color:#dfbc66;color:#ffe1a0}
+.ops-status-error{border-color:#dc8790;color:#ffb8bf}
+.ops-stage-unknown,.ops-status-muted,.ops-historical{color:var(--muted)}
+.ops-detail-workspace{display:grid;gap:1rem;min-width:0}
+.ops-detail-workspace section,.ops-technical{min-width:0;overflow-wrap:anywhere}
+.ops-technical{padding:.8rem;border:1px solid var(--border);border-radius:8px}
+.ops-stage-current{animation:ops-active 2s ease-in-out infinite}
+@keyframes ops-active{50%{border-color:currentColor}}
+@media(prefers-reduced-motion:reduce){.ops-stage-current{animation:none}}
+@media(max-width:600px){.ops-live-card{padding:.75rem}.ops-lifecycle{display:grid;gap:.35rem}.ops-live-card button{min-height:2.75rem}}
