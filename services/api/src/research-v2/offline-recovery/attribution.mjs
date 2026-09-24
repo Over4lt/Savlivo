@@ -1,4 +1,5 @@
 import {isResponseBoundPayload,isProviderBoundPayload} from './structured-materialization.mjs';
+import {proveOfferMarket} from '../verification/market-proof.mjs';
 // Experimental provenance metadata only; no currency inference or provider rules.
 import '../offline-replay/offline-guard.mjs';
 const norm=x=>String(x??'').normalize('NFD').replace(/\p{M}/gu,'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
@@ -38,7 +39,8 @@ function combinedAttribute(c,context){
  const base=attribute(c,{...context,providerPolicy:false});
  const prior=base.attribution,owner=prior.marketOwnerEvidence;
  const ownerConflicts=prior.conflictingMarketEvidence;
- const explicitOwner=owner.length>0&&ownerConflicts.length===0;
+ const marketProof=proveOfferMarket(c,context);
+ const explicitOwner=owner.length>0&&ownerConflicts.length===0||marketProof?.status==='MARKET_VERIFIED';
  const page=context.providerEvidence?.records??[];
  const invalidBinding=page.some(e=>e.bodyHash!==context.bodyHash);
  const pageConflicts=page.filter(e=>e.bodyHash===context.bodyHash&&(e.status==='CONFLICTING'||e.country!==context.market));
@@ -52,13 +54,14 @@ function combinedAttribute(c,context){
  // embedded machine catalog. Preserve the existing structured-owner safeguard.
  const pageApplicable=matchingPages.length>0&&!structured&&!c.multiCountrySource;
  const provider=explicitOwner||pageApplicable;
- const conflict=ownerConflicts.length>0||pageConflicts.length>0||geoConflicts.length>0;
+ const conflict=ownerConflicts.length>0||pageConflicts.length>0||geoConflicts.length>0||marketProof?.status==='MARKET_CONTRADICTED';
  const scopeUnresolved=(structured&&!explicitOwner&&(geo||matchingPages.length>0))||(c.multiCountrySource&&!explicitOwner);
  const invalidMaterializedOrigin=!isProviderBoundPayload(c,context);
  const incomplete=invalidMaterializedOrigin||invalidBinding||scopeUnresolved||(!provider&&!geo&&(page.length>0||geoEvidence.some(e=>e.classification==='G2')));
  const type=conflict?'CONFLICTING':incomplete?'UNRESOLVED':provider&&geo?'PROVIDER_AND_GEO':provider?'PROVIDER_DECLARED':geo?'GEO_OBSERVED':'TASK_ONLY';
  const established=!!context.authority&&['PROVIDER_DECLARED','GEO_OBSERVED','PROVIDER_AND_GEO'].includes(type);
  const reasons=[];
+ if(marketProof?.status==='MARKET_CONTRADICTED')reasons.push('PROVIDER_OFFER_MARKET_CONFLICT');
  if(invalidMaterializedOrigin)reasons.push('MATERIALIZED_PROVIDER_ORIGIN_UNRESOLVED');
  if(prior.blockingReasons.includes('PRODUCT_FROM_COUNTRY_LABEL'))reasons.push('PRODUCT_FROM_COUNTRY_LABEL');
  if(ownerConflicts.length)reasons.push(structured?'STRUCTURED_MARKET_MISMATCH':'CROSS_COUNTRY_MARKET_MISMATCH');
@@ -71,7 +74,7 @@ function combinedAttribute(c,context){
  if(pageApplicable)classes.push('PROVIDER_DECLARED_PAGE');
  if(geo)classes.push('GEO_OBSERVED_MARKET');
  if(!established)classes.push('UNRESOLVED_ATTRIBUTION');
- return {...base,attribution:{...prior,version:2,marketEvidenceType:type,marketApplicabilityEstablished:established,
+ return {...base,attribution:{...prior,version:2,marketProof,marketEvidenceType:type,marketApplicabilityEstablished:established,
    marketSourceType:explicitOwner?prior.marketSourceType:pageApplicable?'provider-page':geo?'geo-observed':'task-context',
    providerPageEvidence:page,providerPageDiagnostics:context.providerEvidence?.diagnostics??[],
    providerOwnerEvidence:owner.map(e=>({...e,bodyHash:context.bodyHash,sourceOccurrenceIds:context.sourceOccurrenceIds})),

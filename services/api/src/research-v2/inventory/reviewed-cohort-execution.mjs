@@ -1,3 +1,4 @@
+import {acceptMarketResearch} from '../live/market-proof-continuation.mjs';
 import {replayDiagnostics,projectionMetrics,retainedReplayFailure} from './replay-diagnostics.mjs';
 import {priceNeedsBounds} from '../intelligence/price-evidence-needs.mjs';
 import {mergePriceEvidenceNeeds} from '../intelligence/price-evidence-needs.mjs';
@@ -66,7 +67,7 @@ export async function replayTarget({target,directory,sourceDirectory,registry,in
    if(fs.existsSync(record)){price=json(record);progress.record(record,price);progress.persisted();}
    else{at('INTERPRETATION_RESERVATION');if(fs.existsSync(pending))throw Error('HANDOFF_RETAINED_INTERPRETATION_RECONCILIATION_REQUIRED');fs.writeFileSync(pending,'reserved',{flag:'wx'});at('INTERPRETATION');price=await interpret({target:t,page,directory,onReplayStage:at});progress.record(record,price);at('REPLAY_RECORD_PERSISTENCE');atomic(record,price);progress.persisted();at('RESERVATION_REMOVAL');fs.unlinkSync(pending);}
    at('VERIFIED_RESULT_INTEGRATION');t.verified??=[];t.verified.push(...price.verified??[]);
-   at('PRICE_EVIDENCE_NEEDS_MERGE');mergePriceEvidenceNeeds(t,price.priceEvidenceNeeds);
+   at('PRICE_EVIDENCE_NEEDS_MERGE');mergePriceEvidenceNeeds(t,price.priceEvidenceNeeds);acceptMarketResearch(t,price,l=>{if(t.leads.length<40&&!t.leads.some(x=>x.url===l.url))t.leads.push(l);});
    at('QUARANTINE_REVIEW_INTEGRATION');applyPriceQuarantine(t,quarantine);const retained=retainedPriceReview(price.runDirectory,t);if(retained)t.retainedPriceReview=retained;
   }
   progress.integrated();

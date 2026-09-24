@@ -17,6 +17,7 @@ export function sameRejectedPrice(o,rejected){
 }
 export function currentlyEligibleProviderPrice(o,target={}){
  if(!o||!positiveProviderAmount(o.amount)||o.invalidated===true||o.stale===true)return false;
+ if((o.marketProofDependencies??[]).some(d=>{const age=Date.now()-Date.parse(d.capturedAt??'');return !Number.isFinite(age)||age<0||age>Math.min(target.retainedMaxAgeDays??30,30)*86400000;}))return false;
  if(hashes(o).some(h=>(target.invalidatedEvidence??[]).includes(h)))return false;
  if((target.quarantinedVerified??[]).some(q=>sameRejectedPrice(o,q)))return false;
  return true;
@@ -26,7 +27,7 @@ export function retainedPricingSummary(target,observations,{artifact,capturedAt=
  if(Number.isFinite(now)&&Number.isFinite(at)&&now-at>(target.retainedMaxAgeDays??30)*86400000)return null;
  // Preserve the existing single sufficiency summary, not a new offer-selection policy.
  const o=observations.find(o=>o.service===target.service&&o.source?.kind==='ORIGINAL_PROVIDER'&&['HIGH','MEDIUM'].includes(o.confidence)&&currentlyEligibleProviderPrice(o,target)&&(o.market===target.market||target.researchObjective==='SERVICE_COVERAGE'));
- return o?{sourceBound:true,confidence:o.confidence,market:o.market,objective:target.researchObjective,sourceHash:o.source.hash,sourceUrl:o.source.url,artifact,scope:o.scope??null,amount:o.amount,currency:o.currency,plan:o.plan??null,billingInterval:o.billingInterval??null,capturedAt,eligibilityVersion:recurringPriceEligibilityVersion}:null;
+ return o?{sourceBound:true,confidence:o.confidence,market:o.market,objective:target.researchObjective,sourceHash:o.source.hash,sourceHashes:hashes(o),marketProofDependencies:o.marketProofDependencies??[],sourceUrl:o.source.url,artifact,scope:o.scope??null,amount:o.amount,currency:o.currency,plan:o.plan??null,billingInterval:o.billingInterval??null,capturedAt,eligibilityVersion:recurringPriceEligibilityVersion}:null;
 }
 
 export const eligibleVerifiedPrices=target=>(target.verified??[]).filter(o=>currentlyEligibleProviderPrice(o,target));

@@ -1,3 +1,4 @@
+import {loadMarketProofSources} from '../../../../services/api/src/research-v2/verification/market-proof-sources.mjs';
 import {assertOffline} from '../../../../services/api/src/research-v2/offline-replay/offline-guard.mjs';
 import fs from 'node:fs';import path from 'node:path';
 import {loadLiveSource} from '../../../../services/api/src/research-v2/verification/live-source.mjs';
@@ -12,7 +13,8 @@ for(const s of sources)for(const o of s.occurrences){let loaded;try{loaded=loadL
  const pattern=/(?:subscription|subscribe|membership|abonnement|abonnemang|berlangganan|langganan|구독|اشتراك|会員|月額|đăng ký|assinar|suscripción)/ig;
  const snippets=[...text.matchAll(pattern)].map(m=>text.slice(Math.max(0,m.index-100),m.index+240)).filter(s=>/(?:price|plan|month|annual|trial|billing|renew|cancel|family|premium|pris|måned|mån|paket|harga|bulan|구독|月額|đăng ký|اشتراك)/i.test(s)).slice(0,8);
  if(loaded.receipt.serviceEstablished&&(selected.length||snippets.length))usable.push({occurrence:o.id,hash:s.sha256,basis:selected.length?'PROVIDER_MONETARY_EVIDENCE':'PROVIDER_SUBSCRIPTION_CONTEXT',snippets});
- const derived=deriveEvidence(loaded.body,loaded.context);
+ const target=read(dir+'/manifest.json').inventory.find(t=>t.id===o.taskId);
+ const derived=deriveEvidence(loaded.body,{...loaded.context,marketProofResources:target?loadMarketProofSources(sources,target):[]});
  for(const c of selected)decisions.set(c.candidateId,verifyCandidate(c,derived,{...loaded.receipt,bindingEstablished:loaded.receipt.bindings.some(b=>b.candidateId===c.candidateId&&b.factId===c.factId)}));
 }
 const strong=plans.filter(p=>p.strongRecurringMonthly),key=p=>JSON.stringify([p.service,p.market,p.providerPlanId??p.plan.normalize('NFKC').toLowerCase()]);

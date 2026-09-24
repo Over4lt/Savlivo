@@ -49,7 +49,7 @@ test('forged extractor product cannot replace independently derived product',()=
  const d=verifyCandidate(claim,derived,{intact:true,bodyHash,service:'fixture',serviceEstablished:true,bindingEstablished:true});assert.equal(d.fields.plan.status,'BLOCKED');assert.equal(d.fields.ownership.status,'BLOCKED');
 });
 test('new decisions carry distinct compatibility identity and cannot bless V1 decisions',()=>{
- const r=run(card('Basic','EUR 12/month')),d=r.decisions[0];assert.equal(d.version,'V2_FIELD_VERIFICATION_V4');assert(r.offers.every(o=>o.eligibilityVersion===offerEligibilityVersion));
+ const r=run(card('Basic','EUR 12/month')),d=r.decisions[0];assert.equal(d.version,'V2_FIELD_VERIFICATION_V5');assert(r.offers.every(o=>o.eligibilityVersion===offerEligibilityVersion));
  const old={...d,version:'V2_FIELD_VERIFICATION_V1'},plan={monthlyPlanId:'m',service:'fixture',market:'DE',plan:'Basic',amounts:[['12','EUR']],candidateIds:[d.candidateId],factIds:[d.factId]};
  assert.equal(verifyIdentity(plan,new Map([[d.candidateId,d]])).status,'V2_VERIFIED');
  const result=verifyIdentity(plan,new Map([[d.candidateId,old]]));assert.equal(result.version,gateVersion);assert.equal(result.status,'V2_VERIFICATION_BLOCKED');assert(result.blockers.includes('INCOMPATIBLE_VERIFICATION_VERSION'));assert.equal(old.version,'V2_FIELD_VERIFICATION_V1');

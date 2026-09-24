@@ -13,7 +13,7 @@ import {consumeClosedRenewal,subscriptionReceipt} from '../offline-recovery/clos
 import {subscriptionFaqCandidates} from '../offline-recovery/subscription-faq.mjs';
 import {consumeColumnPlanTable} from '../offline-recovery/column-plan-table.mjs';
 import {consumeNamedOfferDetails} from '../offline-recovery/named-offer-details.mjs';
-export const gateVersion='V2_FIELD_VERIFICATION_V4';
+export const gateVersion='V2_FIELD_VERIFICATION_V5';
 const norm=x=>normalizeText(x??'').normalize('NFKC').toLowerCase();
 const unique=a=>[...new Set(a)].sort();
 // Reuse the established deterministic semantic engine. No copied provider parsing
@@ -36,7 +36,14 @@ export function deriveEvidence(body,context){
   if(r.sourceType==='JSON'&&visible.size&&(visible.size>1||!visible.has(r.currency)))c.blockingReasons.push('STRUCTURED_VISIBLE_CURRENCY_CONTEXT_CONFLICT');
   if(raw.candidates.some(x=>x.amountNormalized===r.amountNormalized&&x.currency===r.currency&&x.normalizedEvidenceSnippet===r.normalizedEvidenceSnippet&&x.product!==r.product)){c.ownershipAmbiguous=true;c.blockingReasons.push('REPEATED_TEXT_DIFFERENT_OWNERS');}
   const peers=raw.candidates.filter(x=>x.product&&x.product===r.product&&x.currency===r.currency&&x.billingPeriod===r.billingPeriod&&x.promotionOrTrial===r.promotionOrTrial&&JSON.stringify(x.qualifier)===JSON.stringify(r.qualifier)&&x.amountNormalized!==r.amountNormalized);if(peers.length)c.blockingReasons.push('MULTIPLE_CONFLICTING_FACTS');c.verificationConflictPeerLocators=peers.map(x=>({path:x.structuredPath,amount:x.amountNormalized,currency:x.currency}));
-  boundedOwnership(c,source);const old=structuredClone(c);scopeOfferRole(c,source);return {c,old};
+  boundedOwnership(c,source);
+  // Some existing non-monthly/card paths establish ownership in this stage.
+  // Re-evaluate only market attribution after that independent ownership proof.
+  if(ctx.marketProofResources?.length&&c.product&&!c.ownershipAmbiguous){
+   const next=attribute(c,{...ctx,providerEvidence:providerEvidenceFor(c,provider)});
+   if(next.attribution.marketProof){const prior=c.blockingReasons.filter(r=>!['MARKET_ATTRIBUTION_UNRESOLVED','MARKET_APPLICABILITY_UNRESOLVED','MARKET_SCOPE_UNRESOLVED','PAGE_GLOBAL_ONLY_APPLICABILITY','SHARED_SOURCE_MARKET_UNRESOLVED'].includes(r));Object.assign(c,grade(next,{...ctx,marketBound:next.attribution.marketApplicabilityEstablished}));c.blockingReasons=unique([...prior,...c.blockingReasons]);}
+  }
+  const old=structuredClone(c);scopeOfferRole(c,source);return {c,old};
  });
  repairOfferConflicts(rows.map(r=>r.c));for(const r of rows){regradeScoped(r.c,r.old);r.c.commercial=classifyCommercial(r.c,source);}
  for(const {c}of rows)c.verificationPriceRole=introductoryRelationship(c,source,rows.map(r=>r.c));
@@ -55,6 +62,7 @@ function proofSummary(fields){
  const groups={AUTHORITY:['service'],PROVENANCE:['provenance'],IDENTITY:['plan','ownership'],VALUE_AND_CADENCE:['amount','currency','monthlyCadence'],COMMERCIAL_MEANING:['ordinaryPriceRole'],MARKET_SCOPE:['market'],CONSISTENCY:['conflicts']};
  return Object.fromEntries(Object.entries(groups).map(([name,keys])=>[name,keys.every(k=>['VERIFIED','CLEAR'].includes(fields[k]?.status))?'ESTABLISHED':'UNRESOLVED']));
 }
+function marketDependencies(fields){return [...new Map((fields.market?.evidence??[]).flatMap(x=>x.evidence?.marketProof?.evidence??[]).map(x=>[x.bodyHash,{sourceHash:x.bodyHash,capturedAt:x.capturedAt,record:x.record}])).values()];}
 function fieldsFor(claim,d,acquisition){
  const samePlan=!!d?.product&&norm(d.product)===norm(claim.product)&&(!claim.commercial?.providerPlanId||claim.commercial.providerPlanId===d.commercial?.providerPlanId);
  const owner=d?.productOwnerEvidence,commercial=d?.commercial,a=d?.attribution;
@@ -90,7 +98,7 @@ export function verifyCandidate(claim,derived,acquisition){
  const fields=Object.fromEntries(criticalFields.map(f=>{const failed=occurrences.some(o=>o.fields[f].status==='BLOCKED');return [f,{status:failed?'BLOCKED':f==='conflicts'?'CLEAR':'VERIFIED',blocker:failed?codes[f]:null,evidence:occurrences.map(o=>({path:o.path,...o.fields[f]}))}];}));
  if(new Set(occurrences.map(o=>o.billingInterval?.normalized??null)).size>1){fields.monthlyCadence.status='BLOCKED';fields.monthlyCadence.blocker=codes.monthlyCadence;}
  const blockers=unique(Object.values(fields).map(f=>f.blocker).filter(Boolean));
- return {version:gateVersion,billingInterval:occurrences[0]?.billingInterval??null,billingIntervalEvidence:occurrences.map(o=>o.billingInterval).filter(Boolean),cadenceFamily:occurrences[0]?.cadenceFamily??null,candidateId:claim.candidateId,factId:claim.factId,sourceHash:claim.bodyHash,sourceUrl:claim.sourceUrl,service:claim.service,market:claim.market,plan:claim.product,providerPlanId:claim.commercial?.providerPlanId??null,amount:claim.amountNormalized,currency:claim.currency,evidenceLevel:claim.verificationLevel,proof:proofSummary(fields),fields,occurrences,blockers,status:blockers.length?'V2_VERIFICATION_BLOCKED':'V2_VERIFIED',offerPresentation:occurrences.map(o=>({path:o.path,proof:o.offerPresentation})),productionPromotion:false};
+ return {version:gateVersion,marketProofDependencies:marketDependencies(fields),billingInterval:occurrences[0]?.billingInterval??null,billingIntervalEvidence:occurrences.map(o=>o.billingInterval).filter(Boolean),cadenceFamily:occurrences[0]?.cadenceFamily??null,candidateId:claim.candidateId,factId:claim.factId,sourceHash:claim.bodyHash,sourceUrl:claim.sourceUrl,service:claim.service,market:claim.market,plan:claim.product,providerPlanId:claim.commercial?.providerPlanId??null,amount:claim.amountNormalized,currency:claim.currency,evidenceLevel:claim.verificationLevel,proof:proofSummary(fields),fields,occurrences,blockers,status:blockers.length?'V2_VERIFICATION_BLOCKED':'V2_VERIFIED',offerPresentation:occurrences.map(o=>({path:o.path,proof:o.offerPresentation})),productionPromotion:false};
 }
 export function verifyIdentity(plan,candidateDecisions,{canonicalConflict=false}={}){
  const supports=plan.candidateIds.map(id=>candidateDecisions.get(id)).filter(Boolean),good=supports.filter(c=>c.version===gateVersion&&c.status==='V2_VERIFIED');
@@ -103,5 +111,5 @@ export function verifyIdentity(plan,candidateDecisions,{canonicalConflict=false}
  const blockers=unique([...(incompatible?['INCOMPATIBLE_VERIFICATION_VERSION']:[]),...(good.length?[]:supports.flatMap(s=>s.blockers)),...(!supports.length?['PROVENANCE_INTEGRITY_FAILURE']:[]),...(conflict?['UNRESOLVED_CRITICAL_CONFLICT']:[])]);
  const witness=good[0]??supports.slice().sort((a,b)=>a.blockers.length-b.blockers.length||a.candidateId.localeCompare(b.candidateId))[0];
  const fields=Object.fromEntries(criticalFields.map(f=>[f,conflict&&f==='conflicts'?{status:'BLOCKED',blocker:codes.conflicts,evidence:contradictions}:witness?.fields[f]??{status:'BLOCKED',blocker:codes[f],evidence:supports.map(s=>s.fields[f])}]));
- return {version:gateVersion,billingInterval:witness?.billingInterval??null,billingIntervalEvidence:good.flatMap(c=>c.billingIntervalEvidence??[]),cadenceFamily:witness?.cadenceFamily??null,monthlyPlanId:plan.monthlyPlanId,canonicalKey:[plan.market,plan.service,plan.providerPlanId?{providerProductId:plan.providerPlanId}:{plan:plan.plan},...(plan.billingInterval&&plan.billingInterval.unit!=='MONTH'?[{billingInterval:plan.billingInterval.normalized}]:[])],market:plan.market,service:plan.service,plan:plan.plan,providerPlanId:plan.providerPlanId,amount:plan.amounts[0]?.[0]??null,currency:plan.amounts[0]?.[1]??null,commercialType:'RECURRING_MONTHLY',evidenceLevels:plan.evidenceLevels,candidateIds:plan.candidateIds,factIds:plan.factIds,sourceHashes:unique(supports.map(s=>s.sourceHash)),verifiedWitnessCandidateIds:good.map(s=>s.candidateId),proof:proofSummary(fields),fields,blockers,status:blockers.length?'V2_VERIFICATION_BLOCKED':'V2_VERIFIED',productionPromotion:false};
+ return {version:gateVersion,marketProofDependencies:good.flatMap(c=>c.marketProofDependencies??[]),billingInterval:witness?.billingInterval??null,billingIntervalEvidence:good.flatMap(c=>c.billingIntervalEvidence??[]),cadenceFamily:witness?.cadenceFamily??null,monthlyPlanId:plan.monthlyPlanId,canonicalKey:[plan.market,plan.service,plan.providerPlanId?{providerProductId:plan.providerPlanId}:{plan:plan.plan},...(plan.billingInterval&&plan.billingInterval.unit!=='MONTH'?[{billingInterval:plan.billingInterval.normalized}]:[])],market:plan.market,service:plan.service,plan:plan.plan,providerPlanId:plan.providerPlanId,amount:plan.amounts[0]?.[0]??null,currency:plan.amounts[0]?.[1]??null,commercialType:'RECURRING_MONTHLY',evidenceLevels:plan.evidenceLevels,candidateIds:plan.candidateIds,factIds:plan.factIds,sourceHashes:unique(supports.flatMap(s=>[s.sourceHash,...(s.marketProofDependencies??[]).map(d=>d.sourceHash)])),verifiedWitnessCandidateIds:good.map(s=>s.candidateId),proof:proofSummary(fields),fields,blockers,status:blockers.length?'V2_VERIFICATION_BLOCKED':'V2_VERIFIED',productionPromotion:false};
 }

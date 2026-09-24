@@ -2,7 +2,7 @@ import {positiveProviderAmount} from '../intelligence/recurring-price-eligibilit
 import {monetary,amount} from './extract.mjs';
 import {closedRenewalCommercial} from './closed-renewal.mjs';
 import {headingPriceOwnership} from './component-ownership.mjs';
-export const offerEligibilityVersion='SOURCE_BOUND_OFFER_ELIGIBILITY_V3';
+export const offerEligibilityVersion='SOURCE_BOUND_OFFER_ELIGIBILITY_V4';
 // Temporal clauses describe a phase, not a named product. These are language
 // predicates, independent of provider, URL, brand and monetary amount.
 const phaseHeading=/^(?:(?:after|following|during|before|at the end of)\s+(?:the\s+)?(?:free\s+)?(?:trial|introductory|promotion)|(?:nach|während|vor)\s+(?:Ablauf\s+)?(?:der\s+)?(?:Testphase|Probezeit)|(?:après|pendant|avant)\s+(?:la\s+)?(?:période d.essai|essai)|(?:después de|durante)\s+(?:la\s+)?prueba)/iu;
