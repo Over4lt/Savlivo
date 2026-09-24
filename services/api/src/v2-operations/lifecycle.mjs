@@ -1,14 +1,14 @@
+import {deploymentContract,validateGenesisExecutionSelection} from '../research-v2/storage/genesis-deployment.mjs';
 import {freezeLeads,readLeadSnapshot,leadContext} from '../research-v2/human-leads/snapshot.mjs';
 import {diagnosticContext} from './diagnostics.mjs';
-import {childDiagnostic} from './diagnostics.mjs';
-import {resolveCapabilities} from '../research-v2/capabilities/config.mjs';
+import {inspectLifecycleInput} from '../research-v2/inventory/reviewed-cohort-handoff.mjs';
+import {lifecycleBudgets} from '../research-v2/inventory/lifecycle-continuation.mjs';
+import {verifyAdmittedLeads} from '../research-v2/human-leads/snapshot.mjs';
+import {resolveCapabilities,capabilityPreflight} from '../research-v2/capabilities/config.mjs';
 // Control-plane adapter only: preflight and execution use the CLI's mature entrypoint.
 import fs from 'node:fs';
 import path from 'node:path';
-import {spawnSync} from 'node:child_process';
 import {safePath,hash,json} from './artifacts.mjs';
-// Full Genesis validation is cohort-wide even for a single selected service.
-export const nativeCheckTimeoutMs=600_000;
 export function lifecyclePlan(settings,input,selection=null){
  const context=diagnosticContext(settings.diagnosticContext),preparationStarted=performance.now();
  if(input.objective!=='MATURE_LIFECYCLE'||!['FULL_CATALOG','UNRESOLVED_ONLY','SELECTED_SERVICES'].includes(input.scope))throw Error('LIFECYCLE_REQUIRES_FROZEN_COHORT');
@@ -29,12 +29,23 @@ export function lifecyclePlan(settings,input,selection=null){
  const leadSnapshot=readLeadSnapshot(settings.repo,derived.humanLeadSnapshot,contextLeads);
  const file=path.join(directory,hash(derived)+'.json');if(!fs.existsSync(file))fs.writeFileSync(file,JSON.stringify(derived,null,2),{flag:'wx',mode:0o600});else if(hash(json(file))!==hash(derived))throw Error('LIFECYCLE_INPUT_CHANGED');
  console.error(JSON.stringify({...context,event:'V2_NATIVE_CHECK_STAGE',stage:'derived-input',status:'FINISHED',durationMs:Math.round(performance.now()-preparationStarted),rssBytes:process.memoryUsage().rss,heapUsedBytes:process.memoryUsage().heapUsed,maxRssKiB:process.resourceUsage().maxRSS}));
- const started=performance.now();
- const result=spawnSync(process.execPath,['--expose-gc','--max-old-space-size=512','--import','tsx','docs/catalog/global-47/research-v2/run-mature-v2.mjs','--input',file,'--check'],{cwd:settings.repo,encoding:'utf8',timeout:nativeCheckTimeoutMs,maxBuffer:4*1024*1024,env:process.env});
- for(const line of String(result.stderr??'').split('\n'))try{const t=JSON.parse(line);if(t.event==='V2_NATIVE_CHECK_STAGE'&&/^[a-z-]{1,48}$/.test(t.stage)&&['STARTED','FINISHED'].includes(t.status))console.error(JSON.stringify({...context,event:t.event,stage:t.stage,status:t.status,...Object.fromEntries(['rssBytes','heapUsedBytes','maxRssKiB'].filter(k=>Number.isSafeInteger(t[k])&&t[k]>=0).map(k=>[k,t[k]])),...(Number.isFinite(t.durationMs)&&t.durationMs>=0?{durationMs:t.durationMs}:{})}));}catch{}
- console.error(JSON.stringify({...context,event:'V2_NATIVE_CHECK_COMPLETED',durationMs:Math.round(performance.now()-started),timeoutMs:nativeCheckTimeoutMs,success:!result.error&&result.status===0}));
- if(result.error||result.status!==0)throw Object.assign(Error('MATURE_LIFECYCLE_PREFLIGHT_FAILED'),{operationsDiagnostic:childDiagnostic(result)});
- const p=JSON.parse(result.stdout),output=safePath(settings.repo,p.output);
- if(p.networkCalls!==0||p.onlineStarted!==false||p.servicesSelected!==selected.length)throw Error('INVALID_LIFECYCLE_PREFLIGHT');
- return {humanLeads:leadSnapshot.leads.map(({createdBy,note,...l})=>l),config:{humanLeadSnapshot:derived.humanLeadSnapshot,objective:'MATURE_LIFECYCLE',scope:input.scope,services:input.services??[],capabilities,...(input.researchMarkets!==undefined?{researchMarkets:input.researchMarkets}:{})},manifest:{humanLeadSnapshot:derived.humanLeadSnapshot,capabilities,objective:'MATURE_LIFECYCLE',catalog:[],targets:[],lifecycle:{input:file,output:p.output,inputHash:hash(fs.readFileSync(file,'utf8'))},limits:{totalRequests:p.maximumNewRequests}},source:null,catalogHash:hash(p),actionable:p.servicesSelected,servicesConsidered:p.servicesSelected,servicesExpectedNetwork:null,totalSafetyCeiling:p.maximumNewRequests,baselineExcluded:p.baselineExcluded,reviewed:p.reviewed,humanReview:p.humanReview,liveReady:p.liveReady,capabilityCheck:p.capabilityCheck,discovery:capabilities.tavily,decodo:capabilities.decodo,browser:capabilities.browser,runner:'mature lifecycleMain',checkpoint:output,preflight:p};
+ if(derived.productionGenesis){const g=json(safePath(settings.repo,derived.productionGenesis)),exportManifest=json(safePath(settings.repo,'.savlivo/research-v2/storage/deployment/'+g?.genesisHash+'/manifest.json'));const contract=deploymentContract(settings.repo,exportManifest,g?.genesisHash);validateGenesisExecutionSelection(settings.repo,path.relative(settings.repo,file),derived,contract.genesis);}
+ const handoff=inspectLifecycleInput(file,settings.repo),check=capabilityPreflight(capabilities);
+ const binding={version:1,scope:input.scope,researchMarkets:input.researchMarkets??null,input:file,inputHash:hash(fs.readFileSync(file,'utf8')),inputHashes:handoff.inputHashes,capabilities,services:selected,humanLeadSnapshot:derived.humanLeadSnapshot,budget:lifecycleBudgets(handoff)};
+ const p={validation:'DEFERRED_TO_EXECUTION',servicesSelected:selected.length,baselineExcluded:handoff.baselineIds.length,reviewed:handoff.targets.length,humanReview:selected.length-handoff.targets.length,maximumNewRequests:binding.budget.total,liveReady:check.ready,capabilityCheck:check,networkCalls:0,onlineStarted:false};
+ console.error(JSON.stringify({...context,event:'PREFLIGHT_FAST',durationMs:Math.round(performance.now()-preparationStarted),integrityValidation:'PENDING_EXECUTION'}));
+
+ return {humanLeads:leadSnapshot.leads.map(({createdBy,note,...l})=>l),config:{humanLeadSnapshot:derived.humanLeadSnapshot,objective:'MATURE_LIFECYCLE',scope:input.scope,services:input.services??[],capabilities,...(input.researchMarkets!==undefined?{researchMarkets:input.researchMarkets}:{})},manifest:{humanLeadSnapshot:derived.humanLeadSnapshot,capabilities,objective:'MATURE_LIFECYCLE',catalog:[],targets:[],lifecycle:{input:file,output:null,inputHash:binding.inputHash,admission:binding},limits:{totalRequests:p.maximumNewRequests}},source:null,catalogHash:hash(binding),actionable:p.servicesSelected,servicesConsidered:p.servicesSelected,servicesExpectedNetwork:null,totalSafetyCeiling:p.maximumNewRequests,baselineExcluded:p.baselineExcluded,reviewed:p.reviewed,humanReview:p.humanReview,liveReady:p.liveReady,capabilityCheck:p.capabilityCheck,discovery:capabilities.tavily,decodo:capabilities.decodo,browser:capabilities.browser,runner:'mature lifecycleMain',checkpoint:null,preflight:p};
+}
+
+// Admission binds intent and small immutable inputs; it is not an integrity receipt.
+export function verifyExecutionBinding(repo,job,manifest){
+ if(!manifest.lifecycle?.inputHash||hash(fs.readFileSync(safePath(repo,manifest.lifecycle.input),'utf8'))!==manifest.lifecycle.inputHash)throw Error('EXECUTION_INPUT_CHANGED');
+ verifyAdmittedLeads(repo,job.config,manifest);
+ const b=manifest.lifecycle?.admission;
+ if(!b){if(job.admissionHash)throw Error('EXECUTION_BINDING_MISSING');return;} // Legacy jobs still receive full execution validation.
+ if(b.version!==1||job.config.scope!==b.scope||hash(job.config.researchMarkets??null)!==hash(b.researchMarkets)||job.admissionHash!==hash(b)||b.input!==manifest.lifecycle.input||b.inputHash!==manifest.lifecycle.inputHash||hash(job.config.capabilities)!==hash(b.capabilities)||hash(manifest.capabilities)!==hash(b.capabilities)||manifest.limits?.totalRequests!==b.budget.total||hash(job.config.humanLeadSnapshot)!==hash(b.humanLeadSnapshot))throw Error('EXECUTION_BINDING_MISMATCH');
+ if(job.config.scope==='SELECTED_SERVICES'&&hash([...job.config.services].sort())!==hash([...b.services].sort()))throw Error('EXECUTION_SCOPE_MISMATCH');
+ for(const [file,expected] of Object.entries(b.inputHashes)){if(hash(fs.readFileSync(safePath(repo,file),'utf8'))!==expected)throw Error('EXECUTION_INPUT_CHANGED');}
+ if(hash(fs.readFileSync(safePath(repo,b.input),'utf8'))!==b.inputHash)throw Error('EXECUTION_INPUT_CHANGED');
 }

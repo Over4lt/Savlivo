@@ -1,11 +1,11 @@
-import {verifyAdmittedLeads} from '../research-v2/human-leads/snapshot.mjs';
+import {verifyExecutionBinding} from './lifecycle.mjs';
 import {recordJobPhase,jobTerminalStatuses} from './job-status.mjs';
 import {resolveCapabilities,requireCapability} from '../research-v2/capabilities/config.mjs';
 import {runPoller,executionSpawnOptions} from './poller-runtime.mjs';
 import {claimLeases,transferLeases,releaseLeases} from './leases.mjs';
 // Separate, operator-supervised worker. Never launched inside an HTTP request.
 import fs from 'node:fs';import path from 'node:path';import {spawn} from 'node:child_process';import {fileURLToPath,pathToFileURL} from 'node:url';
-import {Operations,settings,atomic} from './control.mjs';import {json,alive,lockActive} from './artifacts.mjs';
+import {Operations,settings,atomic} from './control.mjs';import {json,hash,alive,lockActive} from './artifacts.mjs';
 const config=settings(),ops=new Operations(config),self=fileURLToPath(import.meta.url);
 const executionChildren=new Set();
 export async function tick(shouldStop=()=>false){
@@ -19,7 +19,7 @@ export async function tick(shouldStop=()=>false){
 async function execute(id){let executionStopping=false;const halt=()=>{executionStopping=true;};process.on('SIGTERM',halt);process.on('SIGINT',halt);if(!/^[a-f0-9-]{36}$/.test(id))throw Error('INVALID_JOB');let job;for(let i=0;i<20;i++){job=ops.db().jobs.find(j=>j.id===id);if(job?.status==='RUNNING'&&job.pid===process.pid)break;await new Promise(r=>setTimeout(r,100));}if(!job||job.status!=='RUNNING'||job.pid!==process.pid)throw Error('JOB_OWNERSHIP_DENIED');const dir=path.join(config.root,'runs',id);process.chdir(config.repo);if(executionStopping){ops.patchJob(id,{status:'STOPPED'});releaseLeases([path.join(config.root,'execution.lock'),...(job.sourceRun?[path.join(ops.run(job.sourceRun)._directory,'runner.lock')]:[])],process.pid);return;}
  recordJobPhase(config,job,'EXECUTION_STARTED');
  if(job.config.objective==='MATURE_LIFECYCLE'){
-  try{const manifest=json(path.join(dir,'manifest.json'));verifyAdmittedLeads(config.repo,job.config,manifest);const {lifecycleMain}=await import(pathToFileURL(path.join(config.repo,'docs/catalog/global-47/research-v2/run-v15-mature-v2.mjs')).href);const result=await lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--live'],{diagnosticContext:{purpose:"EXECUTION",jobId:id},expectedOutput:manifest.lifecycle.output,shouldStop:()=>executionStopping||ops.db().jobs.find(j=>j.id===id)?.stopRequested===true});ops.patchJob(id,{status:result.executionComplete&&!executionStopping&&!ops.db().jobs.find(j=>j.id===id)?.stopRequested?'COMPLETE':'STOPPED',finishedAt:new Date().toISOString()});}
+  try{const manifest=json(path.join(dir,'manifest.json'));verifyExecutionBinding(config.repo,job,manifest);const {lifecycleMain}=await import(pathToFileURL(path.join(config.repo,'docs/catalog/global-47/research-v2/run-v15-mature-v2.mjs')).href);const result=await lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--live'],{diagnosticContext:{purpose:"EXECUTION",jobId:id},expectedOutput:manifest.lifecycle.output,beforeExecution:({output})=>{const current=ops.db().jobs.find(j=>j.id===id);if(!current||hash(current.config)!==hash(job.config)||current.admissionHash!==job.admissionHash||hash(json(path.join(dir,'manifest.json')))!==hash(manifest))throw Error('EXECUTION_BINDING_CHANGED');verifyExecutionBinding(config.repo,current,manifest);if(manifest.lifecycle.output&&manifest.lifecycle.output!==output)throw Error('LIFECYCLE_CHECKPOINT_CHANGED');manifest.lifecycle.output=output;atomic(path.join(dir,'manifest.json'),manifest);recordJobPhase(config,job,'AUTHORITATIVE_VALIDATION_COMPLETED');},onValidationStart:()=>recordJobPhase(config,job,'AUTHORITATIVE_VALIDATION_STARTED'),shouldStop:()=>executionStopping||ops.db().jobs.find(j=>j.id===id)?.stopRequested===true});ops.patchJob(id,{status:result.executionComplete&&!executionStopping&&!ops.db().jobs.find(j=>j.id===id)?.stopRequested?'COMPLETE':'STOPPED',finishedAt:new Date().toISOString()});}
   catch(e){ops.patchJob(id,{status:'INTERRUPTED',error:'MATURE_EXECUTION_INTERRUPTED_CHECKPOINT_PRESERVED',finishedAt:new Date().toISOString()});console.error(e.message);}
   finally{try{recordJobPhase(config,job,'EXECUTION_'+ops.db().jobs.find(j=>j.id===id)?.status);}catch{}releaseLeases([path.join(config.root,'execution.lock')],process.pid);}return;
  }

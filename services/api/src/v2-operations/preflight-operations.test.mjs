@@ -34,22 +34,18 @@ test('production worker validates off the HTTP thread and reports failure withou
  try{const outcome=await new Promise(resolve=>launchPreflight(ops.config,input,'a',resolve));assert(outcome.error);assert(ticks>0);assert.deepEqual(ops.db().jobs,[]);}finally{clearInterval(timer);}
 });
 
-test('real isolated Preflight native subprocess can block while HTTP status stays responsive; completion persists token only',async()=>{
+test('isolated fast Preflight remains asynchronous, never invokes native CLI, and binds Start',async()=>{
  const ops=fixture();ops.config.lifecycleInput='input.json';
  const put=(name,value)=>{const file=path.join(ops.config.repo,name);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value));};
- put('input.json',{cohortManifest:'manifest.json',universe:'universe.json'});put('universe.json',{existing:[],new_include:[{slug:'example',markets:['NO']}],research:[]});put('manifest.json',{serviceIds:['example']});
- fs.symlinkSync(new URL('../../../../node_modules',import.meta.url),path.join(ops.config.repo,'node_modules'),'dir');
- const cli=path.join(ops.config.repo,'docs/catalog/global-47/research-v2/run-mature-v2.mjs');fs.mkdirSync(path.dirname(cli),{recursive:true});
- fs.writeFileSync(cli,`if(!process.argv.includes('--check')||process.argv.includes('--live'))throw Error('UNSAFE');
- globalThis.fetch=()=>{throw Error('NETWORK_FORBIDDEN')};
- Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,100);
- console.log(JSON.stringify({output:'output',networkCalls:0,onlineStarted:false,servicesSelected:1,baselineExcluded:275,maximumNewRequests:36,liveReady:true}));`);
+ put('universe.json',{existing:[],new_include:[{slug:'example',name:'Example',disposition:'NEW_INCLUDE',markets:['NO']}],research:[]});put('manifest.json',{serviceIds:['example'],expectedServices:1});put('bindings.json',{schemaVersion:1,scope:'SHADOW_RESEARCH_ONLY',bindings:[]});
+ const {hash}=await import('./artifacts.mjs');put('input.json',{version:1,cohortManifest:'manifest.json',universe:'universe.json',reviewedBindings:'bindings.json',runsRoot:'.savlivo/research-v2/fixture',frozenHashes:Object.fromEntries(['manifest.json','universe.json'].map(f=>[f,hash(fs.readFileSync(path.join(ops.config.repo,f),'utf8'))]))});
+ // No native CLI exists in this fixture: accidentally spawning it must fail.
  let ticks=0;const timer=setInterval(()=>ticks++,1);
  try{
-  const operation=await operationsRequest({method:'POST',url:new URL('https://offline.invalid/v1/admin/v2-operations/preflight'),body:input,actor:'a'},ops);
+  const operation=await operationsRequest({method:'POST',url:new URL('https://offline.invalid/v1/admin/v2-operations/preflight'),body:{...input,capabilities:{...input.capabilities,tavily:false}},actor:'a'},ops);
   assert.equal(operation.status,'RUNNING');let status;
   for(let i=0;i<500;i++){status=preflightStatus(ops,'a',operation.id);if(status.status!=='RUNNING')break;await new Promise(r=>setTimeout(r,10));}
-  assert.equal(status.status,'SUCCEEDED',JSON.stringify(status));assert(status.result.token);assert(ticks>20);
+  assert.equal(status.status,'SUCCEEDED',JSON.stringify(status));assert(status.result.token);assert(ticks>0);
   assert.deepEqual(ops.db().jobs,[]);assert.equal(ops.db().preflights.length,1);
   // Recover successful Preflight, explicitly confirm Start, then detach the request.
   const token=preflightStatus(new Operations(ops.config),'a',operation.id).result.token;
@@ -57,7 +53,7 @@ test('real isolated Preflight native subprocess can block while HTTP status stay
   assert.equal(start.status,'RUNNING');const before=ticks;
   const retry=await operationsRequest({method:'POST',url:new URL('https://offline.invalid/v1/admin/v2-operations/start'),actor:'a',body:{token,confirmed:true}},ops);assert.equal(retry.id,start.id);
   for(let i=0;i<500;i++){status=preflightStatus(ops,'a',start.id,'START');if(status.status!=='RUNNING')break;await new Promise(r=>setTimeout(r,10));}
-  assert.equal(status.status,'SUCCEEDED',JSON.stringify(status));assert(ticks-before>20);assert.equal(ops.db().jobs.length,1);
+  assert.equal(status.status,'SUCCEEDED',JSON.stringify(status));assert(ticks>=before);assert.equal(ops.db().jobs.length,1);
   const recovered=preflightStatus(new Operations(ops.config),'a',start.id,'START');assert.equal(recovered.result.id,ops.db().jobs[0].id);
  }finally{clearInterval(timer);}
 });

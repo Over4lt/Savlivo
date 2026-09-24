@@ -6,7 +6,7 @@ test('job status is authoritative, actor-owned and preparation requires live per
  const job={id,status:'QUEUED',actor:'one',config:{services:['fixture']}};ops.transaction(db=>db.jobs.push(job));
  const url=new URL('https://offline.invalid/v1/admin/v2-operations/jobs/'+id),get=actor=>operationsRequest({method:'GET',url,actor},ops);
  assert.equal((await get('one')).phase,null);await assert.rejects(get('two'),/JOB_NOT_FOUND/);await assert.rejects(get(null),/UNAUTHORIZED/);
- const logs=[];t.mock.method(console,'error',line=>logs.push(JSON.parse(line)));recordJobPhase(ops.config,job,'PREPARATION_STARTED');assert.equal((await get('one')).phase,null);fs.writeFileSync(path.join(root,'control.lock'),String(process.pid));assert.equal((await get('one')).phase,'Validating execution');fs.unlinkSync(path.join(root,'control.lock'));assert.equal((await get('one')).phase,null);
+ const logs=[];t.mock.method(console,'error',line=>logs.push(JSON.parse(line)));recordJobPhase(ops.config,job,'PREPARATION_STARTED');assert.equal((await get('one')).phase,null);fs.writeFileSync(path.join(root,'control.lock'),String(process.pid));assert.equal((await get('one')).phase,'Preparing execution');fs.unlinkSync(path.join(root,'control.lock'));assert.equal((await get('one')).phase,null);
  recordJobPhase(ops.config,job,'PREPARATION_FAILED');assert.equal((await get('one')).phase,null);
  atomic(path.join(root,'runs',id,'execution-phase.json'),{jobId:id,event:'PREPARATION_STARTED',pid:99999999});assert.equal((await get('one')).phase,null);
  for(const status of ['RUNNING','COMPLETE','FAILED','STOPPED','INTERRUPTED','SKIPPED_CONFLICT','SKIPPED_NOT_DUE']){ops.transaction(db=>db.jobs[0].status=status);const r=await get('one');assert.equal(r.status,status);assert.equal(r.terminal,status!=='RUNNING');}
@@ -29,4 +29,10 @@ test('worker preparation remains QUEUED until claim/publication; observability a
  const logs=[];t.mock.method(console,'error',line=>logs.push(JSON.parse(line)));
  const {tick}=await import('./worker.mjs');await tick();assert.equal(prepared,1);assert.equal(spawned,1);assert.equal(ops.db().jobs[0].status,'RUNNING');assert(ops.db().jobs[0].startedAt);
  assert.deepEqual(logs.filter(e=>e.event==='V2_JOB_EXECUTION').map(e=>e.eventType),['PREPARATION_STARTED','PREPARATION_COMPLETED','CHILD_SPAWNED','RUNNING_PUBLISHED']);
+});
+
+test('execution integrity phase is authoritative and transitions without pretending research started',()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'job-integrity-')),ops=new Operations({root,repo:root,read:true});const job={id,status:'RUNNING',pid:process.pid,actor:'one',config:{}};ops.transaction(db=>db.jobs.push(job));
+ const get=()=>operationsRequest({method:'GET',url:new URL('https://offline.invalid/v1/admin/v2-operations/jobs/'+id),actor:'one'},ops);
+ return (async()=>{recordJobPhase(ops.config,job,'AUTHORITATIVE_VALIDATION_STARTED');assert.equal((await get()).phase,'Validating execution integrity');recordJobPhase(ops.config,job,'AUTHORITATIVE_VALIDATION_COMPLETED');assert.equal((await get()).phase,'Lifecycle execution');})().finally(()=>fs.rmSync(root,{recursive:true,force:true}));
 });

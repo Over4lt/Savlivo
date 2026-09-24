@@ -323,3 +323,9 @@ test('local workflow persists from immediate Preflight through admission, pollin
  assert.deepEqual(descendants(root),nodes);assert.deepEqual(nodes.map(n=>n.replacements??0),replacements);assert.equal(document.activeElement,input);assert.equal(input.value,'unfinished draft');assert.equal(root.scrollTop,550);assert(open.open);assert.equal(checkbox(root,'Direct'),control);assert.equal(button(root,'Preflight'),preflight);
  assert(text(workflow).includes('Execution complete'));assert(text(workflow).includes('Research remains incomplete'));assert(text(workflow).includes('DE: UNRESOLVED'));assert(text(workflow).includes('Human Review required: 1'));assert(text(workflow).includes('Admitted Preflight snapshot'));assert(button(card,'View results'));assert.equal(calls.filter(p=>p.endsWith('/start')).length,1);
 });
+
+test('queued preparation and running integrity validation require authoritative phases',()=>{
+ assert.equal(liveStatusView({id:'job',status:'QUEUED',phase:'Preparing execution'}).activity,'Preparing execution');
+ assert.equal(liveStatusView({id:'job',status:'QUEUED'}).activity,'Queued — waiting to start execution');
+ assert.equal(liveStatusView({id:'job',status:'RUNNING',phase:'Validating execution integrity'}).activity,'Validating execution integrity');
+});

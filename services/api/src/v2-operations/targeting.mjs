@@ -48,7 +48,7 @@ export function loadTargeting(settings){
  if(!file)error('TARGETING_REQUIRES_MATURE_LIFECYCLE');
  const config=read(safe(root,file));
  // Authenticate the root and every input consumed by this projection. The native
- // Preflight still validates the entire protected closure; browsing never scans it.
+ // Execution validates the entire protected closure; browsing never scans it.
  // No snapshot creation/replay, transport, capability initialization or historical fallback.
  let genesis=null;
  if(config.productionGenesis){

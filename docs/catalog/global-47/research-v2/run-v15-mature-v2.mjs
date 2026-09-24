@@ -43,6 +43,7 @@ export async function lifecycleMain(args,control={}){
  const at=args.indexOf('--input'),file=at>=0?args[at+1]:null,rest=args.filter((a,i)=>i!==at&&i!==at+1&&a!=='--lifecycle');
  if(!file||rest.length!==1||!['--check','--live'].includes(rest[0])||args.length!==4)throw Error('Usage: --lifecycle --input <frozen-input.json> --check|--live');
  const context=diagnosticContext(control.diagnosticContext);
+ control.onValidationStart?.();
  const stage=(name,fn)=>{const started=performance.now();console.error(JSON.stringify({...context,event:'V2_NATIVE_CHECK_STAGE',stage:name,status:'STARTED'}));try{return fn();}finally{releaseValidationTemporaries();console.error(JSON.stringify({...context,event:'V2_NATIVE_CHECK_STAGE',stage:name,status:'FINISHED',durationMs:Math.round(performance.now()-started),rssBytes:process.memoryUsage().rss,heapUsedBytes:process.memoryUsage().heapUsed,maxRssKiB:process.resourceUsage().maxRSS}));}};
  stage('deployment-inputs',()=>ensureGenesisRepositoryInputs(process.cwd(),file,{repair:false,allowExecutionSelection:true}));
  const h=stage('handoff',()=>inspectLifecycleInput(file));h.config.capabilities=resolveCapabilities(h.config.capabilities);const capabilityCheck=stage('capabilities',()=>capabilityPreflight(h.config.capabilities));const markets=structuredClone(h.config.researchScopes?json(h.config.researchScopes).researchMarkets:{});
@@ -59,6 +60,7 @@ export async function lifecycleMain(args,control={}){
  console.log(JSON.stringify(preflight,null,2));if(rest[0]==='--check')return preflight;
  if(!capabilityCheck.ready)throw Error('LIFECYCLE_CAPABILITY_UNAVAILABLE');
  requireSpace(path.join(process.cwd(),'.savlivo'));
+ control.beforeExecution?.({output:location.directory});
  const key=h.config.capabilities.tavily?process.env.TAVILY_API_KEY?.trim():null;
  let stop=false;const halt=()=>{stop=true;console.log('Stopping after current mature action; use the same command to resume.');};process.on('SIGINT',halt);process.on('SIGTERM',halt);
  try{return await executeHandoff({handoff:h,researchMarkets:markets,directory:location.directory,mode:'live',key,shouldStop:()=>stop||control.shouldStop?.()===true||checkpointReserveLow(path.join(process.cwd(),'.savlivo')),lifecycle});}finally{process.off('SIGINT',halt);process.off('SIGTERM',halt);}

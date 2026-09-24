@@ -16,8 +16,8 @@ export function jobStatus(ops,id,actor){
  const dir=path.join(ops.config.root,'runs',id),phase=json(path.join(dir,'execution-phase.json')),manifest=json(path.join(dir,'manifest.json'));
  let preparation=null;
  if(phase?.jobId===id&&alive(phase.pid)){
-  if(job.status==='QUEUED'&&phase.event==='PREPARATION_STARTED'&&json(path.join(ops.config.root,'control.lock'))===phase.pid)preparation='Validating execution';
-  if(job.status==='RUNNING'&&phase.pid===job.pid&&phase.event==='EXECUTION_STARTED')preparation='Lifecycle execution';
+  if(job.status==='QUEUED'&&phase.event==='PREPARATION_STARTED'&&json(path.join(ops.config.root,'control.lock'))===phase.pid)preparation='Preparing execution';
+  if(job.status==='RUNNING'&&phase.pid===job.pid)preparation=phase.event==='AUTHORITATIVE_VALIDATION_STARTED'?'Validating execution integrity':phase.event==='AUTHORITATIVE_VALIDATION_COMPLETED'?'Lifecycle execution':phase.event==='EXECUTION_STARTED'?'Preparing execution':null;
  }
  return {id:job.id,status:job.status,terminal:jobTerminalStatuses.includes(job.status),phase:preparation,services:job.config?.services??[],createdAt:job.createdAt,startedAt:job.startedAt??null,updatedAt:job.updatedAt,finishedAt:job.finishedAt??null,maximumRequests:manifest?.limits?.totalRequests??manifest?.safety?.totalRequests??null};
 }
