@@ -89,8 +89,8 @@ Unset gates default to `false`; invalid gate strings fail startup. Explicit `tru
 Configure existing secrets before live authorization, never in Git or static Admin files:
 
 - `TAVILY_API_KEY`
-- `SAVLIVO_DECODO_USERNAME`
-- `SAVLIVO_DECODO_PASSWORD`
+- `DECODO_USERNAME`
+- `DECODO_PASSWORD`
 
 Keep the existing mature Decodo runtime authorization/routing/cost settings, via its existing config file and supported `SAVLIVO_DECODO_*` / `SAVLIVO_GEO_VERIFIER_APPROVED` overrides. No proxy-policy expansion was made. A Mac Keychain is not a production credential source.
 

@@ -45,7 +45,7 @@ Required operational environment:
 - `V2_OPERATIONS_LIFECYCLE_INPUT`: `docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/lifecycle-input.json` for current V15.
 - Existing `ANALYTICS_V2_OPERATIONS_ENABLED`, `ANALYTICS_V2_RUN_CONTROL_ENABLED`, `ANALYTICS_V2_SCHEDULING_ENABLED` gates; default off.
 - Existing `V2_OPERATIONS_TIMEZONE` (default Europe/Oslo).
-- `TAVILY_API_KEY`, `SAVLIVO_DECODO_USERNAME`, `SAVLIVO_DECODO_PASSWORD` through server secret configuration. Do not rely on a developer Mac Keychain.
+- `TAVILY_API_KEY`, `DECODO_USERNAME`, `DECODO_PASSWORD` through server secret configuration. Do not rely on a developer Mac Keychain.
 - Existing Decodo authorization/routing/budget configuration from `services/api/src/research-v1/decodo-runtime-config.json` and its supported environment overrides. The integration does not broaden proxy permission; robots alone never authorizes escalation.
 
 Before enabling controls, run from repository root:

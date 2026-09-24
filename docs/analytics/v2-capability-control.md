@@ -10,7 +10,7 @@ CLI lifecycle inputs accept the same object. Existing inputs without it resolve 
 
 Permissions do not authorize authority, policy escalation or extra network budget. Disabled routes are blocked both in planning and at the dispatch boundary. The Decodo access-gap classifier is unchanged. A rendering gap or robots denial cannot authorize proxy use. Tavily-only runs may discover leads but cannot read them through disabled Direct. Decodo-only runs cannot manufacture a fresh permitted-access proof.
 
-Preflight reports conditional availability without provider requests. Tavily requires `TAVILY_API_KEY`; Decodo requires `SAVLIVO_DECODO_USERNAME` and `SAVLIVO_DECODO_PASSWORD` and its existing runtime approval/configuration checks. Groq requires `GROQ_API_KEY` and `SAVLIVO_PRICE_SEMANTIC_MODEL`. Disabled capabilities require none of their credentials. Browser requires a local Docker daemon, the existing pinned image and Chromium sandbox; preflight checks daemon/image presence without launching Chromium. Native sandbox qualification occurs at actual use and fails closed. Render availability is not established by this implementation.
+Preflight reports conditional availability without provider requests. Tavily requires `TAVILY_API_KEY`; Decodo requires `DECODO_USERNAME` and `DECODO_PASSWORD` and its existing runtime approval/configuration checks. Groq requires `GROQ_API_KEY` and `SAVLIVO_PRICE_SEMANTIC_MODEL`. Disabled capabilities require none of their credentials. Browser requires a local Docker daemon, the existing pinned image and Chromium sandbox; preflight checks daemon/image presence without launching Chromium. Native sandbox qualification occurs at actual use and fails closed. Render availability is not established by this implementation.
 
 Browser reuses the bounded historical CDP/Docker machinery, isolated with no external networking. The reusable modules were adapted into the current capability directory; no historical autonomous controller is imported. It requires intact reviewed source material, a rendering gap and exhausted static resource discovery. Resource reads require exact reviewed host authority and the existing robots reader. Retained resources can execute with Direct disabled; missing resources cannot implicitly enable a transport. No consent actions, authentication, arbitrary browsing, OCR or rendered-DOM evidence. Screenshots are diagnostic only, capped at 16 million pixels and 6 MB decoded PNG bytes.
 
@@ -50,3 +50,20 @@ Production Browser requires the existing local Docker binary/socket, pinned imag
 and sandbox support. Installing a new server runtime is outside this change.
 Production Groq requires `GROQ_API_KEY` and `SAVLIVO_PRICE_SEMANTIC_MODEL` chosen by
 the operator. Repository checks do not prove current Render environment state.
+
+## Decodo credential compatibility
+
+`DECODO_USERNAME` / `DECODO_PASSWORD` are the canonical production pair.
+`SAVLIVO_DECODO_USERNAME` / `SAVLIVO_DECODO_PASSWORD` remain legacy aliases.
+If either canonical key exists, only that pair is considered. Partial, empty or
+invalid canonical credentials never fall back to legacy or Keychain values.
+Pairs are never combined. The runtime loader, adapter, authorization and
+capability readiness use the shared `decodo-credentials.mjs` resolver.
+
+Existing macOS Keychain accounts retain their legacy names and are consulted
+only when neither environment namespace is present. Both compatibility
+properties on loaded runtime configuration are non-enumerable and refer to
+the selected pair. Existing legacy-only operator scripts can retain their
+legacy invocation; they are not the production mature-V2 entry point.
+Readiness checks local credential validity, not successful authentication or
+all transport/cost prerequisites; Decodo remains conditional at use.

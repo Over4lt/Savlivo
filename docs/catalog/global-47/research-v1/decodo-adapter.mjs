@@ -1,3 +1,4 @@
+import {resolveDecodoCredentials} from '../../../../services/api/src/research-v1/decodo-credentials.mjs';
 import {validateRuntimeSessionBudget} from '../../../../services/api/src/research-v1/runtime-session-budget.mjs';
 // Provider-specific configuration and transport only. No network/environment reads on import.
 import assert from 'node:assert/strict';
@@ -33,9 +34,7 @@ export function resolveDecodoRoute(input,allowedPorts,capabilities=decodoCapabil
 }
 export function createDecodoProvider({env=process.env,requestHop=createPinnedConnectRequest(),resolveHost=h=>lookup(h,{all:true,verbatim:true}),now=()=>Date.now()}={}){
   // No ambient credentials in the descriptor, artifacts or exceptions.
-  const username=env.SAVLIVO_DECODO_USERNAME??'',password=env.SAVLIVO_DECODO_PASSWORD??'';
-  const hasCredentials=typeof username==='string'&&typeof password==='string'&&username.trim().length>0&&password.trim().length>0
-    &&username.length<=1024&&password.length<=4096&&!/[\r\n:]/.test(username)&&!/[\r\n]/.test(password);
+  const {username,password,configured:hasCredentials}=resolveDecodoCredentials(env);
   const routingMode=env.SAVLIVO_DECODO_ROUTING_MODE??'COUNTRY_ENDPOINT';
   const common=routingMode==='COMMON_GATEWAY';
   // Common mode accepts the base credential only, never preconfigured routing parameters.

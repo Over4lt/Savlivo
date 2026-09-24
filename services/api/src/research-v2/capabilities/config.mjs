@@ -1,3 +1,4 @@
+import {resolveDecodoCredentials} from '../../research-v1/decodo-credentials.mjs';
 // One explicit permission contract. Availability and eligibility are separate.
 import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
@@ -23,7 +24,7 @@ export function browserAvailability(){
 export function capabilityAvailability(env=process.env,{browser=false,probeBrowser=browserAvailability}={}){
  const keyConfigured=!!env.GROQ_API_KEY?.trim(),modelConfigured=/^[\w./:-]{1,160}$/.test(env.SAVLIVO_PRICE_SEMANTIC_MODEL??'');
  const groqReason=keyConfigured?(modelConfigured?'CONFIGURED':env.SAVLIVO_PRICE_SEMANTIC_MODEL?'GROQ_MODEL_INVALID':'GROQ_MODEL_REQUIRED'):(modelConfigured?'GROQ_KEY_REQUIRED':'GROQ_KEY_AND_MODEL_REQUIRED');
- const decodoConfigured=!!env.SAVLIVO_DECODO_USERNAME?.trim()&&!!env.SAVLIVO_DECODO_PASSWORD?.trim();
+ const decodoConfigured=resolveDecodoCredentials(env).configured;
  const values={direct:{available:true,reason:'CONFIGURED'},tavily:{available:!!env.TAVILY_API_KEY?.trim(),reason:env.TAVILY_API_KEY?.trim()?'CONFIGURED':'TAVILY_API_KEY_REQUIRED'},decodo:{available:decodoConfigured,reason:decodoConfigured?'DECODO_CONFIGURATION_VALIDATED_AT_USE':'DECODO_CREDENTIALS_REQUIRED'},browser:browser?probeBrowser():{available:false,reason:'NOT_PROBED_NO_BROWSER_INITIALIZATION'},groq:{available:keyConfigured&&modelConfigured,keyConfigured,modelConfigured,reason:groqReason}};
  // Additive readiness metadata; permission snapshots and execution policy are unchanged.
  // Availability is a local prerequisite check, not a remote credential or sandbox test.
