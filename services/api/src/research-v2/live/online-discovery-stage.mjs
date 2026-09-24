@@ -34,7 +34,30 @@ export function retainedParents(dir,target){
  return [...iterateMarketRunRecords(dir+'/journal')].filter(r=>r.type==='RESPONSE_CAPTURED'&&r.payload.target?.taskId===target.id&&r.payload.status===200&&/text\/html|application\/json/.test(r.payload.contentType??'')).map(r=>{const p=r.payload,body=fs.readFileSync(dir+'/'+p.bodyFile,'utf8');if(sha(body)!==p.bodyHash)throw Error('DISCOVERY_PARENT_HASH_FAILURE');return {url:p.url,body,bodyHash:p.bodyHash,record:{path:dir+'/journal/record-'+String(r.sequence).padStart(8,'0')+'.json',sequence:r.sequence},depth:0};});
 }
 export function claimsFor(candidates,target){return candidates.filter(c=>c.service===target.service&&c.market===target.market).map(c=>({plan:!!((c.product??c.plan)&&!c.ownershipAmbiguous),amount:!!c.amountNormalized,currency:!!c.currency&&!c.currencyAmbiguous,cadence:c.commercial?.type==='RECURRING_MONTHLY',priceRole:c.commercial?.ordinaryMonthly===true&&c.commercial?.strongRecurringMonthly===true,ownership:!!c.productOwnerEvidence?.raw&&!c.ownershipAmbiguous&&!c.crossCardRisk,market:c.attribution?.marketApplicabilityEstablished===true}));}
-export function providerStop(records,target){const attempts=records.filter(r=>r.type==='V2_ACQUISITION_RESULT'&&r.payload.target?.id===target.id).flatMap(r=>r.payload.result.attempts??[]);const text=JSON.stringify(attempts);if(records.some(r=>r.type==='RESPONSE_CAPTURED'&&r.payload.target?.taskId===target.id&&[401,403].includes(r.payload.status)))return 'PROVIDER_RESTRICTED';return /EXPLICIT_PROVIDER_PROHIBITION|PROVIDER_HTTP_403|HTTP_FORBIDDEN|PROVIDER_BLOCKED|CAPTCHA|CHALLENGE|AUTH_REQUIRED/.test(text)?'PROVIDER_RESTRICTED':/DISALLOWED|ROBOTS_DISALLOW|PACING|ROBOTS_INVALID/.test(text)?'POLICY_BLOCKED':null;}
+// Only acquisition-owned decision fields can establish an access restriction.
+// Source text, URLs, diagnostics, and failure messages are not policy decisions.
+const providerRestrictionCodes=new Set(['EXPLICIT_PROVIDER_PROHIBITION','PROVIDER_HTTP_403','HTTP_FORBIDDEN','PROVIDER_BLOCKED','CAPTCHA','CHALLENGE','AUTH_REQUIRED']);
+const policyRestrictionCodes=new Set(['DISALLOWED','ROBOTS_DISALLOW','ROBOTS_INVALID','PACING','UNSUPPORTED_PACING_DIRECTIVE','PACING_WITHOUT_GROUP','ROBOTS_ACCESS_STOP','ACCESS_POLICY_STOP','ACCESS_CONTROL_STOP']);
+export function providerStop(records,target){
+ if(records.some(r=>r.type==='RESPONSE_CAPTURED'&&r.payload.target?.taskId===target.id&&[401,403].includes(r.payload.status)))return 'PROVIDER_RESTRICTED';
+ const codes=[];
+ const decision=d=>{if(d&&typeof d==='object')codes.push(d.decision,d.reason);};
+ const status=s=>{
+  if(!s||typeof s!=='object')return;
+  codes.push(s.outcome,s.reason,typeof s.failure==='string'?s.failure:s.failure?.code);
+  decision(s.accessPolicy);
+  for(const d of s.accessDecisions??[])decision(d);
+ };
+ for(const r of records){if(r.type!=='V2_ACQUISITION_RESULT'||r.payload.target?.id!==target.id)continue;
+  status(r.payload.result);
+  for(const a of r.payload.result.attempts??[]){
+   status(a);status(a.page);
+   for(const read of a.reads??[])status(read);
+   for(const d of a.transportVerification?.accessAdmission?.decisions??[])decision(d);
+  }
+ }
+ return codes.some(c=>providerRestrictionCodes.has(c))?'PROVIDER_RESTRICTED':codes.some(c=>policyRestrictionCodes.has(c))?'POLICY_BLOCKED':null;
+}
 export function discoveryAdapterFactory(url){return options=>{
  const ordinary=createV2RobotsPublicAdapter({...options,network:{...options.network,pricingResources:false}});
  // Associated resource readers have no provider authority; this bounded discovery stage
