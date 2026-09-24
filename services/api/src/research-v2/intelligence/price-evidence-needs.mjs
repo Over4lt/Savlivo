@@ -39,7 +39,7 @@ function legacyBuild(targetId,sources){
 // preserving replacement-by-source semantics without a second claim collection.
 function expand(p){return p.sources.map(s=>{const ids=new Set(s.references.map(r=>r.evidenceId));return {...s,claims:p.claims.map(c=>({...c,established:c.established.map(a=>({...a,evidence:a.evidence.filter(id=>ids.has(id))})).filter(a=>a.evidence.length),missing:c.missing.map(a=>({...a,evidence:a.evidence.filter(id=>ids.has(id))})).filter(a=>a.evidence.length)})).filter(c=>c.established.length||c.missing.length)};});}
 const compactReference=r=>Object.fromEntries(Object.entries(r).filter(([k])=>k!=='sourceUrl').map(([k,v])=>[k,typeof v==='string'&&v.length>256?{digest:digest(v),meaning:'LOCATOR_DIGEST_NOT_EVIDENCE'}:v]));
-function build(targetId,input,inherited=[],originDerivations=[priceNeedsDerivation]){
+function build(targetId,input,inherited=[],originDerivations=[priceNeedsDerivation],keepOmissions=false){
  const sources=[],claims=new Map(),omitted=[];
  const omit=(s,reason)=>{const rows=s.claims??[];omitted.push({key:digest(s),reason,sources:1,claims:rows.length,needs:rows.reduce((n,c)=>n+c.missing.length,0),dispositions:sorted(rows.flatMap(c=>c.missing.map(m=>m.disposition)))});};
  const value=()=>({version:priceNeedsVersion,derivationVersion:priceNeedsDerivation,originDerivations:sorted(originDerivations),targetId,sources,claims:[...claims.values()].sort((a,b)=>a.claimKey.localeCompare(b.claimKey)),meaning:'ROUTING_ONLY_NOT_VERIFICATION_OR_SCOPE_ADMISSION'});
@@ -54,13 +54,16 @@ function build(targetId,input,inherited=[],originDerivations=[priceNeedsDerivati
   if(Buffer.byteLength(stable(candidate))>priceNeedsBounds.bytes-32768){omit(s,'BYTE_BOUND');continue;}
   sources.push({url:s.url,references:s.references});claims.clear();for(const [key,c]of next)claims.set(key,c);
  }
- const summaries=unique([...inherited,...omitted]);
+ const summaries=unique(keepOmissions?[...inherited,...omitted].map(x=>({...x,reasons:sorted(x.reasons??[x.reason]),observations:x.observations??0})):[...inherited,...omitted]);
  // Inherited incompleteness is never upgraded to completeness by a later merge.
- const coverage=summaries.length===1&&!omitted.length?{complete:false,reason:summaries[0].reason,omittedSources:summaries[0].sources,omittedClaims:summaries[0].claims,omittedNeeds:summaries[0].needs,omittedObservations:summaries[0].observations??0,dispositions:summaries[0].dispositions,omittedDigest:summaries[0].key}:{complete:!summaries.length,reason:summaries.length?'BOUNDED_PLANNING_PROJECTION':null,omittedSources:summaries.reduce((n,x)=>n+x.sources,0),omittedClaims:summaries.reduce((n,x)=>n+x.claims,0),omittedNeeds:summaries.reduce((n,x)=>n+x.needs,0),omittedObservations:summaries.reduce((n,x)=>n+(x.observations??0),0),dispositions:sorted(summaries.flatMap(x=>x.dispositions)),omittedDigest:summaries.length?digest(summaries):null};
+ const coverage=summaries.length===1&&(keepOmissions||!omitted.length)?{complete:false,reason:summaries[0].reason,omittedSources:summaries[0].sources,omittedClaims:summaries[0].claims,omittedNeeds:summaries[0].needs,omittedObservations:summaries[0].observations??0,dispositions:summaries[0].dispositions,omittedDigest:summaries[0].key}:{complete:!summaries.length,reason:summaries.length?'BOUNDED_PLANNING_PROJECTION':null,omittedSources:summaries.reduce((n,x)=>n+x.sources,0),omittedClaims:summaries.reduce((n,x)=>n+x.claims,0),omittedNeeds:summaries.reduce((n,x)=>n+x.needs,0),omittedObservations:summaries.reduce((n,x)=>n+(x.observations??0),0),dispositions:sorted(summaries.flatMap(x=>x.dispositions)),omittedDigest:summaries.length?digest(summaries):null};
  coverage.reasons=sorted(summaries.flatMap(x=>x.reasons??[x.reason]));
+ // Preserve canonical omission components across incremental merges: re-merging
+ // an incomplete source must not repeatedly count/hash the same omitted set.
+ if(keepOmissions&&summaries.length)coverage.omissions=summaries;
  const result={...value(),coverage},sealed={...result,evidenceDigest:digest(result)};if(Buffer.byteLength(stable(sealed))>priceNeedsBounds.bytes)throw Error('PRICE_NEEDS_SIZE_BOUND');return sealed;
 }
-function inherited(p){return p?.coverage?.complete===false?[{key:p.coverage.omittedDigest,reason:p.coverage.reason,reasons:p.coverage.reasons,sources:p.coverage.omittedSources,claims:p.coverage.omittedClaims,needs:p.coverage.omittedNeeds,observations:p.coverage.omittedObservations??0,dispositions:p.coverage.dispositions}]:[];}
+function inherited(p){return p?.coverage?.complete===false?(p.coverage.omissions??[{key:p.coverage.omittedDigest,reason:p.coverage.reason,reasons:p.coverage.reasons,sources:p.coverage.omittedSources,claims:p.coverage.omittedClaims,needs:p.coverage.omittedNeeds,observations:p.coverage.omittedObservations??0,dispositions:p.coverage.dispositions}]):[];}
 export function projectPriceEvidenceNeeds(target,observations){
  if(!admittedPriceTarget(target))return null;
  if(!Array.isArray(observations))throw Error('PRICE_NEEDS_OBSERVATION_BOUND');
@@ -113,20 +116,18 @@ export function readPriceEvidenceNeeds(target){
  }
  if(p.version!==priceNeedsVersion||p.derivationVersion!==priceNeedsDerivation||!Array.isArray(p.claims)||!p.coverage||!Array.isArray(p.originDerivations)||p.originDerivations.some(v=>!['PRICE_EVIDENCE_NEEDS_V1',priceNeedsDerivation].includes(v)))throw Error('PRICE_NEEDS_SCHEMA_OR_SCOPE');
  const {evidenceDigest,...payload}=p;if(digest(payload)!==evidenceDigest)throw Error('PRICE_NEEDS_DIGEST');
- const expected=build(target.id,expand(p),inherited(p),p.originDerivations);if(stable(expected)!==stable(p))throw Error('PRICE_NEEDS_DIGEST');
+ const expected=build(target.id,expand(p),inherited(p),p.originDerivations,Array.isArray(p.coverage.omissions));if(stable(expected)!==stable(p))throw Error('PRICE_NEEDS_DIGEST');
  return p;
 }
 export function mergePriceEvidenceNeeds(target,incoming){
  if(!admittedPriceTarget(target)||incoming==null)return;
  const next=readPriceEvidenceNeeds({...target,priceEvidenceNeeds:incoming}),prior=readPriceEvidenceNeeds(target);
- // An incomplete projection is a stable unresolved planning stop, not a cache
- // that can be incrementally declared complete without full re-projection.
- if(prior?.coverage.complete===false)return;
- const replace=new Set(next.sources.map(s=>s.url));target.priceEvidenceNeeds=build(target.id,[...expand(prior??{sources:[],claims:[]}).filter(s=>!replace.has(s.url)),...expand(next)],[...inherited(prior),...inherited(next)],sorted([...(prior?.originDerivations??[]),...next.originDerivations]));
+ // Omission metadata stays unresolved, but represented evidence remains mutable.
+ const replace=new Set(next.sources.map(s=>s.url));target.priceEvidenceNeeds=build(target.id,[...expand(prior??{sources:[],claims:[]}).filter(s=>!replace.has(s.url)),...expand(next)],[...inherited(prior),...inherited(next)],sorted([...(prior?.originDerivations??[]),...next.originDerivations]),true);
 }
 
-export function researchablePriceNeeds(target){const p=readPriceEvidenceNeeds(target);if(p?.coverage?.complete===false)return [];return p?.claims.flatMap(c=>c.missing.filter(m=>m.disposition==='RESEARCHABLE').map(m=>({...m,identity:c.identity})))??[];}
-export function priceNeedsStop(target){const p=readPriceEvidenceNeeds(target);if(p?.coverage?.complete===false)return 'PRICE_EVIDENCE_PROJECTION_INCOMPLETE';if(!p?.claims.length||researchablePriceNeeds(target).length)return null;const dispositions=new Set(p.claims.flatMap(c=>c.missing.map(m=>m.disposition)));return dispositions.has('POLICY')?'PRICE_EVIDENCE_POLICY_REVIEW_REQUIRED':dispositions.has('HUMAN_REVIEW')?'PRICE_EVIDENCE_HUMAN_REVIEW_REQUIRED':dispositions.has('CONFLICT')?'PRICE_EVIDENCE_CONFLICT_REVIEW_REQUIRED':dispositions.has('INTERPRETATION')?'RETAINED_STRUCTURE_REQUIRES_REVIEW':null;}
+export function researchablePriceNeeds(target){const p=readPriceEvidenceNeeds(target);return p?.claims.flatMap(c=>c.missing.filter(m=>m.disposition==='RESEARCHABLE').map(m=>({...m,identity:c.identity})))??[];}
+export function priceNeedsStop(target){const p=readPriceEvidenceNeeds(target);if(!p?.claims.length||researchablePriceNeeds(target).length)return null;const dispositions=new Set(p.claims.flatMap(c=>c.missing.map(m=>m.disposition)));return dispositions.has('POLICY')?'PRICE_EVIDENCE_POLICY_REVIEW_REQUIRED':dispositions.has('HUMAN_REVIEW')?'PRICE_EVIDENCE_HUMAN_REVIEW_REQUIRED':dispositions.has('CONFLICT')?'PRICE_EVIDENCE_CONFLICT_REVIEW_REQUIRED':dispositions.has('INTERPRETATION')?'RETAINED_STRUCTURE_REQUIRES_REVIEW':null;}
 export function priceNeedIntent(target){const needs=researchablePriceNeeds(target),order=['offerPresentation','offerOwnership','market','billingInterval','recurringSemantics','ordinaryPriceRole','plan','amount','currency'];return order.find(k=>needs.some(n=>n.assertion===k))??null;}
 export function priceNeedQuery(target,attempt){const intent=priceNeedIntent(target);if(!intent)return null;const wording={offerPresentation:['membership plan purchase options','subscription plan selection purchase terms'],offerOwnership:['official membership plan details','subscription product purchase terms'],market:['subscription pricing country availability','localized subscription billing terms'],billingInterval:['subscription billing interval renewal terms','plan recurring billing terms'],recurringSemantics:['subscription renewal terms','recurring plan billing terms'],ordinaryPriceRole:['subscription trial renewal charge','regular subscription billing terms'],plan:['subscription plan details','membership product details'],amount:['subscription charge','plan price'],currency:['subscription billing currency','localized plan currency']}[intent];return [target.serviceName??target.service,target.market,wording[Math.min(attempt,1)],target.authorities?.[0]?.hostname?'site:'+target.authorities[0].hostname:null].filter(Boolean).join(' ');}
 export function priceNeedRelevance(target,url,label=''){

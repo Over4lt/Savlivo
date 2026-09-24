@@ -44,13 +44,21 @@ and needs are contributions, not necessarily distinct semantic identities.
 Above the observation bound, no detailed projection is attempted: the whole set is
 explicitly unresolved with its count and canonical set digest.
 
-Incomplete needs produce PRICE_EVIDENCE_PROJECTION_INCOMPLETE, a stable unresolved
-planning stop (not success or budget exhaustion). No gap-directed action is inferred
-from omitted data. Existing sufficient retained evidence still stops under the
-unchanged sufficiency policy. An incomplete accumulated projection remains sticky
-through incremental merges; only an explicit full re-projection can replace it.
-This prevents dropped contributions silently becoming resolved and unchanged-state
-replanning loops. Verified collections and request histories are not modified.
+Incomplete coverage does not stop research or hide represented researchable needs.
+Represented needs still guide routing through existing actionability, capability,
+history and budget gates. Omitted data grants no new action or evidence authority;
+when it leaves no represented need, ordinary bounded target planning still applies.
+Existing sufficient retained evidence still stops under the unchanged policy.
+
+Incremental merges replace represented source contributions normally while keeping
+omission metadata unresolved. Canonical `coverage.omissions` components retain the
+summary identities across merges, avoiding repeated counts/digest churn when an
+incomplete source is merged again. They contain counts/reasons/digests, not evidence.
+The final serialized projection, including this metadata, remains subject to the
+2 MiB ceiling. Older V2 projections without components remain readable; their
+omitted-set summary is preserved as an opaque component. Only explicit complete
+reprojection can clear incompleteness. Verified collections and request histories
+are not modified.
 
 ## Legacy
 
