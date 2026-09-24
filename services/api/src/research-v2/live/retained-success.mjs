@@ -1,3 +1,4 @@
+import {retainedPricingSummary} from '../intelligence/recurring-price-eligibility.mjs';
 // Reuse hash-bound, previously interpreted provider artifacts. This does not admit prices.
 import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';
 import {usableResearchMemory} from './research-memory.mjs';import {normalizeFrontierUrl} from './source-frontier.mjs';
@@ -13,8 +14,8 @@ export function retainedSuccesses(t){
  }
  }catch{intact=false;}
  const authorized=t.authorities?.some(x=>x.hostname===new URL(url).hostname&&x.provider===t.serviceName&&x.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(x.sourceType)),invalidation=(t.invalidatedEvidence??[]).includes(a.bodyHash),now=Date.parse(t.researchAsOf??''),at=Date.parse(capturedAt??''),stale=Number.isFinite(now)&&Number.isFinite(at)&&now-at>(t.retainedMaxAgeDays??30)*86400000;
- const relevant=observations.filter(o=>o.service===t.service&&o.source?.kind==='ORIGINAL_PROVIDER'&&o.source.hash===a.bodyHash),sufficient=!stale&&relevant.find(o=>['HIGH','MEDIUM'].includes(o.confidence)&&o.fields?.provenance?.status==='ESTABLISHED'&&(o.market===t.market||t.researchObjective==='SERVICE_COVERAGE'));
- return {key,url,bodyHash:a.bodyHash,reference:a.reference,intact:intact&&authorized&&!invalidation,capturedAt,stale,invalidated:!authorized||invalidation,observations:relevant.length,unresolvedFields:[...new Set(relevant.flatMap(o=>o.blockers??[]))],fieldsResolved:[...new Set(relevant.flatMap(o=>Object.entries(o.fields??{}).filter(([,v])=>v.status==='ESTABLISHED').map(([k])=>k)))],sufficient:sufficient?{sourceBound:true,confidence:sufficient.confidence,market:sufficient.market,objective:t.researchObjective,sourceHash:a.bodyHash,artifact:a.reference.path}:null,reviewed:(t.retainedReviews??[]).some(r=>r.key===key)};
+ const relevant=observations.filter(o=>o.service===t.service&&o.source?.kind==='ORIGINAL_PROVIDER'&&o.source.hash===a.bodyHash),sufficient=intact&&authorized&&!invalidation&&!stale?retainedPricingSummary(t,relevant.filter(o=>o.fields?.provenance?.status==='ESTABLISHED'),{artifact:a.reference.path,capturedAt}):null;
+ return {key,url,bodyHash:a.bodyHash,reference:a.reference,intact:intact&&authorized&&!invalidation,capturedAt,stale,invalidated:!authorized||invalidation,observations:relevant.length,unresolvedFields:[...new Set(relevant.flatMap(o=>o.blockers??[]))],fieldsResolved:[...new Set(relevant.flatMap(o=>Object.entries(o.fields??{}).filter(([,v])=>v.status==='ESTABLISHED').map(([k])=>k)))],sufficient,reviewed:(t.retainedReviews??[]).some(r=>r.key===key)};
  });
 }
 export function consumeRetainedSuccess(t,key){const r=retainedSuccesses(t).find(r=>r.key===key);if(!r?.intact)throw Error('RETAINED_SOURCE_RECONCILIATION_REQUIRED');return {key:r.key,url:r.url,sourceHash:r.bodyHash,reference:r.reference,retainedPriceReview:r.sufficient,fieldsResolved:r.fieldsResolved,blockers:r.unresolvedFields,stale:r.stale,networkRequests:0,meaning:'REUSE_EXISTING_PROVIDER_INTERPRETATION_NOT_NEW_ADMISSION'};}

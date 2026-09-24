@@ -1,4 +1,5 @@
-// One provider-grounded offer model, two exposure thresholds. Never changes HIGH.
+import {positiveProviderAmount} from './recurring-price-eligibility.mjs';
+// One provider-grounded offer model, two exposure thresholds after domain eligibility.
 import {createHash} from 'node:crypto';
 import {deriveEvidence} from '../verification/gate.mjs';
 import {prepareCommercialSource} from '../offline-recovery/commercial.mjs';
@@ -20,6 +21,7 @@ export function segmentCommercialConcepts(text,{path,sourceHash}){return Object.
 const tolerated=new Set(['PRODUCT_UNRESOLVED','PLAN_UNRESOLVED','OFFER_OWNERSHIP_UNRESOLVED','STRUCTURAL_OWNERSHIP_WEAK','MARKET_APPLICABILITY_UNRESOLVED','MARKET_ATTRIBUTION_UNRESOLVED','MARKET_SCOPE_UNRESOLVED','COMMITMENT_NOT_STRUCTURALLY_RESOLVED']);
 export function classifyOfferConfidence(o,{boundedPrincipal=false}={}){
  if(o.source?.kind!=='ORIGINAL_PROVIDER')return {confidence:'LOW',reason:'ORIGINAL_PROVIDER_REQUIRED'};
+ if(!positiveProviderAmount(o.amount))return {confidence:'LOW',reason:'NON_POSITIVE_RECURRING_PROVIDER_PRICE'};
  if(o.trustworthy)return {confidence:'HIGH',reason:'UNCHANGED_PROVIDER_PRICE_ADJUDICATOR'};
  if(o.marketApplicability?.status==='TARGET_MISMATCH')return {confidence:'LOW',reason:'INCOMPATIBLE_TARGET_MARKET'};
  const required=['service','amount','currency','provenance','ordinaryPriceRole'];

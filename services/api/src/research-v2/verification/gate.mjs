@@ -13,7 +13,7 @@ import {consumeClosedRenewal,subscriptionReceipt} from '../offline-recovery/clos
 import {subscriptionFaqCandidates} from '../offline-recovery/subscription-faq.mjs';
 import {consumeColumnPlanTable} from '../offline-recovery/column-plan-table.mjs';
 import {consumeNamedOfferDetails} from '../offline-recovery/named-offer-details.mjs';
-export const gateVersion='V2_FIELD_VERIFICATION_V2';
+export const gateVersion='V2_FIELD_VERIFICATION_V3';
 const norm=x=>normalizeText(x??'').normalize('NFKC').toLowerCase();
 const unique=a=>[...new Set(a)].sort();
 // Reuse the established deterministic semantic engine. No copied provider parsing
@@ -57,7 +57,7 @@ function fieldsFor(claim,d,acquisition){
  const integrity=acquisition?.intact===true&&acquisition.bodyHash===claim.bodyHash;
  const evidence={service:acquisition?.serviceEvidence,market:a,plan:{product:d?.product,owner,component:d?.componentOwnership,subscription:d?.planIdentityResolution},amount:{raw:d?.amountRaw,value:d?.amountNormalized,path:d?.structuredPath},currency:{raw:d?.currencyRaw,value:d?.currency,path:d?.structuredPath,...(d?.currencyResolution?{resolution:d.currencyResolution}:{})},monthlyCadence:commercial?.evidence,ordinaryPriceRole:{role:d?.verificationPriceRole??d?.offerRole??{role:commercial?.ordinaryMonthly?'REGULAR_BASE':'UNKNOWN',basis:'ORDINARY_MONTHLY_PRESENTATION_WITHOUT_EXCLUSION'},commercialEvidence:commercial?.evidence,conditions:commercial?.priceConditions},ownership:{owner,component:d?.componentOwnership,pricePath:d?.structuredPath,role:d?.offerRole},provenance:acquisition,conflicts:{reasons:rawReasons,commercialReasons:commercial?.reasons??[],marketConflicts:a?.conflictingMarketEvidence??[],competingMonetaryEvidence:d?.verificationConflictPeers??[]}};
  const identitySafe=!(commercial?.reasons??[]).some(r=>['QUALIFIER_NOT_PRODUCT_IDENTITY','HEADING_PRODUCT_BINDING_UNRESOLVED'].includes(r));
- const phaseSafe=!(commercial?.reasons??[]).includes('ZERO_COMMERCIAL_PHASE_UNRESOLVED');
+ const phaseSafe=!(commercial?.reasons??[]).some(r=>['ZERO_COMMERCIAL_PHASE_UNRESOLVED','NON_POSITIVE_RECURRING_PROVIDER_PRICE'].includes(r));
  const conditions={
   service:integrity&&acquisition.serviceEstablished===true&&acquisition.service===claim.service,
   market:!!a?.marketApplicabilityEstablished&&['PROVIDER_DECLARED','GEO_OBSERVED','PROVIDER_AND_GEO'].includes(a.marketEvidenceType)&&a.requestedMarket===claim.market,

@@ -1,3 +1,5 @@
+import {eligibleVerifiedPrices} from '../intelligence/recurring-price-eligibility.mjs';
+import {currentRetainedPriceReview} from '../live/retained-pricing.mjs';
 // One resumable campaign, bounded batches over the existing V2 discovery/acquisition loop.
 // Batching controls resource budgets; it never selects first-N services.
 import fs from 'node:fs';
@@ -37,7 +39,7 @@ export async function runExpansionCampaign({directory,targets,catalog,createAdap
  const batches=preparedPriorityBatches?validatedPriorityBatches(targets,preparedPriorityBatches):fairBatches(targets);
  for(const [i,originalBatch]of batches.entries()){
   if(state.completedBatches.includes(i))continue;
-  const batch=originalBatch.map(t=>{const prior=state.results.find(r=>r.service===t.service&&r.retainedPriceReview?.sourceBound);return t.smartResearch?.version===2&&t.researchObjective==='SERVICE_COVERAGE'&&prior?{...t,retainedPriceReview:{...prior.retainedPriceReview,objective:'SERVICE_COVERAGE'}}:t;});
+  const batch=originalBatch.map(t=>{const prior=state.results.find(r=>r.service===t.service&&currentRetainedPriceReview(r)?.sourceBound);return t.smartResearch?.version===2&&t.researchObjective==='SERVICE_COVERAGE'&&prior?{...t,retainedPriceReview:{...currentRetainedPriceReview(prior),objective:'SERVICE_COVERAGE'}}:t;});
   const dir=directory+'/batch-'+String(i).padStart(4,'0'),discovery=dir+'/open-web-discovery';fs.mkdirSync(dir,{recursive:true});
   state.parked.push(...recoverInterrupted(discovery));const adapters=await createAdapters({directory:dir,targets:batch,bounds:expansionBounds});
   const fatal=error=>{if(/INTEGRITY|HASH_MISMATCH|INPUT_CHANGED|CORRUPT|AUTHORITY_URL_MISMATCH/.test(error?.message??''))throw error;};
@@ -48,7 +50,7 @@ export async function runExpansionCampaign({directory,targets,catalog,createAdap
   const acquire=async a=>{try{return await adapters.acquire(a);}catch(e){fatal(e);return {classification:'ACQUISITION_FAILED_RECONCILE_RETAINED_CHILD',verified:[],failure:'REDACTED'};}};
   const consumeProvider=adapters.consumeProvider?async a=>{try{return await adapters.consumeProvider(a);}catch(e){fatal(e);return {classification:'DIRECT_INTERPRETATION_FAILED',verified:[],failure:'REDACTED',needsGeo:false};}}:undefined;
   const result=await runOpenWebResearch({directory:discovery,targets:batch,catalog,bounds:expansionBounds,search,read,classify,acquire,consumeProvider});
-  state.results.push(...result.targets.map(t=>({id:t.id,service:t.service,market:t.market,status:t.verified.length?'VERIFIED':t.done??'BOUNDS_EXHAUSTED',verified:t.verified,comprehensive:t.verified.length>0,completionMeaning:t.verified.length?'SUFFICIENT_VERIFIED_OFFER':'SCHEDULER_TERMINAL_NOT_COMPREHENSIVE_RESEARCH',retainedPriceReview:t.retainedPriceReview??null,researchPlan:t.researchPlan??null,researchDiagnosis:t.researchDiagnosis??null,providerInterpretations:t.providerInterpretations??[],remainingAuthorizedLeads:t.remainingAuthorizedLeads??[],queries:t.queries.length,reads:t.reads.length,acquisitions:t.decisions.filter(d=>d.acquisitionReserved).length,evidenceDirectory:discovery})));
+  state.results.push(...result.targets.map(t=>({id:t.id,service:t.service,market:t.market,status:eligibleVerifiedPrices(t).length?'VERIFIED':t.done??'BOUNDS_EXHAUSTED',verified:eligibleVerifiedPrices(t),comprehensive:eligibleVerifiedPrices(t).length>0,completionMeaning:eligibleVerifiedPrices(t).length?'SUFFICIENT_VERIFIED_OFFER':'SCHEDULER_TERMINAL_NOT_COMPREHENSIVE_RESEARCH',retainedPriceReview:currentRetainedPriceReview(t),researchPlan:t.researchPlan??null,researchDiagnosis:t.researchDiagnosis??null,providerInterpretations:t.providerInterpretations??[],remainingAuthorizedLeads:t.remainingAuthorizedLeads??[],queries:t.queries.length,reads:t.reads.length,acquisitions:t.decisions.filter(d=>d.acquisitionReserved).length,evidenceDirectory:discovery})));
   state.completedBatches.push(i);atomic(file,state);onProgress({completed:state.results.length,total:targets.length,batch:i});
  }
  state.complete=state.results.length===targets.length;state.completionMeaning='ALL_TARGETS_REACHED_BOUNDED_SCHEDULER_TERMINAL';state.researchComplete=state.results.every(r=>r.comprehensive===true);state.metrics={targets:targets.length,completed:state.results.length,verifiedServices:new Set(state.results.filter(r=>r.verified.length).map(r=>r.service)).size,verifiedPairs:state.results.filter(r=>r.verified.length).length,verifiedIdentities:state.results.reduce((n,r)=>n+r.verified.length,0),queries:state.results.reduce((n,r)=>n+r.queries,0),reads:state.results.reduce((n,r)=>n+r.reads,0),acquisitions:state.results.reduce((n,r)=>n+r.acquisitions,0)};atomic(file,state);return state;

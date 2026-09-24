@@ -1,3 +1,4 @@
+import {currentRetainedPriceReview} from './retained-pricing.mjs';
 import {priceNeedsStop,priceNeedRelevance,researchablePriceNeeds} from '../intelligence/price-evidence-needs.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {catalogObjective,capabilityDestination} from '../intelligence/login-manage.mjs';
@@ -34,7 +35,7 @@ export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionCon
 export function chooseInformationAction(t,{knowledge,retained=null,configurationDemonstrated=false,renderingDemonstrated=false,urls=t.urls??[],discoveryAllowed=true,executionContext}={}){
  const {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked}=actionableDestinations(t,{knowledge,urls,executionContext});
  let route,reason,url=null;
- if(!catalogObjective(t)&&retained?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
+ if(!catalogObjective(t)&&currentRetainedPriceReview(t,retained)?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
  else if(k.memoryRejected){route='STOP';reason='RESEARCH_MEMORY_RECONCILIATION_REQUIRED';}
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished===true){route='STOP';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}
  else if(configurationDemonstrated){route='PARK_CONFIGURATOR';reason='CONFIGURATOR_REQUIRED';}
