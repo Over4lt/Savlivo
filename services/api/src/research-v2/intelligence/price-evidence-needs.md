@@ -1,59 +1,69 @@
-# Price evidence needs — routing projection v1
+# Price evidence needs V2
 
-This is a pure projection of existing provider-price adjudication, not evidence,
-a verifier, an admission credential, a new target factory, or a budget owner.
-It applies only to an existing `SERVICE_COVERAGE` target with the exact ID
-`<service>-price-<market>`. Source localization never creates a target.
+This is a routing/research-gap projection, never pricing evidence, eligibility,
+quarantine, verification, sufficiency, or recovery authority. Existing HIGH/MEDIUM
+sufficiency takes precedence unchanged. The known retained-review admission defect
+is not repaired here.
 
-## Flow
+## Consumers
 
-The offline interpreter projects its current `priceIntelligence` observations
-into `provider-price-intelligence.json.priceEvidenceNeedsByTarget`. The targeted
-verification worker exports that map beside its unchanged compatibility fields.
-Direct and conditional-acquisition results carry the selected target projection;
-live target updates and retained replay merge it into `target.priceEvidenceNeeds`.
-`researchKnowledge()` retains it beside the old coarse blockers. Adaptive
-assessment includes its evidence digest in the existing state signature.
+`interpret.mjs` derives needs from adjudicated observations; the targeted worker,
+Direct/fallback provider adapters, retained replay and live target updates carry
+or merge them. `researchKnowledge` exposes them as decision state. Information
+routing consumes assertion/disposition/identity for relevance, discovery query
+intent and unresolved stop reasons. Adaptive assessment consumes the digest for
+reassessment. No Operations/UI or final pricing admission reader consumes their
+references as proof. Replay diagnostic metrics read only counts/bytes.
 
-Existing retained HIGH/MEDIUM sufficiency and adaptive service sufficiency still
-win. Diagnostic gaps on other offers do not require exhaustive SKU coverage.
-Existing retained reuse precedes gap-directed acquisition. The ordinary lifecycle
-replay can produce the current interpretation from admitted retained bodies,
-without changing those bodies or historical artifacts. Already-completed replay
-checkpoints and REUSE_RETAINED are deliberately **not** silently re-extracted:
-old checkpoints without the projection retain their previous behavior. A fresh
-normal lifecycle replay is required for current interpretation in that case.
+## Representation
 
-## Schema and identity
+Version 2 / PRICE_EVIDENCE_NEEDS_V2 stores source URLs and deduplicated evidence
+references plus ONE aggregate semantic claim collection. Source contributions
+are recovered by intersection with evidence IDs for the existing source replacement
+merge policy. Source records no longer serialize duplicate claim collections.
+References omit repeated source URLs. Locator/metadata strings above 256 characters
+are represented by a canonical SHA-256 digest and an explicit locator-only marker;
+they cannot be used as filesystem paths or evidence. Original artifacts remain
+necessary to inspect the full locator and proof.
 
-- `version: 1`, `derivationVersion: PRICE_EVIDENCE_NEEDS_V1`, `targetId`
-- `sources[]`: URL, a deduplicated `references[]` table, per-source claims
-- `claims[]`: aggregated claim identities, established assertions, missing needs
-- `evidenceDigest`: SHA-256 of canonical versioned content
-- `meaning: ROUTING_ONLY_NOT_VERIFICATION_OR_SCOPE_ADMISSION`
+Claims preserve established and missing assertions separately, reasons,
+dispositions, evidence IDs, observed identity, cadence, currency, monetary role,
+and grounded scope/commitment. Unknown identity stays target-level. V2 adds
+currency/role to semantic identity; no evidence assertion is strengthened.
+Sources, claims, assertions, reasons and references are canonically ordered.
 
-A claim contains `claimKey`, observed `identity` (product/SKU when available,
-plan, exact cadence, grounded scope/commitment), `established[]`, and `missing[]`.
-Each missing need contains `gapKey`, `assertion`, `disposition`, original reason
-codes, and evidence-reference IDs. References retain source URL/hash/`domLocator` (a source coordinate, not a filesystem reference),
-offer-object ID, verifier status and presentation rule/occurrence/surface locator
-when present. Full receipts remain in the original interpretation artifacts.
-Assertions from different source occurrences keep their own evidence references;
-the aggregate does not combine them into a newly verified price.
+## Bounds and incompleteness
 
-Claim identity hashes the target ID and semantic identity. Gap identity also
-includes the assertion. Neither includes timestamps, evidence hashes, ordering,
-or attempt numbers. Unknown identity produces a target-level need, not an
-invented plan. NO and SE are distinct targets and therefore distinct identities.
-The evidence digest includes source hashes/locators and interpretation version,
-but not incidental timestamps. Canonical ordering and duplicate observations do
-not trigger reassessment. New evidence can change the digest without granting a
-new request identity or budget.
+The 2,097,152-byte ceiling remains. Existing observation/source/claim bounds remain
+2048/128/256. Source URLs are limited to 2048 characters and individual claim
+contributions to 16 KiB. Oversized contributions/sources are omitted in canonical
+source order; 32 KiB is reserved for coverage and digest metadata. Coverage records
+completeness, omitted source/claim-contribution/need/observation counts, affected
+dispositions, reason and canonical omitted-set digest. Counts for omitted claims
+and needs are contributions, not necessarily distinct semantic identities.
+Above the observation bound, no detailed projection is attempted: the whole set is
+explicitly unresolved with its count and canonical set digest.
 
-Merging replaces the same URL's current projection within the admitted target;
-other source observations remain. Historical artifacts are never rewritten.
-Unknown/corrupt versioned projections fail closed. Absence in legacy checkpoints
-is supported; there is no implicit migration that resets attempts or usage.
+Incomplete needs produce PRICE_EVIDENCE_PROJECTION_INCOMPLETE, a stable unresolved
+planning stop (not success or budget exhaustion). No gap-directed action is inferred
+from omitted data. Existing sufficient retained evidence still stops under the
+unchanged sufficiency policy. An incomplete accumulated projection remains sticky
+through incremental merges; only an explicit full re-projection can replace it.
+This prevents dropped contributions silently becoming resolved and unchanged-state
+replanning loops. Verified collections and request histories are not modified.
+
+## Legacy
+
+Valid V1 objects are checked using their existing canonical build/digest contract,
+then mapped in memory without reinterpreting claims or dispositions. The output
+records originDerivations=PRICE_EVIDENCE_NEEDS_V1. Historical files are not rewritten.
+Mixed merges retain both derivation origins. Unsupported versions, corrupt digests,
+wrong target scope and oversized persisted objects remain fail-closed with existing
+machine errors. Legacy identity is preserved, not silently upgraded to V2 identity.
+Completed replay checkpoints are not reopened; there is no recovery or migration.
+
+The exact production projection values are not test fixtures. Synthetic regression
+fixtures reproduce equivalent V1 source/aggregate duplication and locator pressure.
 
 ## Dispositions and action selection
 
@@ -88,20 +98,8 @@ bounded action space; snippets remain discovery-only. Browser is not required.
 Market gaps never authorize Decodo; existing documented access/geo fallback and
 capability permission remain mandatory. Groq has no new role.
 
-## Bounds and validation
 
-Projection caps: 2,048 input observations, 256 semantic claims, 128 source URLs,
-2 MiB canonical content. Reference tables avoid repeating long source locators
-for every field. Exceeding a bound fails closed. No new parsing, JavaScript
-execution, transport or filesystem access occurs in the helper.
-
-Focused tests cover scope, deterministic identity/digests, field separation,
-sufficiency, capabilities, history, stop reasons, current budget accounting,
-reserved-action recovery, current offline replay and actual verifier output.
-Real retained replay tests use synthetic bodies and the normal isolated offline
-interpreter/verification subprocesses. No source is acquired during these tests.
-
-## Bounded historical diagnostic
+## Historical V1 diagnostic (not rerun for V2)
 
 The inspected sealed local snapshot has 161 targets (104 catalog, 57 pricing).
 113 readable historical price-intelligence files contain 1,309 observations.
