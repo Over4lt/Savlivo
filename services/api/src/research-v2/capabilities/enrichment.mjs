@@ -46,7 +46,7 @@ export async function enrichProvider({capabilities,ledger,target,page,directory,
     const runtime=await factory({env:{...env,SAVLIVO_PRICE_SEMANTIC_ENABLED:'true'}});
     charge(target.service,'GROQ');
     const context={sourceUrl:parent.url,sourceHash:page.bodyHash,service:target.serviceName,market:target.market,text:span.text,container:{offset:span.offset,sha256:sha(span.text)},policy:runtime.policy};
-    const output=await runtime.interpret({context,signal:AbortSignal.timeout(semanticLimits.timeoutMs)});const offers=validateSemanticOutput(output,context);
+    const output=await runtime.interpret({context,signal:AbortSignal.timeout(semanticLimits.timeoutMs)});const offers=validateSemanticOutput(output,context).offers;
     // A grounded semantic proposal is not a verified price. Re-run the SAME
     // source verifier; never manufacture translated provider text or authority.
     const checked=await verify({target,page,directory});

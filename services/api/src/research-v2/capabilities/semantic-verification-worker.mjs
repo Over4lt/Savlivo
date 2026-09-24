@@ -7,7 +7,7 @@ import {deriveEvidence,verifyCandidate} from '../verification/gate.mjs';
 const file=process.argv[2],input=JSON.parse(fs.readFileSync(file)),read=f=>JSON.parse(fs.readFileSync(f));
 const dir=input.runDirectory,out=dir+'/'+fs.readdirSync(dir).filter(n=>/^interpretation-\d+$/.test(n)).sort().at(-1);
 const sources=read(out+'/corpus/sources.json').sources,bindings=read(out+'/discovery/bindings.json');
-const offers=validateSemanticOutput(input.output,input.context),decisions=[];
+const offers=validateSemanticOutput(input.output,input.context).offers,decisions=[];
 for(const source of sources.filter(s=>s.sha256===input.context.sourceHash))for(const occurrence of source.occurrences){
  const loaded=loadLiveSource(occurrence,source.sha256,bindings),span=input.context.container;
  if(loaded.body.slice(span.offset,span.offset+input.context.text.length)!==input.context.text)throw Error('SEMANTIC_SOURCE_SPAN_CHANGED');
