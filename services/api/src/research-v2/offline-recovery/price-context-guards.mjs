@@ -1,9 +1,18 @@
 import {monetary,amount} from './extract.mjs';
+import {closedRenewalCommercial} from './closed-renewal.mjs';
+import {headingPriceOwnership} from './component-ownership.mjs';
+export const offerEligibilityVersion='SOURCE_BOUND_OFFER_ELIGIBILITY_V1';
+// Temporal clauses describe a phase, not a named product. These are language
+// predicates, independent of provider, URL, brand and monetary amount.
+const phaseHeading=/^(?:(?:after|following|during|before|at the end of)\s+(?:the\s+)?(?:free\s+)?(?:trial|introductory|promotion)|(?:nach|während|vor)\s+(?:Ablauf\s+)?(?:der\s+)?(?:Testphase|Probezeit)|(?:après|pendant|avant)\s+(?:la\s+)?(?:période d.essai|essai)|(?:después de|durante)\s+(?:la\s+)?prueba)/iu;
+const phaseContext=/\b(?:trial|introductory|promotion|Testphase|Probezeit|essai|prueba)\b/iu;
 // Semantic vetoes preserve observations; they never rewrite provider amounts.
 const pathOf=n=>n.parent?pathOf(n.parent)+'/'+n.tag+'['+n.index+']':'$';
 export function priceContextGuards(candidate,source){
  const out=[],add=(code,node,raw)=>out.push({code,path:node?pathOf(node):candidate.productOwnerEvidence?.path,raw,bodyHash:candidate.bodyHash});
  const label=String(candidate.product??'').trim();
+ if(phaseHeading.test(label))add('QUALIFIER_NOT_PRODUCT_IDENTITY',null,label);
+ if(source&&candidate.sourceType==='HTML'&&candidate.productOwnerEvidence?.method==='HEADING_CONTAINER'&&!headingPriceOwnership(candidate,source))add('HEADING_PRODUCT_BINDING_UNRESOLVED',null,label);
  if(/^(?:start \d+ days? free trial|join (?:today|now)|get started|subscribe now|find your perfect plan|in de kijker|lav pris|ett abonnement som passer deg|charges|ご利用料金|よくある質問|try (?:it )?(?:free|\d+ days? free)|\d+ Tage kostenlos testen|Disfruta\s*\d+\s*días\s*gratis|Probeer\s*\d+\s*dagen\s*gratis)$/iu.test(label))add('CTA_OR_TRIAL_HEADING_NOT_PLAN',null,label);
  if(/^(?:get (?:a )?student discount|få studierabat)\b/iu.test(label))add('CTA_OR_TRIAL_HEADING_NOT_PLAN',null,label);
  if(/^(?:plan anual|jahresplan|six[- ]month plan|annual(?: plan| price| subscription)?|yearly(?: plan| price)?|årspris|årsabonnement)$/iu.test(label))add('ANNUAL_LABEL_MONTHLY_BASIS_UNRESOLVED',null,label);
@@ -17,6 +26,9 @@ export function priceContextGuards(candidate,source){
   ||(candidate.structuralContainer==='EXPLICIT_SEMANTIC_PLAN_CARD'&&owned?.text.match(/\bminimum\s+(?:contract|term|commitment)\s*(?:of\s*)?\d+\s*(?:weeks?|months?|years?)\b/iu));
  if(term)add('COMMITMENT_REQUIRES_REVIEW',owned,term[0]);
  const local=String(candidate.normalizedEvidenceSnippet??'');
+ // Zero is valid; a phase-ambiguous zero is not an ordinary recurring charge.
+ // Inspect only its source-bound owner, never another card or page-wide text.
+ if(candidate.amountNormalized!==null&&Number(candidate.amountNormalized)===0&&phaseContext.test(local+' '+(owned?.text??'')+' '+label)&&!closedRenewalCommercial(candidate,source))add('ZERO_COMMERCIAL_PHASE_UNRESOLVED',owned??node,local);
  const ownMoney=monetary(local).filter(m=>m.amount===candidate.amountNormalized&&m.currencyRaw===candidate.currencyRaw);
  if(ownMoney.some(m=>/^\s*(?:\/|per)\s*(?:TB|GB|terabytes?|gigabytes?)\s*(?:\/|per|a|each)/iu.test(local.slice(m.end))))add('USAGE_UNIT_NOT_CONSUMER_PLAN_TOTAL',node,local);
  // A dollar-denominated benefit is not the provider's recurring charge.

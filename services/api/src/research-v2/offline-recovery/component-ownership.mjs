@@ -113,3 +113,18 @@ export function boundedOwnership(c,source){
  }
  return resolveSubscriptionIdentity(repairBoundedOwnership(c,source),source);
 }
+
+// Independent source check for a generic heading claim. The extractor's strong
+// flag is not a proof; reuse the bounded component recognizer against source nodes.
+export function headingPriceOwnership(candidate,source){
+ if(candidate.productOwnerEvidence?.method!=='HEADING_CONTAINER')return true;
+ const paths=candidate.discoveryOccurrences?.length?candidate.discoveryOccurrences.map(o=>o.structuredPath):[candidate.structuredPath];
+ const linked=(source.products??[]).filter(p=>p.names.some(n=>norm(n)===norm(candidate.product))&&['primaryPriceDescription','secondaryPriceDescription'].some(k=>typeof p.value[k]==='string'&&matchesPrice(p.value[k],candidate)));
+ return paths.every(path=>{const p=htmlOwner(candidate,source,path);if(p&&norm(p.planLabel)===norm(candidate.product))return true;
+  const node=source.nodes.get(path),owner=source.nodes.get(candidate.productOwnerEvidence.path);
+  // A bounded article is an existing product-card structure even when its
+  // distinct principal/secondary monetary branches need later role adjudication.
+  const card=owner?.tag==='article'&&owner.text.length<6000&&node&&inside(node,owner)&&(owner.headings??[]).length===1&&textLabel(owner.headings[0].text)&&norm(owner.headings[0].text)===norm(candidate.product)&&!descendants(owner).some(n=>n!==owner&&['article','section'].includes(n.tag));
+  return !!card||linked.length===1&&!!node;
+ });
+}
