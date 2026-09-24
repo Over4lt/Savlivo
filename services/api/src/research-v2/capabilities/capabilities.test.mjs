@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
-import {resolveCapabilities,requireCapability,capabilityPreflight,capabilityNames} from './config.mjs';
+import {resolveCapabilities,requireCapability,capabilityPreflight,capabilityAvailability,capabilityNames} from './config.mjs';
 import {capabilityLedger} from './ledger.mjs';
 import {pricingGap,enrichProvider} from './enrichment.mjs';
 import {validateSemanticOutput} from '../../research-v1/semantic-price.mjs';
@@ -46,4 +46,15 @@ test('Groq readiness distinguishes key and model without API calls or changing a
   assert.equal(capabilityPreflight(none,env).ready,true);
   assert(!JSON.stringify(check).includes('fixture'));
  }
+});
+
+test('summary and Preflight share additive readiness without changing permission snapshots',()=>{
+ const env={TAVILY_API_KEY:'fixture',SAVLIVO_DECODO_USERNAME:'fixture',SAVLIVO_DECODO_PASSWORD:'fixture',GROQ_API_KEY:'fixture',SAVLIVO_PRICE_SEMANTIC_MODEL:'fixture/model'},probeBrowser=()=>({available:true,reason:'LOCAL_IMAGE_PRESENT_SANDBOX_CHECK_AT_USE'}),summary=capabilityAvailability(env,{browser:true,probeBrowser});
+ assert.equal(summary.direct.readiness,'AVAILABLE');assert.equal(summary.tavily.readiness,'AVAILABLE');assert.equal(summary.decodo.readiness,'CONDITIONAL');assert.equal(summary.browser.readiness,'CONDITIONAL');assert.equal(summary.groq.readiness,'AVAILABLE');
+ for(const name of capabilityNames){const c={...none,[name]:true},before=JSON.stringify(c),p=capabilityPreflight(c,env,{probeBrowser});assert(p.ready);assert.deepEqual(p.availability[name],summary[name]);assert.equal(JSON.stringify(c),before);assert.equal(p.capabilities,c);}
+ assert(!JSON.stringify(summary).includes('fixture'));
+});
+test('missing credentials are unavailable rather than misleadingly policy gated',()=>{
+ const a=capabilityAvailability({});assert.equal(a.decodo.readiness,'UNAVAILABLE');assert.equal(a.decodo.reason,'DECODO_CREDENTIALS_REQUIRED');assert.equal(a.tavily.readiness,'UNAVAILABLE');assert.equal(a.groq.readiness,'UNAVAILABLE');assert.equal(a.browser.readiness,'NOT_CHECKED');
+ for(const key of ['tavily','decodo','groq'])assert.equal(capabilityPreflight({...none,[key]:true},{}).ready,false);
 });

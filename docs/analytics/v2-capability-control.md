@@ -21,3 +21,32 @@ The durable `capability-ledger.jsonl` reserves attempts before dispatch. Initial
 Ordinary resume preserves permissions and model/budget fingerprint, reuses completed capability outcomes, and never retries uncertain in-flight work automatically. Schedule edits affect future jobs only. Historical artifacts without explicit usage remain unknown rather than inferred. Run details expose allowed capabilities separately from request counts and safe capability event summaries; raw prompts and credentials are not exposed.
 
 No provider research, corpus migration, baseline/cohort edits or historical-ledger mutation is needed to deploy this control. Keep production feature gates off until ordinary deployment checks pass.
+
+## Research tools readiness
+
+The summary and Preflight share `capabilityAvailability`. Its existing `available`
+boolean remains the enablement prerequisite; additive `readiness` is AVAILABLE,
+CONDITIONAL, UNAVAILABLE, or NOT_CHECKED (disabled Browser is not probed during
+Preflight). This is not a credential-authentication test or actual usage.
+
+Direct is supported locally. Tavily requires its API key. Decodo requires both
+credentials and reports CONDITIONAL: runtime approval/configuration and documented
+access/geo eligibility remain checked by the existing execution path. Missing
+credentials now have a distinct unavailable reason rather than the misleading
+“validated at use” message. Groq needs its key and an explicitly configured valid
+model identifier; no model is selected by the UI. Browser reports CONDITIONAL
+only after the existing local daemon/image probe succeeds; native sandbox checks
+remain at use. No general interactive Browser support is implied.
+
+Research tools displays permission ON/OFF alongside readiness even when healthy.
+Unavailable OFF controls are disabled. A previously stored unavailable ON remains
+visible as ineffective and can be explicitly switched OFF; rendering never mutates
+that snapshot. Bulk enable selects only backend-available tools, including
+conditional ones. New Direct/Tavily defaults are ON only when available. Preflight
+still independently rechecks the selected permissions and blocks unavailable ON.
+Run details continue to display the frozen permissions and measured usage separately.
+
+Production Browser requires the existing local Docker binary/socket, pinned image
+and sandbox support. Installing a new server runtime is outside this change.
+Production Groq requires `GROQ_API_KEY` and `SAVLIVO_PRICE_SEMANTIC_MODEL` chosen by
+the operator. Repository checks do not prove current Render environment state.

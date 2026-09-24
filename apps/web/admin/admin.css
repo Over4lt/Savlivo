@@ -129,3 +129,6 @@ li {margin:.4rem 0;color:var(--muted)}
 .ops-lead {display:grid;gap:.35rem;padding:.75rem;margin:.5rem 0;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow-wrap:anywhere}
 .ops-pagination {display:flex;gap:1rem;align-items:center;flex-wrap:wrap}
 @media(max-width:760px){.ops-result-card {grid-template-columns:minmax(0,1fr)}.ops-result-card button {justify-self:start}}
+
+/* An unavailable permission is not an operational tool. */
+.ops-tool-switch-input:disabled+.ops-tool-switch-track{opacity:.4;filter:grayscale(1);cursor:not-allowed}
