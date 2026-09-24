@@ -22,9 +22,9 @@ export function destinationInformation(t,url,{diagnosis=null,unresolvedFields=[]
  return {url:normalized,eligible:gain>0,informationGain:gain,relativeCost:1,value:gain,reason,discoveryRank:lead?.rank??0,traversalOrder:lead?(t.leads??[]).indexOf(lead):(t.urls??[]).indexOf(url),marketApplicabilityEstablished:false};
 }
 export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionContext}={}){
- const k=knowledge??{attempts:[],blockedOrigins:[],unresolvedFields:[]},attempts=k.attempts??[],evaluated=[...new Set(urls)].map(url=>{const x=destinationInformation(t,url,k);return {...x,capability:x.url?executableAction(t,{route:'DIRECT',url:x.url},executionContext):{executable:false,reason:'UNSAFE_URL'}};});
+ const k=knowledge??{attempts:[],blockedOrigins:[],unresolvedFields:[]},attempts=k.attempts??[],evaluated=[...new Set(urls)].map(url=>{const x=destinationInformation(t,url,k);return {...x,capability:x.url?executableAction(t,{route:t.capabilities?.direct===false&&t.capabilities?.decodo===true?'DECODO':'DIRECT',url:x.url},executionContext):{executable:false,reason:'UNSAFE_URL'}};});
  const valid=evaluated.filter(x=>x.eligible&&!k.blockedOrigins?.includes(new URL(x.url).origin));
- const completed=a=>a.completed&&a.route==='DIRECT',seen=new Set(attempts.filter(completed).flatMap(a=>[a.url,a.finalUrl].map(norm).filter(Boolean)));
+ const completed=a=>a.completed&&a.route==='DIRECT',seen=new Set(attempts.filter(a=>a.completed&&['DIRECT','DECODO'].includes(a.route)).flatMap(a=>[a.url,a.finalUrl].map(norm).filter(Boolean)));
  // A refresh is explicit metadata, not an implicit time-based retry or provider fact.
  const refresh=t.refreshReview?.approved===true&&typeof t.refreshReview.reason==='string'&&!!t.refreshReview.reference;
  const successes=t.adaptiveExecution&&!catalogObjective(t)?retainedSuccesses(t):[],reuse=successes.filter(r=>r.intact&&!r.reviewed&&!r.stale).sort((a,b)=>Number(!!b.sufficient)-Number(!!a.sufficient)||a.url.localeCompare(b.url))[0],reacquire=new Set(successes.filter(r=>r.intact&&(r.reviewed||r.stale)&&!r.sufficient).map(r=>r.url));
@@ -43,7 +43,7 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(!t.authorities?.some(a=>a.provider===t.serviceName&&a.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(a.sourceType))){route='AUTHORITY_DISCOVERY';reason='AUTHORITY_UNRESOLVED';}
  else if(reuse){route='REUSE_RETAINED';reason='HASH_BOUND_PROVIDER_SUCCESS_REUSE';url=reuse.url;}
  else if(priceNeedsStop(t)){route='STOP';reason=k.blockedOrigins?.length&&evaluated.filter(x=>x.url).length&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))?'PROVIDER_ACCESS_POLICY_STOP':attempts.filter(a=>a.route==='DISCOVERY'&&a.completed).length>=2?'DISCOVERY_EXHAUSTED':priceNeedsStop(t);}
- else if(candidates.length){route='DIRECT';url=candidates[0].url;reason=candidates[0].reason;}
+ else if(candidates.length){route=t.capabilities?.direct===false&&t.capabilities?.decodo===true?'DECODO':'DIRECT';url=candidates[0].url;reason=route==='DECODO'?'DIRECT_PROHIBITED_DECODO_PERMITTED':candidates[0].reason;}
  else {
  const failed=attempts.filter(a=>completed(a)&&a.permittedEscalation===true&&valid.some(x=>x.url===norm(a.url))&&!attempts.some(b=>b.route==='DECODO'&&b.completed&&norm(b.url)===norm(a.url))&&!attempts.some(b=>completed(b)&&b.outcome==='OK'&&norm(b.url)===norm(a.url))).at(-1);
  if(failed){route='CONDITIONAL_DECODO';url=norm(failed.url);reason='EXACT_PERMITTED_FAILED_DESTINATION';}
@@ -55,5 +55,5 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(!executableAction(t,{route:'DISCOVERY'},executionContext).executable){route='STOP';reason=executableAction(t,{route:'DISCOVERY'},executionContext).reason;}
  else {route='DISCOVERY';reason='NO_USEFUL_PROVIDER_DESTINATION';}
  }
- return {route,reason,url,retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DISCOVERY','REUSE_RETAINED'].includes(route),evaluated,candidates,budgetBlocked,attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5},ordinalOnly:true};
+ return {route,reason,url,retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DECODO','DISCOVERY','REUSE_RETAINED'].includes(route),evaluated,candidates,budgetBlocked,attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5},ordinalOnly:true};
 }

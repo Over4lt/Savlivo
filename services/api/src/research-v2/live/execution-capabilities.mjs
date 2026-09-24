@@ -1,3 +1,4 @@
+import {usableResearchMemory} from './research-memory.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 // One executable action space for planning and dispatch. No transport or evidence grants.
 import {navigationKey,navigationRank} from './provider-navigation.mjs';
@@ -19,6 +20,20 @@ export function executableAction(t,action,{bounds=executionBounds,usage={reads:0
  if((t.reads??[]).some(r=>r.outcome==='ACCESS_CONTROL_STOP'&&new URL(r.requestedUrl).pathname===url.pathname))return no('ACCESS_CONTROL_PATH_STOP');return yes();
  }
  if(['DISCOVERY','AUTHORITY_DISCOVERY'].includes(route)){if(available.discovery===false)return no('DISCOVERY_DISABLED');if(t.lastSearchFailure)return no('DISCOVERY_FAILURE_REQUIRES_REVIEW');if((t.queries??[]).length>=bounds.perServiceSearches||usage.searches>=bounds.searches)return no('DISCOVERY_BUDGET_EXHAUSTED');if(action.query&&(t.queries??[]).some(q=>q.query===action.query))return no('DUPLICATE_DISCOVERY_QUERY');return yes();}
+ if(route==='DECODO'){
+  if(t.capabilities?.direct!==false||t.capabilities?.decodo!==true||available.decodo===false)return no('INDEPENDENT_DECODO_PERMISSION_REQUIRED');
+  if(!(/^[A-Z]{2}$/.test(t.market??'')))return no('DECODO_ADMITTED_MARKET_REQUIRED');
+  let url;try{url=new URL(action.url);}catch{return no('INVALID_URL');}
+  if(url.protocol!=='https:'||url.username||url.password)return no('INVALID_URL');
+  if(!t.authorities?.some(a=>a.hostname===url.hostname&&a.provider===t.serviceName&&a.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(a.sourceType)))return no('AUTHORITY_UNRESOLVED');
+  const memory=usableResearchMemory(t);if(memory.rejected)return no('RESEARCH_MEMORY_RECONCILIATION_REQUIRED');
+  if([...(t.blockedOrigins??[]),...memory.blockedOrigins].includes(url.origin))return no('PROVIDER_ACCESS_POLICY_STOP');
+  const lead=(t.leads??[]).find(l=>l.url===action.url);if((lead?.navigationDepth??0)>Math.min(3,t.smartResearch?.navigationDepth??3))return no('NAVIGATION_DEPTH_EXHAUSTED');
+  const prior=[...(t.reads??[]).map(r=>r.requestedUrl),...(t.acquisitionOutcomes??[]).map(r=>r.url),...(t.decisions??[]).filter(d=>d.acquisitionReserved).map(d=>d.url),...memory.attempts.filter(a=>a.completed&&a.url).map(a=>a.url)];
+  if(prior.some(u=>resourceKey(u)===resourceKey(url.href)))return no('EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');
+  if((t.decisions??[]).filter(d=>d.acquisitionReserved).length>=bounds.perServiceAcquisitions||usage.acquisitions>=bounds.acquisitions)return no('DECODO_BUDGET_EXHAUSTED');
+  return yes();
+ }
  if(route==='CONDITIONAL_DECODO'){if(available.decodo===false)return no('DECODO_DISABLED');if(!action.escalation?.eligible)return no('ACQUISITION_FAILURE_PROOF_REQUIRED');if((t.decisions??[]).filter(d=>d.acquisitionReserved).length>=bounds.perServiceAcquisitions||usage.acquisitions>=bounds.acquisitions)return no('DECODO_BUDGET_EXHAUSTED');return yes();}
  return no('NON_RUNNABLE_RESEARCH_STATE');
 }

@@ -31,13 +31,17 @@ export async function createTavilyDiscovery({inventory,readKeychain,bounds,cover
     journal.append('DIRECT_INTERPRETED',{target:target.id,url:admitted.url,runDirectory:direct.runDirectory,monetary:direct.monetary,verified:direct.verified.length,blockers:direct.blockers});
     return {...direct,needsGeo:directGeoGap(direct)};
    },
-   async acquire({target,candidate,direct}){
-    if(!direct?.needsGeo||!direct.acquisitionEscalation?.eligible)throw Error('DISCOVERY_ACQUISITION_FAILURE_PROOF_REQUIRED');
+   async acquire({target,candidate,direct,route,reason}){
+    if(target.capabilities?.decodo===false)throw Error('CAPABILITY_DISABLED_DECODO');
+    const independent=route==='DECODO'&&reason==='DIRECT_PROHIBITED_DECODO_PERMITTED';
+    // Reservation already exists at dispatch; validate permission again without treating this reservation as a duplicate.
+    if(independent&&!(target.capabilities?.direct===false&&target.capabilities?.decodo===true))throw Error('INDEPENDENT_DECODO_PERMISSION_REQUIRED');
+    if(!independent&&(!direct?.needsGeo||!direct.acquisitionEscalation?.eligible))throw Error('DISCOVERY_ACQUISITION_FAILURE_PROOF_REQUIRED');
     const admitted=admittedDiscoveryCandidate(candidate);journal.reserve(target.id,'pages');
-    journal.append('GEO_ESCALATION_ELIGIBLE',{target:target.id,url:admitted.url,reason:direct.acquisitionEscalation.primaryFailureReason,proof:direct.acquisitionEscalation,blockers:direct.blockers});
+    journal.append(independent?'INDEPENDENT_DECODO_ADMITTED':'GEO_ESCALATION_ELIGIBLE',{target:target.id,url:admitted.url,reason:independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent?{proof:direct.acquisitionEscalation,blockers:direct.blockers}:{})});
     const start=journal.events.length,geo=await acquire({target,candidate:admitted,journal});
     if(journal.events.slice(start).some(e=>e.type==='BOUND_STOP'))return {...geo,classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO',direct};
-    return {...geo,channel:'DIRECT_THEN_GEO',direct};
+    return {...geo,channel:independent?'INDEPENDENT_DECODO':'DIRECT_THEN_GEO',routingReason:independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent?{direct}:{})};
    }
   };
  }};

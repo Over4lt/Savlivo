@@ -31,10 +31,10 @@ export function targetExecutionContext(state,t){
 }
 
 function sufficient(state,service){const catalogTargets=Object.values(state.targets).filter(t=>t.service===service&&t.researchObjective==='CATALOG_ONLY');if(catalogTargets.length){const proofs=catalogTargets.flatMap(t=>t.catalogCapabilityProofs??[]);for(const t of catalogTargets){for(const p of proofs)mergeTargetCapabilities(t,p);}return catalogTargets.some(t=>t.loginManageEstablished)?'LOGIN_MANAGE_ESTABLISHED':null;}const ts=Object.values(state.targets).filter(t=>t.service===service),r=ts.find(t=>currentRetainedPriceReview(t)?.sourceBound&&['HIGH','MEDIUM'].includes(t.retainedPriceReview.confidence));return r?r.priceStrategy==='USER_PRICE_PREFERRED'?'USER_PRICE_PREFERRED_SUFFICIENT':currentRetainedPriceReview(r).confidence==='HIGH'?'HIGH_SUFFICIENT':'MEDIUM_SUFFICIENT':null;}
-function actionKey(service,p){return JSON.stringify([service,p.route,p.route==='DIRECT'?resourceKey(p.url):p.url??p.query,p.retainedKey]);}
+function actionKey(service,p){return JSON.stringify([service,p.route,['DIRECT','DECODO'].includes(p.route)?resourceKey(p.url):p.url??p.query,p.retainedKey]);}
 export function assessAdaptiveService(state,service){
  const s=state.services[service],ts=Object.values(state.targets).filter(t=>t.service===service),enough=sufficient(state,service),signature=hash(ts.map(t=>[t.id,counts(t),t.retainedPriceReview,t.researchDiagnosis,t.blockedOrigins,t.catalogEligibility,readPriceEvidenceNeeds(t)?.evidenceDigest??null])),rows=[];
- const attempted=new Set(ts.flatMap(t=>(t.reads??[]).map(r=>resourceKey(r.requestedUrl))));
+ const attempted=new Set(ts.flatMap(t=>[...(t.reads??[]).map(r=>resourceKey(r.requestedUrl)),...(t.decisions??[]).filter(d=>d.acquisitionReserved).map(d=>resourceKey(d.url))]));
  for(const t of ts){rankPlannerLeads(t);const context=targetExecutionContext(state,t),p=planResearch(t,{executionContext:context,unreadUrls:t.leads.map(l=>l.url),discoveryAllowed:destinationDiscoveryNeeded(t,context.bounds,context.usage)}),cap=executableAction(t,p,context);let decision='DEFER',reason=p.reason,value=0;
  if(enough){decision='REJECT';reason=enough;}
  else if(s.reconciliation){reason=s.reconciliation;}
@@ -43,8 +43,8 @@ export function assessAdaptiveService(state,service){
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished){decision='REJECT';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}
  else if(t.demonstratedConfigurator||t.demonstratedRendering){reason=t.demonstratedConfigurator?'CONFIGURATOR_REQUIRED':'RENDERING_REQUIRED';}
  else if(p.route==='REUSE_RETAINED'&&s.used.retainedReviews<state.bounds.retainedReviews){decision='ACTIVATE';value=100;}
- else if(p.route==='DIRECT'&&attempted.has(resourceKey(p.url))&&!(t.reads??[]).some(r=>resourceKey(r.requestedUrl)===resourceKey(p.url))){decision='REJECT';reason='EQUIVALENT_DIRECT_REQUEST_ALREADY_ATTEMPTED';}
- else if(cap.executable&&['DIRECT','DISCOVERY',...(t.researchObjective==='CATALOG_ONLY'?['AUTHORITY_DISCOVERY']:[])].includes(p.route)){value=p.route==='DIRECT'?(p.candidates?.[0]?.value??0):1;decision=value>0?'ACTIVATE':'REJECT';reason=value>0?p.reason:'NO_POSITIVE_INFORMATION_VALUE';}
+ else if(['DIRECT','DECODO'].includes(p.route)&&attempted.has(resourceKey(p.url))&&!(t.reads??[]).some(r=>resourceKey(r.requestedUrl)===resourceKey(p.url))){decision='REJECT';reason=p.route==='DECODO'?'EQUIVALENT_PROVIDER_REQUEST_ALREADY_ATTEMPTED':'EQUIVALENT_DIRECT_REQUEST_ALREADY_ATTEMPTED';}
+ else if(cap.executable&&['DIRECT','DECODO','DISCOVERY',...(t.researchObjective==='CATALOG_ONLY'?['AUTHORITY_DISCOVERY']:[])].includes(p.route)){value=['DIRECT','DECODO'].includes(p.route)?(p.candidates?.[0]?.value??0):1;decision=value>0?'ACTIVATE':'REJECT';reason=value>0?p.reason:'NO_POSITIVE_INFORMATION_VALUE';}
  else if(p.route==='CONDITIONAL_DECODO'){reason='FRESH_ACCESS_REVIEW_REQUIRED';}
  else if(['RESEARCH_MEMORY_RECONCILIATION_REQUIRED','AUTHORITY_UNRESOLVED','CONFIGURATOR_REQUIRED','RENDERING_REQUIRED','PROVIDER_ACCESS_POLICY_STOP','RETAINED_STRUCTURE_REQUIRES_REVIEW'].includes(p.reason)){reason=p.reason;}
  else if(exhaustedExecutionBudget(cap)||exhaustedExecutionBudget({executable:false,reason:p.reason})||p.reason==='KNOWN_DESTINATION_NEEDS_EVIDENCE_NOT_SEARCH'&&p.budgetBlocked?.length>0){reason='BUDGET_EXHAUSTED';}
