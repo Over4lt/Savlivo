@@ -8,6 +8,8 @@ let generation = 0;
 let analyticsRange="30d", analyticsMonth="", analyticsSegment="top-services";
 let expiryTimer;
 let disposeOperations;
+let adminViews=null;
+let operationsLoading=null;
 let browserAbort;
 const $ = id => document.getElementById(id);
 const message = text => {$("message").textContent = text;};
@@ -20,7 +22,7 @@ if (!api) {
   throw new Error("ADMIN_ORIGIN_DENIED");
 }
 function clearSession() {
-  disposeOperations?.();disposeOperations=null;
+  disposeOperations?.();disposeOperations=null;adminViews=null;operationsLoading=null;
   token = null; browserAbort?.abort(); clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();
 }
 function operationsRequestTimeout(path) {
@@ -40,7 +42,7 @@ async function request(path, options = {}) {
   return response.json();
 }
 function paragraph(parent,text) {const p=document.createElement("p");p.textContent=text;parent.append(p);}
-function table(title, columns, rows, parent=$("results")) {
+function table(title, columns, rows, parent=adminViews.analytics) {
   const heading=document.createElement("h2");heading.textContent=title;parent.append(heading);
   if (!rows.length) {paragraph(parent,"No reportable data.");return;}
   const wrap=document.createElement("div");wrap.className="table-wrap";
@@ -49,22 +51,73 @@ function table(title, columns, rows, parent=$("results")) {
   for (const row of rows) {const line=document.createElement("tr");for (const [key] of columns) {const td=document.createElement("td");td.textContent=String(row[key] ?? "Unavailable");line.append(td);}body.append(line);}
   element.append(head,body);wrap.append(element);parent.append(wrap);
 }
+// One workspace per session. Navigation only hides panels; it never rebuilds Operations.
+function ensureAdminViews() {
+  if(adminViews)return;
+  const navigation=document.createElement("nav");navigation.className="admin-view-nav";navigation.setAttribute("aria-label","Admin views");
+  const analytics=document.createElement("section"),operations=document.createElement("section");
+  analytics.id="analytics-view";operations.id="operations-view";
+  analytics.setAttribute("aria-label","Analytics");operations.setAttribute("aria-label","V2 Operations");
+  const links={};
+  for(const [key,label,hash] of [["analytics","Analytics","#analytics"],["operations","V2 Operations","#v2-operations"]]) {
+    const link=document.createElement("a");link.href=hash;link.textContent=label;link.setAttribute("aria-controls",key==="analytics"?analytics.id:operations.id);
+    link.addEventListener("click",event=>{event.preventDefault();window.history.replaceState(null,"",hash);return selectAdminView(key);});
+    links[key]=link;navigation.append(link);
+  }
+  adminViews={analytics,operations,links,active:null,operationsEnabled:false,analyticsLoaded:false,scroll:{analytics:0,operations:0}};
+  $("results").append(navigation,analytics,operations);
+}
+async function ensureOperations() {
+  if(!adminViews?.operationsEnabled||disposeOperations)return;
+  if(operationsLoading)return operationsLoading;
+  const views=adminViews,session=token;
+  operationsLoading=(async()=>{
+    try {
+      const {mountOperations}=await import("./v2-operations.js");
+      if(adminViews!==views||token!==session||!views.operationsEnabled)return;
+      const dispose=await mountOperations(views.operations,request,()=>adminViews===views&&token===session&&views.operationsEnabled);
+      if(adminViews!==views||token!==session||!views.operationsEnabled)dispose?.();else disposeOperations=dispose;
+    } catch(error) {
+      if(adminViews===views&&token===session){views.operations.replaceChildren();paragraph(views.operations,"V2 Operations could not load. "+error.message);}
+    } finally {if(adminViews===views)operationsLoading=null;}
+  })();
+  return operationsLoading;
+}
+function selectAdminView(key,load=true) {
+  if(!adminViews||!token)return;
+  const views=adminViews;
+  if(key==="operations"&&!views.operationsEnabled)key="analytics";
+  const changed=views.active!==key;
+  if(changed&&views.active)views.scroll[views.active]=window.scrollY??0;
+  views.active=key;
+  views.analytics.hidden=key!=="analytics";views.operations.hidden=key!=="operations";
+  $("filters").hidden=key!=="analytics";
+  views.links.operations.hidden=!views.operationsEnabled;
+  for(const name of ["analytics","operations"])views.links[name].setAttribute("aria-current",name===key?"page":"false");
+  if(changed)window.scrollTo?.({top:views.scroll[key],behavior:"instant"});
+  if(key==="operations")return ensureOperations();
+  if(load&&!views.analyticsLoaded)return refresh();
+}
+window.addEventListener("hashchange",()=>selectAdminView(location.hash==="#v2-operations"?"operations":"analytics"));
 async function refresh() {
   const current=++generation;message("Loading…");
   try {
     const data=await request(`overview?market=${encodeURIComponent($("market").value)}`);
     if(current!==generation || !token)return;
     if($("market").options.length===1) for(const [code,name] of data.markets) {const option=document.createElement("option");option.value=code;option.textContent=name;$("market").append(option);}
-    disposeOperations?.();disposeOperations=null;
-    $("results").replaceChildren();
-    const navigation=document.createElement("nav");navigation.setAttribute("aria-label","Admin reports");
-    const analyticsLink=document.createElement("a");analyticsLink.href="#analytics";analyticsLink.textContent="Analytics";
-    navigation.append(analyticsLink);$("results").append(navigation);
-    paragraph($("results"),`Collection ${data.collectionEnabled ? "enabled" : "disabled"}. Catalog services: ${data.catalogServices}.`);
-    for(const note of data.notes)paragraph($("results"),note);
-    paragraph($("results"),`Data quality: ${data.dataQuality.selectableMarkets} selectable markets; ${data.dataQuality.registryRows} registry fallbacks in scope.`);
+    ensureAdminViews();
+    adminViews.operationsEnabled=data.v2OperationsEnabled===true;
+    if(!adminViews.operationsEnabled&&disposeOperations){disposeOperations();disposeOperations=null;adminViews.operations.replaceChildren();}
+    await selectAdminView(adminViews.active??(location.hash==="#v2-operations"?"operations":"analytics"),false);
+    if(current!==generation||!token)return;
+    if(adminViews.active==="operations"){message("Loaded.");return;}
+    const panel=adminViews.analytics;
+    panel.replaceChildren();
+    paragraph(panel,`Collection ${data.collectionEnabled ? "enabled" : "disabled"}. Catalog services: ${data.catalogServices}.`);
+    for(const note of data.notes)paragraph(panel,note);
+    paragraph(panel,`Data quality: ${data.dataQuality.selectableMarkets} selectable markets; ${data.dataQuality.registryRows} registry fallbacks in scope.`);
     table("Persisted provider-price records (not user spending)",[["verification","Verification"],["prices","Prices"]],data.dataQuality.persistedPrices);
-    const analyticsHeading=document.createElement("h2");analyticsHeading.id="analytics";analyticsHeading.textContent="Analytics";$("results").append(analyticsHeading);
+    const analyticsHeading=document.createElement("h2");analyticsHeading.id="analytics";analyticsHeading.textContent="Analytics";panel.append(analyticsHeading);
     if(data.analyticsV2Enabled) {
       const analytics=await request(`analytics?range=${encodeURIComponent(analyticsRange)}`);
       if(current!==generation || !token)return;
@@ -72,8 +125,8 @@ async function refresh() {
       const segments=await request(`analytics/segments?report=${encodeURIComponent(analyticsSegment)}&month=${encodeURIComponent(analyticsMonth)}`);
       if(current!==generation || !token)return;
       renderAnalytics(analytics,segments);
-    } else paragraph($("results"),"Analytics reporting is disabled by the API configuration. Enable ANALYTICS_V2_REPORTING_ENABLED, ANALYTICS_PRIVACY_REVIEWED and ANALYTICS_MAINTENANCE_ENABLED on the API to use the prepared Growth, Plans and Product reports. Collection is configured separately. No user-level viewer is provided.");
-    if(data.v2OperationsEnabled){const link=document.createElement("a");link.href="#v2-operations";link.textContent="V2 Operations";navigation.append(link);const {mountOperations}=await import("./v2-operations.js");if(current===generation&&token)disposeOperations=await mountOperations($("results"),request,()=>current===generation&&!!token);}
+    } else paragraph(panel,"Analytics reporting is disabled by the API configuration. Enable ANALYTICS_V2_REPORTING_ENABLED, ANALYTICS_PRIVACY_REVIEWED and ANALYTICS_MAINTENANCE_ENABLED on the API to use the prepared Growth, Plans and Product reports. Collection is configured separately. No user-level viewer is provided.");
+    adminViews.analyticsLoaded=true;
     message("Loaded.");
   } catch(error) {if(current===generation)message(error.message);}
 }
@@ -135,7 +188,7 @@ $("revoke").addEventListener("click",async()=>{
   try{await request("sessions",{method:"DELETE",headers:{Authorization:`Bearer ${previous}`}});if(!token)message("All admin sessions revoked.");}
   catch{if(!token)message("Server revocation could not be confirmed. Sessions expire within 60 minutes.");}
 });
-$("filters").addEventListener("submit",event=>{event.preventDefault();refresh();});
+$("filters").addEventListener("submit",event=>{event.preventDefault();return refresh();});
 $("logout").addEventListener("click",async()=>{
   const previous=token;clearSession();message("Signed out locally.");
   try{await request("session",{method:"DELETE",headers:{Authorization:`Bearer ${previous}`}});}
@@ -144,7 +197,7 @@ $("logout").addEventListener("click",async()=>{
 window.addEventListener("pagehide",clearSession);
 
 function analyticsSection(title) {
-  const section=document.createElement("section"),heading=document.createElement("h2");heading.textContent=title;section.append(heading);$("results").append(section);return section;
+  const section=document.createElement("section"),heading=document.createElement("h2");heading.textContent=title;section.append(heading);adminViews.analytics.append(section);return section;
 }
 function renderAnalytics(data,segments) {
   const controls=document.createElement("form");controls.className="analytics-controls";
@@ -157,7 +210,7 @@ function renderAnalytics(data,segments) {
   select("Closed month (Product only)",data.months,analyticsMonth,value=>{analyticsMonth=value;});
   select("Segment report",["top-services","selected-markets"],analyticsSegment,value=>{analyticsSegment=value;});
   const button=document.createElement("button");button.textContent="Update analytics";controls.append(button);
-  controls.addEventListener("submit",event=>{event.preventDefault();refresh();});$("results").append(controls);
+  controls.addEventListener("submit",event=>{event.preventDefault();return refresh();});adminViews.analytics.append(controls);
   const growth=analyticsSection("Growth");
   paragraph(growth,`Current accounts: ${data.current.total}. Excludes accounts scheduled for deletion; not active users.`);
   paragraph(growth,`Active users: unavailable. ${data.unavailable.activeUsers}`);

@@ -77,6 +77,8 @@ After separate approval, upload exactly:
 | apps/web/admin/index.html | /subdomener/admin/index.html |
 | apps/web/admin/admin.js | /subdomener/admin/admin.js |
 | apps/web/admin/admin.css | /subdomener/admin/admin.css |
+| apps/web/admin/v2-operations.js | /subdomener/admin/v2-operations.js |
+| apps/web/admin/live-status.js | /subdomener/admin/live-status.js |
 | apps/web/admin/logo.png (byte-for-byte copy of apps/web/assets/logo.png) | /subdomener/admin/logo.png |
 | apps/web/admin/deploy/webhuset-admin.htaccess | /subdomener/admin/.htaccess |
 
@@ -208,3 +210,21 @@ analytics remains disabled and no new fields or pseudonymous collection were int
 
 Host response behavior and real platform-passkey acceptance remain later controlled
 checks. Automated fixtures prove verifier behavior, not actual Webhuset/browser behavior.
+
+## Separate Admin views and module boundary
+
+Analytics (`#analytics`, default) and V2 Operations (`#v2-operations`) are separate
+views in the same authenticated session. Only one Operations workspace is mounted;
+switching views hides it without disposing its inputs, Preflight or live polling.
+Analytics refreshes replace only Analytics content. Logout disposes Operations.
+The Operations feature gate remains authoritative; reporting failures do not gate
+Operations initialization. No collection, research or authorization semantics change.
+
+Deploy the complete static file list above, including both Operations modules.
+The explicit `.htaccess` allowlist must include `live-status.js`; omitting it gives
+403 and prevents the importing Operations module from loading. Do not broaden the
+allowlist to arbitrary JavaScript or upload tests. After separately approved upload,
+verify both modules return 200 with JavaScript content, both top-level views work,
+and service/capability/Preflight controls are visible. Switch away and back and
+confirm typed selections and open details persist. Do not press Preflight or
+Confirm and queue run for this passive deployment check; no V2 job is required.

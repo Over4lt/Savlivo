@@ -151,3 +151,11 @@ li {margin:.4rem 0;color:var(--muted)}
 @keyframes ops-active{50%{border-color:currentColor}}
 @media(prefers-reduced-motion:reduce){.ops-stage-current{animation:none}}
 @media(max-width:600px){.ops-live-card{padding:.75rem}.ops-lifecycle{display:grid;gap:.35rem}.ops-live-card button{min-height:2.75rem}}
+
+/* Top-level views keep their workspace nodes while inactive. */
+[hidden]{display:none!important}
+.admin-view-nav{display:flex;flex-wrap:wrap;gap:.75rem;margin:1rem 0}
+.admin-view-nav a{padding:.5rem .75rem;border:1px solid var(--border);border-radius:.5rem;color:var(--text)}
+.admin-view-nav a[aria-current="page"]{background:var(--accent);color:var(--accent-ink)}
+.admin-view-nav a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.admin-session-actions{display:flex;flex-wrap:wrap;gap:.5rem}

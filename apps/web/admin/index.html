@@ -4,14 +4,13 @@
 <meta name="robots" content="noindex,nofollow">
 <!-- Production response headers further restrict connect-src to the production API only. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://savlivo-api.onrender.com http://localhost:3000; base-uri 'none'; form-action 'none'">
-<title>Savlivo Internal Analytics</title><link rel="stylesheet" href="admin.css"></head>
-<body><main><h1 class="brand-heading"><img src="logo.png" alt="" width="40" height="40"><span>Savlivo Internal Analytics</span></h1><p>Private aggregate reporting. Access requires an explicitly authorized admin account.</p>
+<title>Savlivo Admin</title><link rel="stylesheet" href="admin.css"></head>
+<body><main><h1 class="brand-heading"><img src="logo.png" alt="" width="40" height="40"><span>Savlivo Admin</span></h1><p>Private Analytics and V2 Operations. Access requires an explicitly authorized admin account.</p>
 <form id="login"><button type="submit">Sign in with a passkey</button></form>
 <form id="register"><details><summary>Register an admin passkey</summary>
 <p>Requires an existing passkey session or a five-minute operator-issued enrollment grant. This does not grant an admin role.</p>
 <label>Enrollment grant (first setup only) <input id="enrollment" type="password" autocomplete="off" maxlength="47"></label>
 <button type="submit">Register passkey</button></details></form>
 <p id="message" role="status" aria-live="polite"></p>
-<section id="dashboard" hidden><form id="filters"><label>Provider coverage market <select id="market"><option value="">All markets</option></select></label><button>Refresh</button><button id="logout" type="button">Sign out</button><button id="revoke" type="button">Sign out all admin sessions</button></form>
-<p>Catalog/provider coverage is separate from explicitly enabled aggregate Analytics v2. No individual accounts or portfolios are exposed. Access requires server-authorized passkey enrollment.</p>
+<section id="dashboard" hidden><form id="filters"><label>Provider coverage market <select id="market"><option value="">All markets</option></select></label><button>Refresh</button></form><div class="admin-session-actions"><button id="logout" type="button">Sign out</button><button id="revoke" type="button">Sign out all admin sessions</button></div>
 <div id="results"></div></section></main><script type="module" src="admin.js"></script></body></html>
