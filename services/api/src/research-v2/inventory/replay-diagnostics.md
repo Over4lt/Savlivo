@@ -53,3 +53,18 @@ failure. Missing/stale diagnostics remain possible and confer no recovery author
 The 4 MiB measurement stop bounds emitted measurement work, not peak allocation:
 an individual string can be serialized before the sink checks its byte count.
 No full projection payload is retained in diagnostics.
+
+## Retained review versus execution prohibition
+
+A non-integrity replay failure discards the rebuilt clone and preserves
+`retainedFailure` for diagnostics and Human Review. It does not create a
+whole-target `executionBlocked` prohibition. Automatic retained-success reuse
+is disabled while that review requirement remains. Independently executable
+fresh acquisition/discovery may proceed through the unchanged admission,
+permissions, duplicate/history, budget, access and verification gates. With no
+such action, adaptive assessment remains deferred for retained review.
+
+Fresh work neither clears this failure nor promotes the failed retained results.
+Explicit target execution blocks and service reconciliation still dominate.
+Existing persisted seeds with an `executionBlocked` field remain blocked; this
+change does not migrate artifacts, resume jobs, or authorize recovery.

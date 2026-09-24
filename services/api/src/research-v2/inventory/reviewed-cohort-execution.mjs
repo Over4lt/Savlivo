@@ -183,7 +183,8 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
     fs.mkdirSync(dest+'/input/bodies',{recursive:true});const pages=[];for(const x of unique){fs.copyFileSync(x.directory+'/'+x.page.bodyFile,dest+'/input/'+x.page.bodyFile);pages.push(x.page);}atomic(dest+'/input/pages.json',pages);
     // Reinterpret price under current generic safety rules before reusing old sufficiency.
     if(phase==='pricing'){seed.priorVerifiedRequiringCurrentSafetyReview=seed.verified??[];seed.verified=[];delete seed.retainedPriceReview;}
-    let replay;try{replay=await replayTarget({target:seed,directory:dest+'/evidence',sourceDirectory:dest+'/input',registry,interpret:async args=>{const result=await interpretDirectProvider(args);args.onReplayStage?.('SOURCE_ENRICHMENT');return enrich(args,result);},quarantine:lifecycle.quarantine??[]});}catch(error){seed.retainedFailure=retainedReplayFailure(error,dest+'/evidence');seed.executionBlocked=seed.retainedFailure.reason;replay={target:seed};}
+    // Failed retained reconstruction stays review-only; independently admitted fresh work may continue.
+    let replay;try{replay=await replayTarget({target:seed,directory:dest+'/evidence',sourceDirectory:dest+'/input',registry,interpret:async args=>{const result=await interpretDirectProvider(args);args.onReplayStage?.('SOURCE_ENRICHMENT');return enrich(args,result);},quarantine:lifecycle.quarantine??[]});}catch(error){seed.retainedFailure=retainedReplayFailure(error,dest+'/evidence');replay={target:seed};}
 
     replay.target.leads=[...new Map([...(seed.leads??[]),...(replay.target.leads??[])].map(l=>[l.url,l])).values()];
     replay.target.researchMemory=combineResearchMemory(replay.target,[seed.researchMemory,replay.target.researchMemory].filter(Boolean));

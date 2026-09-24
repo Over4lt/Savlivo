@@ -5,6 +5,8 @@ import {usableResearchMemory} from './research-memory.mjs';import {normalizeFron
 const sha=x=>createHash('sha256').update(x).digest('hex'),norm=u=>normalizeFrontierUrl(u).url;
 function read(file){const p=path.resolve(file);if(!p.startsWith(process.cwd()+path.sep)||fs.lstatSync(p).isSymbolicLink())throw Error('OUTSIDE_RETAINED_ROOT');return JSON.parse(fs.readFileSync(p));}
 export function retainedSuccesses(t){
+ // Failed replay remains review-only; fresh evidence must enter through acquisition/verification.
+ if(t.retainedFailure?.reason==='RETAINED_INTERPRETATION_REVIEW_REQUIRED')return [];
  const memory=usableResearchMemory(t);if(memory.rejected)return [];
  return [...new Map(memory.attempts.filter(a=>a.route==='DIRECT'&&a.outcome==='OK'&&a.bodyHash).map(a=>[norm(a.finalUrl??a.url)+'|'+a.bodyHash,a])).values()].map(a=>{
  const url=norm(a.finalUrl??a.url),key=sha(JSON.stringify([url,a.bodyHash,a.reference]));let observations=[],intact=false,capturedAt=a.capturedAt??null;

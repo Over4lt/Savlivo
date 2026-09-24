@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';import fs f
 import {planResearch} from './research-planner.mjs';
 import {executableAction,executionBounds} from './execution-capabilities.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
-import {runAdaptiveCampaign} from '../inventory/adaptive-campaign.mjs';
+import {initializeAdaptiveState,assessAdaptiveService,runAdaptiveCampaign} from '../inventory/adaptive-campaign.mjs';
 import {createTavilyDiscovery} from './tavily-discovery.mjs';
 import {recoverInterrupted} from '../inventory/expansion-campaign.mjs';
 const url='https://provider.example/plans';
@@ -83,4 +83,44 @@ test('qualifying Direct failure still dispatches fallback, not independent acqui
 });
 test('Direct failure never calls an injected paid adapter when Decodo permission is OFF',async t=>{
  const state=await run(t,{direct:true,decodo:false},{read:async()=>({url,outcome:'UNRESOLVED',failure:{code:'TIMEOUT'},accessDecisions:[{decision:'ALLOWED'}]}),consumeProvider:async()=>({verified:[],needsGeo:true,blockers:['TIMEOUT']}),acquire:fail});assert.equal(state.usage.acquisitions,0);
+});
+
+// Retained replay review is not permission to reuse evidence or a global acquisition veto.
+import {retainedSuccesses,consumeRetainedSuccess} from './retained-success.mjs';
+import {retainedReplayFailure} from '../inventory/replay-diagnostics.mjs';
+const reviewTarget=()=>({...target(),retainedFailure:retainedReplayFailure(Error('INTERPRETATION_FAILED'),'retained/evidence'),priorVerifiedRequiringCurrentSafetyReview:[{unsafe:true}],verified:[]});
+const assessment=(x,limits={})=>assessAdaptiveService(initializeAdaptiveState({targets:[x],conditionalFollowupTargets:[]},{limits}),'provider');
+test('retained review permits fresh Decodo through adaptive acquisition/accounting without promoting retained evidence',async t=>{
+ const x=reviewTarget(),a=assessment(x);assert.equal(a.next.plan.route,'DECODO');assert.equal(a.next.plan.runnable,true);
+ assert.deepEqual(retainedSuccesses(x),[]);assert.throws(()=>consumeRetainedSuccess(x,'old'),/RETAINED_SOURCE_RECONCILIATION_REQUIRED/);
+ let calls=0;const state=await runAdaptiveCampaign({directory:dir(t),manifest:{targets:[x],conditionalFollowupTargets:[]},createAdapters:async()=>({read:fail,search:fail,classify:async()=>admitted,acquire:async args=>{calls++;assert.equal(args.route,'DECODO');return {classification:'COMMERCIAL_FIELDS_INSUFFICIENT',verified:[]};}})});
+ assert.equal(calls,1);assert.equal(state.services.provider.used.acquisitions,1);
+ const result=state.targets[x.id];assert.deepEqual(result.verified,[]);assert.equal(result.retainedPriceReview,undefined);assert.deepEqual(result.retainedFailure,x.retainedFailure);assert.deepEqual(result.priorVerifiedRequiringCurrentSafetyReview,x.priorVerifiedRequiringCurrentSafetyReview);
+ assert.deepEqual(retainedSuccesses(result),[]);
+});
+for(const [name,change,limits]of [
+ ['no destination',{urls:[]},{}],
+ ['Decodo prohibited',{capabilities:{...target().capabilities,decodo:false}},{}],
+ ['duplicate',{acquisitionOutcomes:[{url}]},{}],
+ ['budget exhausted',{}, {acquisitions:0}],
+ ['target safety block',{executionBlocked:'NO_EXECUTABLE_PROGRESS_RECONCILE'},{}]
+])test('retained review preserves fresh gate: '+name,()=>{
+ const a=assessment({...reviewTarget(),...change},limits);assert.equal(a.next,null);assert.equal(a.rows[0].plan.runnable,false);
+ assert.equal(a.rows[0].reason,name==='target safety block'?'NO_EXECUTABLE_PROGRESS_RECONCILE':'RETAINED_INTERPRETATION_REVIEW_REQUIRED');
+});
+test('retained review leaves service reconciliation and integrity exceptions fail-closed',()=>{
+ const x=reviewTarget(),s=initializeAdaptiveState({targets:[x],conditionalFollowupTargets:[]});s.services.provider.reconciliation='PENDING_DISPATCH_RECONCILIATION';assert.equal(assessAdaptiveService(s,'provider').next,null);
+ for(const code of ['DIRECT_PROVIDER_HASH_MISMATCH','AUTHORITY_MISMATCH','POLICY_DENIED']){const e=Error(code);assert.throws(()=>retainedReplayFailure(e,'retained/evidence'),caught=>caught===e);}
+});
+
+import {createResearchMemory} from './research-memory.mjs';
+import {createHash} from 'node:crypto';
+test('review restriction prevents consuming an intact HIGH retained artifact',t=>{
+ const root=fs.mkdtempSync(path.join(process.cwd(),'.independent-decodo-review-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const x=target(),bodyHash='1'.repeat(64),file=root+'/source.json';
+ fs.writeFileSync(file,JSON.stringify({summary:{service:x.service,market:x.market,hash:bodyHash},receipt:{intact:true,serviceEstablished:true},observations:[{amount:'12',currency:'EUR',billingInterval:{normalized:'P1M'},service:x.service,source:{kind:'ORIGINAL_PROVIDER',hash:bodyHash},confidence:'HIGH',market:x.market,fields:{provenance:{status:'ESTABLISHED'}},blockers:[]}]}));
+ x.researchMemory=createResearchMemory({...x,reads:[{requestedUrl:url,url,outcome:'OK',bodyHash}]},{path:file,hash:createHash('sha256').update(fs.readFileSync(file)).digest('hex')});
+ const r=retainedSuccesses(x)[0];assert.equal(r.sufficient.confidence,'HIGH');
+ x.retainedFailure=reviewTarget().retainedFailure;
+ assert.deepEqual(retainedSuccesses(x),[]);assert.throws(()=>consumeRetainedSuccess(x,r.key),/RETAINED_SOURCE_RECONCILIATION_REQUIRED/);
 });

@@ -39,6 +39,8 @@ export function assessAdaptiveService(state,service){
  if(enough){decision='REJECT';reason=enough;}
  else if(s.reconciliation){reason=s.reconciliation;}
  else if(t.executionBlocked){reason=t.executionBlocked;}
+ // Retained review blocks reuse, not independently admitted fresh research.
+ else if(t.retainedFailure?.reason==='RETAINED_INTERPRETATION_REVIEW_REQUIRED'&&!(cap.executable&&['DIRECT','DECODO','DISCOVERY',...(t.researchObjective==='CATALOG_ONLY'?['AUTHORITY_DISCOVERY']:[])].includes(p.route))){reason=t.retainedFailure.reason;}
  else if(t.researchObjective!=='CATALOG_ONLY'&&t.priceStrategy==='MANUAL_ONLY'&&t.manualOnlyDecision?.established&&t.manualOnlyDecision.reference){decision='REJECT';reason='MANUAL_ONLY_APPROPRIATE';}
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished){decision='REJECT';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}
  else if(t.demonstratedConfigurator||t.demonstratedRendering){reason=t.demonstratedConfigurator?'CONFIGURATOR_REQUIRED':'RENDERING_REQUIRED';}
