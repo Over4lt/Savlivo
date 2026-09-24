@@ -57,7 +57,7 @@ for(const [key,label]of Object.entries({direct:'Direct',tavily:'Tavily',decodo:'
  assert(!calls.some(c=>c.p.endsWith('/start')));
 });
 test('unavailable tools cannot be enabled; permission and actual usage remain separate',async t=>{
- const {root,calls}=await builder(t,{liveReady:false});assert(text(root).includes('Actually used: no run started'));
+ const {root,calls}=await builder(t,{liveReady:false});assert(text(root).includes('Actual usage is reported in run details separately from permission'));
  const check=checkbox(root,'Browser/Web');assert.equal(check.disabled,true);check.checked=true;await check.listeners.change();assert.equal(check.checked,false);
  await button(root,'Preflight').listeners.click();assert(text(root).includes('Docker runtime unavailable on this server'));assert(!button(root,'Confirm and queue run'));assert.equal(calls.find(c=>c.p.endsWith('/preflight')).body.capabilities.browser,false);
 });
@@ -278,7 +278,7 @@ test('live projection uses measured accounting and final service states, never r
 });
 test('pipeline never invents validation or detailed research activity',()=>{
  for(const status of ['QUEUED','RUNNING','COMPLETE','FAILED','INTERRUPTED','UNKNOWN']){const v=liveStatusView({id:'x',status,terminal:status==='COMPLETE'});assert(!v.pipeline.some(([label])=>label==='Validation'));assert(!v.activity.includes('Verifying offer'));assert.equal(v.tone,statusTone(status));}
- const v=liveStatusView({id:'x',status:'QUEUED',phase:'Validating execution'});assert.equal(v.activity,'Validating execution');assert.equal(v.pipeline[0][1],'current');assert.equal(v.pipeline[1][1],'unknown');
+ const v=liveStatusView({id:'x',status:'QUEUED',phase:'Validating execution'});assert.equal(v.activity,'Queued — waiting to start execution');assert.equal(v.pipeline[0][1],'current');assert.equal(v.pipeline[1][1],'unknown');
  assert.equal(liveStatusView({id:'x',status:'RUNNING'}).activity,'Running');
 });
 test('active job is above history; completion updates stable nodes, preserves Preflight and opens results',async t=>{
@@ -297,4 +297,29 @@ test('status styling has text alternatives, reduced motion and a narrow-screen l
  const css=fs.readFileSync(new URL('./admin.css',import.meta.url),'utf8');assert.match(css,/@media\(prefers-reduced-motion:reduce\)\{\.ops-stage-current\{animation:none/);assert.match(css,/@media\(max-width:600px\)/);
  for(const [status,tone]of Object.entries({COMPLETE:'success',RUNNING:'active',QUEUED:'attention',FAILED:'error',UNKNOWN:'muted'}))assert.equal(statusTone(status),tone);
  const v=liveStatusView({id:'x',status:'COMPLETE',terminal:true},{lifecycle:{humanReviewRequired:1}},{rows:[{pricing:[{status:'UNRESOLVED'}]}],total:1});assert.equal(v.reviewTone,'attention');assert.equal(v.pricingTone,'attention');assert.match(v.status,/COMPLETE/);assert.match(v.review,/required: 1/);
+});
+test('local workflow persists from immediate Preflight through admission, polling and result',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const root=setup(),calls=[];let release,status='QUEUED';const pending=new Promise(r=>release=r);
+ const run=()=>({id:'local-run',jobId:'local-job',status,owned:true,requests:3,lifecycle:{executionComplete:status==='COMPLETE',researchComplete:false,humanReviewRequired:1}});
+ const dispose=await mountOperations(root,async(p,o)=>{
+  calls.push(p);const body=o?.body?JSON.parse(o.body):null;
+  if(p.endsWith('/summary'))return {...summary,lifecycleConfigured:true,flags:{read:true,control:true,scheduling:false},capabilityAvailability:availability};
+  if(p.endsWith('/targeting'))return {...targetModel,matching:targetRows};
+  if(p.endsWith('/preflight')){await pending;return {status:'SUCCEEDED',result:{token:'local-token',liveReady:true,conflicts:[],totalSafetyCeiling:36,capabilityCheck:{capabilities:body.capabilities,availability},storage:{admissionAllowed:true,researchDisk:{admissionAllowed:true}}}};}
+  if(p.endsWith('/start'))return {status:'SUCCEEDED',result:{id:'local-job',status:'QUEUED'}};
+  if(p.includes('/jobs/'))return {id:'local-job',status,phase:status==='QUEUED'?'Validating execution':status==='RUNNING'?'Recorded worker activity':null,terminal:status==='COMPLETE'};
+  if(p==='v2-operations/runs/local-run')return {run:run(),services:{total:1,rows:[{pricing:[{market:'DE',status:'UNRESOLVED'}]}]},events:[]};
+  if(p.startsWith('v2-operations/runs?limit='))return {rows:[run()],total:1};
+  return {rows:[],total:0};
+ });t.after(dispose);const flush=async()=>{for(let i=0;i<15;i++)await Promise.resolve();};
+ const preflight=button(root,'Preflight'),workflow=descendants(root).find(n=>n.className==='ops-workflow');assert.equal(preflight.parentElement,workflow.parentElement);assert.equal(preflight.parentElement.children.indexOf(workflow),preflight.parentElement.children.indexOf(preflight)+1);
+ const card=descendants(workflow).find(n=>n.className?.startsWith('ops-live-card'));assert(card);assert.equal(descendants(root).filter(n=>n.className?.startsWith('ops-live-card')).length,1);
+ const checking=preflight.listeners.click();assert(text(workflow).includes('Preflight in progress'));assert(!text(workflow).includes('No research is running'));
+ release();await checking;assert(text(workflow).includes('ready to confirm Start'));assert(text(workflow).includes('Film House'));assert(text(workflow).includes('Maximum new external requests'));assert(text(workflow).includes('36'));
+ window.confirm=()=>true;await button(workflow,'Confirm and queue run').listeners.click();await flush();assert(text(workflow).includes('Admission recorded for job local-job'));assert(text(workflow).includes('Admitted Preflight snapshot'));assert(text(workflow).includes('Queued — waiting to start execution'));assert(!text(workflow).includes('Validating execution'));assert(!card.hidden);assert(button(workflow,'Confirm and queue run').hidden);
+ const input=descendants(root).find(n=>n.placeholder==='Browse below, or type a name');input.value='unfinished draft';document.activeElement=input;root.scrollTop=550;const control=checkbox(root,'Direct');const open=descendants(root).find(n=>n.children.some(c=>c.textContent==='Markets — optional'));open.open=true;
+ const nodes=descendants(root),replacements=nodes.map(n=>n.replacements??0);
+ for(const next of ['RUNNING','COMPLETE']){status=next;t.mock.timers.tick(10000);await flush();if(next==='RUNNING')assert(text(workflow).includes('Recorded worker activity'));}
+ assert.deepEqual(descendants(root),nodes);assert.deepEqual(nodes.map(n=>n.replacements??0),replacements);assert.equal(document.activeElement,input);assert.equal(input.value,'unfinished draft');assert.equal(root.scrollTop,550);assert(open.open);assert.equal(checkbox(root,'Direct'),control);assert.equal(button(root,'Preflight'),preflight);
+ assert(text(workflow).includes('Execution complete'));assert(text(workflow).includes('Research remains incomplete'));assert(text(workflow).includes('DE: UNRESOLVED'));assert(text(workflow).includes('Human Review required: 1'));assert(text(workflow).includes('Admitted Preflight snapshot'));assert(button(card,'View results'));assert.equal(calls.filter(p=>p.endsWith('/start')).length,1);
 });

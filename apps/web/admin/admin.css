@@ -163,3 +163,5 @@ li {margin:.4rem 0;color:var(--muted)}
 .admin-session-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.5rem;margin-left:auto;max-width:100%}
 .admin-session-actions button{max-width:100%}
 @media(max-width:600px){.admin-session-actions{margin-left:0;justify-content:flex-start}.admin-description{overflow-wrap:break-word}}
+
+.ops-workflow{min-width:0;max-width:100%;overflow-wrap:anywhere}
