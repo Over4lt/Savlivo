@@ -23,7 +23,7 @@ if (!api) {
 }
 function clearSession() {
   disposeOperations?.();disposeOperations=null;adminViews=null;operationsLoading=null;
-  token = null; browserAbort?.abort(); clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("login").hidden = false; $("results").replaceChildren();
+  token = null; browserAbort?.abort(); clearTimeout(expiryTimer); generation++; $("dashboard").hidden = true; $("session-actions").hidden=true; $("admin-navigation").replaceChildren(); $("login").hidden = false; $("results").replaceChildren();
 }
 function operationsRequestTimeout(path) {
   if (path === "v2-operations/targeting") return 30000;
@@ -65,7 +65,8 @@ function ensureAdminViews() {
     links[key]=link;navigation.append(link);
   }
   adminViews={analytics,operations,links,active:null,operationsEnabled:false,analyticsLoaded:false,scroll:{analytics:0,operations:0}};
-  $("results").append(navigation,analytics,operations);
+  $("admin-navigation").append(navigation);
+  $("results").append(analytics,operations);
 }
 async function ensureOperations() {
   if(!adminViews?.operationsEnabled||disposeOperations)return;
@@ -166,7 +167,7 @@ $("login").addEventListener("submit",async event=>{
     const result=await request("passkeys/authenticate/verify",{method:"POST",body:JSON.stringify({challengeId:options.challengeId,response})});
     if(current!==generation) {await request("session",{method:"DELETE",headers:{Authorization:`Bearer ${result.token}`}});return;}
     token=result.token;clearTimeout(expiryTimer);expiryTimer=setTimeout(()=>{clearSession();message("Session expired. Sign in again.");},result.expiresInSeconds*1000);
-    $("login").hidden=true;$("dashboard").hidden=false;await refresh();
+    $("login").hidden=true;$("dashboard").hidden=false;$("session-actions").hidden=false;await refresh();
   } catch {if(current===generation)message("Passkey sign-in was cancelled or unavailable. Try again.");}
 });
 $("register").addEventListener("submit",async event=>{

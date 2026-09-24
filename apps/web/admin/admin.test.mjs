@@ -12,7 +12,7 @@ class Element {
   set innerHTML(_){throw new Error("HTML injection");}
 }
 function harness(fetch, credentials, page={hostname:"localhost",protocol:"http:",origin:"http://localhost:8080"}, timers={setTimeout:()=>1,clearTimeout:()=>{}}, mountOperations=async()=>()=>{}) {
-  const nodes=Object.fromEntries(["login","register","enrollment","revoke","message","dashboard","filters","market","logout","results"].map(id=>[id,new Element()]));
+  const nodes=Object.fromEntries(["login","register","enrollment","revoke","message","dashboard","filters","market","logout","results","session-actions","admin-navigation"].map(id=>[id,new Element()]));
   nodes.market.options=[new Element()];
   const mockCredential={id:"AA",rawId:new Uint8Array([0]).buffer,type:"public-key",getClientExtensionResults:()=>({}),response:{clientDataJSON:new Uint8Array([0]).buffer,authenticatorData:new Uint8Array([0]).buffer,signature:new Uint8Array([0]).buffer,userHandle:new Uint8Array([0]).buffer,attestationObject:new Uint8Array([0]).buffer}};
   const context={location:page,document:{getElementById:id=>nodes[id],createElement:()=>new Element(),createElementNS:()=>new Element()},
@@ -33,7 +33,7 @@ test("Analytics navigation is available after authentication without bypassing d
     ? response({token:"adm_test",expiresInSeconds:900}) : response({...overview,analyticsV2Enabled:false});});
   await nodes.login.listeners.submit(submit);
   const descendants=e=>[e,...e.children.flatMap(descendants)];
-  const elements=descendants(nodes.results);
+  const elements=[...descendants(nodes.results),...descendants(nodes["admin-navigation"])];
   assert.ok(elements.some(e=>e.href==="#analytics"&&e.textContent==="Analytics"));
   assert.ok(elements.some(e=>e.id==="analytics"));
   assert.ok(elements.some(e=>e.textContent.includes("ANALYTICS_V2_REPORTING_ENABLED")));
@@ -214,7 +214,7 @@ test('Operations authentication checks have bounded timeouts beyond the old ten-
 });
 
 test('Preflight transport failure does not clear an authenticated session; only 401 does',async()=>{
- let mode='transport';const nodes=Object.fromEntries(['login','dashboard','results','message'].map(id=>[id,new Element()]));
+ let mode='transport';const nodes=Object.fromEntries(['login','dashboard','results','message','session-actions','admin-navigation'].map(id=>[id,new Element()]));
  const context={token:'session',generation:0,browserAbort:null,expiryTimer:null,disposeOperations:null,adminViews:null,operationsLoading:null,$:id=>nodes[id],message:t=>{nodes.message.textContent=t;},clearTimeout(){},AbortSignal,api:'https://offline.invalid',fetch:async()=>{if(mode==='transport')throw Error('aborted');return response({},401);}};
  vm.runInNewContext(source.slice(source.indexOf('function clearSession()'),source.indexOf('function paragraph(')),context);
  await assert.rejects(vm.runInNewContext("request('v2-operations/preflight')",context),/aborted/);assert.equal(context.token,'session');
@@ -232,7 +232,7 @@ test('60-minute absolute browser session timer is not renewed by authenticated a
 
 const descendants=e=>[e,...e.children.flatMap(descendants)];
 const byId=(nodes,id)=>descendants(nodes.results).find(e=>e.id===id);
-const viewLink=(nodes,label)=>descendants(nodes.results).find(e=>e.textContent===label&&e.href);
+const viewLink=(nodes,label)=>descendants(nodes["admin-navigation"]).find(e=>e.textContent===label&&e.href);
 function viewFixture({hash='',analyticsFailure=false,operationsEnabled=true,mount}={}) {
   const calls=[];
   const nodes=harness(async(url,options)=>{
@@ -309,7 +309,7 @@ test('top-level switching does not replace panels, focus inputs or use fragment 
   assert.match(selection,/window\.scrollTo\?\./);
   assert.match(source,/history\.replaceState/);
   const html=readFileSync(new URL('index.html',import.meta.url),'utf8');
-  assert.match(html,/<\/form><div class="admin-session-actions"><button id="logout"/);
+  assert.match(html,/<header class="admin-header">[\s\S]*id="logout"[\s\S]*id="revoke"[\s\S]*<\/header>/);
 });
 test('every transitive Admin module is explicitly allowed and documented for static deployment',()=>{
   const headers=readFileSync(new URL('deploy/webhuset-admin.htaccess',import.meta.url),'utf8');
@@ -324,4 +324,32 @@ test('every transitive Admin module is explicitly allowed and documented for sta
   }
   visit('admin.js');assert(seen.has('v2-operations.js'));assert(seen.has('live-status.js'));
   for(const file of ['admin.test.mjs','.env','arbitrary.js'])assert.equal(allowed.test(file),false);
+});
+
+test('header layout places session actions opposite the brand and navigation before provider filters',()=>{
+  const html=readFileSync(new URL('index.html',import.meta.url),'utf8');
+  const css=readFileSync(new URL('admin.css',import.meta.url),'utf8');
+  const header=html.match(/<header class="admin-header">([\s\S]*?)<\/header>/)[1];
+  assert(header.indexOf('brand-heading')<header.indexOf('session-actions'));
+  assert.equal((html.match(/id="logout"/g)??[]).length,1);
+  assert.equal((html.match(/id="revoke"/g)??[]).length,1);
+  assert.match(html,/<\/header><p class="admin-description">Private Analytics and V2 Operations\. Access requires an explicitly authorized admin account\.<\/p>/);
+  assert(html.indexOf('id="admin-navigation"')<html.indexOf('id="filters"'));
+  assert(html.indexOf('id="filters"')<html.indexOf('id="results"'));
+  assert.match(css,/\.admin-header\{[^}]*justify-content:space-between[^}]*flex-wrap:wrap/);
+  assert.match(css,/\.admin-session-actions\{[^}]*margin-left:auto;max-width:100%/);
+  assert.match(css,/\.admin-description \{max-width:none;/);
+  assert.match(css,/\.admin-view-nav\{[^}]*justify-content:center;gap:\.25rem/);
+  assert.match(css,/\.admin-view-nav a\[aria-current="page"\]/);
+  assert.match(css,/@media\(max-width:600px\)\{\.admin-session-actions\{margin-left:0;justify-content:flex-start/);
+  assert.doesNotMatch(css,/\.admin-description[^}]*white-space:nowrap/);
+});
+test('header session actions follow existing login, logout and expiry visibility',async()=>{
+  const {nodes}=viewFixture();
+  await nodes.login.listeners.submit(submit);
+  assert.equal(nodes['session-actions'].hidden,false);
+  assert(nodes['admin-navigation'].children.length>0);
+  await nodes.logout.listeners.click();
+  assert.equal(nodes['session-actions'].hidden,true);
+  assert.equal(nodes['admin-navigation'].children.length,0);
 });

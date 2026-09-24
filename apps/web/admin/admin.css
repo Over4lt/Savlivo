@@ -26,7 +26,7 @@ h2 {font-size:1.125rem;margin:1.5rem 0 .75rem}
 .brand-heading img{width:1.25em;height:1.25em;object-fit:contain;flex-shrink:0}
 .brand-heading span{min-width:0}
 p {margin:.75rem 0;color:var(--muted)}
-main > p:first-of-type {max-width:65ch;margin-bottom:1.5rem}
+.admin-description {max-width:none;margin-bottom:1.5rem}
 label {display:inline-flex;flex-direction:column;gap:.4rem;max-width:100%;font-size:.9375rem}
 input,select,button {font:inherit;min-height:44px;border-radius:12px}
 input,select {
@@ -154,8 +154,12 @@ li {margin:.4rem 0;color:var(--muted)}
 
 /* Top-level views keep their workspace nodes while inactive. */
 [hidden]{display:none!important}
-.admin-view-nav{display:flex;flex-wrap:wrap;gap:.75rem;margin:1rem 0}
+.admin-view-nav{display:flex;flex-wrap:wrap;justify-content:center;gap:.25rem;margin:0 0 1.25rem}
 .admin-view-nav a{padding:.5rem .75rem;border:1px solid var(--border);border-radius:.5rem;color:var(--text)}
 .admin-view-nav a[aria-current="page"]{background:var(--accent);color:var(--accent-ink)}
 .admin-view-nav a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.admin-session-actions{display:flex;flex-wrap:wrap;gap:.5rem}
+.admin-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.admin-header .brand-heading{margin:0}
+.admin-session-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.5rem;margin-left:auto;max-width:100%}
+.admin-session-actions button{max-width:100%}
+@media(max-width:600px){.admin-session-actions{margin-left:0;justify-content:flex-start}.admin-description{overflow-wrap:break-word}}
