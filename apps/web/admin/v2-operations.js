@@ -109,7 +109,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   const view=liveStatusView(job,runSnapshot,serviceSnapshot);updateText(liveTitle,view.title);const cls='ops-live-card ops-status-'+view.tone;if(live.className!==cls)live.className=cls;
   const announcementKey=job.status+'|'+(job.phase??'');if(announcementKey!==lastAnnounced){lastAnnounced=announcementKey;updateText(announcement,view.activity);}
   for(const key of Object.keys(liveFields))if(view[key]!==undefined)updateText(liveFields[key],view[key]);
-  for(const key of ['review','pricing','research']){const cls='ops-state ops-status-'+view[key+'Tone'];if(liveFields[key].className!==cls)liveFields[key].className=cls;}
+  for(const key of ['review','pricing','research','status','diagnostic']){const cls='ops-state ops-status-'+view[key+'Tone'];if(liveFields[key].className!==cls)liveFields[key].className=cls;}
   for(const [i,[label,state]]of view.pipeline.entries()){updateText(steps[i],(state==='done'?'✓ ':state==='current'?'● ':'○ ')+label);const cls='ops-stage-'+state;if(steps[i].className!==cls){steps[i].className=cls;steps[i].setAttribute('aria-label',label+': '+(state==='unknown'?'Not confirmed':state));}}
   updateText(results,job.terminal?'View results':'View details');
  };

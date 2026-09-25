@@ -12,3 +12,9 @@ test('keyboard focus is separate and outside the normal border',()=>{assert.matc
 test('selected navigation and toggled buttons have a stronger inset edge',()=>{assert.match(rule(':is(button[aria-pressed="true"],.admin-view-nav a[aria-current="page"])'),/inset 0 0 0 1px/);assert.match(rule('.ops-research-builder .ops-tool-switch:has(input:checked:enabled)'),/inset/);});
 test('ordinary links, status pills and containers are not action selectors',()=>{const shared=css.slice(css.indexOf('/* Interactive affordances only:'));assert(!/(?:^|\n)(?:a|label|details|\.ops-state|\.ops-lifecycle li|\.ops-result-card)\s*\{/.test(shared));});
 test('processing uses light blue and reduced motion disables animation',()=>{assert.match(css,/button\.ops-action-busy\{--control-outline:var\(--control-processing\);opacity:1;border-color:var\(--control-processing\);outline:2px solid var\(--control-processing\)/);assert.match(css,/@media\(prefers-reduced-motion:reduce\)\{button\.ops-action-busy\{animation:none;outline:2px solid var\(--control-processing\)/);assert.match(css,/@keyframes ops-action-pulse.*4px var\(--control-processing\)/);});
+
+test('live failure uses danger accents without a solid-red surface or changing control tokens',()=>{
+ assert.match(rule('.ops-live-card.ops-status-error'),/border-color:var\(--control-danger\)/);assert.match(rule('.ops-live-card.ops-status-error'),/background:var\(--surface\)/);
+ assert.match(rule('.ops-live-card .ops-state.ops-status-error'),/color:var\(--control-danger\)/);
+ assert.match(css,/--control-outline: #87cba8/);assert.match(css,/--control-processing: #91ceff/);
+});

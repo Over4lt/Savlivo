@@ -34,3 +34,17 @@ test('missing diagnostics use explicit unknown, while active/read errors do not 
 test('abnormal elapsed freezes at authoritative terminal time',()=>{
  assert.equal(elapsedText({...job,terminal:true,startedAt:'2026-09-25T12:00:00Z',finishedAt:'2026-09-25T12:01:02Z'},Date.now()),'Elapsed: 1m 2s');
 });
+
+import {liveStatusView} from './live-status.js';
+for(const status of ['FAILED','INTERRUPTED'])test(status+' gives status and diagnostic the existing error tone',()=>{
+ for(const kind of ['CAUSE','PROBABLE_CAUSE','UNKNOWN']){
+  const view=liveStatusView({status,terminal:true,diagnostic:{kind,reason:'RECORDED_FAILURE'}});
+  assert.equal(view.statusTone,'error');assert.equal(view.diagnosticTone,'error');
+  if(kind==='CAUSE')assert.match(view.diagnostic,/^Cause:/);
+  else if(kind==='PROBABLE_CAUSE')assert.match(view.diagnostic,/^Probable cause:/);
+  else assert.equal(view.diagnostic,'Cause unavailable from recorded status.');
+ }
+});
+for(const status of ['COMPLETE','STOPPED','SKIPPED_NOT_DUE','QUEUED','RUNNING'])test(status+' does not acquire failure styling',()=>{
+ const view=liveStatusView({status,terminal:!['QUEUED','RUNNING'].includes(status)});assert.notEqual(view.statusTone,'error');assert.notEqual(view.diagnosticTone,'error');
+});

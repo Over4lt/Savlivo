@@ -205,3 +205,7 @@ input:is([type="checkbox"],[type="radio"]):disabled:not(.ops-tool-switch-input){
 
 .ops-primary-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem}
 button.ops-action-busy:focus-visible{outline:3px double var(--control-focus);outline-offset:6px}
+
+/* Failure accents stay local to live status; controls retain their own semantics. */
+.ops-live-card.ops-status-error{border-color:var(--control-danger);color:var(--text);background:var(--surface)}
+.ops-live-card .ops-state.ops-status-error{color:var(--control-danger);border-inline-start:3px solid var(--control-danger);padding-inline-start:.6rem}
