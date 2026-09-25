@@ -1,4 +1,4 @@
-import {liveStatusView,statusTone} from './live-status.js';
+import {liveStatusView,statusTone,elapsedClock} from './live-status.js';
 
 // Visual state only: operation records and job terminality remain authoritative.
 export function activeWorkflowAction({pending=null,preflight=null,start=null,job=null}={}){
@@ -102,7 +102,9 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
  live.append(liveTitle,announcement,pipeline,...Object.values(liveFields));
  const updateText=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
  let stopMonitor=()=>{},trackedId=null,tracking=false,lastJob=null,disposed=false,runSnapshot=null,serviceSnapshot=null;
+ const clock=elapsedClock(value=>updateText(liveFields.elapsed,value),()=>!disposed&&isCurrent());
  const showLive=job=>{
+  clock.update(job);
   updateWorkflow('job',job);
   const view=liveStatusView(job,runSnapshot,serviceSnapshot);updateText(liveTitle,view.title);const cls='ops-live-card ops-status-'+view.tone;if(live.className!==cls)live.className=cls;
   const announcementKey=job.status+'|'+(job.phase??'');if(announcementKey!==lastAnnounced){lastAnnounced=announcementKey;updateText(announcement,view.activity);}
@@ -324,5 +326,5 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   else if(preflight){const result=await watchOperation('preflight',preflight,()=>!disposed&&isCurrent()&&workflowRevision===revision);if(preflight.input&&recoverWorkflow&&!disposed&&isCurrent()&&workflowRevision===revision)await recoverWorkflow({rows:[{...preflight,status:'SUCCEEDED',result}]});}
   else {const completed=preflights.rows?.find(r=>r.input?.objective==='MATURE_LIFECYCLE');if(completed?.status==='SUCCEEDED'&&!trackedId&&!starts.rows?.some(s=>s.result?.idempotencyKey==='manual:'+completed.result?.token))await recoverWorkflow?.({rows:[completed]});}
  }catch{/* Read-only recovery never implies success or starts research. */}})();
- return ()=>{disposed=true;viewGeneration++;stopMonitor();root.remove();};
+ return ()=>{disposed=true;viewGeneration++;stopMonitor();clock.dispose();root.remove();};
 }

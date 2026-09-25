@@ -386,3 +386,13 @@ test('live status waits for each read and recovers after a transient failure wit
  const recovering=scheduled.shift()();assert.equal(scheduled.length,0);release.resolve({id:'bounded',status:'COMPLETE',terminal:true});await recovering;
  assert.equal(displayed.status,'COMPLETE');assert.equal(scheduled.length,0);assert.deepEqual(calls,Array(3).fill('v2-operations/jobs/bounded'));stop();
 });
+
+test('elapsed ticks locally without requests while status keeps its existing ten-second cadence',async t=>{
+ t.mock.timers.enable({apis:['setTimeout','Date'],now:Date.parse('2026-09-25T12:00:00Z')});
+ let status='RUNNING';const {root,calls}=await builder(t,{},[],[],id=>({id,status,terminal:status==='COMPLETE',startedAt:'2026-09-25T12:00:00Z',finishedAt:status==='COMPLETE'?'2026-09-25T12:00:09Z':null}));
+ await button(root,'Preflight').listeners.click();window.confirm=()=>true;await button(root,'Confirm and queue run').listeners.click();await flushPulse();
+ const before=calls.length;assert(text(root).includes('Elapsed: 0m 0s'));
+ t.mock.timers.tick(9000);assert(text(root).includes('Elapsed: 0m 9s'));assert.equal(calls.length,before);
+ status='COMPLETE';t.mock.timers.tick(1000);await flushPulse();assert.equal(calls.length,before+1);assert(calls.at(-1).p.includes('/jobs/'));assert(text(root).includes('Elapsed: 0m 9s'));
+ t.mock.timers.tick(60000);await flushPulse();assert.equal(calls.length,before+1);assert(text(root).includes('Elapsed: 0m 9s'));
+});
