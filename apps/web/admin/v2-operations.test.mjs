@@ -329,3 +329,37 @@ test('queued preparation and running integrity validation require authoritative 
  assert.equal(liveStatusView({id:'job',status:'QUEUED'}).activity,'Queued — waiting to start execution');
  assert.equal(liveStatusView({id:'job',status:'RUNNING',phase:'Validating execution integrity'}).activity,'Validating execution integrity');
 });
+
+import {activeWorkflowAction,setWorkflowBusy,awaitPreflight,awaitStart} from './v2-operations.js';
+for(const action of ['preflight','confirm','run'])test('workflow immediate pending selects only '+action,()=>{assert.equal(activeWorkflowAction({pending:action}),action);});
+for(const [key,action]of [['preflight','preflight'],['start','confirm']]){
+ test(action+' backend running and terminal mapping',()=>{assert.equal(activeWorkflowAction({[key]:{status:'RUNNING'}}),action);for(const status of ['SUCCEEDED','FAILED','EXPIRED'])assert.equal(activeWorkflowAction({[key]:{status}}),null);});
+ test(action+' polling publishes authoritative state transitions',async()=>{const seen=[],wait=key==='preflight'?awaitPreflight:awaitStart;await wait({id:'op',status:'RUNNING'},async()=>({id:'op',status:'SUCCEEDED',result:{}}),()=>true,async()=>{},state=>seen.push(state.status));assert.deepEqual(seen,['RUNNING','SUCCEEDED']);});
+}
+for(const status of ['COMPLETE','FAILED','STOPPED','INTERRUPTED','SKIPPED_CONFLICT','SKIPPED_NOT_DUE'])test('Run stops for authoritative terminal '+status,()=>{assert.equal(activeWorkflowAction({job:{status,terminal:true}}),null);});
+test('Run maps queued/running, not disabled controls or unknown state',()=>{for(const status of ['QUEUED','RUNNING'])assert.equal(activeWorkflowAction({job:{status,terminal:false}}),'run');assert.equal(activeWorkflowAction({job:{status:'RUNNING',terminal:true}}),null);assert.equal(activeWorkflowAction({disabled:true}),null);});
+test('busy styling preserves button classes and provides reduced-motion static state',()=>{const b=new Element();b.className='existing';b.disabled=true;setWorkflowBusy(b,false);assert.equal(b.className,'existing');setWorkflowBusy(b,true);assert.equal(b['aria-busy'],'true');assert(b.className.includes('ops-action-busy'));setWorkflowBusy(b,false);assert.equal(b['aria-busy'],'false');assert.equal(b.className,'existing');const css=fs.readFileSync(new URL('./admin.css',import.meta.url),'utf8');assert.match(css,/@media\(prefers-reduced-motion:reduce\)\{button\.ops-action-busy\{animation:none;outline:2px solid currentColor/);});
+const flushPulse=async()=>{for(let i=0;i<15;i++)await Promise.resolve();};
+async function pulseFixture(t,{history=[],starts=[],fail=false,activeJob=false}={}){
+ const root=setup(),timers=[],saved=globalThis.setTimeout;globalThis.setTimeout=fn=>{timers.push(fn);return timers.length;};t.after(()=>{globalThis.setTimeout=saved;});
+ let resolvePost,job={id:'pulse-job',status:'RUNNING',terminal:false};
+ const request=async(p,options)=>{
+  if(p.endsWith('/summary'))return {...summary,lifecycleConfigured:true,...(activeJob?{health:{latest:{owned:true,jobId:job.id,status:job.status}}}:{}),flags:{read:true,control:true,scheduling:false},capabilityAvailability:availability};
+  if(p.endsWith('/targeting')){const {selectTargeting}=await import('../../../services/api/src/v2-operations/targeting.mjs');return {...targetModel,...selectTargeting(targetModel,{})};}
+  if(p.endsWith('/preflights'))return {rows:history};if(p.endsWith('/starts'))return {rows:starts};
+  if(options?.method==='POST'&&(p.endsWith('/preflight')||p.endsWith('/start')))return new Promise((resolve,reject)=>{resolvePost=fail?()=>reject(Error('fixture failure')):resolve;});
+  if(p.includes('/preflights/'))return {status:'FAILED',error:'fixture done'};
+  if(p.includes('/starts/'))return {status:'SUCCEEDED',result:job};
+  if(p.includes('/jobs/'))return job;
+  return {rows:[],total:0};
+ };
+ const dispose=await mountOperations(root,request);t.after(dispose);await flushPulse();
+ return {root,timers,resolve:value=>resolvePost(value),setJob:value=>{job=value;},pre:{status:'SUCCEEDED',result:{token:'token',liveReady:true,conflicts:[],totalSafetyCeiling:10,storage:{},capabilityCheck:{capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},availability},preflight:{}}}};
+}
+test('mounted Preflight pulses immediately, then clears on completion',async t=>{const f=await pulseFixture(t),b=button(f.root,'Preflight'),pending=b.listeners.click();assert.equal(b['aria-busy'],'true');f.resolve(f.pre);await pending;assert.equal(b['aria-busy'],'false');assert(button(f.root,'Confirm and queue run'));});
+test('mounted Preflight error clears pulse',async t=>{const f=await pulseFixture(t,{fail:true}),b=button(f.root,'Preflight'),pending=b.listeners.click();assert.equal(b['aria-busy'],'true');f.resolve();await pending;assert.equal(b['aria-busy'],'false');});
+test('Confirm hands off to Run and terminal job stops pulse',async t=>{const f=await pulseFixture(t),preflight=button(f.root,'Preflight').listeners.click();f.resolve(f.pre);await preflight;window.confirm=()=>true;const confirm=button(f.root,'Confirm and queue run'),pending=confirm.listeners.click();assert.equal(confirm['aria-busy'],'true');f.resolve({id:'start',status:'RUNNING'});await flushPulse();assert.equal(confirm['aria-busy'],'true');await f.timers.shift()();await pending;await flushPulse();assert.equal(confirm['aria-busy'],'false');const run=button(f.root,'Run');assert.equal(run['aria-busy'],'true');assert.equal(button(f.root,'Preflight')['aria-busy'],'false');f.setJob({id:'pulse-job',status:'COMPLETE',terminal:true});await f.timers.shift()();await flushPulse();assert.equal(run['aria-busy'],'false');});
+for(const key of ['history','starts'])test('refresh restores backend-active '+key,async t=>{const f=await pulseFixture(t,{[key]:[{id:'active',status:'RUNNING'}]});const b=button(f.root,key==='history'?'Preflight':'Confirm');assert.equal(b['aria-busy'],'true');await f.timers.shift()();await flushPulse();assert.equal(b['aria-busy'],'false');});
+
+test('refresh restores Run from an already-active authoritative job',async t=>{const f=await pulseFixture(t,{activeJob:true});assert.equal(button(f.root,'Run')['aria-busy'],'true');assert.equal(button(f.root,'Preflight')['aria-busy'],'false');assert.equal(button(f.root,'Confirm')['aria-busy'],'false');});
+test('failed backend confirmation clears Confirm without starting Run',async t=>{const f=await pulseFixture(t),preflight=button(f.root,'Preflight').listeners.click();f.resolve(f.pre);await preflight;window.confirm=()=>true;const b=button(f.root,'Confirm and queue run'),pending=b.listeners.click();assert.equal(b['aria-busy'],'true');f.resolve({id:'start',status:'FAILED',error:'rejected'});await pending;assert.equal(b['aria-busy'],'false');assert.equal(button(f.root,'Run')['aria-busy'],'false');});

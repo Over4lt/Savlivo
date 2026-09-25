@@ -1,5 +1,18 @@
 import {liveStatusView,statusTone} from './live-status.js';
 
+// Visual state only: operation records and job terminality remain authoritative.
+export function activeWorkflowAction({pending=null,preflight=null,start=null,job=null}={}){
+ if(pending)return pending;
+ if(start?.status==='RUNNING')return 'confirm';
+ if(preflight?.status==='RUNNING')return 'preflight';
+ if(job?.terminal===false&&['QUEUED','RUNNING'].includes(job.status))return 'run';
+ return null;
+}
+export function setWorkflowBusy(button,busy){
+ button.className=(button.className??'').split(/\s+/).filter(c=>c&&c!=='ops-action-busy').concat(busy?['ops-action-busy']:[]).join(' ');
+ button.setAttribute('aria-busy',String(busy));
+}
+
 export const readable=value=>typeof value==='string'&&value?value.toLowerCase().replaceAll('_',' ').replace(/^./,c=>c.toUpperCase()):'Unavailable';
 export function reasonSummary(row){let reasons=row.unresolvedReasons??row.stop??row.reason;if(typeof reasons==='string'){try{reasons=JSON.parse(reasons);}catch{return readable(reasons.split('; ')[0]).slice(0,160);}}if(Array.isArray(reasons))reasons=reasons[0];if(reasons&&typeof reasons==='object')return readable(reasons.reason??reasons.kind);return row.humanReview?.length?'Human review required':'No recorded research gap';}
 export function coverageSummary(row){const values=['authority','identity','markets','login','management','cancellation'].map(k=>row[k]).filter(v=>typeof v==='string');if(!values.length)return 'Coverage not recorded';const established=values.filter(v=>['ESTABLISHED','VERIFIED','AVAILABLE','LOGIN_MANAGE_ESTABLISHED'].includes(v)).length;return `${established} established · ${values.length-established} other / unresolved dimensions`;}
@@ -33,9 +46,10 @@ export function previewTargeting(model,filters){
   targeting:{preset,markets:[...markets].sort(),categories:[...categories].sort(),services:services===null?null:[...services].sort(),q},researchMarkets:Object.fromEntries(rows.map(s=>[s.service,s.researchMarkets]))};
 }
 // Short authenticated requests; validation is durable and independent of this polling loop.
-export async function awaitPreflight(operation,request,isCurrent=()=>true,pause=ms=>new Promise(r=>setTimeout(r,ms))){
+export async function awaitPreflight(operation,request,isCurrent=()=>true,pause=ms=>new Promise(r=>setTimeout(r,ms)),onState=()=>{}){
  for(let attempts=0;attempts<180;attempts++){
   if(!isCurrent())throw Error('Preflight view changed. Recover the check after signing in.');
+  onState(operation);
   if(operation.status==='SUCCEEDED')return operation.result;
   if(operation.status!=='RUNNING')throw Error(operation.error??'Preflight expired. Run Preflight again.');
   await pause(5000);if(!isCurrent())throw Error('Preflight view changed. Recover the check after signing in.');
@@ -43,9 +57,10 @@ export async function awaitPreflight(operation,request,isCurrent=()=>true,pause=
  }
  throw Error('Check still pending. Recover its status; no research has started.');
 }
-export async function awaitStart(operation,request,isCurrent=()=>true,pause=ms=>new Promise(r=>setTimeout(r,ms))){
+export async function awaitStart(operation,request,isCurrent=()=>true,pause=ms=>new Promise(r=>setTimeout(r,ms)),onState=()=>{}){
  for(let n=0;n<180;n++){
   if(!isCurrent())throw Error('Start confirmation was submitted. Recover Start after signing in to see whether a job was created.');
+  onState(operation);
   if(operation.status==='SUCCEEDED')return operation.result;
   if(operation.error==='JOB_RECOVERY_CONFLICT')throw Error('Stored job conflict requires review. No additional job was enqueued.');
   if(operation.status!=='RUNNING')throw Error('Start failed: '+(operation.error??operation.status)+'. No job was committed for this confirmation.');
@@ -71,6 +86,11 @@ export function monitorJob(id,request,onUpdate,isCurrent=()=>true,schedule=setTi
 }
 export async function mountOperations(parent,request,isCurrent=()=>true){
  const root=document.createElement('section');root.id='v2-operations';parent.append(root);let tab='Overview',selectedRun=null,offset=0,query='',filter='',viewGeneration=0;
+ const workflowState={},workflowButtons=new Map();let workflowRevision=0;
+ const syncWorkflow=()=>{const active=activeWorkflowAction(workflowState);for(const [key,node]of workflowButtons)setWorkflowBusy(node,key===active);};
+ const registerWorkflow=(key,node)=>{workflowButtons.set(key,node);syncWorkflow();return node;};
+ const updateWorkflow=(key,value)=>{workflowState[key]=value;syncWorkflow();};
+ const watchOperation=async(key,operation,current=isCurrent)=>{const revision=workflowRevision;try{return await (key==='preflight'?awaitPreflight:awaitStart)(operation,request,current,undefined,row=>{if(revision===workflowRevision){updateWorkflow('pending',null);updateWorkflow(key,row);}});}finally{if(revision===workflowRevision)updateWorkflow(key,null);}};
  const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=String(text??'Unavailable');if(cls)n.className=cls;return n;};
  const text=(p,s)=>p.append(el('p',s));const button=(p,label,fn,disabled=false)=>{const b=el('button',label);b.type='button';b.disabled=disabled;b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}catch(e){text(root,e.message);}finally{b.disabled=disabled;}});p.append(b);return b;};
  const table=(p,cols,rows,click)=>{if(!rows.length){text(p,'No records available.');return;}const wrap=el('div',undefined,'table-wrap'),t=el('table'),head=el('thead'),tr=el('tr');for(const c of cols)tr.append(el('th',c[1]));head.append(tr);t.append(head);const body=el('tbody');for(const row of rows){const line=el('tr');if(row.status)line.className='ops-status-'+statusTone(row.status);if(row.origin==='UNKNOWN/HISTORICAL')line.className='ops-historical';for(const [key]of cols){const cell=el('td',row[key]);line.append(cell);}if(click){const td=el('td');button(td,'View details',()=>click(row));line.append(td);}body.append(line);}t.append(body);wrap.append(t);p.append(wrap);};
@@ -83,6 +103,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
  const updateText=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
  let stopMonitor=()=>{},trackedId=null,tracking=false,lastJob=null,detailObserver=null,disposed=false,runSnapshot=null,serviceSnapshot=null,snapshotSequence=0;
  const showLive=job=>{
+  updateWorkflow('job',job);
   const view=liveStatusView(job,runSnapshot,serviceSnapshot);updateText(liveTitle,view.title);const cls='ops-live-card ops-status-'+view.tone;if(live.className!==cls)live.className=cls;
   const announcementKey=job.status+'|'+(job.phase??'');if(announcementKey!==lastAnnounced){lastAnnounced=announcementKey;updateText(announcement,view.activity);}
   for(const key of Object.keys(liveFields))if(view[key]!==undefined)updateText(liveFields[key],view[key]);
@@ -91,6 +112,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   if(results.disabled!==!runSnapshot?.id)results.disabled=!runSnapshot?.id;updateText(results,job.terminal?'View results':'View details');
  };
  let lastAnnounced=null;
+ const runIndicator=registerWorkflow('run',button(live,'Run',async()=>{},true));runIndicator.setAttribute('aria-label','Run status');
  const results=button(live,'View results',async()=>{if(!runSnapshot?.id)return;selectedRun=runSnapshot.id;tab='Runs';await render();});results.disabled=true;
  const refreshSnapshot=async job=>{
   const seq=++snapshotSequence;try{
@@ -110,10 +132,11 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
    if(error){updateText(liveFields.notice,error);return;}
    lastJob=current;updateText(liveFields.receipt,'Authoritative Operations status; counters are retained run snapshots.');updateText(liveFields.notice,'');showLive(current);void refreshSnapshot(current);
    if(detailObserver?.id===current.id)detailObserver.update(current);
-  },()=>!disposed&&isCurrent(),setTimeout,clearTimeout,()=>{tracking=false;});
+  },()=>!disposed&&isCurrent(),setTimeout,clearTimeout,()=>{tracking=false;updateWorkflow('job',null);});
  };
  const post=(path,body)=>request('v2-operations/'+path,{method:'POST',body:JSON.stringify(body??{})});
- const confirmedStart=async(token)=>{let operation;try{operation=await post('start',{token,confirmed:true});}catch{throw Error('Start outcome unavailable. Use Recover Start; a job may already exist.');}const job=await awaitStart(operation,request,isCurrent);if(isCurrent())trackJob(job);return job;};
+ const confirmedStart=async(token)=>{workflowRevision++;updateWorkflow('pending','confirm');try{let operation;try{operation=await post('start',{token,confirmed:true});}catch{throw Error('Start outcome unavailable. Use Recover Start; a job may already exist.');}const job=await watchOperation('start',operation);if(isCurrent())trackJob(job);return job;}finally{updateWorkflow('pending',null);updateWorkflow('start',null);}};
+
  async function researchLeads(box,data){
   const section=el('section',undefined,'ops-inspect-section');section.append(el('h3','Human Review · Research leads'));text(section,'Unverified candidate sources — V2 must acquire and verify them before facts are accepted. Do not enter credentials or secrets.');box.append(section);
   const list=el('div'),notice=el('p');section.append(list,notice);let model;
@@ -162,7 +185,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   text(caps,'Enabled capabilities are permitted, not forced. V2 chooses when to use them according to evidence, budgets and policy.');
   const capChecks={},capStatuses={},labels={direct:'Direct',tavily:'Tavily',decodo:'Decodo',browser:'Browser/Web',groq:'Groq'};
 
-  const invalidate=()=>{epoch++;result.replaceChildren();if(workflowStatus.textContent)updateText(workflowStatus,'Selection changed — run Preflight again. Existing job status is unchanged.');};
+  const invalidate=()=>{epoch++;result.replaceChildren();confirmIndicator.hidden=false;registerWorkflow('confirm',confirmIndicator);if(workflowStatus.textContent)updateText(workflowStatus,'Selection changed — run Preflight again. Existing job status is unchanged.');};
   for(const [key,label]of Object.entries(labels)){
    const wrapper=el('label',label,'ops-tool-switch'),input=el('input');input.type='checkbox';input.className='ops-tool-switch-input';input.setAttribute('role','switch');input.setAttribute('aria-label',label+' — allowed for this run');input.checked=capabilities[key];input.disabled=false;const track=el('span',undefined,'ops-tool-switch-track');track.setAttribute('aria-hidden','true');const status=el('span',undefined,'ops-tool-switch-availability');status.id='ops-tool-status-'+key;input.setAttribute('aria-describedby',status.id);
    const refreshStatus=()=>{const value=summary.capabilityAvailability?.[key];const control=capabilityControl(key,value,input.checked);input.disabled=control.disabled;status.textContent=control.text;status.hidden=false;status.className='ops-tool-switch-availability'+(value?.available!==true?' ops-tool-switch-warning':'');status.title=value?.reason??'';};capStatuses[key]=refreshStatus;
@@ -171,7 +194,8 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   button(caps,'Enable all available capabilities',()=>{for(const k of Object.keys(capabilities)){capabilities[k]=availablePermissions(summary.capabilityAvailability)[k];capChecks[k].checked=capabilities[k];capStatuses[k]();}invalidate();});
   text(caps,'Actual usage is reported in run details separately from permission. OFF prohibits use; ON never forces use. Readiness is a server prerequisite check; Preflight rechecks enabled tools before Start.');
   text(caps,'Decodo: access/geo fallback remains policy-gated. Browser: bounded JavaScript resource discovery, not interactive browsing. Groq: source-grounded interpretation when deterministic extraction is insufficient.');
-  const preflight=el('button','Preflight');preflight.type='button';preflight.disabled=true;const workflow=el('section',undefined,'ops-workflow');workflow.setAttribute('aria-label','Preflight and execution');const workflowStatus=el('p');workflowStatus.setAttribute('role','status');workflowStatus.setAttribute('aria-live','polite');workflow.append(workflowStatus,result,live);form.append(preflight,workflow);
+  const preflight=registerWorkflow('preflight',el('button','Preflight'));preflight.type='button';preflight.disabled=true;const workflow=el('section',undefined,'ops-workflow');workflow.setAttribute('aria-label','Preflight and execution');const workflowStatus=el('p');workflowStatus.setAttribute('role','status');workflowStatus.setAttribute('aria-live','polite');workflow.append(workflowStatus,result,live);form.append(preflight,workflow);
+  const confirmIndicator=registerWorkflow('confirm',button(workflow,'Confirm',async()=>{},true));confirmIndicator.setAttribute('aria-label','Confirmation status');
   const enablePreflight=()=>{preflight.disabled=!preview?.selectedServices||!summary.flags.control;};
   let renderedIds=null;const serviceChecks=new Map();
   const renderRows=()=>{
@@ -199,9 +223,9 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   button(tools,'Clear selection',async()=>{filters.services=[];await update();});
   button(tools,'Clear filters',async()=>{Object.assign(filters,{preset:'ALL',markets:[],categories:[],services:null,q:''});search.value='';await update();});
   const submitPreflight=async(recovery=null)=>{
-   if(preflight.disabled||!preview?.selectedServices)return;const generation=epoch,selection=preview,requestedCapabilities={...capabilities};preflight.disabled=true;updateText(workflowStatus,'Preflight in progress — checking authenticated inputs and run limits. This check does not start research.');result.replaceChildren();
+   if(preflight.disabled||!preview?.selectedServices)return;const generation=epoch,selection=preview,requestedCapabilities={...capabilities};preflight.disabled=true;workflowRevision++;updateWorkflow('pending','preflight');updateText(workflowStatus,'Preflight in progress — checking authenticated inputs and run limits. This check does not start research.');result.replaceChildren();
    try{const operation=recovery??await post('preflight',{objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:selection.services,targeting:selection.targeting,targetingRevision:selection.revision,capabilities:requestedCapabilities});
-    const pre=await awaitPreflight(operation,request,()=>isCurrent()&&builderGeneration===viewGeneration&&generation===epoch);
+    const pre=await watchOperation('preflight',operation,()=>isCurrent()&&builderGeneration===viewGeneration);
     if(!isCurrent()||generation!==epoch)return;
     if(Object.keys(labels).some(k=>pre.capabilityCheck?.capabilities?.[k]!==requestedCapabilities[k]))throw new Error('Preflight tool permissions differ from the requested selection. Run Preflight again; Start is blocked.');
     updateText(workflowStatus,pre.liveReady===true&&pre.conflicts?.length===0?'Preflight complete — ready to confirm Start.':'Preflight complete — Start is blocked.');result.replaceChildren();const resultHeading=el('h3','Preflight — research has not started');result.append(resultHeading);if(pre.preflight?.validation==='DEFERRED_TO_EXECUTION')text(result,'Scope, permissions and limits checked. Full integrity validation will run before research execution.');
@@ -213,9 +237,9 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
     table(result,[['metric','Readiness'],['value','Result']],[{metric:'Maximum new external requests',value:pre.totalSafetyCeiling},{metric:'Expected services requiring network',value:pre.servicesExpectedNetwork??'Determined by adaptive planner'},{metric:'Retained targets available (whole lifecycle)',value:pre.preflight?.retainedTargets??(pre.preflight?.validation==='DEFERRED_TO_EXECUTION'?'Determined during execution validation':undefined)},{metric:'Storage admission',value:pre.storage?.admissionAllowed&&pre.storage?.researchDisk?.admissionAllowed?'Ready':pre.storage?.reason??pre.storage?.researchDisk?.reason??'Not ready'},{metric:'Active conflicts',value:pre.conflicts?.length??0},{metric:'Can start',value:pre.liveReady===true&&pre.conflicts?.length===0?'Yes':'No'}]);
     if(pre.capabilityCheck)table(result,[['capability','Capability'],['allowed','Allowed'],['reason','Action needed']],Object.entries(pre.capabilityCheck.availability).map(([k,v])=>({capability:labels[k],allowed:pre.capabilityCheck.capabilities[k]?'ON':'OFF',available:'',reason:capabilityGuidance(k,v,pre.capabilityCheck.capabilities[k])})));
     text(result,'Authority and account research are service-wide. Selected markets narrow market-specific investigation; scopes do not assert availability. Unresolved outcomes are legitimate.');
-    if(pre.liveReady===true&&pre.conflicts?.length===0){const start=button(result,'Confirm and queue run',async()=>{if(generation!==epoch||start.hidden)return;if(!window.confirm(`Start research for these ${selection.selectedServices} services, with a ceiling of ${pre.totalSafetyCeiling} new external requests?`))return;updateText(workflowStatus,'Start confirmed — awaiting admission. Use Recover Start if disconnected.');try{const job=await confirmedStart(pre.token);start.hidden=true;updateText(resultHeading,'Admitted Preflight snapshot');updateText(workflowStatus,'Admission recorded for job '+job.id+'. Execution status is shown below.');}catch(e){updateText(workflowStatus,e.message);}});start.setAttribute('aria-label','Confirm and queue run');}
+    if(pre.liveReady===true&&pre.conflicts?.length===0){const start=button(result,'Confirm and queue run',async()=>{if(generation!==epoch||start.hidden)return;if(!window.confirm(`Start research for these ${selection.selectedServices} services, with a ceiling of ${pre.totalSafetyCeiling} new external requests?`))return;updateText(workflowStatus,'Start confirmed — awaiting admission. Use Recover Start if disconnected.');try{const job=await confirmedStart(pre.token);start.hidden=true;updateText(resultHeading,'Admitted Preflight snapshot');updateText(workflowStatus,'Admission recorded for job '+job.id+'. Execution status is shown below.');}catch(e){updateText(workflowStatus,e.message);}});registerWorkflow('confirm',start);confirmIndicator.hidden=true;start.setAttribute('aria-label','Confirm and queue run');}
     else text(result,'Starting is blocked. Resolve the readiness or conflict information above, then run Preflight again.');
-   }catch(e){if(generation===epoch)updateText(workflowStatus,e.message+' This Preflight did not start research. Use Recover Preflight after reconnecting/signing in.');}finally{enablePreflight();}
+   }catch(e){if(generation===epoch)updateText(workflowStatus,e.message+' This Preflight did not start research. Use Recover Preflight after reconnecting/signing in.');}finally{updateWorkflow('pending',null);updateWorkflow('preflight',null);enablePreflight();}
   };
   preflight.addEventListener('click',()=>submitPreflight());
   counts.textContent='Validating authenticated lifecycle targeting…';const data=await request('v2-operations/targeting');if(!isCurrent())return;model=data;preview=previewTargeting(model,filters);
@@ -244,7 +268,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
    const history=await request('v2-operations/starts'),rows=history.rows??[];
    if(!rows.length){text(result,'No confirmed Start is recorded for this admin.');return;}
    result.replaceChildren(el('p','Recorded confirmations. Recovery never submits another Start.'));
-   const inspect=async prior=>{try{const job=await awaitStart(prior,request,isCurrent);trackJob(job);text(result,'Admission recorded. Follow Live job status.');text(result,'Services: '+(job.config?.services?.join(', ')||'Frozen cohort scope'));}catch(error){text(result,error.message);}};
+   const inspect=async prior=>{try{const job=await watchOperation('start',prior);trackJob(job);text(result,'Admission recorded. Follow Live job status.');text(result,'Services: '+(job.config?.services?.join(', ')||'Frozen cohort scope'));}catch(error){text(result,error.message);}};
    if(rows.length===1){await inspect(rows[0]);return;}
    for(const prior of rows){text(result,`${prior.createdAt??''} · ${prior.id} · ${prior.status} · ${(prior.config?.services??[]).join(', ')}`);button(result,'View details for Start '+prior.id,()=>inspect(prior));}
   },!summary.flags.control);
@@ -296,5 +320,14 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
  if(['Services','Unresolved'].includes(tab))await explorer(root,tab==='Unresolved');
  button(root,'Refresh operations',render);
  }catch(e){if(isCurrent()){text(root,'Operations unavailable: '+e.message);button(root,'Retry',render);}}}
- await render();return ()=>{disposed=true;viewGeneration++;stopMonitor();root.remove();};
+ await render();
+ const revision=workflowRevision;
+ void (async()=>{try{
+  const [preflights,starts]=await Promise.all([request('v2-operations/preflights'),request('v2-operations/starts')]);
+  if(disposed||!isCurrent()||workflowRevision!==revision)return;
+  const start=starts.rows?.find(r=>r.status==='RUNNING'),preflight=preflights.rows?.find(r=>r.status==='RUNNING');
+  if(start){const job=await watchOperation('start',start,()=>!disposed&&isCurrent()&&workflowRevision===revision);if(!disposed&&isCurrent()&&workflowRevision===revision)trackJob(job);}
+  else if(preflight)await watchOperation('preflight',preflight,()=>!disposed&&isCurrent()&&workflowRevision===revision);
+ }catch{/* Read-only recovery never implies success or starts research. */}})();
+ return ()=>{disposed=true;viewGeneration++;stopMonitor();root.remove();};
 }

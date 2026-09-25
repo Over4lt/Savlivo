@@ -165,3 +165,8 @@ li {margin:.4rem 0;color:var(--muted)}
 @media(max-width:600px){.admin-session-actions{margin-left:0;justify-content:flex-start}.admin-description{overflow-wrap:break-word}}
 
 .ops-workflow{min-width:0;max-width:100%;overflow-wrap:anywhere}
+
+/* Busy actions keep their geometry and colors; disabled does not imply busy. */
+button.ops-action-busy{opacity:1;outline:2px solid currentColor;outline-offset:2px;animation:ops-action-pulse 1.8s ease-in-out infinite}
+@keyframes ops-action-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 4px currentColor}}
+@media(prefers-reduced-motion:reduce){button.ops-action-busy{animation:none;outline:2px solid currentColor;outline-offset:2px}}
