@@ -36,3 +36,12 @@ test('execution integrity phase is authoritative and transitions without pretend
  const get=()=>operationsRequest({method:'GET',url:new URL('https://offline.invalid/v1/admin/v2-operations/jobs/'+id),actor:'one'},ops);
  return (async()=>{recordJobPhase(ops.config,job,'AUTHORITATIVE_VALIDATION_STARTED');assert.equal((await get()).phase,'Validating execution integrity');recordJobPhase(ops.config,job,'AUTHORITATIVE_VALIDATION_COMPLETED');assert.equal((await get()).phase,'Lifecycle execution');})().finally(()=>fs.rmSync(root,{recursive:true,force:true}));
 });
+
+test('live GET does not reconstruct runs, take ownership or write operational state',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'read-only-status-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const ops=new Operations({root,repo:root,read:true,control:true});ops.transaction(db=>db.jobs.push({id,status:'RUNNING',actor:'one',config:{services:['fixture']}}));
+ const before=fs.readFileSync(path.join(root,'state.json'));
+ for(const method of ['transaction','index','prepareQueued'])t.mock.method(ops,method,()=>{throw Error('Status must not call '+method);});
+ for(let i=0;i<3;i++)assert.equal((await operationsRequest({method:'GET',url:new URL('https://offline.invalid/v1/admin/v2-operations/jobs/'+id),actor:'one'},ops)).status,'RUNNING');
+ assert.deepEqual(fs.readFileSync(path.join(root,'state.json')),before);assert.deepEqual(fs.readdirSync(root),['state.json']);
+});

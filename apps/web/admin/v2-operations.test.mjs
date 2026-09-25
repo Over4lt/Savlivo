@@ -246,7 +246,7 @@ test('run Inspect polls only exact job fields; open artifacts, service inspectio
  status='RUNNING';t.mock.timers.tick(10000);await Promise.resolve();await Promise.resolve();
  status='COMPLETE';t.mock.timers.tick(10000);await Promise.resolve();await Promise.resolve();
  assert.deepEqual(descendants(root),nodes);assert.deepEqual(nodes.map(n=>n.replacements??0),replacements);assert.equal(search.value,'unsaved draft');assert.equal(document.activeElement,search);assert.equal(root.scrollTop,620);
- assert(text(root).includes('MATURE_LIFECYCLE · ADMIN · COMPLETE'));assert(calls.slice(requestCount).every(p=>p==='v2-operations/jobs/owned-job'||p==='v2-operations/runs/run-projection'));
+ assert(!text(root).includes('MATURE_LIFECYCLE · ADMIN · COMPLETE'));assert(calls.slice(requestCount).every(p=>p==='v2-operations/jobs/owned-job'));assert(text(root).includes('Job owned-job: COMPLETE'));
  assert(nodes.filter(n=>n.open).length>=2);const done=calls.length;t.mock.timers.tick(30000);await Promise.resolve();assert.equal(calls.length,done);
 });
 
@@ -289,7 +289,7 @@ test('active job is above history; completion updates stable nodes, preserves Pr
  const card=descendants(root).find(n=>n.className?.startsWith('ops-live-card'));const all=descendants(root);assert(all.indexOf(card)<all.findIndex(n=>n.textContent==='Legacy'));assert(all.some(n=>n.className==='ops-historical'));assert(!button(root,'Inspect'));
  const input=descendants(root).find(n=>n.type==='number');input.value='42 draft';document.activeElement=input;root.scrollTop=500;const preflight=button(root,'Preflight'),preflightDisabled=preflight.disabled,nodes=descendants(root),replacements=nodes.map(n=>n.replacements??0);
  requests=5;status='COMPLETE';t.mock.timers.tick(10000);await flush();assert.deepEqual(descendants(root),nodes);assert.deepEqual(nodes.map(n=>n.replacements??0),replacements);assert.equal(document.activeElement,input);assert.equal(input.value,'42 draft');assert.equal(root.scrollTop,500);assert.equal(button(root,'Preflight'),preflight);assert.equal(preflight.disabled,preflightDisabled);
- assert(text(card).includes('Execution result'));assert(text(card).includes('Requests: 5 / 36'));assert(text(card).includes('DE: UNRESOLVED'));assert(text(card).includes('Human Review required: 1'));assert(text(card).includes('Research remains incomplete'));
+ assert(text(card).includes('Execution result'));assert(text(card).includes('Requests: 2 / 36'));assert(!calls.includes('v2-operations/runs/run')); assert(text(card).includes('Research remains incomplete'));
  await button(root,'View results').listeners.click();const headings=descendants(root).filter(n=>n.className==='ops-inspect-section').map(n=>n.children[0].textContent);assert.deepEqual(headings.slice(0,6),['Summary','Research','Pricing','Evidence','Gaps','Human Review']);assert(text(root).includes('Technical'));assert(calls.includes('v2-operations/runs/run'));
 });
 
@@ -321,7 +321,7 @@ test('local workflow persists from immediate Preflight through admission, pollin
  const nodes=descendants(root),replacements=nodes.map(n=>n.replacements??0);
  for(const next of ['RUNNING','COMPLETE']){status=next;t.mock.timers.tick(10000);await flush();if(next==='RUNNING')assert(text(workflow).includes('Recorded worker activity'));}
  assert.deepEqual(descendants(root),nodes);assert.deepEqual(nodes.map(n=>n.replacements??0),replacements);assert.equal(document.activeElement,input);assert.equal(input.value,'unfinished draft');assert.equal(root.scrollTop,550);assert(open.open);assert.equal(checkbox(root,'Direct'),control);assert.equal(button(root,'Preflight'),preflight);
- assert(text(workflow).includes('Execution complete'));assert(text(workflow).includes('Research remains incomplete'));assert(text(workflow).includes('DE: UNRESOLVED'));assert(text(workflow).includes('Human Review required: 1'));assert(text(workflow).includes('Admitted Preflight snapshot'));assert(button(card,'View results'));assert.equal(calls.filter(p=>p.endsWith('/start')).length,1);
+ assert(text(workflow).includes('Execution complete'));assert(!calls.includes('v2-operations/runs/local-run')); assert(text(workflow).includes('Admitted Preflight snapshot'));assert(button(card,'View results'));assert.equal(calls.filter(p=>p.endsWith('/start')).length,1);
 });
 
 test('queued preparation and running integrity validation require authoritative phases',()=>{
@@ -375,4 +375,14 @@ test('recovered active Preflight finishes into the top confirmation without a ne
  const caps={direct:true,tavily:true,decodo:false,browser:false,groq:false},input={objective:'MATURE_LIFECYCLE',services:['music'],targetingRevision:'fixture',targeting:{preset:'ALL',markets:[],categories:[],services:['music'],q:''},capabilities:caps};
  const f=await pulseFixture(t,{history:[{id:'recovered',status:'RUNNING',input}],preflightResult:{status:'SUCCEEDED',result:{token:'recovered-token',liveReady:true,conflicts:[],capabilityCheck:{capabilities:caps,availability},storage:{},totalSafetyCeiling:10}}});
  assert.equal(button(f.root,'Preflight')['aria-busy'],'true');await f.timers.shift()();await flushPulse();const next=button(f.root,'Confirm and queue run');assert(next);assert.equal(next.parentElement,button(f.root,'Preflight').parentElement);assert.equal(button(f.root,'Preflight')['aria-busy'],'false');
+});
+
+test('live status waits for each read and recovers after a transient failure without replacing last valid state',async()=>{
+ const scheduled=[],calls=[];let release,displayed;
+ const stop=monitorJob('bounded',p=>{calls.push(p);return new Promise((resolve,reject)=>release={resolve,reject});},job=>{if(job)displayed=job;},()=>true,fn=>{scheduled.push(fn);return fn;},()=>{});
+ assert.equal(calls.length,1);assert.equal(scheduled.length,0);
+ release.resolve({id:'bounded',status:'RUNNING',terminal:false});await Promise.resolve();assert.equal(displayed.status,'RUNNING');
+ const failing=scheduled.shift()();assert.equal(scheduled.length,0);release.reject(Error('offline'));await failing;assert.equal(displayed.status,'RUNNING');
+ const recovering=scheduled.shift()();assert.equal(scheduled.length,0);release.resolve({id:'bounded',status:'COMPLETE',terminal:true});await recovering;
+ assert.equal(displayed.status,'COMPLETE');assert.equal(scheduled.length,0);assert.deepEqual(calls,Array(3).fill('v2-operations/jobs/bounded'));stop();
 });
