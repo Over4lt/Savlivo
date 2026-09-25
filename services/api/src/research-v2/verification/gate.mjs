@@ -14,6 +14,12 @@ import {consumeClosedRenewal,subscriptionReceipt} from '../offline-recovery/clos
 import {subscriptionFaqCandidates} from '../offline-recovery/subscription-faq.mjs';
 import {consumeColumnPlanTable} from '../offline-recovery/column-plan-table.mjs';
 import {consumeNamedOfferDetails} from '../offline-recovery/named-offer-details.mjs';
+// Equal amounts at one JSON leaf may represent distinct intro/renewal spans.
+// Re-derived evidence must match the original source-bound relationship too.
+export function sameProseEvidence(a,b){
+ const x=a.prosePriceRelationship,y=b.prosePriceRelationship;
+ return !x&&!y||!!x&&!!y&&x.bodyHash===y.bodyHash&&x.path===y.path&&JSON.stringify(x.relationship)===JSON.stringify(y.relationship);
+}
 export const gateVersion='V2_FIELD_VERIFICATION_V5';
 const norm=x=>normalizeText(x??'').normalize('NFKC').toLowerCase();
 const unique=a=>[...new Set(a)].sort();
@@ -95,7 +101,7 @@ export function verifyCandidate(claim,derived,acquisition){
  if(derived?.eligibilityVersion!==offerEligibilityVersion)throw Error('INCOMPATIBLE_DERIVED_EVIDENCE');
  acquisition=subscriptionReceipt(claim,derived,acquisition);
  const paths=claim.discoveryOccurrences?.length?claim.discoveryOccurrences.map(o=>o.structuredPath):[claim.structuredPath];
- const occurrences=paths.map(path=>{const matches=(derived?.rows??[]).filter(d=>d.sourceType===claim.sourceType&&d.structuredPath===path&&d.amountNormalized===claim.amountNormalized&&d.currencyRaw===claim.currencyRaw);const d=matches.length===1?matches[0]:null;return {path,offerPresentation:d?.offerPresentation??null,billingInterval:d?.commercial.billingInterval??null,cadenceFamily:d?.commercial.cadenceFamily??null,derivedProduct:d?.product??null,derivedCommercialType:d?.commercial.type??null,fields:fieldsFor(claim,d,acquisition)};});
+ const occurrences=paths.map(path=>{const matches=(derived?.rows??[]).filter(d=>d.sourceType===claim.sourceType&&d.structuredPath===path&&d.amountNormalized===claim.amountNormalized&&d.currencyRaw===claim.currencyRaw&&sameProseEvidence(d,claim));const d=matches.length===1?matches[0]:null;return {path,offerPresentation:d?.offerPresentation??null,billingInterval:d?.commercial.billingInterval??null,cadenceFamily:d?.commercial.cadenceFamily??null,derivedProduct:d?.product??null,derivedCommercialType:d?.commercial.type??null,fields:fieldsFor(claim,d,acquisition)};});
  const fields=Object.fromEntries(criticalFields.map(f=>{const failed=occurrences.some(o=>o.fields[f].status==='BLOCKED');return [f,{status:failed?'BLOCKED':f==='conflicts'?'CLEAR':'VERIFIED',blocker:failed?codes[f]:null,evidence:occurrences.map(o=>({path:o.path,...o.fields[f]}))}];}));
  if(new Set(occurrences.map(o=>o.billingInterval?.normalized??null)).size>1){fields.monthlyCadence.status='BLOCKED';fields.monthlyCadence.blocker=codes.monthlyCadence;}
  const blockers=unique(Object.values(fields).map(f=>f.blocker).filter(Boolean));

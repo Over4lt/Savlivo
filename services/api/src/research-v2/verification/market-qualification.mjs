@@ -35,3 +35,13 @@ export function parseMarketQualification(text,plan){
  const codes=countryList(raw,{adjective});if(!codes)return null;
  return {version:'SOURCE_BOUND_MARKET_QUALIFICATION_V1',scopeSubject:plan,countries:codes,polarity,exclusive,qualificationType:type,qualification:tail,reviewStatus:tail?'REVIEW_REQUIRED':'ESTABLISHED',binding:'EXACT_NAMED_OFFER',confidence:tail?'UNRESOLVED':'SOURCE_BOUND'};
 }
+
+// A positive compound inference must not erase a named but unsupported scope
+// restriction. This records uncertainty, never invents its country or polarity.
+export function unresolvedMarketQualification(text,plan){
+ if(typeof text!=='string'||text.length>500||!plan)return null;
+ const value=normalize(text),subject=normalize(plan);if(!value.startsWith(subject)||! /^(?:\s|:|—|–)/u.test(value.slice(subject.length)))return null;
+ const clause=value.slice(subject.length);
+ if(!/\b(?:residen\w*|billing address\w*|eligible|eligibility|unavailable|excluded|limited to|restricted|requires?|must|wohnsitz|rechnungsadresse|ausgeschlossen|nur (?:in|für)|ausschließlich (?:in|für)|nicht (?:verfügbar|angeboten)|available (?:only |in |to )|[a-z]{2}[- ]only)\b/iu.test(clause))return null;
+ return {version:'SOURCE_BOUND_MARKET_QUALIFICATION_V1',scopeSubject:plan,countries:[],polarity:'UNKNOWN',exclusive:false,qualificationType:'UNSUPPORTED_APPLICABILITY_SCOPE',qualification:text,reviewStatus:'REVIEW_REQUIRED',binding:'EXACT_NAMED_OFFER',confidence:'UNRESOLVED'};
+}

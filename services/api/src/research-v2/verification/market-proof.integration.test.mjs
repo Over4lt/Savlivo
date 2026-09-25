@@ -62,3 +62,21 @@ test('expired market restriction is not revived against fresh applicability',t=>
  const f=fixture(t),old=f.run(price+'<p>Plan Basic US only.</p>',{age:31*86400000}),fresh=f.run(price+'<p>Plan Basic is available in Germany.</p>',{previous:old.proof});
  assert(fresh.report.verified.some(v=>v.plan==='Plan Basic'));
 });
+function regionalCommercialBody(restriction=''){
+ const text='Das Angebot gilt nur für neue Plan Basic oder Plan Plus Mitglieder. Plan Basic für 3 Monate zum Gesamtpreis von 12,99 € oder Plan Plus für 3 Monate zum Gesamtpreis von 28,99 € kann ausschließlich über provider.example/de-DE, den Apple App Store oder den Google Play Store erworben werden. Nach Ablauf der ersten 3 Monate verlängert sich die Mitgliedschaft automatisch um jeweils 1 Monat zu 12,99 €/Monat (Plan Basic) bzw. 28,99 €/Monat (Plan Plus), sofern sie nicht zuvor gekündigt wurde.'+(restriction?' '+restriction:'');
+ const content={fields:{name:'Membership Ecomm Page',legalText:[{fields:{variations:[{fields:{text}}]}}]}},page={sys:{locale:'de-DE',contentType:{sys:{id:'page'}}},fields:{slug:'plans',content}},prices={'en-AU':{country:'AU',name:'Plan Basic',price:19,priceCurrency:'AUD',recurring:true,billingPeriod:'MONTH'},'en-CA':{country:'CA',name:'Plan Plus',price:29,priceCurrency:'CAD',recurring:true,billingPeriod:'MONTH'}};
+ return '<html><head><link rel="canonical" href="https://provider.example/de-DE/plans"></head><body><script id="__NEXT_DATA__" type="application/json">'+JSON.stringify({props:{pageProps:{preview:false,locale:'de-DE',page,fallback:{prices,microCopy:{country:'Deutschland'}}}}})+'</script></body></html>';
+}
+test('regional commercial ownership verifies renewal identities through interpreter and targeted worker',t=>{
+ const r=fixture(t).run(regionalCommercialBody(),{url:'https://provider.example/de-DE/plans'});
+ assert.deepEqual(r.report.verified.map(v=>[v.plan,v.amount,v.currency]).sort(),[['Plan Basic','12.99','EUR'],['Plan Plus','28.99','EUR']],JSON.stringify(r.read('monthly/candidates').map(c=>({plan:c.product,amount:c.amountNormalized,role:c.commercial.type,strong:c.commercial.strongRecurringMonthly,blocking:c.blockingReasons,commercial:c.commercial.reasons,market:c.attribution.marketProof?.status}))));
+ assert(r.report.verified.every(v=>v.fields.market.status==='VERIFIED'));
+ assert(!r.report.verified.some(v=>['AUD','CAD'].includes(v.currency)));
+});
+for(const restriction of ['Plan Basic US only.','Plan Basic is available only to residents of the United States.','Plan Basic requires a United States billing address.','Plan Basic is not available in Germany.'])test('compound targeted verifier respects '+restriction,t=>{
+ const r=fixture(t).run(regionalCommercialBody(restriction),{url:'https://provider.example/de-DE/plans'});assert.deepEqual(r.report.verified.map(v=>v.plan),['Plan Plus']);assert.equal(r.proof.objectives.find(o=>o.identity.plan==='Plan Basic').status,'MARKET_CONTRADICTED');
+});
+test('fresh linked foreign qualification overrides compound commercial proof',t=>{
+ const f=fixture(t),a=f.run(regionalCommercialBody(),{url:'https://provider.example/de-DE/plans'}),b=f.run('<p>Plan Basic requires a United States billing address.</p><a href="/de-DE/plans">Membership pricing</a>',{url:'https://provider.example/terms',previous:a.proof});
+ assert(!b.report.verified.some(v=>v.plan==='Plan Basic'));assert.equal(b.proof.objectives.find(o=>o.identity.plan==='Plan Basic').status,'MARKET_CONTRADICTED');
+});

@@ -7,7 +7,7 @@ import {adjudicateProviderPrice,reconcilePriceObservations} from '../intelligenc
 import {loadLiveSource} from '../verification/live-source.mjs';
 import {prepareCommercialSource} from '../offline-recovery/commercial.mjs';
 import {analyzeCurrencyResources} from '../code-dataflow/currency-resource-ledger.mjs';
-import {deriveEvidence} from '../verification/gate.mjs';
+import {deriveEvidence,sameProseEvidence} from '../verification/gate.mjs';
 import {loadGoverningResources} from '../verification/governing-resources.mjs';
 import {analyzeInterpretedRun} from '../code-dataflow/post-interpretation.mjs';
 // Offline child process. Never import this graph into the acquisition host.
@@ -55,7 +55,7 @@ export function interpret(directory,{outputDirectory=null}={}){const dir=path.re
  // Preserve price intelligence independently of the complete monthly identity.
  // Re-open the original receipt: discovery text cannot enter this path.
  if(authority){try{const b={bindingId:'price-intelligence:'+occurrence.id,sourceOccurrenceId:occurrence.id,bodyHash:checked.hash,taskId:target.id,record:occurrence.record};const loaded=loadLiveSource(occurrence,checked.hash,[b]);const source=prepareCommercialSource(loaded.body,checked.hash);priceIntelligence.push(...enrichOfferObservations(reconcilePriceObservations(richer.rows.map(c=>adjudicateProviderPrice(c,richer,loaded.receipt,{body:loaded.body,sourceUrl:occurrence.url,source}))),source,checked.hash).offers);}catch(e){failures.push({sourceOccurrenceId:occurrence.id,reason:'PRICE_INTELLIGENCE_FAILED_CLOSED',detail:e.message});}}
- for(const c of raw.candidates){const subject=richer.rows.find(r=>(r.subscriptionSubject||r.columnPlanTable||r.namedOfferDetails||r.attribution?.marketProof)&&r.structuredPath===c.structuredPath&&r.amountNormalized===c.amountNormalized);if(subject)Object.assign(c,subject);const r=richer.rows.find(r=>r.structuredPath===c.structuredPath&&r.amountNormalized===c.amountNormalized&&r.product===c.product&&r.currencyResolution);if(r){c.currency=r.currency;c.currencyResolution=r.currencyResolution;}}
+ for(const c of raw.candidates){const subject=richer.rows.find(r=>(r.subscriptionSubject||r.columnPlanTable||r.namedOfferDetails||r.attribution?.marketProof)&&r.structuredPath===c.structuredPath&&r.amountNormalized===c.amountNormalized&&sameProseEvidence(r,c));if(subject)Object.assign(c,subject);const r=richer.rows.find(r=>r.structuredPath===c.structuredPath&&r.amountNormalized===c.amountNormalized&&r.product===c.product&&r.currencyResolution);if(r){c.currency=r.currency;c.currencyResolution=r.currencyResolution;}}
  raw.candidates.push(...richer.rows.filter(r=>r.subscriptionFaq));
  const evaluate=x=>{if(x.subscriptionFaq||x.columnPlanTable||x.namedOfferDetails||x.attribution?.marketProof)return structuredClone(x);const attributed=attribute(x,{...context,providerEvidence:providerEvidenceFor(x,provider)});return grade(attributed,{...context,marketBound:attributed.attribution.marketApplicabilityEstablished});};
  // Verification reopens each occurrence using its literal currency token. Keep

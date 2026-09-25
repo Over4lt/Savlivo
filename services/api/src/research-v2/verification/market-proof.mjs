@@ -1,4 +1,5 @@
-import {parseMarketQualification} from './market-qualification.mjs';
+import {compoundOfferMarket} from './compound-market.mjs';
+import {parseMarketQualification,unresolvedMarketQualification} from './market-qualification.mjs';
 // Source-local declarations and explicit linked-offer joins. Routing metadata is
 // never accepted here. Callers supply re-opened, hash-checked provider receipts.
 import {htmlTree,hash,normalizeText} from '../offline-recovery/extract.mjs';
@@ -16,9 +17,12 @@ function declarations(resource,plan,targetMarket){
  const tree=htmlTree(resource.body),rows=[];
  for(const n of tree.nodes){if(!['p','li','dd'].includes(n.tag)||n.text.length>500)continue;let a=n;while(a&&!['script','style','template','noscript','pre','code','blockquote','del'].includes(a.tag)&&a.attrs?.['aria-hidden']!=='true'&&!Object.hasOwn(a.attrs??{},'hidden')&&!Object.hasOwn(a.attrs??{},'inert')&&!/display\s*:\s*none|visibility\s*:\s*hidden/i.test(a.attrs?.style??''))a=a.parent;if(a)continue;
   const section=n.parent;if(section?.children.some(x=>/^h[1-6]$/.test(x.tag)&&/archiv|historic|previous|expired|example|hypothetical|former/i.test(x.text)))continue;
-  const assertion=parseMarketQualification(normalizeText(n.text),plan);if(!assertion)continue;
+  const text=normalizeText(n.text),heading=n.parent?.children.filter(x=>x.index<n.index&&/^h[1-6]$/.test(x.tag)).at(-1);
+  const headingBound=['section','article'].includes(n.parent?.tag)&&heading&&normalizeText(heading.text).normalize('NFKC').toLowerCase()===normalizeText(plan).normalize('NFKC').toLowerCase();
+  const assertion=parseMarketQualification(text,plan)??unresolvedMarketQualification(text,plan)??(headingBound?parseMarketQualification(plan+' '+text,plan):null);if(!assertion)continue;
+  if(headingBound)assertion.subjectLocator=pathOf(heading);
   const applies=assertion.countries.includes(targetMarket),negative=assertion.polarity==='NEGATIVE'?applies:assertion.exclusive&&!applies;
-  if(!applies&&!negative)continue;
+  if(!applies&&!negative&&assertion.reviewStatus!=='REVIEW_REQUIRED')continue;
   rows.push({...assertion,country:targetMarket,negative,plan,path:pathOf(n),span:[n.start,n.end],bodyHash:resource.receipt.bodyHash,sourceUrl:resource.receipt.sourceUrl,capturedAt:resource.capturedAt,type:'EXPLICIT_PROVIDER_MARKET_STATEMENT'});
  }return rows;
 }
@@ -26,7 +30,7 @@ function sound(r){return r?.receipt?.intact&&r.receipt.serviceEstablished&&r.rec
 export function proveOfferMarket(candidate,context){
  if(!candidate.product||candidate.ownershipAmbiguous||candidate.crossCardRisk||!(Number(candidate.amountNormalized)>0))return null;
  const resources=context.marketProofResources??[],own=resources.find(r=>r.receipt.bodyHash===context.bodyHash&&sound(r)&&(!context.sourceOccurrences?.length||context.sourceOccurrences.some(o=>o.id===r.occurrence.id)));if(!own)return null;
- const results=[];
+ const results=compoundOfferMarket(candidate,own,context)??[];
  for(const r of resources){if(!sound(r)||r.receipt.service!==own.receipt.service||r.receipt.serviceEvidence?.targetServiceName!==own.receipt.serviceEvidence?.targetServiceName)continue;
   const same=r.receipt.bodyHash===own.receipt.bodyHash;
   if(!same){
