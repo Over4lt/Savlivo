@@ -1,11 +1,10 @@
+import {parseMarketQualification} from './market-qualification.mjs';
 // Source-local declarations and explicit linked-offer joins. Routing metadata is
 // never accepted here. Callers supply re-opened, hash-checked provider receipts.
 import {htmlTree,hash,normalizeText} from '../offline-recovery/extract.mjs';
 export const marketProofVersion='SOURCE_BOUND_MARKET_PROOF_V1';
 export const marketProofBounds=Object.freeze({sources:8,bytes:8000000,links:16,identities:16,maxAgeDays:30,maxJoinDays:7});
 const pathOf=n=>n.parent?pathOf(n.parent)+'/'+n.tag+'['+n.index+']':'$';
-const norm=x=>normalizeText(x??'').normalize('NFKC').toLowerCase();
-const escape=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const canonical=(s,base)=>{try{const u=new URL(s,base);if(u.protocol!=='https:'||u.username||u.password)return null;u.hash='';return u.href;}catch{return null;}};
 export function marketDestinations(body,url){
  const out=[];for(const n of htmlTree(body).nodes){if(n.tag!=='a'||!/market|country|region|availability|available|terms|legal|membership|subscription|bedingungen|verfügbar|länder/iu.test(n.text+' '+(n.attrs.href??'')))continue;
@@ -15,16 +14,12 @@ export function marketDestinations(body,url){
 }
 function declarations(resource,plan,targetMarket){
  const tree=htmlTree(resource.body),rows=[];
- // Whole, bounded assertion; not country proximity. Conditional/qualified
- // statements outside this grammar remain unresolved. CLDR supplies names.
- const re=new RegExp('^'+escape(plan)+'\\s+(?:(is)\\s+(not\\s+)?available\\s+in|(ist)\\s+(nicht\\s+)?(?:in)\\s+)\\s*(.+?)(?:\\s+verfügbar)?[.!]?$','iu');
  for(const n of tree.nodes){if(!['p','li','dd'].includes(n.tag)||n.text.length>500)continue;let a=n;while(a&&!['script','style','template','noscript','pre','code','blockquote','del'].includes(a.tag)&&a.attrs?.['aria-hidden']!=='true'&&!Object.hasOwn(a.attrs??{},'hidden')&&!Object.hasOwn(a.attrs??{},'inert')&&!/display\s*:\s*none|visibility\s*:\s*hidden/i.test(a.attrs?.style??''))a=a.parent;if(a)continue;
   const section=n.parent;if(section?.children.some(x=>/^h[1-6]$/.test(x.tag)&&/archiv|historic|previous|expired|example|hypothetical|former/i.test(x.text)))continue;
-  const text=normalizeText(n.text),m=re.exec(text);if(!m)continue;
-  const label=norm(m[5].replace(/[.!]$/,''));
-  const matches=/^[A-Z]{2}$/.test(targetMarket??'')&&['en','de','fr','es','pt','nl','it'].some(locale=>norm(new Intl.DisplayNames([locale],{type:'region',fallback:'none'}).of(targetMarket))===label);
-  if(!matches)continue;const country=targetMarket;
-  rows.push({country,negative:!!(m[2]||m[4]),plan,path:pathOf(n),span:[n.start,n.end],bodyHash:resource.receipt.bodyHash,sourceUrl:resource.receipt.sourceUrl,capturedAt:resource.capturedAt,type:'EXPLICIT_PROVIDER_MARKET_STATEMENT'});
+  const assertion=parseMarketQualification(normalizeText(n.text),plan);if(!assertion)continue;
+  const applies=assertion.countries.includes(targetMarket),negative=assertion.polarity==='NEGATIVE'?applies:assertion.exclusive&&!applies;
+  if(!applies&&!negative)continue;
+  rows.push({...assertion,country:targetMarket,negative,plan,path:pathOf(n),span:[n.start,n.end],bodyHash:resource.receipt.bodyHash,sourceUrl:resource.receipt.sourceUrl,capturedAt:resource.capturedAt,type:'EXPLICIT_PROVIDER_MARKET_STATEMENT'});
  }return rows;
 }
 function sound(r){return r?.receipt?.intact&&r.receipt.serviceEstablished&&r.receipt.bodyHash===hash(r.body)&&r.receipt.sourceUrl;}
@@ -43,9 +38,9 @@ export function proveOfferMarket(candidate,context){
   }
   for(const d of declarations(r,candidate.product,context.market))results.push({...d,join:same?'SAME_SOURCE_EXACT_PLAN':'EXACT_PLAN_AND_LINKED_PRICE_SOURCE',priceSourceHash:context.bodyHash,pricePath:candidate.structuredPath,record:r.occurrence.record});
  }
- const relevant=results.filter(r=>r.country===context.market),negative=relevant.some(r=>r.negative),positive=relevant.some(r=>!r.negative);
- if(!negative&&!positive)return null;
- return {version:marketProofVersion,status:negative?'MARKET_CONTRADICTED':'MARKET_VERIFIED',market:context.market,plan:candidate.product,priceSourceHash:context.bodyHash,pricePath:candidate.structuredPath,evidence:relevant,conflicting:negative&&positive};
+ const relevant=results.filter(r=>r.country===context.market),negative=relevant.some(r=>r.negative),positive=relevant.some(r=>!r.negative&&r.reviewStatus!=='REVIEW_REQUIRED'),reviewRequired=relevant.some(r=>r.reviewStatus==='REVIEW_REQUIRED');
+ if(!negative&&!positive&&!reviewRequired)return null;
+ return {version:marketProofVersion,status:negative?'MARKET_CONTRADICTED':reviewRequired?'MARKET_NOT_VERIFIED':'MARKET_VERIFIED',reviewRequired,market:context.market,plan:candidate.product,priceSourceHash:context.bodyHash,pricePath:candidate.structuredPath,evidence:relevant,conflicting:negative&&positive};
 }
 export function marketResearch(target,observations,resources){
  const objectives=[];

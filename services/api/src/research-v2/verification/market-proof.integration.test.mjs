@@ -54,3 +54,11 @@ test('foreign explicit offers remain diagnostic without entering target-market m
  assert.equal(result.read('discovery/candidates').length,3);
  assert.equal(result.read('monthly/candidates').length,3);
 });
+for(const restriction of ['is available only to residents of the United States','requires a United States billing address'])test('real interpreter rejects foreign qualification despite positive declaration: '+restriction,t=>{
+ const f=fixture(t),a=f.run(price+'<p>Plan Basic is available in Germany.</p><p>Plan Basic '+restriction+'.</p>');
+ assert(!a.report.verified.some(v=>v.plan==='Plan Basic'));assert.equal(a.proof.objectives.find(o=>o.identity.plan==='Plan Basic').status,'MARKET_CONTRADICTED');
+});
+test('expired market restriction is not revived against fresh applicability',t=>{
+ const f=fixture(t),old=f.run(price+'<p>Plan Basic US only.</p>',{age:31*86400000}),fresh=f.run(price+'<p>Plan Basic is available in Germany.</p>',{previous:old.proof});
+ assert(fresh.report.verified.some(v=>v.plan==='Plan Basic'));
+});

@@ -57,7 +57,7 @@ function combinedAttribute(c,context){
  const conflict=ownerConflicts.length>0||pageConflicts.length>0||geoConflicts.length>0||marketProof?.status==='MARKET_CONTRADICTED';
  const scopeUnresolved=(structured&&!explicitOwner&&(geo||matchingPages.length>0))||(c.multiCountrySource&&!explicitOwner);
  const invalidMaterializedOrigin=!isProviderBoundPayload(c,context);
- const incomplete=invalidMaterializedOrigin||invalidBinding||scopeUnresolved||(!provider&&!geo&&(page.length>0||geoEvidence.some(e=>e.classification==='G2')));
+ const incomplete=marketProof?.reviewRequired===true||invalidMaterializedOrigin||invalidBinding||scopeUnresolved||(!provider&&!geo&&(page.length>0||geoEvidence.some(e=>e.classification==='G2')));
  const type=conflict?'CONFLICTING':incomplete?'UNRESOLVED':provider&&geo?'PROVIDER_AND_GEO':provider?'PROVIDER_DECLARED':geo?'GEO_OBSERVED':'TASK_ONLY';
  const established=!!context.authority&&['PROVIDER_DECLARED','GEO_OBSERVED','PROVIDER_AND_GEO'].includes(type);
  const reasons=[];
