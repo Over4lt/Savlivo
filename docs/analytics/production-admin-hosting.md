@@ -228,3 +228,5 @@ verify both modules return 200 with JavaScript content, both top-level views wor
 and service/capability/Preflight controls are visible. Switch away and back and
 confirm typed selections and open details persist. Do not press Preflight or
 Confirm and queue run for this passive deployment check; no V2 job is required.
+
+Operations recorded result overview module: `/subdomener/admin/result-overview.js`. Include it with the existing Admin static assets.

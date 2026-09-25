@@ -209,3 +209,8 @@ button.ops-action-busy:focus-visible{outline:3px double var(--control-focus);out
 /* Failure accents stay local to live status; controls retain their own semantics. */
 .ops-live-card.ops-status-error{border-color:var(--control-danger);color:var(--text);background:var(--surface)}
 .ops-live-card .ops-state.ops-status-error{color:var(--control-danger);border-inline-start:3px solid var(--control-danger);padding-inline-start:.6rem}
+.ops-result-overview{border:1px solid var(--border);border-radius:12px;padding:1rem;margin:1rem 0;overflow-wrap:anywhere}
+.ops-overview-metrics{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.ops-overview-coverage{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:.5rem 1rem}
+.ops-overview-coverage p{margin:.25rem 0}
+.ops-overview-coverage progress{width:100%;accent-color:var(--control-outline)}
