@@ -80,3 +80,15 @@ test('fresh linked foreign qualification overrides compound commercial proof',t=
  const f=fixture(t),a=f.run(regionalCommercialBody(),{url:'https://provider.example/de-DE/plans'}),b=f.run('<p>Plan Basic requires a United States billing address.</p><a href="/de-DE/plans">Membership pricing</a>',{url:'https://provider.example/terms',previous:a.proof});
  assert(!b.report.verified.some(v=>v.plan==='Plan Basic'));assert.equal(b.proof.objectives.find(o=>o.identity.plan==='Plan Basic').status,'MARKET_CONTRADICTED');
 });
+for(const [market,locale,mode]of [['FR','fr-FR','no-cms'],['JP','ja-JP','billing'],['GB','en-GB','no-app']])test('corroboration persists through real interpreter and worker: '+market,t=>{
+ const f=fixture(t),regionalSentence=sentence.replaceAll('EUR',({JP:'JPY',GB:'GBP'})[market]??'EUR'),legal=mode==='billing'?regionalSentence:`Plan Basic and Plan Plus can be purchased through provider.example/${locale}. `+regionalSentence;
+ const page={sys:{contentType:{sys:{id:'page'}},...(mode==='no-cms'?{}:{locale})},fields:{slug:'plans',content:{fields:{name:'Subscription Pricing',legalText:[{fields:{variations:[{fields:{text:legal}}]}}]}}}};
+ const state={props:{pageProps:{preview:false,...(mode==='no-app'?{}:{locale}),page}}};
+ const form=mode==='billing'?`<form action="/${locale}/checkout"><input type="hidden" name="plan" value="Plan Basic"><select name="billingCountry"><option value="${market}">Country</option></select></form>`:'';
+ const body='<html><body><script id="__NEXT_DATA__" type="application/json">'+JSON.stringify(state)+'</script>'+form+'</body></html>';
+ const r=f.run(body,{url:`https://provider.example/${locale}/plans`,change:{market}});
+ assert.deepEqual(r.report.verified.map(v=>v.plan).sort(),mode==='billing'?['Plan Basic']:['Plan Basic','Plan Plus']);
+ assert(r.report.verified.every(v=>v.fields.market.status==='VERIFIED'));
+ const proofs=r.observations.flatMap(o=>o.fields.market.evidence??[]).map(e=>e.evidence?.marketProof).filter(Boolean);
+ assert(proofs.some(p=>p.evidence.some(e=>e.corroboration?.version==='OFFER_MARKET_CORROBORATION_V1'&&e.corroboration.status==='ESTABLISHED')));
+});

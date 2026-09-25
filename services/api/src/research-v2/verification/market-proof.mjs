@@ -42,9 +42,9 @@ export function proveOfferMarket(candidate,context){
   }
   for(const d of declarations(r,candidate.product,context.market))results.push({...d,join:same?'SAME_SOURCE_EXACT_PLAN':'EXACT_PLAN_AND_LINKED_PRICE_SOURCE',priceSourceHash:context.bodyHash,pricePath:candidate.structuredPath,record:r.occurrence.record});
  }
- const relevant=results.filter(r=>r.country===context.market),negative=relevant.some(r=>r.negative),positive=relevant.some(r=>!r.negative&&r.reviewStatus!=='REVIEW_REQUIRED'),reviewRequired=relevant.some(r=>r.reviewStatus==='REVIEW_REQUIRED');
- if(!negative&&!positive&&!reviewRequired)return null;
- return {version:marketProofVersion,status:negative?'MARKET_CONTRADICTED':reviewRequired?'MARKET_NOT_VERIFIED':'MARKET_VERIFIED',reviewRequired,market:context.market,plan:candidate.product,priceSourceHash:context.bodyHash,pricePath:candidate.structuredPath,evidence:relevant,conflicting:negative&&positive};
+ const relevant=results.filter(r=>r.country===context.market),negative=relevant.some(r=>r.negative),positive=relevant.some(r=>!r.negative&&r.establishesMarket!==false&&r.reviewStatus!=='REVIEW_REQUIRED'),reviewRequired=relevant.some(r=>r.reviewStatus==='REVIEW_REQUIRED');
+ if(!negative&&!positive&&!reviewRequired&&!relevant.some(r=>r.corroboration))return null;
+ return {version:marketProofVersion,status:negative?'MARKET_CONTRADICTED':reviewRequired||!positive?'MARKET_NOT_VERIFIED':'MARKET_VERIFIED',reviewRequired,market:context.market,plan:candidate.product,priceSourceHash:context.bodyHash,pricePath:candidate.structuredPath,evidence:relevant,conflicting:negative&&positive};
 }
 export function marketResearch(target,observations,resources){
  const objectives=[];
