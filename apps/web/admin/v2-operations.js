@@ -86,8 +86,8 @@ export function monitorJob(id,request,onUpdate,isCurrent=()=>true,schedule=setTi
 }
 export async function mountOperations(parent,request,isCurrent=()=>true){
  const root=document.createElement('section');root.id='v2-operations';parent.append(root);let tab='Overview',selectedRun=null,offset=0,query='',filter='',viewGeneration=0;
- const workflowState={},workflowButtons=new Map();let workflowRevision=0;
- const syncWorkflow=()=>{const active=activeWorkflowAction(workflowState);for(const [key,node]of workflowButtons)setWorkflowBusy(node,key===active);};
+ const workflowState={},workflowButtons=new Map();let workflowRevision=0,recoverWorkflow=null;
+ const syncWorkflow=()=>{const active=activeWorkflowAction(workflowState);for(const [key,node]of workflowButtons){setWorkflowBusy(node,key===active);if(node.workflowStatusOnly)node.hidden=key!==active;}};
  const registerWorkflow=(key,node)=>{workflowButtons.set(key,node);syncWorkflow();return node;};
  const updateWorkflow=(key,value)=>{workflowState[key]=value;syncWorkflow();};
  const watchOperation=async(key,operation,current=isCurrent)=>{const revision=workflowRevision;try{return await (key==='preflight'?awaitPreflight:awaitStart)(operation,request,current,undefined,row=>{if(revision===workflowRevision){updateWorkflow('pending',null);updateWorkflow(key,row);}});}finally{if(revision===workflowRevision)updateWorkflow(key,null);}};
@@ -185,7 +185,8 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   text(caps,'Enabled capabilities are permitted, not forced. V2 chooses when to use them according to evidence, budgets and policy.');
   const capChecks={},capStatuses={},labels={direct:'Direct',tavily:'Tavily',decodo:'Decodo',browser:'Browser/Web',groq:'Groq'};
 
-  const invalidate=()=>{epoch++;result.replaceChildren();confirmIndicator.hidden=false;registerWorkflow('confirm',confirmIndicator);if(workflowStatus.textContent)updateText(workflowStatus,'Selection changed — run Preflight again. Existing job status is unchanged.');};
+  let nextAction=null;
+  const invalidate=()=>{epoch++;if(nextAction){nextAction.remove();nextAction=null;}result.replaceChildren();confirmIndicator.hidden=false;registerWorkflow('confirm',confirmIndicator);if(workflowStatus.textContent)updateText(workflowStatus,'Selection changed — run Preflight again. Existing job status is unchanged.');};
   for(const [key,label]of Object.entries(labels)){
    const wrapper=el('label',label,'ops-tool-switch'),input=el('input');input.type='checkbox';input.className='ops-tool-switch-input';input.setAttribute('role','switch');input.setAttribute('aria-label',label+' — allowed for this run');input.checked=capabilities[key];input.disabled=false;const track=el('span',undefined,'ops-tool-switch-track');track.setAttribute('aria-hidden','true');const status=el('span',undefined,'ops-tool-switch-availability');status.id='ops-tool-status-'+key;input.setAttribute('aria-describedby',status.id);
    const refreshStatus=()=>{const value=summary.capabilityAvailability?.[key];const control=capabilityControl(key,value,input.checked);input.disabled=control.disabled;status.textContent=control.text;status.hidden=false;status.className='ops-tool-switch-availability'+(value?.available!==true?' ops-tool-switch-warning':'');status.title=value?.reason??'';};capStatuses[key]=refreshStatus;
@@ -194,8 +195,8 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   button(caps,'Enable all available capabilities',()=>{for(const k of Object.keys(capabilities)){capabilities[k]=availablePermissions(summary.capabilityAvailability)[k];capChecks[k].checked=capabilities[k];capStatuses[k]();}invalidate();});
   text(caps,'Actual usage is reported in run details separately from permission. OFF prohibits use; ON never forces use. Readiness is a server prerequisite check; Preflight rechecks enabled tools before Start.');
   text(caps,'Decodo: access/geo fallback remains policy-gated. Browser: bounded JavaScript resource discovery, not interactive browsing. Groq: source-grounded interpretation when deterministic extraction is insufficient.');
-  const preflight=registerWorkflow('preflight',el('button','Preflight'));preflight.type='button';preflight.disabled=true;const workflow=el('section',undefined,'ops-workflow');workflow.setAttribute('aria-label','Preflight and execution');const workflowStatus=el('p');workflowStatus.setAttribute('role','status');workflowStatus.setAttribute('aria-live','polite');workflow.append(workflowStatus,result,live);form.append(preflight,workflow);
-  const confirmIndicator=registerWorkflow('confirm',button(workflow,'Confirm',async()=>{},true));confirmIndicator.setAttribute('aria-label','Confirmation status');
+  const preflight=registerWorkflow('preflight',el('button','Preflight'));preflight.type='button';preflight.disabled=true;const workflow=el('section',undefined,'ops-workflow');workflow.setAttribute('aria-label','Preflight and execution');const workflowStatus=el('p');workflowStatus.setAttribute('role','status');workflowStatus.setAttribute('aria-live','polite');workflow.append(workflowStatus,result,live);const primaryControls=el('div',undefined,'ops-primary-actions');primaryControls.setAttribute('aria-label','Workflow actions');primaryControls.append(preflight);form.append(primaryControls,workflow);
+  const confirmIndicator=registerWorkflow('confirm',button(primaryControls,'Confirm',async()=>{},true));confirmIndicator.workflowStatusOnly=true;confirmIndicator.setAttribute('aria-label','Confirmation status');runIndicator.workflowStatusOnly=true;primaryControls.append(runIndicator);syncWorkflow();
   const enablePreflight=()=>{preflight.disabled=!preview?.selectedServices||!summary.flags.control;};
   let renderedIds=null;const serviceChecks=new Map();
   const renderRows=()=>{
@@ -223,7 +224,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   button(tools,'Clear selection',async()=>{filters.services=[];await update();});
   button(tools,'Clear filters',async()=>{Object.assign(filters,{preset:'ALL',markets:[],categories:[],services:null,q:''});search.value='';await update();});
   const submitPreflight=async(recovery=null)=>{
-   if(preflight.disabled||!preview?.selectedServices)return;const generation=epoch,selection=preview,requestedCapabilities={...capabilities};preflight.disabled=true;workflowRevision++;updateWorkflow('pending','preflight');updateText(workflowStatus,'Preflight in progress — checking authenticated inputs and run limits. This check does not start research.');result.replaceChildren();
+   if(preflight.disabled||!preview?.selectedServices)return;const generation=epoch,selection=preview,requestedCapabilities={...capabilities};if(nextAction){nextAction.remove();nextAction=null;}confirmIndicator.hidden=true;registerWorkflow('confirm',confirmIndicator);preflight.disabled=true;workflowRevision++;updateWorkflow('pending','preflight');updateText(workflowStatus,'Preflight in progress — checking authenticated inputs and run limits. This check does not start research.');result.replaceChildren();
    try{const operation=recovery??await post('preflight',{objective:'MATURE_LIFECYCLE',scope:'SELECTED_SERVICES',services:selection.services,targeting:selection.targeting,targetingRevision:selection.revision,capabilities:requestedCapabilities});
     const pre=await watchOperation('preflight',operation,()=>isCurrent()&&builderGeneration===viewGeneration);
     if(!isCurrent()||generation!==epoch)return;
@@ -237,7 +238,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
     table(result,[['metric','Readiness'],['value','Result']],[{metric:'Maximum new external requests',value:pre.totalSafetyCeiling},{metric:'Expected services requiring network',value:pre.servicesExpectedNetwork??'Determined by adaptive planner'},{metric:'Retained targets available (whole lifecycle)',value:pre.preflight?.retainedTargets??(pre.preflight?.validation==='DEFERRED_TO_EXECUTION'?'Determined during execution validation':undefined)},{metric:'Storage admission',value:pre.storage?.admissionAllowed&&pre.storage?.researchDisk?.admissionAllowed?'Ready':pre.storage?.reason??pre.storage?.researchDisk?.reason??'Not ready'},{metric:'Active conflicts',value:pre.conflicts?.length??0},{metric:'Can start',value:pre.liveReady===true&&pre.conflicts?.length===0?'Yes':'No'}]);
     if(pre.capabilityCheck)table(result,[['capability','Capability'],['allowed','Allowed'],['reason','Action needed']],Object.entries(pre.capabilityCheck.availability).map(([k,v])=>({capability:labels[k],allowed:pre.capabilityCheck.capabilities[k]?'ON':'OFF',available:'',reason:capabilityGuidance(k,v,pre.capabilityCheck.capabilities[k])})));
     text(result,'Authority and account research are service-wide. Selected markets narrow market-specific investigation; scopes do not assert availability. Unresolved outcomes are legitimate.');
-    if(pre.liveReady===true&&pre.conflicts?.length===0){const start=button(result,'Confirm and queue run',async()=>{if(generation!==epoch||start.hidden)return;if(!window.confirm(`Start research for these ${selection.selectedServices} services, with a ceiling of ${pre.totalSafetyCeiling} new external requests?`))return;updateText(workflowStatus,'Start confirmed — awaiting admission. Use Recover Start if disconnected.');try{const job=await confirmedStart(pre.token);start.hidden=true;updateText(resultHeading,'Admitted Preflight snapshot');updateText(workflowStatus,'Admission recorded for job '+job.id+'. Execution status is shown below.');}catch(e){updateText(workflowStatus,e.message);}});registerWorkflow('confirm',start);confirmIndicator.hidden=true;start.setAttribute('aria-label','Confirm and queue run');}
+    if(pre.liveReady===true&&pre.conflicts?.length===0){let submitting=false;const start=button(primaryControls,'Confirm and queue run',async()=>{if(submitting||generation!==epoch||start.hidden)return;if(!window.confirm(`Start research for these ${selection.selectedServices} services, with a ceiling of ${pre.totalSafetyCeiling} new external requests?`))return;submitting=true;updateText(workflowStatus,'Start confirmed — awaiting admission. Use Recover Start if disconnected.');try{const job=await confirmedStart(pre.token);start.hidden=true;updateText(resultHeading,'Admitted Preflight snapshot');updateText(workflowStatus,'Admission recorded for job '+job.id+'. Execution status is shown below.');}catch(e){updateText(workflowStatus,e.message);}finally{submitting=false;}});nextAction=start;registerWorkflow('confirm',start);confirmIndicator.hidden=true;start.setAttribute('aria-label','Confirm and queue run');}
     else text(result,'Starting is blocked. Resolve the readiness or conflict information above, then run Preflight again.');
    }catch(e){if(generation===epoch)updateText(workflowStatus,e.message+' This Preflight did not start research. Use Recover Preflight after reconnecting/signing in.');}finally{updateWorkflow('pending',null);updateWorkflow('preflight',null);enablePreflight();}
   };
@@ -250,7 +251,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   for(const [key,title]of [['markets','Markets'],['categories','Categories']]){const detail=el('details'),options=el('div',undefined,'ops-facet-options');detail.append(el('summary',title+' — optional'));button(detail,'All '+key,async()=>{filters[key]=[];await changeFilters();});
    for(const facet of data.facets[key]){const label=el('label',`${facet.name} (${facet.services})`),check=el('input');check.type='checkbox';check.checked=false;check.addEventListener('change',async()=>{filters[key]=check.checked?[...filters[key],facet.id]:filters[key].filter(v=>v!==facet.id);await changeFilters();});facetChecks[key].push([facet.id,check]);label.append(check);options.append(label);}detail.append(options);facetsBox.append(detail);}
   text(facetsBox,data.marketMeaning+' '+data.categoryMeaning+' Changing filters returns to All matching services.');renderRows();
-  const recover=async()=>{invalidate();const generation=epoch;const history=await request('v2-operations/preflights');if(!isCurrent()||builderGeneration!==viewGeneration||generation!==epoch)return;
+  const recover=async(saved=null)=>{invalidate();const generation=epoch;const history=saved??await request('v2-operations/preflights');if(!isCurrent()||builderGeneration!==viewGeneration||generation!==epoch)return;
    // The authenticated endpoint returns newest-first, actor-owned records.
    const prior=(history.rows??[]).find(r=>r.input?.objective==='MATURE_LIFECYCLE');
    if(!prior){text(result,'No recoverable Preflight. No research has started.');return;}
@@ -263,7 +264,8 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
    update();if(JSON.stringify([...preview.services].sort())!==JSON.stringify([...prior.input.services].sort())){text(result,'Recovered selection no longer matches. Run Preflight again.');return;}
    await submitPreflight(prior);
   };
-  button(tools,'Recover Preflight',recover,!summary.flags.control);
+  const recoveryEpoch=epoch;recoverWorkflow=history=>builderGeneration===viewGeneration&&epoch===recoveryEpoch?recover(history):Promise.resolve();
+  button(tools,'Recover Preflight',()=>recover(),!summary.flags.control);
   button(tools,'Recover Start',async()=>{
    const history=await request('v2-operations/starts'),rows=history.rows??[];
    if(!rows.length){text(result,'No confirmed Start is recorded for this admin.');return;}
@@ -327,7 +329,8 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   if(disposed||!isCurrent()||workflowRevision!==revision)return;
   const start=starts.rows?.find(r=>r.status==='RUNNING'),preflight=preflights.rows?.find(r=>r.status==='RUNNING');
   if(start){const job=await watchOperation('start',start,()=>!disposed&&isCurrent()&&workflowRevision===revision);if(!disposed&&isCurrent()&&workflowRevision===revision)trackJob(job);}
-  else if(preflight)await watchOperation('preflight',preflight,()=>!disposed&&isCurrent()&&workflowRevision===revision);
+  else if(preflight){const result=await watchOperation('preflight',preflight,()=>!disposed&&isCurrent()&&workflowRevision===revision);if(preflight.input&&recoverWorkflow&&!disposed&&isCurrent()&&workflowRevision===revision)await recoverWorkflow({rows:[{...preflight,status:'SUCCEEDED',result}]});}
+  else {const completed=preflights.rows?.find(r=>r.input?.objective==='MATURE_LIFECYCLE');if(completed?.status==='SUCCEEDED'&&!trackedId&&!starts.rows?.some(s=>s.result?.idempotencyKey==='manual:'+completed.result?.token))await recoverWorkflow?.({rows:[completed]});}
  }catch{/* Read-only recovery never implies success or starts research. */}})();
  return ()=>{disposed=true;viewGeneration++;stopMonitor();root.remove();};
 }

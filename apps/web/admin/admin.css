@@ -14,6 +14,7 @@
   --control-danger: #ec929a;
   --control-danger-hover: #ffc1c7;
   --control-focus: #8fb7e5;
+  --control-processing: #91ceff;
 }
 * {box-sizing:border-box}
 body {margin:0;background:var(--bg);color:var(--text);line-height:1.55}
@@ -173,9 +174,9 @@ li {margin:.4rem 0;color:var(--muted)}
 .ops-workflow{min-width:0;max-width:100%;overflow-wrap:anywhere}
 
 /* Busy actions keep their geometry and colors; disabled does not imply busy. */
-button.ops-action-busy{opacity:1;border-color:var(--control-outline);outline:2px solid var(--control-outline);outline-offset:2px;animation:ops-action-pulse 1.8s ease-in-out infinite}
-@keyframes ops-action-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 4px var(--control-outline)}}
-@media(prefers-reduced-motion:reduce){button.ops-action-busy{animation:none;outline:2px solid var(--control-outline);outline-offset:2px}}
+button.ops-action-busy{--control-outline:var(--control-processing);opacity:1;border-color:var(--control-processing);outline:2px solid var(--control-processing);outline-offset:2px;animation:ops-action-pulse 1.8s ease-in-out infinite}
+@keyframes ops-action-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 4px var(--control-processing)}}
+@media(prefers-reduced-motion:reduce){button.ops-action-busy{animation:none;outline:2px solid var(--control-processing);outline-offset:2px}}
 
 /* Interactive affordances only: links, status pills and containers are excluded. */
 :is(button,.admin-view-nav a,select){border-color:var(--control-outline)}
@@ -201,3 +202,6 @@ input:is([type="checkbox"],[type="radio"]):disabled:not(.ops-tool-switch-input){
 .ops-tool-switch-input:focus-visible+.ops-tool-switch-track{outline:3px solid var(--control-focus);outline-offset:4px}
 
 :is(#revoke,#login button):disabled{border-color:var(--control-muted);color:var(--muted);background:rgba(255,255,255,.055)}
+
+.ops-primary-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.75rem}
+button.ops-action-busy:focus-visible{outline:3px double var(--control-focus);outline-offset:6px}
