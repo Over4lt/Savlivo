@@ -8,6 +8,12 @@
   --border: rgba(255,255,255,.10);
   --accent: #d5f4e3;
   --accent-ink: #18352a;
+  --control-outline: #87cba8;
+  --control-hover: #c0efd5;
+  --control-muted: #788590;
+  --control-danger: #ec929a;
+  --control-danger-hover: #ffc1c7;
+  --control-focus: #8fb7e5;
 }
 * {box-sizing:border-box}
 body {margin:0;background:var(--bg);color:var(--text);line-height:1.55}
@@ -38,19 +44,19 @@ button {
   background:rgba(255,255,255,.055);color:var(--text);
   font-weight:600;cursor:pointer;white-space:normal;
 }
-button:hover {background:rgba(255,255,255,.10)}
+button:enabled:hover {background:rgba(255,255,255,.10)}
 nav a {color:var(--accent);display:inline-block;padding:.65rem 0;min-height:44px}
 button:disabled {opacity:.55;cursor:not-allowed}
 #login button {background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-#login button:hover {background:#bcebd2;border-color:#bcebd2}
+#login button:enabled:hover {background:#bcebd2;border-color:#bcebd2}
 #register {margin-top:1.25rem}
 details {border:1px solid var(--border);border-radius:14px;padding:.85rem 1rem}
 summary {cursor:pointer;font-weight:600;min-height:28px}
 details[open] summary {margin-bottom:.75rem}
 details p {max-width:75ch;font-size:.9375rem}
 #register label {display:flex;max-width:32rem;margin:1rem 0}
-#revoke {color:#f5b5b5;border-color:#895454;background:transparent}
-#revoke:hover {background:rgba(137,84,84,.15)}
+#revoke {color:#f5b5b5;border-color:var(--control-outline);background:transparent}
+#revoke:enabled:hover {border-color:var(--control-hover);background:rgba(137,84,84,.15)}
 :focus-visible {outline:3px solid #8fb7e5;outline-offset:3px}
 #message {min-height:1.5rem;overflow-wrap:anywhere}
 #message:empty {margin:0}
@@ -89,7 +95,7 @@ li {margin:.4rem 0;color:var(--muted)}
 /* Mature V2 targeting uses the existing Admin typography and controls. */
 .ops-research-builder{width:100%;display:grid;gap:1rem;margin:1.5rem 0}
 .ops-presets,.ops-facets,.ops-facet-options{display:flex;flex-wrap:wrap;gap:.6rem}
-.ops-presets button[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:2px}
+
 .ops-facets>details{flex:1;min-width:14rem}
 .ops-facet-options{max-height:16rem;overflow:auto;padding:.75rem 0}
 .ops-facet-options label{display:flex;align-items:center;gap:.4rem;width:100%}
@@ -167,6 +173,31 @@ li {margin:.4rem 0;color:var(--muted)}
 .ops-workflow{min-width:0;max-width:100%;overflow-wrap:anywhere}
 
 /* Busy actions keep their geometry and colors; disabled does not imply busy. */
-button.ops-action-busy{opacity:1;outline:2px solid currentColor;outline-offset:2px;animation:ops-action-pulse 1.8s ease-in-out infinite}
-@keyframes ops-action-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 4px currentColor}}
-@media(prefers-reduced-motion:reduce){button.ops-action-busy{animation:none;outline:2px solid currentColor;outline-offset:2px}}
+button.ops-action-busy{opacity:1;border-color:var(--control-outline);outline:2px solid var(--control-outline);outline-offset:2px;animation:ops-action-pulse 1.8s ease-in-out infinite}
+@keyframes ops-action-pulse{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:0 0 0 4px var(--control-outline)}}
+@media(prefers-reduced-motion:reduce){button.ops-action-busy{animation:none;outline:2px solid var(--control-outline);outline-offset:2px}}
+
+/* Interactive affordances only: links, status pills and containers are excluded. */
+:is(button,.admin-view-nav a,select){border-color:var(--control-outline)}
+summary{border-radius:6px;box-shadow:inset 0 0 0 1px var(--control-outline)}
+input:is([type="checkbox"],[type="radio"]):not(.ops-tool-switch-input){accent-color:var(--control-outline);outline:1px solid var(--control-outline);outline-offset:1px}
+#revoke{--control-outline:var(--control-danger);--control-hover:var(--control-danger-hover);color:var(--control-danger)}
+:is(button:enabled,.admin-view-nav a:not([aria-disabled="true"]),select:enabled):hover{border-color:var(--control-hover)}
+summary:hover{box-shadow:inset 0 0 0 1px var(--control-hover)}
+:is(button:enabled,.admin-view-nav a:not([aria-disabled="true"]),select:enabled):active{box-shadow:inset 0 0 0 2px var(--control-hover);background-color:rgba(135,203,168,.16)}
+summary:active{box-shadow:inset 0 0 0 2px var(--control-hover)}
+:is(button[aria-pressed="true"],.admin-view-nav a[aria-current="page"]){border-color:var(--control-hover);box-shadow:inset 0 0 0 1px var(--control-hover)}
+details[open]>summary{box-shadow:inset 0 0 0 2px var(--control-outline)}
+details[open]>summary:hover{box-shadow:inset 0 0 0 2px var(--control-hover)}
+:is(button:disabled:not(.ops-action-busy),select:disabled,.admin-view-nav a[aria-disabled="true"]){border-color:var(--control-muted);color:var(--muted);cursor:not-allowed;box-shadow:none}
+input:is([type="checkbox"],[type="radio"]):enabled:not(.ops-tool-switch-input):hover{outline-color:var(--control-hover)}
+input:is([type="checkbox"],[type="radio"]):disabled:not(.ops-tool-switch-input){outline-color:var(--control-muted);accent-color:var(--control-muted);cursor:not-allowed}
+.ops-research-builder .ops-tool-switch:has(input:enabled){border-color:var(--control-outline)}
+.ops-research-builder .ops-tool-switch:has(input:enabled):hover{border-color:var(--control-hover)}
+.ops-research-builder .ops-tool-switch:has(input:enabled):active{box-shadow:inset 0 0 0 1px var(--control-hover)}
+.ops-research-builder .ops-tool-switch:has(input:checked:enabled){border-color:var(--control-hover);box-shadow:inset 0 0 0 1px var(--control-hover)}
+.ops-research-builder .ops-tool-switch:has(input:disabled){border-color:var(--control-muted);cursor:not-allowed}
+:is(button,.admin-view-nav a,summary,select,input[type="checkbox"],input[type="radio"]):focus-visible{outline:3px solid var(--control-focus);outline-offset:5px}
+.ops-tool-switch-input:focus-visible+.ops-tool-switch-track{outline:3px solid var(--control-focus);outline-offset:4px}
+
+:is(#revoke,#login button):disabled{border-color:var(--control-muted);color:var(--muted);background:rgba(255,255,255,.055)}
