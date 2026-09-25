@@ -45,3 +45,12 @@ test('supporting market hash and freshness remain dependencies of retained eligi
  assert.equal(o.confidence,'HIGH');assert(o.sourceHashes.includes(sha(text)));const summary=retainedPricingSummary(target,[o],{});assert(summary);assert.equal(currentlyEligibleProviderPrice(summary,{...target,invalidatedEvidence:[sha(text)]}),false);assert.equal(currentlyEligibleProviderPrice({...summary,marketProofDependencies:[{sourceHash:sha(text),capturedAt:'2020-01-01'}]},target),false);
 });
 for(const [name,wrap] of [['hidden',s=>'<div hidden>'+s+'</div>'],['example',s=>'<blockquote>'+s+'</blockquote>'],['archived',s=>'<section><h2>Archived offers</h2>'+s+'</section>']])test('market statement in '+name+' context is not proof',t=>{const f=fixture(t),a=f.run(price),b=f.run(market(wrap('<p>Plan Basic is available in Germany.</p>')),{url:'https://provider.example/terms',previous:a.proof});assert.equal(b.report.verified.length,0);});
+test('foreign explicit offers remain diagnostic without entering target-market monthly identity',t=>{
+ const f=fixture(t),offer=(country,price,currency)=>({name:'Plan Basic',country,price,priceCurrency:currency,billingPeriod:'MONTH',recurring:true});
+ const result=f.run(JSON.stringify({offers:[offer('DE',10,'EUR'),offer('AU',20,'EUR'),offer('CA',25,'CAD')]}));
+ assert.deepEqual(result.report.verified.map(v=>[v.amount,v.currency]),[['10','EUR']]);
+ const inventory=result.read('monthly/monthly-plan-inventory');
+ assert.equal(inventory.length,1);assert.deepEqual(inventory[0].amounts,[['10','EUR']]);
+ assert.equal(result.read('discovery/candidates').length,3);
+ assert.equal(result.read('monthly/candidates').length,3);
+});

@@ -1,3 +1,4 @@
+import {disjointOfferMarkets} from '../offline-recovery/market-isolation.mjs';
 import {loadMarketProofSources} from '../verification/market-proof-sources.mjs';
 import {marketResearch} from '../verification/market-proof.mjs';
 import {projectPriceEvidenceNeeds} from '../intelligence/price-evidence-needs.mjs';
@@ -64,7 +65,7 @@ export function interpret(directory,{outputDirectory=null}={}){const dir=path.re
  for(const[k,items]of buckets){const c=items[0],g=evaluate(c),gs=items.map(evaluate);g.verificationLevel=Math.min(...gs.map(x=>x.verificationLevel));g.blockingReasons=unique(gs.flatMap(x=>x.blockingReasons));g.qualifierEvidence=items.flatMap(x=>x.qualifierEvidence??[]);g.qualifierPreservation={...g.qualifierPreservation,unresolved:unique(gs.flatMap(x=>x.qualifierPreservation?.unresolved??[]))};
   if(c.sourceType==='JSON'&&visible.size&&(visible.size>1||!visible.has(c.currency))){g.verificationLevel=Math.min(2,g.verificationLevel);g.blockingReasons.push('STRUCTURED_VISIBLE_CURRENCY_CONTEXT_CONFLICT');}
   if(raw.candidates.some(x=>x.amountNormalized===c.amountNormalized&&x.currency===c.currency&&x.normalizedEvidenceSnippet===c.normalizedEvidenceSnippet&&x.product!==c.product)){g.verificationLevel=Math.min(2,g.verificationLevel);g.ownershipAmbiguous=true;g.blockingReasons.push('REPEATED_TEXT_DIFFERENT_OWNERS');}
-  if(raw.candidates.some(x=>x.product&&x.product===c.product&&x.currency===c.currency&&x.billingPeriod===c.billingPeriod&&x.promotionOrTrial===c.promotionOrTrial&&JSON.stringify(x.qualifier)===JSON.stringify(c.qualifier)&&x.amountNormalized!==c.amountNormalized)){g.verificationLevel=Math.min(2,g.verificationLevel);g.blockingReasons.push('MULTIPLE_CONFLICTING_FACTS');}
+  if(raw.candidates.some(x=>x.product&&x.product===c.product&&x.currency===c.currency&&x.billingPeriod===c.billingPeriod&&x.promotionOrTrial===c.promotionOrTrial&&JSON.stringify(x.qualifier)===JSON.stringify(c.qualifier)&&x.amountNormalized!==c.amountNormalized&&!disjointOfferMarkets(x,c))){g.verificationLevel=Math.min(2,g.verificationLevel);g.blockingReasons.push('MULTIPLE_CONFLICTING_FACTS');}
   // The monthly stage derives commercial semantics from the retained proof.
   // Do not freeze its intermediate classifier output as discovery input.
   if(g.subscriptionSubject||g.subscriptionFaq||g.columnPlanTable||g.namedOfferDetails||g.attribution?.marketProof)delete g.commercial;

@@ -1,3 +1,4 @@
+import {disjointOfferMarkets} from '../offline-recovery/market-isolation.mjs';
 // Explicit evidence decision; never a production write or an L3/L4 alias.
 import '../offline-replay/offline-guard.mjs';
 import {offerEligibilityVersion} from '../offline-recovery/price-context-guards.mjs';
@@ -35,7 +36,7 @@ export function deriveEvidence(body,context){
   }
   if(r.sourceType==='JSON'&&visible.size&&(visible.size>1||!visible.has(r.currency)))c.blockingReasons.push('STRUCTURED_VISIBLE_CURRENCY_CONTEXT_CONFLICT');
   if(raw.candidates.some(x=>x.amountNormalized===r.amountNormalized&&x.currency===r.currency&&x.normalizedEvidenceSnippet===r.normalizedEvidenceSnippet&&x.product!==r.product)){c.ownershipAmbiguous=true;c.blockingReasons.push('REPEATED_TEXT_DIFFERENT_OWNERS');}
-  const peers=raw.candidates.filter(x=>x.product&&x.product===r.product&&x.currency===r.currency&&x.billingPeriod===r.billingPeriod&&x.promotionOrTrial===r.promotionOrTrial&&JSON.stringify(x.qualifier)===JSON.stringify(r.qualifier)&&x.amountNormalized!==r.amountNormalized);if(peers.length)c.blockingReasons.push('MULTIPLE_CONFLICTING_FACTS');c.verificationConflictPeerLocators=peers.map(x=>({path:x.structuredPath,amount:x.amountNormalized,currency:x.currency}));
+  const peers=raw.candidates.filter(x=>x.product&&x.product===r.product&&x.currency===r.currency&&x.billingPeriod===r.billingPeriod&&x.promotionOrTrial===r.promotionOrTrial&&JSON.stringify(x.qualifier)===JSON.stringify(r.qualifier)&&x.amountNormalized!==r.amountNormalized&&!disjointOfferMarkets(x,r));if(peers.length)c.blockingReasons.push('MULTIPLE_CONFLICTING_FACTS');c.verificationConflictPeerLocators=peers.map(x=>({path:x.structuredPath,amount:x.amountNormalized,currency:x.currency}));
   boundedOwnership(c,source);
   // Some existing non-monthly/card paths establish ownership in this stage.
   // Re-evaluate only market attribution after that independent ownership proof.
