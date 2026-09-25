@@ -1,3 +1,4 @@
+import {accessStopOrigins} from './access-stop-scope.mjs';
 import {acceptMarketResearch} from './market-proof-continuation.mjs';
 import {retainedPricingSummary} from '../intelligence/recurring-price-eligibility.mjs';
 import {currentRetainedPriceReview} from './retained-pricing.mjs';
@@ -53,26 +54,6 @@ export function destinationDiscoveryNeeded(t,bounds,usage){
 }
 // Identity metadata is complete even when the acquisition campaign is bounded.
 export const catalogIdentityMetadata=(catalog,previous=[])=>[...new Map([...previous,...catalog].map(t=>[t.service,{service:t.service,serviceName:t.serviceName}])).values()];
-// A redirect's robots policy belongs to the evaluated origin, not the initial URL.
-// Incomplete/unbound diagnostics retain the conservative original-origin fallback.
-function robotsStopOrigin(response,requestedUrl){
- const fallback=new URL(requestedUrl).origin,ds=response.accessDecisions;
- if(response.outcome!=='ACCESS_CONTROL_STOP'||response.failure?.code!=='ROBOTS_ACCESS_STOP'||!ds?.length)return fallback;
- try{
-  if(ds[0].targetUrl!==requestedUrl||!ds.every(d=>new URL(d.targetUrl).origin===d.origin&&d.robotsUrl===d.origin+'/robots.txt'))return fallback;
-  if(!ds.slice(0,-1).every(d=>['ALLOWED','NO_ROBOTS_POLICY'].includes(d.decision)))return fallback;
-  const last=ds.at(-1);
-  return ['DISALLOWED','ROBOTS_INVALID','ROBOTS_UNAVAILABLE','REVIEW_REQUIRED'].includes(last.decision)?last.origin:fallback;
- }catch{return fallback;}
-}
-// A matched path rule denies that request, not every sibling on the origin.
-// Keep uncertain/global restrictions conservative; every future destination still
-// passes its own robots check in the existing acquisition adapter.
-function pathScopedRobotsStop(response,requestedUrl){
- if(response.outcome!=='ACCESS_CONTROL_STOP'||response.failure?.code!=='ROBOTS_ACCESS_STOP'||!response.accessDecisions?.length)return false;
- const denied=response.accessDecisions.filter(d=>!['ALLOWED','NO_ROBOTS_POLICY'].includes(d.decision));
- return denied.length>0&&denied.every(d=>d.targetUrl===requestedUrl&&d.decision==='DISALLOWED'&&d.reason==='MATCHED_RULE'&&d.boundary==='APPLICABLE_DISALLOW'&&d.rule?.directive==='disallow'&&typeof d.rule.path==='string'&&/^\/[^*?$]/.test(d.rule.path)&&!d.rule.path.includes('*'));
-}
 export class OpenWebResearch {
  constructor(directory,targets,bounds=openWebBounds,catalog=targets){this.directory=directory;this.bounds={...openWebBounds,...bounds};for(const [k,v]of Object.entries(this.bounds))if(!(k in openWebBounds)||!Number.isSafeInteger(v)||v<0||v>(k==='managementReserveOnly'?1:openWebBounds[k]))throw Error('INVALID_DISCOVERY_BOUND:'+k);fs.mkdirSync(directory,{recursive:true});this.file=directory+'/state.json';this.state=fs.existsSync(this.file)?JSON.parse(fs.readFileSync(this.file)): {version:1,catalog:catalogIdentityMetadata(catalog),targets:targets.map(t=>({...t,gaps:t.gaps??commercialFields,queries:[],reads:[],leads:[],decisions:[],blockedOrigins:t.blockedOrigins??[],verified:[]})),usage:{searches:0,reads:0,acquisitions:0},cache:{},pending:null};this.state.catalog=catalogIdentityMetadata(catalog,this.state.catalog??[]);if(!fs.existsSync(this.file))for(const t of this.state.targets)for(const url of t.urls??[])if(t.authorities?.some(a=>a.hostname===new URL(url).hostname))this.add(t,{url,title:t.serviceName+' official provider',rank:0,from:{method:'REVIEWED_PROVIDER_DESTINATION'}});if(targets.length>this.bounds.services)throw Error('SERVICE_BOUND');this.save();}
  save(){fs.writeFileSync(this.file+'.pending',JSON.stringify(this.state,null,2)+'\n');fs.renameSync(this.file+'.pending',this.file);}
@@ -100,7 +81,7 @@ export class OpenWebResearch {
  else {const body=response.rawSource?.text??response.raw?.body??response.raw?.text??response.raw??response.body;const r={...response,requestedUrl:a.url};if(typeof body==='string'&&Buffer.byteLength(body)<=this.bounds.bytesPerPage){r.bodyHash=sha(body);fs.mkdirSync(this.directory+'/bodies',{recursive:true});r.bodyFile='bodies/'+r.bodyHash+'.txt';fs.writeFileSync(this.directory+'/'+r.bodyFile,body);delete r.body;delete r.raw;delete r.rawSource;const nav=response.outcome&&response.outcome!=='OK'?{links:[]}:providerNavigation(t,body,r.url??a.url,{maxBytes:this.bounds.bytesPerPage,depth:a.lead?.navigationDepth??0});r.navigation={considered:nav.considered??0,stops:nav.stops??[],selected:nav.links.map(l=>l.url),...(nav.priceEntryCandidates?{priceEntryCandidates:nav.priceEntryCandidates}:{}),...(nav.loginEntryCandidates?{loginEntryCandidates:nav.loginEntryCandidates}:{})};for(const l of nav.links)this.add(t,{url:l.url,title:l.label,...(l.priceEntryIntent?{priceEntryIntent:true,score:l.score}:{}),...(l.accessibleName?{accessibleName:l.accessibleName,context:l.context}:{}),rank:0,navigationDepth:l.depth,locale:l.locale,from:{url:r.url??a.url,bodyHash:r.bodyHash,locator:l.reference,mechanism:l.mechanism},navigationOnly:true});// Preserve legacy discovery-only traversal when no reviewed authority is configured.
 if(!t.authorities?.length&&(!response.outcome||response.outcome==='OK'))for(const l of sourceLinks(body,{maxBytes:this.bounds.bytesPerPage,maxLinks:this.bounds.linksPerPage}).links){if(l.mechanism==='PROVIDER_CANONICAL_OR_LOCALE')continue;let u;try{u=new URL(l.url,a.url).href;}catch{continue;}if(/pricing|plans|subscribe|subscription|abonnement|activation|watchon|purchase|billing|partner|precio|planes|이용권|결제/i.test(l.label+' '+u)&&relevant(t,{title:l.label,url:u})||new URL(u).origin!==new URL(a.url).origin&&relevant(t,{title:l.label,url:u}))this.add(t,{url:u,title:l.label,rank:0,from:{url:a.url,bodyHash:r.bodyHash,locator:l.reference}});}
 r.catalogServiceLeads=(this.state.catalog??this.state.targets).filter(x=>x.service!==t.service&&body.toLowerCase().includes(x.serviceName.toLowerCase())).map(x=>({service:x.service,requestedMarket:t.market,marketEstablished:false,url:a.url,bodyHash:r.bodyHash,evidenceStatus:'DISCOVERY_LEAD_ONLY'}));}
- if((['BLOCKED','ACCESS_CONTROL_STOP'].includes(response.outcome)||response.failure?.code==='ROBOTS_ACCESS_STOP')&&!pathScopedRobotsStop(response,a.url))t.blockedOrigins.push(robotsStopOrigin(response,a.url));t.reads.push(r);this.state.cache[cacheKey(t,a.url)]=r;if(safe(r.url))this.state.cache[cacheKey(t,r.url)]=r;}
+ t.blockedOrigins.push(...accessStopOrigins(response,a.url));t.reads.push(r);this.state.cache[cacheKey(t,a.url)]=r;if(safe(r.url))this.state.cache[cacheKey(t,r.url)]=r;}
  this.event('ACTION_RESULT',{action:a,response:a.type==='READ'?t.reads.at(-1):response});this.state.pending=null;this.save();}
  recordAuthority(target,url,decision){const t=this.target(target);t.decisions.push({url,...decision});this.event('AUTHORITY_REVIEW',{target,url,decision});this.save();}
 }
