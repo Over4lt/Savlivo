@@ -98,7 +98,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
  const live=el('section',undefined,'ops-live-card');live.hidden=true;live.setAttribute('aria-label','Current Operations job');
  const liveTitle=el('h3','Live job'),announcement=el('p');announcement.setAttribute('role','status');announcement.setAttribute('aria-live','polite');
  const pipeline=el('ol',undefined,'ops-lifecycle'),steps=Array.from({length:3},()=>el('li'));pipeline.append(...steps);
- const liveFields=Object.fromEntries(['receipt','status','activity','services','markets','started','updated','finished','elapsed','budget','usage','pricing','review','research','completion','notice'].map(key=>[key,el('p')]));
+ const liveFields=Object.fromEntries(['receipt','status','activity','services','markets','started','updated','finished','elapsed','budget','usage','pricing','review','research','completion','diagnostic','notice'].map(key=>[key,el('p')]));
  live.append(liveTitle,announcement,pipeline,...Object.values(liveFields));
  const updateText=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
  let stopMonitor=()=>{},trackedId=null,tracking=false,lastJob=null,disposed=false,runSnapshot=null,serviceSnapshot=null;

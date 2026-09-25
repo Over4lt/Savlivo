@@ -45,3 +45,12 @@ test('live GET does not reconstruct runs, take ownership or write operational st
  for(let i=0;i<3;i++)assert.equal((await operationsRequest({method:'GET',url:new URL('https://offline.invalid/v1/admin/v2-operations/jobs/'+id),actor:'one'},ops)).status,'RUNNING');
  assert.deepEqual(fs.readFileSync(path.join(root,'state.json')),before);assert.deepEqual(fs.readdirSync(root),['state.json']);
 });
+
+test('status projects bounded recorded failure and phase without reconstruction or mutation',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'failure-status-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const ops=new Operations({root,repo:root,read:true,control:true});ops.transaction(db=>db.jobs.push({id,status:'INTERRUPTED',actor:'one',error:'MATURE_EXECUTION_INTERRUPTED_CHECKPOINT_PRESERVED',startedAt:'2026-09-25T12:00:00Z',finishedAt:'2026-09-25T12:01:00Z'}));
+ atomic(path.join(root,'runs',id,'execution-phase.json'),{jobId:id,event:'AUTHORITATIVE_VALIDATION_COMPLETED',at:'2026-09-25T12:00:10Z'});
+ const before=fs.readFileSync(path.join(root,'state.json'));for(const method of ['transaction','index','prepareQueued'])t.mock.method(ops,method,()=>{throw Error('Read must not call '+method);});
+ const value=await operationsRequest({method:'GET',url:new URL('https://offline.invalid/v1/admin/v2-operations/jobs/'+id),actor:'one'},ops);
+ assert.equal(value.terminal,true);assert.equal(value.diagnostic.kind,'CAUSE');assert.equal(value.diagnostic.reason,'MATURE_EXECUTION_INTERRUPTED_CHECKPOINT_PRESERVED');assert.equal(value.diagnostic.lastPhase,'AUTHORITATIVE_VALIDATION_COMPLETED');assert.equal(value.finishedAt,'2026-09-25T12:01:00Z');assert.deepEqual(fs.readFileSync(path.join(root,'state.json')),before);
+});

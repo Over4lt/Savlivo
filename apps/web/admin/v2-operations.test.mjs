@@ -396,3 +396,9 @@ test('elapsed ticks locally without requests while status keeps its existing ten
  status='COMPLETE';t.mock.timers.tick(1000);await flushPulse();assert.equal(calls.length,before+1);assert(calls.at(-1).p.includes('/jobs/'));assert(text(root).includes('Elapsed: 0m 9s'));
  t.mock.timers.tick(60000);await flushPulse();assert.equal(calls.length,before+1);assert(text(root).includes('Elapsed: 0m 9s'));
 });
+
+test('live card shows recorded terminal cause and phase without loading result snapshots',async t=>{
+ const {root,calls}=await builder(t,{},[],[],id=>({id,status:'FAILED',terminal:true,diagnostic:{kind:'CAUSE',reason:'WORKER_SPAWN_FAILED',lastPhase:'PREPARATION_COMPLETED',lastPhaseAt:'2026-09-25T12:00:00Z'}}));
+ await button(root,'Preflight').listeners.click();window.confirm=()=>true;await button(root,'Confirm and queue run').listeners.click();await flushPulse();
+ const card=descendants(root).find(n=>n.className?.startsWith('ops-live-card'));assert(text(card).includes('Cause: WORKER_SPAWN_FAILED'));assert(text(card).includes('Last recorded phase: PREPARATION_COMPLETED'));assert(!calls.some(c=>/^v2-operations\/runs\/[^?]+/.test(c.p)));assert.equal(calls.filter(c=>c.p.endsWith('/start')).length,1);
+});
