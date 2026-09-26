@@ -1,0 +1,18 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {atomic} from './expansion-campaign.mjs';
+function directory(t){const d=fs.mkdtempSync(path.join(os.tmpdir(),'adaptive-checkpoint-'));t.after(()=>fs.rmSync(d,{recursive:true,force:true}));return d;}
+const state=()=>({version:1,fingerprint:'unchanged',cursor:0,turn:0,pending:null,complete:false,targets:Object.fromEntries(Array.from({length:25},(_,i)=>['target-'+i,{id:'target-'+i,service:'service-'+i,serviceAdmission:{status:'UNRESOLVED',evidence:[]},researchMemory:{observations:Array.from({length:80+i},(_,j)=>({locator:j,sourceHash:String(j),quote:('Unicode € 日本語 😀 '+i+' '+j).repeat(8),optional:undefined}))},values:[null,undefined,false,0,-0,1e30,NaN,Infinity,'\ud800'],verified:[]} ])),decisions:{},decisionHistory:[]});
+test('streamed checkpoint matches exact JSON.stringify bytes and bounds writes',t=>{const d=directory(t),value=state(),before=JSON.stringify(value),expected=JSON.stringify(value,null,2)+'\n',write=fs.writeSync;let largest=0,writes=0;t.mock.method(fs,'writeSync',function(fd,buffer,...args){largest=Math.max(largest,Buffer.byteLength(buffer));writes++;return write.call(this,fd,buffer,...args);});atomic(d+'/state.json',value,{stream:true});assert.equal(fs.readFileSync(d+'/state.json','utf8'),expected);assert.equal(JSON.stringify(value),before);assert(writes>10);assert(largest<131072);assert(!fs.existsSync(d+'/state.json.pending'));});
+test('partial buffer writes preserve Unicode and all bytes',t=>{const d=directory(t),value=state(),write=fs.writeSync;t.mock.method(fs,'writeSync',function(fd,buffer,offset,length){return write.call(this,fd,buffer,offset,Math.min(length,257));});atomic(d+'/state.json',value,{stream:true});assert.equal(fs.readFileSync(d+'/state.json','utf8'),JSON.stringify(value,null,2)+'\n');});
+for(const failure of ['write','zero-progress','fsync','rename','serialization'])test(failure+' cannot publish incomplete checkpoint',t=>{const d=directory(t),file=d+'/state.json';atomic(file,{old:true});const before=fs.readFileSync(file);let renamed=false;const rename=fs.renameSync;t.mock.method(fs,'renameSync',function(...args){renamed=true;if(failure==='rename')throw Error('injected');return rename.apply(this,args);});
+ if(failure==='write'||failure==='zero-progress')t.mock.method(fs,'writeSync',()=>{if(failure==='zero-progress')return 0;throw Error('injected');});
+ if(failure==='fsync')t.mock.method(fs,'fsyncSync',()=>{throw Error('injected');});
+ const value=state();if(failure==='serialization')value.invalid=1n;
+ assert.throws(()=>atomic(file,value,{stream:true}));assert.deepEqual(fs.readFileSync(file),before);assert.equal(renamed,failure==='rename');
+});
+test('fsync and close precede rename; old checkpoint remains visible until publication',t=>{const d=directory(t),file=d+'/state.json';atomic(file,{old:true});const calls=[],sync=fs.fsyncSync,close=fs.closeSync,rename=fs.renameSync;t.mock.method(fs,'fsyncSync',function(fd){calls.push('fsync');return sync.call(this,fd);});t.mock.method(fs,'closeSync',function(fd){calls.push('close');return close.call(this,fd);});t.mock.method(fs,'renameSync',function(...args){assert.deepEqual(calls,['fsync','close']);assert.equal(JSON.parse(fs.readFileSync(file)).old,true);return rename.apply(this,args);});atomic(file,{new:true},{stream:true});assert.equal(JSON.parse(fs.readFileSync(file)).new,true);});
+test('default atomic callers retain byte formatting',t=>{const d=directory(t),value=state();atomic(d+'/state.json',value);assert.equal(fs.readFileSync(d+'/state.json','utf8'),JSON.stringify(value,null,2)+'\n');});

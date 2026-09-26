@@ -1,3 +1,4 @@
+import {streamJson} from '../storage/core.mjs';
 import {eligibleVerifiedPrices} from '../intelligence/recurring-price-eligibility.mjs';
 import {currentRetainedPriceReview} from '../live/retained-pricing.mjs';
 // One resumable campaign, bounded batches over the existing V2 discovery/acquisition loop.
@@ -12,7 +13,18 @@ export function fairBatches(targets,size=20){
  const ordered=[];while([...groups.values()].some(g=>g.length))for(const g of groups.values())if(g.length)ordered.push(g.shift());
  const batches=[];for(let i=0;i<ordered.length;i+=size)batches.push(ordered.slice(i,i+size));return batches;
 }
-export function atomic(file,value){const fd=fs.openSync(file+'.pending','w',0o600);try{fs.writeSync(fd,JSON.stringify(value,null,2)+'\n');fs.fsyncSync(fd);}finally{fs.closeSync(fd);}fs.renameSync(file+'.pending',file);}
+export function atomic(file,value,{stream=false}={}){
+ const fd=fs.openSync(file+'.pending','w',0o600);
+ try{
+  if(stream){
+   // Bound serialization buffers without changing checkpoint bytes or publication order.
+   const write=chunk=>{const bytes=Buffer.from(chunk);let offset=0;while(offset<bytes.length){const n=fs.writeSync(fd,bytes,offset,bytes.length-offset);if(n<=0)throw Error('CHECKPOINT_WRITE_NO_PROGRESS');offset+=n;}};
+   streamJson(value,write,{space:2});write('\n');
+  }else fs.writeSync(fd,JSON.stringify(value,null,2)+'\n');
+  fs.fsyncSync(fd);
+ }finally{fs.closeSync(fd);}
+ fs.renameSync(file+'.pending',file);
+}
 export function recoverInterrupted(directory){
  const file=directory+'/state.json';if(!fs.existsSync(file))return [];
  const state=JSON.parse(fs.readFileSync(file)),parked=[];
