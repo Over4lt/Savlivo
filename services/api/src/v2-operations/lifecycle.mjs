@@ -44,6 +44,7 @@ export function verifyExecutionBinding(repo,job,manifest){
  verifyAdmittedLeads(repo,job.config,manifest);
  const b=manifest.lifecycle?.admission;
  if(!b){if(job.admissionHash)throw Error('EXECUTION_BINDING_MISSING');return;} // Legacy jobs still receive full execution validation.
+ if(b.executionGeneration!==undefined&&b.executionGeneration!==job.id)throw Error('EXECUTION_BINDING_MISMATCH');
  if(b.version!==1||job.config.scope!==b.scope||hash(job.config.researchMarkets??null)!==hash(b.researchMarkets)||job.admissionHash!==hash(b)||b.input!==manifest.lifecycle.input||b.inputHash!==manifest.lifecycle.inputHash||hash(job.config.capabilities)!==hash(b.capabilities)||hash(manifest.capabilities)!==hash(b.capabilities)||manifest.limits?.totalRequests!==b.budget.total||hash(job.config.humanLeadSnapshot)!==hash(b.humanLeadSnapshot))throw Error('EXECUTION_BINDING_MISMATCH');
  if(job.config.scope==='SELECTED_SERVICES'&&hash([...job.config.services].sort())!==hash([...b.services].sort()))throw Error('EXECUTION_SCOPE_MISMATCH');
  for(const [file,expected] of Object.entries(b.inputHashes)){if(hash(fs.readFileSync(safePath(repo,file),'utf8'))!==expected)throw Error('EXECUTION_INPUT_CHANGED');}

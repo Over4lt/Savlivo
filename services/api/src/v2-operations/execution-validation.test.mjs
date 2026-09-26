@@ -39,3 +39,28 @@ for(const mutation of [null,'protected','code','genesis','input'])test('authorit
  }
  assert.equal(fs.existsSync(f.ops.config.root+'/runs/'+job.id+'/network.jsonl'),false);
 });
+
+test('new admitted generation isolates interrupted history; legacy continuation still blocks',async t=>{
+ const f=fixture(t);t.mock.method(console,'log',()=>{});t.mock.method(console,'error',()=>{});t.mock.method(globalThis,'fetch',()=>{throw Error('NETWORK_FORBIDDEN');});
+ const dir=f.dest+'/'+f.built.genesis.lifecycle.executionRoot+'/mature-lifecycle-'+ 'a'.repeat(16);fs.mkdirSync(dir,{recursive:true});
+ const cohort=f.built.genesis.cohort;
+ fs.writeFileSync(dir+'/lineage.json',JSON.stringify({cohort,fingerprint:'a'.repeat(64)}));
+ fs.writeFileSync(dir+'/network.jsonl',JSON.stringify({service:cohort[0],kind:'DIRECT',at:'2026-01-01T00:00:00Z'})+'\n');
+ fs.mkdirSync(dir+'/catalog');fs.writeFileSync(dir+'/catalog/adaptive-state.json',JSON.stringify({turn:99,cursor:7,pending:{unsafe:true},targets:{poison:{service:cohort[0],unproven:true}}}));
+ const oldFiles=['lineage.json','network.jsonl','catalog/adaptive-state.json'];const original=oldFiles.map(p=>fs.readFileSync(dir+'/'+p));
+ const old=process.cwd();try{process.chdir(f.dest);
+ const first=f.ops.start(f.ops.preflight({objective:'MATURE_LIFECYCLE',scope:'FULL_CATALOG',capabilities},'actor').token,'actor',true),manifest=JSON.parse(fs.readFileSync(f.ops.config.root+'/runs/'+first.id+'/manifest.json'));
+ verifyExecutionBinding(f.dest,first,manifest);
+ await assert.rejects(lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--live']),/HANDOFF_PREVIOUS_CONTINUATION_RECONCILIATION_REQUIRED/);
+ const control={executionGeneration:manifest.lifecycle.admission.executionGeneration};
+ assert.equal(control.executionGeneration,first.id);
+ const check=await lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--check'],control);assert.equal(check.requestsConsumed,0);
+ const result=await lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--live'],control);assert.equal(result.additionalRequests,0);assert.equal(result.executionComplete,true);
+ const lineage=JSON.parse(fs.readFileSync(check.output+'/lineage.json'));assert.equal(lineage.supersededExecutions.length,1);assert.equal(lineage.supersededRequests,1);assert.equal(lineage.supersededExecutions[0].execution,path.basename(dir));
+ f.ops.patchJob(first.id,{status:'COMPLETE'});
+ const second=f.ops.start(f.ops.preflight({objective:'MATURE_LIFECYCLE',scope:'FULL_CATALOG',capabilities},'actor').token,'actor',true),m2=JSON.parse(fs.readFileSync(f.ops.config.root+'/runs/'+second.id+'/manifest.json'));
+ const check2=await lifecycleMain(['--lifecycle','--input',m2.lifecycle.input,'--check'],{executionGeneration:m2.lifecycle.admission.executionGeneration});assert.notEqual(check.output,check2.output);
+ const tampered=structuredClone(m2);tampered.lifecycle.admission.executionGeneration=first.id;assert.throws(()=>verifyExecutionBinding(f.dest,second,tampered),/EXECUTION_BINDING/);
+ for(let i=0;i<oldFiles.length;i++)assert.deepEqual(fs.readFileSync(dir+'/'+oldFiles[i]),original[i]);
+ }finally{process.chdir(old);}
+});

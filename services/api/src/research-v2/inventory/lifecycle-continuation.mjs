@@ -20,18 +20,32 @@ export function validateLifecycleSnapshot(snapshot){
  for(const [f,hash]of Object.entries(snapshot.inputHashes)){if(!fs.realpathSync(f).startsWith(process.cwd()+path.sep)||hashFile(f)!==hash)throw Error('LIFECYCLE_IMMUTABLE_INPUT_CHANGED');}
  return snapshot;
 }
-export function snapshotLifecycle({handoff,researchMarkets,runsRoot,baselineIds=[],legacyDirectory=null,quarantine=[],codeHash,genesis=null}){
+export function snapshotLifecycle({handoff,researchMarkets,runsRoot,baselineIds=[],legacyDirectory=null,quarantine=[],codeHash,genesis=null,executionGeneration}){
  releaseValidationTemporaries();
  const ids=handoff.cohort.manifest.serviceIds;assertLifecycleCohort(ids,baselineIds);
+ if(executionGeneration!==undefined&&!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(executionGeneration))throw Error('LIFECYCLE_EXECUTION_GENERATION');
  if(genesis&&(genesis.genesis.lifecycle.executionRoot!==runsRoot||digest(genesis.source.cohort)!==digest(ids)))throw Error('LIFECYCLE_GENESIS_SCOPE');
- const key=digest({ids,review:handoff.document,researchMarkets,input:handoff.inputHashes,codeHash,...(genesis?{genesis:genesis.genesis.genesisHash}:{})}),control=path.join(runsRoot,'lifecycle-control-'+digest(ids).slice(0,16)),file=control+'/'+key+'.json';
+ const key=digest({ids,review:handoff.document,researchMarkets,input:handoff.inputHashes,codeHash,...(executionGeneration?{executionGeneration}:{}),...(genesis?{genesis:genesis.genesis.genesisHash}:{})}),control=path.join(runsRoot,'lifecycle-control-'+digest(ids).slice(0,16)),file=control+'/'+key+'.json';
  if(fs.existsSync(file))return validateLifecycleSnapshot(json(file));
- const parents=[],inputHashes={...handoff.inputHashes},states=genesis?{...genesis.source.states}:{},sources=genesis?Object.fromEntries(Object.entries(genesis.source.sources).map(([id,rows])=>[id,[...rows]])):{};
+ const supersededExecutions=[],parents=[],inputHashes={...handoff.inputHashes},states=genesis?{...genesis.source.states}:{},sources=genesis?Object.fromEntries(Object.entries(genesis.source.sources).map(([id,rows])=>[id,[...rows]])):{};
  if(genesis)for(const e of genesis.genesis.protectedReferences.entries)inputHashes[e.path]=e.sha256;
  const addSource=(service,directory,pages)=>{if(!ids.includes(service))throw Error('LIFECYCLE_SOURCE_SCOPE');sources[service]??=[];for(const page of pages){const body=page.bodyFile?path.join(directory,page.bodyFile):null;if(body){if(!/^bodies\/[a-f0-9]{64}\.txt$/.test(page.bodyFile)||hashFile(body)!==page.bodyHash)throw Error('LIFECYCLE_BODY_HASH');inputHashes[body]=hashFile(body);}sources[service].push({directory,page});}};
- const dirs=fs.existsSync(runsRoot)?fs.readdirSync(runsRoot).map(n=>path.join(runsRoot,n)).filter(d=>fs.existsSync(d+'/lineage.json')&&fs.existsSync(d+'/summary.json')).sort((a,b)=>fs.statSync(a+'/summary.json').mtimeMs-fs.statSync(b+'/summary.json').mtimeMs||a.localeCompare(b)):[];
+ const dirs=fs.existsSync(runsRoot)?fs.readdirSync(runsRoot).map(n=>path.join(runsRoot,n)).filter(d=>fs.existsSync(d+'/lineage.json')&&(fs.existsSync(d+'/summary.json')||executionGeneration&&fs.existsSync(d+'/network.jsonl'))).sort((a,b)=>fs.statSync(fs.existsSync(a+'/summary.json')?a+'/summary.json':a+'/lineage.json').mtimeMs-fs.statSync(fs.existsSync(b+'/summary.json')?b+'/summary.json':b+'/lineage.json').mtimeMs||a.localeCompare(b)):[];
  for(const d of dirs){const lineage=json(d+'/lineage.json');if(digest(lineage.cohort)!==digest(ids))continue;
-  const summary=json(d+'/summary.json'),ledger=d+'/network.jsonl',events=fs.existsSync(ledger)?fs.readFileSync(ledger,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];
+  const summary=fs.existsSync(d+'/summary.json')?json(d+'/summary.json'):null,ledger=d+'/network.jsonl',events=fs.existsSync(ledger)?fs.readFileSync(ledger,'utf8').trim().split('\n').filter(Boolean).map(JSON.parse):[];
+  if(executionGeneration&&!summary?.executionComplete){
+   // A new admitted generation records history without claiming this execution
+   // as an evidence parent. Its checkpoint and target mutations are never read.
+   if(lineage.executionGeneration===executionGeneration)throw Error('LIFECYCLE_GENERATION_ALREADY_EXECUTED');
+   for(const f of filesUnder(d).filter(f=>f.endsWith('.lock'))){const pid=Number(fs.readFileSync(f,'utf8'));if(!Number.isInteger(pid)||pid<1)throw Error('LIFECYCLE_PARENT_LOCK');try{process.kill(pid,0);}catch(e){if(e.code==='ESRCH')continue;throw e;}throw Error('LIFECYCLE_PARENT_ACTIVE');}
+   if(!fs.existsSync(ledger)&&summary?.additionalRequests!==0||summary?.additionalRequests!==undefined&&(!Number.isSafeInteger(summary.additionalRequests)||summary.additionalRequests<0||summary.additionalRequests>events.length))throw Error('LIFECYCLE_HISTORICAL_ACCOUNTING');
+   const bytes=fs.existsSync(ledger)?fs.readFileSync(ledger):Buffer.from('');
+   if(bytes.length&&!bytes.toString().endsWith('\n')||events.some(e=>!ids.includes(e.service)))throw Error('LIFECYCLE_HISTORICAL_ACCOUNTING');
+   if(typeof lineage.fingerprint!=='string'||!lineage.fingerprint)throw Error('LIFECYCLE_HISTORICAL_IDENTITY');
+   inputHashes[d+'/lineage.json']=hashFile(d+'/lineage.json');if(fs.existsSync(ledger))inputHashes[ledger]=hashFile(ledger);
+   supersededExecutions.push({execution:path.basename(d),fingerprint:lineage.fingerprint,requests:events.length,ledgerHash:inputHashes[ledger]??null,lineageHash:inputHashes[d+'/lineage.json'],disposition:'EXCLUDED_INTERRUPTED_EXECUTION_NOT_EVIDENCE_PARENT'});
+   continue;
+  }
   if(!summary.executionComplete||events.length!==summary.additionalRequests||events.some(e=>!ids.includes(e.service)))throw Error('LIFECYCLE_PARENT_NOT_RECONCILED');
   parents.push({directory:d,requests:events.length,fingerprint:lineage.fingerprint});
   const boundary=finalizedBoundary(process.cwd(),d);
@@ -42,7 +56,7 @@ export function snapshotLifecycle({handoff,researchMarkets,runsRoot,baselineIds=
   for(const f of Object.keys(inputHashes).filter(f=>f.startsWith(d+'/')&&f.endsWith('/open-web-discovery/state.json'))){const state=json(f);for(const t of state.targets??[])addSource(t.service,path.dirname(f),t.reads??[]);}
  }
  if(legacyDirectory){for(const id of ids){const dir=legacyDirectory+'/services/'+id,f=dir+'/pages.json';if(fs.existsSync(f)){inputHashes[f]=hashFile(f);addSource(id,dir,json(f));}}}
- const snapshot={version:1,key,cohort:ids,parents,states,sources,inputHashes,quarantine,codeHash,historicalRequests:handoff.summary.historicalRequests??0,parentRequests:(genesis?.genesis.accounting.parentRequests??0)+parents.reduce((n,p)=>n+p.requests,0),...(genesis?{productionGenesisHash:genesis.genesis.genesisHash}: {})};
+ const snapshot={version:1,key,...(executionGeneration?{executionGeneration,supersededExecutions,supersededRequests:supersededExecutions.reduce((n,p)=>n+p.requests,0)}:{}),cohort:ids,parents,states,sources,inputHashes,quarantine,codeHash,historicalRequests:handoff.summary.historicalRequests??0,parentRequests:(genesis?.genesis.accounting.parentRequests??0)+parents.reduce((n,p)=>n+p.requests,0),...(genesis?{productionGenesisHash:genesis.genesis.genesisHash}: {})};
  releaseValidationTemporaries();snapshot.snapshotHash=jsonDigest(snapshot);fs.mkdirSync(control,{recursive:true});
  const fd=fs.openSync(file+'.pending','w',0o600);try{streamJson(snapshot,chunk=>fs.writeFileSync(fd,chunk),{space:2});fs.writeFileSync(fd,'\n');fs.fsyncSync(fd);}finally{fs.closeSync(fd);}fs.renameSync(file+'.pending',file);return snapshot;
 }
