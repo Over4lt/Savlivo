@@ -33,6 +33,15 @@ export function priceContextGuards(candidate,source){
  if(candidate.amountNormalized!==null&&Number(candidate.amountNormalized)===0&&phaseContext.test(local+' '+(owned?.text??'')+' '+label)&&!closedRenewalCommercial(candidate,source))add('ZERO_COMMERCIAL_PHASE_UNRESOLVED',owned??node,local);
  const ownMoney=monetary(local).filter(m=>m.amount===candidate.amountNormalized&&m.currencyRaw===candidate.currencyRaw);
  if(ownMoney.some(m=>/^\s*(?:\/|per)\s*(?:TB|GB|terabytes?|gigabytes?)\s*(?:\/|per|a|each)/iu.test(local.slice(m.end))))add('USAGE_UNIT_NOT_CONSUMER_PLAN_TOTAL',node,local);
+ // Roles attach to the exact monetary expression, never to page-wide benefit
+ // vocabulary. Preserve the observation and interval; veto principal exposure.
+ for(const m of ownMoney){
+  const before=local.slice(Math.max(0,m.start-100),m.start),after=local.slice(m.end,m.end+100);
+  const contextual=/\b(?:value|worth|saving|savings|credit|allowance|reimbursement|coverage|revenue|profit|turnover|valuation|värde|valeur|Wert|valor)\s*(?:(?:of|is|at|about|approximately|approx|ca|circa|up to|de|environ)\.?\s*)*$/iu.test(before);
+  const equivalent=/\b(?:works? out (?:at|as|to)|equivalent to|averages?)\s*$/iu.test(before);
+  const installment=/\binstal(?:l)?ments?\b/iu.test(before+after);
+  if(contextual||equivalent||installment)add('CONTEXTUAL_MONETARY_VALUE_NOT_CHARGE',node,local);
+ }
  // A dollar-denominated benefit is not the provider's recurring charge.
  // Bind the veto to this monetary clause, not another benefit elsewhere in a plan.
  for(const m of ownMoney){const after=local.slice(m.end,m.end+100),before=local.slice(Math.max(0,m.start-70),m.start);

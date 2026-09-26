@@ -27,7 +27,19 @@ export function retainedPricingSummary(target,observations,{artifact,capturedAt=
  if(Number.isFinite(now)&&Number.isFinite(at)&&now-at>(target.retainedMaxAgeDays??30)*86400000)return null;
  // Preserve the existing single sufficiency summary, not a new offer-selection policy.
  const o=observations.find(o=>o.service===target.service&&o.source?.kind==='ORIGINAL_PROVIDER'&&['HIGH','MEDIUM'].includes(o.confidence)&&currentlyEligibleProviderPrice(o,target)&&(o.market===target.market||target.researchObjective==='SERVICE_COVERAGE'));
- return o?{sourceBound:true,confidence:o.confidence,market:o.market,objective:target.researchObjective,sourceHash:o.source.hash,sourceHashes:hashes(o),marketProofDependencies:o.marketProofDependencies??[],sourceUrl:o.source.url,artifact,scope:o.scope??null,amount:o.amount,currency:o.currency,plan:o.plan??null,billingInterval:o.billingInterval??null,capturedAt,eligibilityVersion:recurringPriceEligibilityVersion}:null;
+ return o?{sourceBound:true,confidence:o.confidence,market:o.market,objective:target.researchObjective,marketApplicability:o.marketApplicability??null,exposure:o.exposure??null,sourceHash:o.source.hash,sourceHashes:hashes(o),marketProofDependencies:o.marketProofDependencies??[],sourceUrl:o.source.url,artifact,scope:o.scope??null,amount:o.amount,currency:o.currency,plan:o.plan??null,billingInterval:o.billingInterval??null,capturedAt,eligibilityVersion:recurringPriceEligibilityVersion}:null;
 }
 
 export const eligibleVerifiedPrices=target=>(target.verified??[]).filter(o=>currentlyEligibleProviderPrice(o,target));
+
+// Qualified provider evidence may be useful without proving the research market.
+// Missing new evidence does not undo the retained market assertion; only the
+// existing eligibility vetoes or explicit incompatible scope defeat this view.
+export function establishesTargetMarketPrice(observation,target){
+ if(!currentlyEligibleProviderPrice(observation,target)||!target.market||observation.market!==target.market)return false;
+ if(observation.exposure?.marketTargeting===false||observation.marketTargeting===false)return false;
+ const market=observation.marketApplicability;
+ if(market&&market.status!=='ESTABLISHED')return false;
+ if(market?.allowedMarkets?.length&&!market.allowedMarkets.includes(target.market))return false;
+ return true;
+}

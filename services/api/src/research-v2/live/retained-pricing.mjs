@@ -1,5 +1,5 @@
 import fs from 'node:fs';import path from 'node:path';
-import {currentlyEligibleProviderPrice,retainedPricingSummary} from '../intelligence/recurring-price-eligibility.mjs';
+import {currentlyEligibleProviderPrice,retainedPricingSummary,establishesTargetMarketPrice} from '../intelligence/recurring-price-eligibility.mjs';
 // Validate the summary against current negative state each time it is consumed.
 // Legacy summaries without an amount require their existing local observation;
 // absence is not evidence of a non-zero price. No acquisition or recovery occurs.
@@ -15,4 +15,10 @@ export function currentRetainedPriceReview(target,review=target.retainedPriceRev
   const doc=JSON.parse(fs.readFileSync(file));
   return retainedPricingSummary(target,(doc.observations??[]).filter(o=>o.source?.hash===review.sourceHash),{artifact:review.artifact,capturedAt:review.capturedAt});
  }catch{return null;}
+}
+
+// Final market row only; this does not alter qualified research sufficiency.
+export function targetMarketPriceReview(target){
+ const review=currentRetainedPriceReview(target);
+ return review&&establishesTargetMarketPrice(review,target)?review:null;
 }

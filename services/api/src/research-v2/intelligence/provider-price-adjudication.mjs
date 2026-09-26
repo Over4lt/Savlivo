@@ -23,7 +23,7 @@ export function adjudicateProviderPrice(c,derived,receipt,{body,sourceUrl,source
  // Offer ownership is independent from whether its title is a valid plan name.
  // Qualified exposure must not bypass a source-rederived safety veto merely
  // because the persisted/extractor candidate still carries older commercial flags.
- const eligibilityCodes=new Set(['QUALIFIER_NOT_PRODUCT_IDENTITY','HEADING_PRODUCT_BINDING_UNRESOLVED','ZERO_COMMERCIAL_PHASE_UNRESOLVED','NON_POSITIVE_RECURRING_PROVIDER_PRICE']);
+ const eligibilityCodes=new Set(['CONTEXTUAL_MONETARY_VALUE_NOT_CHARGE','BENEFIT_CREDIT_NOT_SUBSCRIPTION_CHARGE','QUALIFIER_NOT_PRODUCT_IDENTITY','HEADING_PRODUCT_BINDING_UNRESOLVED','ZERO_COMMERCIAL_PHASE_UNRESOLVED','NON_POSITIVE_RECURRING_PROVIDER_PRICE']);
  const eligibilityReasons=d.fields.conflicts.evidence.flatMap(e=>e.evidence?.commercialReasons??[]).filter(r=>eligibilityCodes.has(r));
  reasons.push(...eligibilityReasons);
  const identitySafe=![...eligibilityReasons,...(co.reasons??[])].some(r=>['QUALIFIER_NOT_PRODUCT_IDENTITY','HEADING_PRODUCT_BINDING_UNRESOLVED'].includes(r));
