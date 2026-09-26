@@ -66,6 +66,9 @@ async function main() {
   const decodoAssets = new URL('../dist/docs/catalog/global-47/research-v1/', import.meta.url);
   await mkdir(decodoAssets, {recursive:true});
   await copyFile(new URL('../../../docs/catalog/global-47/research-v1/decodo-capabilities.json', import.meta.url), new URL('decodo-capabilities.json', decodoAssets));
+  const productAssets=new URL('../dist/docs/product/',import.meta.url);
+  await mkdir(productAssets,{recursive:true});
+  await copyFile(new URL('../../../docs/product/service-universe-manifest.json',import.meta.url),new URL('service-universe-manifest.json',productAssets));
   console.log(`Shared-contract ESM imports: updated ${pending.length} compiled files`);
 }
 

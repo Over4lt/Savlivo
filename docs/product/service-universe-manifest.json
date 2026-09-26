@@ -1,0 +1,113 @@
+{
+  "id": "savlivo-service-universe-v1",
+  "version": "1.0.0",
+  "status": "normative-working-manifest",
+  "purpose": "Define the working admission boundary for Savlivo's target consumer-service universe.",
+  "admission": {
+    "all_required": true,
+    "criteria": {
+      "service_size": {
+        "minimum_users": 100000,
+        "rule": "At least 100,000 documented users, members, customers, subscribers, or active users attributable to the service itself.",
+        "accepted": [
+          "users",
+          "active users",
+          "members",
+          "customers",
+          "subscribers",
+          "paying subscribers"
+        ],
+        "not_sufficient_alone": [
+          "app downloads",
+          "website visits/page views",
+          "social followers",
+          "market size",
+          "parent-company/group customer count not attributable to the service"
+        ],
+        "notes": [
+          "100,000 is the current working threshold and may be revised by a later manifest version.",
+          "The threshold applies to the service total; it need not be met separately in every country."
+        ]
+      },
+      "monthly_recurring": {
+        "required": true,
+        "rule": "At least one genuine consumer subscription or membership must have a recurring monthly provider billing cadence.",
+        "qualifies": [
+          "genuine provider-billed monthly recurring offer",
+          "service with both monthly and annual options when at least one legitimate monthly recurring offer exists"
+        ],
+        "does_not_qualify": [
+          "annual-only/P1Y/P12M offer",
+          "annual price divided by 12",
+          "monthly-equivalent presentation when actual billing/commitment is non-monthly",
+          "installment arithmetic that is not a genuine monthly recurring provider charge",
+          "generic recurrence without established monthly cadence",
+          "included/contextual benefit value"
+        ]
+      },
+      "account_login": {
+        "required": true,
+        "rule": "The subscriber can log in to an account associated with the service."
+      },
+      "membership_management": {
+        "required": true,
+        "rule": "After login, the subscriber can manage the subscription or membership.",
+        "note": "Cancellation is tracked separately and is not made an admission requirement by this manifest."
+      }
+    }
+  },
+  "geography": {
+    "international_presence_required": false,
+    "rule": "A service may exist in only one country and qualify. Geographic breadth is not an admission criterion.",
+    "market_availability": "Market applicability is researched separately after service qualification."
+  },
+  "pricing": {
+    "provider_price_required_for_admission": false,
+    "rules": [
+      "Provider-price verification is not service admission.",
+      "Pricing may legitimately remain unresolved.",
+      "Annual/non-monthly prices may remain contextual evidence but cannot establish monthly-recurring admission.",
+      "A monthly equivalent is not a provider-billed monthly recurring price.",
+      "Provider-derived recurring price 0 is never a valid final recurring provider price or suggested recurring price.",
+      "User-entered pricing remains separate from provider-price verification."
+    ]
+  },
+  "decision": {
+    "qualifies_when": [
+      "service-level documented users >= 100000",
+      "at least one genuine monthly recurring consumer offer is established",
+      "subscriber account login is established",
+      "subscription/membership management after login is established"
+    ],
+    "unknown_policy": "Missing evidence remains unresolved/unknown; it is not silently treated as proof of qualification or disqualification."
+  },
+  "pipeline": [
+    "candidate discovery",
+    "service identity",
+    "service-size qualification",
+    "monthly-recurring qualification",
+    "account-login qualification",
+    "membership-management qualification",
+    "service admission",
+    "market research",
+    "pricing research and verification"
+  ],
+  "architecture_principle": "Operator controls permissions. V2 controls routing. Verifier controls what becomes evidence.",
+  "evidence_policy": {
+    "corroboration_threshold": 3,
+    "rule": "Three sufficiently strong, relevant, independent proofs converging on the same proposition establish that proposition as VERIFIED/ESTABLISHED.",
+    "persistence": "Once VERIFIED/ESTABLISHED, the proposition remains established until relevant contradictory evidence is actually established.",
+    "independence": "Correlated, duplicated, derivative, or materially dependent observations must not be counted as independent proofs.",
+    "not_contradictory_evidence": [
+      "failure to rediscover prior proof",
+      "acquisition failure",
+      "source temporarily unavailable",
+      "changed page structure",
+      "missing metadata",
+      "absence of new evidence"
+    ],
+    "contradiction_rule": "Only relevant evidence that materially contradicts the established proposition may trigger re-evaluation, downgrade, or reversal.",
+    "semantic_sufficiency": "The three-proof rule does not override dimension-specific truth requirements. Three insufficient or semantically invalid proofs cannot establish a proposition.",
+    "applies_generally": true
+  }
+}

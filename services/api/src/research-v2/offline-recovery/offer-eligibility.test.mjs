@@ -70,9 +70,9 @@ test('structured product and explicit declarative card retain zero only as evide
 });
 import {catalogProductPolicy} from '../intelligence/catalog-capabilities.mjs';
 import {preserveUserTruth} from '../intelligence/product-model.mjs';
-test('blocked pricing leaves service visible, manual entry and all pricing strategies intact',()=>{
+test('blocked pricing preserves research candidacy, manual entry and all pricing strategies',()=>{
  const service={slug:'fixture',disposition:'NEW_INCLUDE'},blocked=run(card('After the trial','EUR 0/month')).offers[0];
- const policy=catalogProductPolicy(service,{confidence:blocked.confidence});assert(policy.catalogEligible);assert.equal(policy.providerPriceRequired,false);assert.equal(policy.priceStrategy,'MANUAL_ONLY');assert(policy.manualActualPriceAllowed);
+ const policy=catalogProductPolicy(service,{confidence:blocked.confidence});assert(policy.researchEligible);assert.equal(policy.catalogEligible,false);assert.equal(policy.providerPriceRequired,false);assert.equal(policy.priceStrategy,'MANUAL_ONLY');assert(policy.manualActualPriceAllowed);
  for(const confidence of ['HIGH','MEDIUM'])assert.equal(catalogProductPolicy(service,{confidence}).priceStrategy,'SUGGESTED_PRICE');
  assert.equal(catalogProductPolicy(service,{confidence:'HIGH',variablePrice:true}).priceStrategy,'USER_PRICE_PREFERRED');
  const user={amount:'17.50',currency:'EUR'};const result=preserveUserTruth(user,run(card('Basic','EUR 12/month')).offers);assert.deepEqual(result.userTruth,user);assert.equal(result.automaticReplacement,false);

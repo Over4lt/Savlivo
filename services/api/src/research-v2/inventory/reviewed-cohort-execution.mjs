@@ -1,3 +1,5 @@
+import {revalidateTargetAdmission} from '../intelligence/service-admission.mjs';
+import {observeAdmissionSource} from '../intelligence/service-admission-source.mjs';
 import {acceptMarketResearch} from '../live/market-proof-continuation.mjs';
 import {replayDiagnostics,projectionMetrics,retainedReplayFailure} from './replay-diagnostics.mjs';
 import {priceNeedsBounds} from '../intelligence/price-evidence-needs.mjs';
@@ -36,7 +38,7 @@ export const nativeLimits=Object.freeze({reads:4,searches:2,acquisitions:2,retai
 export function priceTargets(targets,researchMarkets,ids){
  if(!researchMarkets||typeof researchMarkets!=='object'||Array.isArray(researchMarkets)||Object.keys(researchMarkets).some(id=>!ids.includes(id)))throw Error('HANDOFF_MARKET_SCOPE');
  for(const values of Object.values(researchMarkets))if(!Array.isArray(values)||new Set(values).size!==values.length||values.some(m=>!supported.has(m)))throw Error('HANDOFF_MARKET_SCOPE');
- return targets.flatMap(t=>(researchMarkets[t.service]??[]).map(m=>({...t,id:t.service+'-price-'+m,market:m,researchObjective:'SERVICE_COVERAGE',gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],marketApplicabilityEstablished:false,currency:null,scopeBasis:'OPERATOR_RESEARCH_HYPOTHESIS_NOT_AVAILABILITY'})));
+ return targets.flatMap(t=>(researchMarkets[t.service]??[]).map(m=>({...t,id:t.service+'-price-'+m,market:m,researchObjective:'SERVICE_COVERAGE',gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],marketApplicabilityEstablished:false,currency:null,scopeBasis:'OPERATOR_RESEARCH_HYPOTHESIS_NOT_AVAILABILITY'}))).map(t=>{revalidateTargetAdmission(t);return t;});
 }
 export function continuationLocation(handoff,researchMarkets,candidateRound=false,reconciliation=null,continuation=null,lifecycle=null){
  const code=['provider-review-input.mjs','reviewed-cohort-execution.mjs','reviewed-cohort-handoff.mjs','native-authority-evidence.mjs','provider-authority-bootstrap.mjs','adaptive-campaign.mjs','../human-leads/snapshot.mjs','../human-leads/outcomes.mjs'].map(f=>digest(fs.readFileSync(new URL(f,import.meta.url))));
@@ -50,7 +52,7 @@ export function cancellationReview(target,page){
  return {status:decisions.some(d=>d.verification.accepted)?'VERIFIED':'UNRESOLVED',decisions};
 }
 export async function replayTarget({target,directory,sourceDirectory,registry,interpret=interpretDirectProvider,quarantine=[]}) {
- fs.mkdirSync(directory,{recursive:true});const resultFile=directory+'/retained-replay.json';if(fs.existsSync(resultFile))return json(resultFile);
+ fs.mkdirSync(directory,{recursive:true});const resultFile=directory+'/retained-replay.json';if(fs.existsSync(resultFile)){const result=json(resultFile);revalidateTargetAdmission(result.target);return result;}
  const progress=replayDiagnostics(directory,target.id);let t,price,stage='INPUT_LOAD';
  const at=(name,identity)=>{stage=name;progress.stage(name,identity);};
  try{
@@ -58,6 +60,7 @@ export async function replayTarget({target,directory,sourceDirectory,registry,in
  for(const [index,p] of pages.entries()){price=null;progress.source(p,index+1);at('SOURCE_PREPARATION');const admission=admitRetained({target:t,page:p,directory:sourceDirectory,registry});if(!admission.accepted){rejected.push({url:p.url,reason:admission.reason});continue;}
   const page=admission.page;fs.mkdirSync(directory+'/bodies',{recursive:true});fs.copyFileSync(sourceDirectory+'/'+page.bodyFile,directory+'/'+page.bodyFile);accepted.push(page);
   const body=fs.readFileSync(directory+'/'+page.bodyFile,'utf8');at('ACCOUNT_ACCESS_INSPECTION');
+  observeAdmissionSource(t,page,body,{path:directory+'/'+page.bodyFile,hash:page.bodyHash});
   const proof=inspectLoginManage({body,sourceHash:page.bodyHash,url:page.url,service:t.service,provider:t.serviceName,market:t.market,authorityEstablished:true,reference:{path:directory+'/'+page.bodyFile,hash:page.bodyHash}});
   if(t.researchObjective==='CATALOG_ONLY')mergeTargetCapabilities(t,proof);
   at('NAVIGATION_EXTRACTION');for(const link of providerNavigation(t,body,page.url,{maxBytes:2097152,depth:0}).links)t.leads.push({...link,title:link.label,rank:0,from:{url:page.url,bodyHash:page.bodyHash}});
@@ -175,7 +178,7 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
   const retained=[];
   for(const target of targets){if(stopped())break;const dest=directory+'/replay/'+target.id;
    if(lifecycle){
-    const seedFile=dest+'/lifecycle-seed.json';if(fs.existsSync(seedFile)){retained.push(json(seedFile));continue;}
+    const seedFile=dest+'/lifecycle-seed.json';if(fs.existsSync(seedFile)){const seed=json(seedFile);revalidateTargetAdmission(seed);retained.push(seed);continue;}
     const seed=lifecycleSeed(target,lifecycle);applyPriceQuarantine(seed,lifecycle.quarantine??[]);
     const material=[...(lifecycle.sources[target.service]??[])];
     // Pages acquired by catalog research flow to market/pricing in this same run.
@@ -192,7 +195,7 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
     for(const page of pages){const review=matureFieldReview(target,page);fs.mkdirSync(directory+'/'+phase,{recursive:true});fs.appendFileSync(directory+'/'+phase+'/field-review.jsonl',JSON.stringify({service:target.service,...review,source:dest+'/input/pages.json'})+'\n');}
     atomic(seedFile,replay.target);retained.push(replay.target);continue;
    }
-   if(continuationState){retained.push(continuationState.targets[target.id]);continue;}
+   if(continuationState){const seed=continuationState.targets[target.id];revalidateTargetAdmission(seed);retained.push(seed);continue;}
    if(mode==='plan'){if(fs.existsSync(dest+'/retained-replay.json'))retained.push(json(dest+'/retained-replay.json').target);continue;}
    retained.push((await replayTarget({target,directory:dest,sourceDirectory:reconciliation?.sources[target.service]??runDirectory+'/services/'+target.service,registry,quarantine:reconciliationState?.quarantine??[]})).target);
   }
@@ -203,7 +206,7 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
   if(lifecycle)writeLifecycleDisposition({directory,handoff,phases,events,bootstrap,researchMarkets,executionComplete:false});
   if(lifecycle&&phase==='catalog'){
    for(const row of lifecycleFieldReviews(directory+'/catalog'))for(const d of row.decisions??[])if(d.verification.accepted&&d.observation.fact==='availability'&&d.observation.value==='AVAILABLE'&&supported.has(d.market))researchMarkets[row.service]=[...new Set([...(researchMarkets[row.service]??[]),d.market])];
-   prices=priceTargets(selected,researchMarkets,handoff.cohort.manifest.serviceIds);
+   prices=priceTargets(selected.map(t=>{const researched=Object.values(phases.catalog.targets??{}).find(c=>c.service===t.service);return researched?{...t,serviceAdmission:researched.serviceAdmission,serviceAdmissionEvidence:researched.serviceAdmissionEvidence??[]}:t;}),researchMarkets,handoff.cohort.manifest.serviceIds);
   }
  }
  if(lifecycle&&phases.pricing&&!stopped()){

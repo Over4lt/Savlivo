@@ -1,3 +1,4 @@
+import {revalidateTargetAdmission} from '../intelligence/service-admission.mjs';
 import {pendingMarketProof,marketProofContradicted} from '../live/market-proof-continuation.mjs';
 import {currentRetainedPriceReview} from '../live/retained-pricing.mjs';
 import {readPriceEvidenceNeeds} from '../intelligence/price-evidence-needs.mjs';
@@ -20,6 +21,7 @@ export function initializeAdaptiveState(manifest,{retainedStates=[],limits={}}={
  const bounds={...adaptiveBounds,...limits};for(const [k,v]of Object.entries(bounds))if(!(k in adaptiveBounds)||!Number.isInteger(v)||v<0||v>adaptiveBounds[k])throw Error('INVALID_ADAPTIVE_BOUND');
  const all=[...manifest.targets,...manifest.conditionalFollowupTargets],ids=all.map(t=>t.id);if(new Set(ids).size!==ids.length)throw Error('DUPLICATE_ADAPTIVE_TARGET');const services=[...new Set(manifest.targets.map(t=>t.service))];if(all.some(t=>!services.includes(t.service)))throw Error('CONDITIONAL_SERVICE_WITHOUT_INITIAL');
  const targets=Object.fromEntries(all.map(t=>{const previous=retainedStates.find(r=>r.id===t.id);return [t.id,initialTarget(structuredClone({...t,...previous,historicalSchedulerTerminal:previous?.done??null,done:undefined}))];}));
+ for(const target of Object.values(targets))revalidateTargetAdmission(target);
  return {version:1,fingerprint:hash({manifest,limits,retainedStates}),bounds,serviceOrder:services,cursor:0,turn:0,targets,initialIds:manifest.targets.map(t=>t.id),conditionalIds:manifest.conditionalFollowupTargets.map(t=>t.id),services:Object.fromEntries(services.map(service=>[service,{used:Object.values(targets).filter(t=>t.service===service).reduce((a,t)=>{for(const [k,v]of Object.entries(counts(t)))a[k]+=v;return a;},{reads:0,searches:0,acquisitions:0,retainedReviews:0}),stop:null,pending:null}])),decisions:{},decisionHistory:[],pending:null,complete:false};
 }
 export function targetExecutionContext(state,t){
@@ -65,7 +67,7 @@ function commitNative(state,directory){const p=state.pending,file=nativeFile(dir
 export async function runAdaptiveCampaign({directory,manifest,retainedStates=[],limits={},createAdapters,stopBeforeNetwork=false,onTransition=()=>{},maxActions=Infinity,isolateFailures=false,evidenceUpdates=[]}){
  if(!(maxActions===Infinity||Number.isInteger(maxActions)&&maxActions>0))throw Error('INVALID_ADAPTIVE_ACTION_LIMIT');let executed=0;
  fs.mkdirSync(directory,{recursive:true});const file=directory+'/adaptive-state.json',lock=directory+'/adaptive.lock';if(fs.existsSync(lock)){const pid=Number(fs.readFileSync(lock));try{process.kill(pid,0);throw Error('ADAPTIVE_ALREADY_RUNNING');}catch(e){if(e.code!=='ESRCH')throw e;}fs.unlinkSync(lock);}fs.writeFileSync(lock,String(process.pid),{flag:'wx'});
- try{const fresh=initializeAdaptiveState(manifest,{retainedStates,limits}),state=fs.existsSync(file)?JSON.parse(fs.readFileSync(file)):fresh;if(state.fingerprint!==fresh.fingerprint)throw Error('ADAPTIVE_INPUT_CHANGED');atomic(file,state);
+ try{const fresh=initializeAdaptiveState(manifest,{retainedStates,limits}),state=fs.existsSync(file)?JSON.parse(fs.readFileSync(file)):fresh;if(state.fingerprint!==fresh.fingerprint)throw Error('ADAPTIVE_INPUT_CHANGED');for(const target of Object.values(state.targets))revalidateTargetAdmission(target);atomic(file,state);
  if(state.pending){const pendingId=state.pending.targetId,native=nativeFile(directory,pendingId);if(fs.existsSync(native)){const interrupted=recoverInterrupted(path.dirname(native));if(interrupted.length)state.services[state.targets[pendingId].service].reconciliation='INTERRUPTED_ACTION_RECONCILIATION_REQUIRED';}if(!commitNative(state,directory)){const f=nativeFile(directory,state.pending.targetId);if(fs.existsSync(f)&&JSON.parse(fs.readFileSync(f)).pending)throw Error('ADAPTIVE_PENDING_ACTION_REQUIRES_RECONCILIATION');state.pending=null;}atomic(file,state);}
  // Cross-phase evidence is produced by the existing source-bound verifier.
  // Inject it without resetting action usage, journals or the manifest fingerprint.

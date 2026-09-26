@@ -1,3 +1,4 @@
+import {evaluateServiceAdmission} from './service-admission.mjs';
 // Shadow catalog contracts. Capabilities are provider facts; price strategy is a product decision.
 import {createHash} from 'node:crypto';
 import {sourceLinks,decodeEntities} from '../live/source-frontier-links.mjs';
@@ -24,10 +25,10 @@ export function inspectCatalogCapabilities({body,sourceHash,url,service,authorit
  }
  return {...result,status:result.login.length&&result.management.length?'ESTABLISHED':'UNRESOLVED'};
 }
-export function catalogProductPolicy(service,{capabilities=[],confidence='NONE',variablePrice=false,consumerSubscriptionEstablished=false}={}){
+export function catalogProductPolicy(service,{capabilities=[],confidence='NONE',variablePrice=false,admissionEvidence=[],admissionOptions={}}={}){
  const bound=capabilities.filter(c=>c.service===service.slug),login=bound.flatMap(c=>c.login??[]),management=bound.flatMap(c=>c.management??[]),established=login.length>0&&management.length>0;
- const existing=['EXISTING','NEW_INCLUDE'].includes(service.disposition),eligible=existing||(consumerSubscriptionEstablished&&established&&service.disposition!=='EXCLUDE');
- return {service:service.slug,catalogEligible:eligible,catalogBasis:existing?'EXISTING_PRODUCT_APPROVAL':eligible?'RETAINED_LOGIN_AND_MANAGEMENT':'CAPABILITY_OR_PRODUCT_REVIEW_PENDING',loginManageStatus:established?'ESTABLISHED':'UNRESOLVED',readyForNewCatalogPublication:eligible&&established,loginEvidence:login,managementEvidence:management,priceStrategy:variablePrice?'USER_PRICE_PREFERRED':['HIGH','MEDIUM'].includes(confidence)?'SUGGESTED_PRICE':'MANUAL_ONLY',priceConfidence:confidence,providerPriceRequired:false,manualActualPriceAllowed:true,userPriceAuthoritative:true,automaticUserPriceReplacement:false,nationalDefaultFromScopedPrice:false,productionPromoted:false};
+ const serviceAdmission=evaluateServiceAdmission(service.slug,admissionEvidence,admissionOptions),eligible=serviceAdmission.status==='ESTABLISHED'&&service.disposition!=='EXCLUDE';
+ return {service:service.slug,catalogEligible:eligible,serviceAdmission,researchEligible:service.disposition!=='EXCLUDE',catalogBasis:eligible?'FOUR_DIMENSION_SERVICE_ADMISSION':'SERVICE_ADMISSION_EVIDENCE_PENDING',loginManageStatus:established?'ESTABLISHED':'UNRESOLVED',readyForNewCatalogPublication:eligible,pricingExposure:eligible?'ADMITTED_SERVICE_PRICING':'RESEARCH_HYPOTHESIS_ONLY',loginEvidence:login,managementEvidence:management,priceStrategy:variablePrice?'USER_PRICE_PREFERRED':['HIGH','MEDIUM'].includes(confidence)?'SUGGESTED_PRICE':'MANUAL_ONLY',priceConfidence:confidence,providerPriceRequired:false,manualActualPriceAllowed:true,userPriceAuthoritative:true,automaticUserPriceReplacement:false,nationalDefaultFromScopedPrice:false,productionPromoted:false};
 }
 // Reuse the repository's already-reviewed web capability register. Cancellation is not required.
 export function reviewedWebCapabilities(row,{registerPath,registerHash}){

@@ -1,3 +1,4 @@
+import {revalidateTargetAdmission} from '../intelligence/service-admission.mjs';
 import {readLeadSnapshot,leadContext} from '../human-leads/snapshot.mjs';
 // Thin cohort/evidence adapter to the existing reviewed-authority and adaptive V2 path.
 // No authority inference, transport or automatic review approval.
@@ -13,7 +14,7 @@ export const handoffDirectory='docs/catalog/global-47/research-v2/v15-mature-han
 export const previousAuthority='.savlivo/research-v2/universe-expansion/provider-authority-bootstrap-20260918T230000';
 export const additionalRequestLimit=36; // Two existing objectives × (four reads × four HTTP + two searches).
 const read=p=>json(p),shaFile=p=>digest(fs.readFileSync(p));
-export function baseTargets(candidates){return candidates.map(c=>({id:c.slug+'-catalog',service:c.slug,serviceName:c.name,scope:c.disposition,market:null,marketApplicabilityEstablished:false,currency:null,urls:[],authorities:[],researchObjective:'CATALOG_ONLY',smartResearch:{version:2,navigationDepth:3},gaps:['LOGIN','WEB_MANAGEMENT']}));}
+export function baseTargets(candidates){return candidates.map(c=>({id:c.slug+'-catalog',service:c.slug,serviceName:c.name,scope:c.disposition,market:null,marketApplicabilityEstablished:false,currency:null,urls:[],authorities:[],researchObjective:'CATALOG_ONLY',smartResearch:{version:2,navigationDepth:3},gaps:['LOGIN','WEB_MANAGEMENT']})).map(t=>{revalidateTargetAdmission(t);return t;});}
 export function reviewedTargets(candidates,document,root=process.cwd()) {
  const universe={new_include:candidates.filter(c=>c.disposition==='NEW_INCLUDE'),research:candidates.filter(c=>c.disposition==='RESEARCH')};
  return prepareAuthorityUniverse({universe,targets:baseTargets(candidates),document,root});

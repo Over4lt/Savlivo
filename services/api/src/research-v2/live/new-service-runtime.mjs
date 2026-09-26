@@ -1,3 +1,5 @@
+import {evaluateServiceAdmission} from '../intelligence/service-admission.mjs';
+import {observeAdmissionSource} from '../intelligence/service-admission-source.mjs';
 // Binds the cohort controller to real V2 transports and existing deterministic interpreters.
 // No network at import. No fixture/cache fallback. No authentication or form submission.
 import fs from 'node:fs';
@@ -37,15 +39,16 @@ export function safeGet(value) {
 }
 const suffix={IDENTITY_SUBSCRIPTION:'official website consumer subscription membership about',MARKETS:'official subscription availability supported countries regions',LOGIN:'official personal account sign in customer help',MANAGEMENT:'official manage subscription membership cancel billing Apple Google Play instructions',PRICING:'official recurring subscription membership plans pricing'};
 const readLimits={IDENTITY_SUBSCRIPTION:2,MARKETS:1,LOGIN:1,MANAGEMENT:2,PRICING:2};
-export function finalState(prior) {
+export function finalState(prior,{service='',evidence=[],admissionOptions={}}={}) {
+ const serviceAdmission=evaluateServiceAdmission(service,evidence,{prior:Object.values(prior).map(p=>p?.serviceAdmission),...admissionOptions});
  const login=prior.LOGIN?.established===true,management=prior.MANAGEMENT?.established===true;
- const identity=prior.IDENTITY_SUBSCRIPTION?.established===true,qualification=prior.MANAGEMENT?.established===true||prior.PRICING?.established===true;
- const complete=identity&&qualification&&login&&management&&prior.MARKETS?.established===true&&prior.CANCELLATION?.established===true;
- return {status:'COMPLETE',established:complete,researchComplete:complete,identity:identity?'ESTABLISHED':'REVIEW_REQUIRED',subscriptionQualification:qualification?'ESTABLISHED':'UNRESOLVED',
+ const identity=prior.IDENTITY_SUBSCRIPTION?.established===true;
+ const complete=serviceAdmission.status==='ESTABLISHED'&&identity&&login&&management&&prior.MARKETS?.established===true&&prior.CANCELLATION?.established===true;
+ return {serviceAdmission,productionEligible:serviceAdmission.status==='ESTABLISHED',status:'COMPLETE',established:complete,researchComplete:complete,identity:identity?'ESTABLISHED':'REVIEW_REQUIRED',subscriptionQualification:serviceAdmission.dimensions.monthlyRecurring.status,
   login:login?'ESTABLISHED':'UNRESOLVED',management:management?'ESTABLISHED':'UNRESOLVED',cancellation:prior.CANCELLATION?.status??'UNRESOLVED',
   marketApplicability:prior.MARKETS?.established===true?'ESTABLISHED':'UNRESOLVED',pricing:prior.PRICING?.established===true?'ESTABLISHED':'UNRESOLVED',
   // There is no reviewed all-channel cancellation verifier in V2. Execution never manufactures readiness.
-  v2Readiness:complete?'EVIDENCE_READY_FOR_REVIEW':'REVIEW_REQUIRED',catalogEligibility:identity&&qualification&&login&&management?'EVIDENCE_READY_FOR_REVIEW':'UNRESOLVED',
+  v2Readiness:complete?'EVIDENCE_READY_FOR_REVIEW':'REVIEW_REQUIRED',catalogEligibility:serviceAdmission.status==='ESTABLISHED'?'EVIDENCE_READY_FOR_REVIEW':'UNRESOLVED',
   priceStrategy:prior.PRICING?.priceStrategy??'MANUAL_ONLY',priceRequiredForEligibility:false,userPriceAuthoritative:true,nationalDefaultFromScopedPrice:false,productionPromoted:false};
 }
 export async function createNewServiceRuntime({key,candidates,dependencies={}}) {
@@ -58,9 +61,10 @@ export async function createNewServiceRuntime({key,candidates,dependencies={}}) 
   const authorities=reviewed(c),target={id:c.slug,service:c.slug,serviceName:c.name,category:c.category,market:null,authorities,urls:[],researchObjective:'CATALOG_ONLY',smartResearch:{version:2,navigationDepth:3},gaps:['LOGIN','WEB_MANAGEMENT']};
   const pagesFile=directory+'/pages.json';let pages=fs.existsSync(pagesFile)?json(pagesFile):[];
   if(stage==='VALIDATION'){
+   for(const page of pages.filter(p=>p.outcome==='OK'&&p.bodyFile)){try{const source=fs.readFileSync(directory+'/'+page.bodyFile,'utf8');observeAdmissionSource(target,page,source,{path:directory+'/'+page.bodyFile,hash:page.bodyHash});}catch{/* Missing current bytes are not a contradiction of prior typed proof. */}}
    const failures=pages.filter(p=>p.outcome!=='OK').map(p=>({url:p.requestedUrl,outcome:p.outcome,code:p.failure?.code??'ACQUISITION_UNRESOLVED',httpStatus:p.httpStatus??null,escalation:p.escalation??null}));
    const searchFailures=Object.keys(suffix).flatMap(s=>{const f=directory+'/'+s+'-candidate-trace.json';return fs.existsSync(f)&&json(f).searchFailure?[{stage:s,...json(f).searchFailure}]:[];});
-   return {...finalState(prior),researchFailures:{acquisition:failures,search:searchFailures},researchFailed:!pages.some(p=>p.outcome==='OK')&&(failures.length>0||searchFailures.length>0)};
+   return {...finalState(prior,{service:c.slug,evidence:target.serviceAdmissionEvidence??[],admissionOptions:{authorities}}),researchFailures:{acquisition:failures,search:searchFailures},researchFailed:!pages.some(p=>p.outcome==='OK')&&(failures.length>0||searchFailures.length>0)};
   }
   const body=p=>{const value=fs.readFileSync(directory+'/'+p.bodyFile,'utf8');if(digest(value)!==p.bodyHash)throw Error('BODY_HASH_MISMATCH');return value;};
   if(stage!=='CANCELLATION') {

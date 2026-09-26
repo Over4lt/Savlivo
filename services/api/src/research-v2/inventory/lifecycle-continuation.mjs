@@ -1,3 +1,4 @@
+import {revalidateTargetAdmission,evaluateServiceAdmission} from '../intelligence/service-admission.mjs';
 import {reconcileAccessBlocks} from './access-block-compatibility.mjs';
 import {eligibleVerifiedPrices} from '../intelligence/recurring-price-eligibility.mjs';
 import {currentRetainedPriceReview} from '../live/retained-pricing.mjs';
@@ -46,13 +47,13 @@ export function snapshotLifecycle({handoff,researchMarkets,runsRoot,baselineIds=
  const fd=fs.openSync(file+'.pending','w',0o600);try{streamJson(snapshot,chunk=>fs.writeFileSync(fd,chunk),{space:2});fs.writeFileSync(fd,'\n');fs.fsyncSync(fd);}finally{fs.closeSync(fd);}fs.renameSync(file+'.pending',file);return snapshot;
 }
 export function lifecycleSeed(target,snapshot){
- const entry=snapshot.states[target.id];if(!entry)return structuredClone(target);
- const old=entry.target;if(digest(old.authorities)!==digest(target.authorities))return structuredClone(target);
+ const entry=snapshot.states[target.id];if(!entry){const t=structuredClone(target);revalidateTargetAdmission(t);return t;}
+ const old=entry.target;if(digest(old.authorities)!==digest(target.authorities)){const t=structuredClone(target);t.serviceAdmission=structuredClone(old.serviceAdmission);t.serviceAdmissionEvidence=structuredClone(old.serviceAdmissionEvidence??[]);revalidateTargetAdmission(t);return t;}
  const t=structuredClone(reconcileAccessBlocks(old,entry.reference));if(target.capabilities)t.capabilities=target.capabilities;t.researchMemory=combineResearchMemory(t,[t.researchMemory,createResearchMemory(t,entry.reference)].filter(Boolean));
  t.priorUsage={reads:t.reads?.length??0,searches:t.queries?.length??0,reference:entry.reference};
  for(const field of ['reads','queries','decisions','retainedReviews'])t[field]=[];
  for(const field of ['done','executionBlocked','historicalSchedulerTerminal','researchPlan'])delete t[field];
- return t;
+ revalidateTargetAdmission(t);return t;
 }
 export function evaluateProviderCandidate({service,page,targets}){
  const target=targets.find(t=>t.service===service),host=page?.url?new URL(page.url).hostname:null;
@@ -66,7 +67,10 @@ export function writeLifecycleDisposition({directory,handoff,phases,events,boots
   const target=Object.values(catalog).find(t=>t.service===id),bound=handoff.targets.some(t=>t.service===id),p=Object.values(pricing).filter(t=>t.service===id),status=target?.catalogEligibility?.status??'',serviceClaims=claims.filter(c=>c.service===id),accepted=serviceClaims.flatMap(c=>(c.decisions??[]).filter(d=>d.verification.accepted).map(d=>({...d,market:d.market??c.market,artifact:c.artifact,url:c.url}))),proofs=target?.catalogCapabilityProofs??[];
   const field=f=>({status:accepted.some(d=>f.includes(d.observation.fact))?'VERIFIED':'UNRESOLVED',evidence:accepted.filter(d=>f.includes(d.observation.fact))});
   const row={service_id:id,providerAuthority:{status:bound?'ESTABLISHED':'HUMAN_REVIEW_REQUIRED'},subscriptionQualification:field(['subscription']),identity:field(['identity']),markets:{researched:researchMarkets[id]??[],verified:accepted.filter(d=>d.observation.fact==='availability'),status:accepted.some(d=>d.observation.fact==='availability')?'VERIFIED':'UNRESOLVED'},login:{status:['LOGIN_MANAGE_ESTABLISHED','LOGIN_ONLY_ESTABLISHED'].includes(status)?'ESTABLISHED':'UNRESOLVED'},management:{status:['LOGIN_MANAGE_ESTABLISHED','MANAGE_ONLY_ESTABLISHED'].includes(status)?'ESTABLISHED':'UNRESOLVED'},cancellation:field(['cancelWeb','billingRoutes']),pricing:p.map(t=>({market:t.market,status:currentRetainedPriceReview(t)?.sourceBound?'ESTABLISHED':eligibleVerifiedPrices(t).length?'PARTIAL':'UNRESOLVED',confidence:currentRetainedPriceReview(t)?.confidence??null,observations:eligibleVerifiedPrices(t),quarantine:t.quarantinedVerified??[],reason:phases.pricing.services?.[t.service]?.stop??null})),evidence:proofs,humanReview:bound?[phases.catalog?.services?.[id]?.reconciliation,phases.pricing?.services?.[id]?.reconciliation,target?.retainedFailure?.reason,...p.map(t=>t.retainedFailure?.reason)].filter(reason=>reason&&reason!=='BUDGET_EXHAUSTED'):[bootstrap.find(b=>b.service===id)?.reason??'EXPLICIT_OWNERSHIP_REVIEW_REQUIRED'],unresolvedReasons:[phases.catalog?.services?.[id]?.stop,phases.pricing?.services?.[id]?.stop].filter(Boolean),requests:events.filter(e=>e.service===id).length,executionComplete,researchComplete:false};
-  if(row.pricing.some(p=>p.status==='ESTABLISHED')&&p.some(t=>currentRetainedPriceReview(t)?.sourceBound&&eligibleVerifiedPrices(t).length))row.subscriptionQualification={status:'ESTABLISHED',reason:'VERIFIED_RECURRING_PROVIDER_PRICE',evidence:p.flatMap(t=>eligibleVerifiedPrices(t))};
+  row.serviceAdmission=evaluateServiceAdmission(id,[...(target?.serviceAdmissionEvidence??[]),...p.flatMap(t=>t.serviceAdmissionEvidence??[])],{authorities:target?.authorities??p[0]?.authorities??[],prior:[target?.serviceAdmission,...p.map(t=>t.serviceAdmission)],invalidatedEvidence:[...(target?.invalidatedEvidence??[]),...p.flatMap(t=>t.invalidatedEvidence??[])]});
+  row.productionEligible=row.serviceAdmission.status==='ESTABLISHED';
+  row.subscriptionQualification=row.serviceAdmission.dimensions.monthlyRecurring;
+  for(const price of row.pricing){price.exposure=row.productionEligible?'ADMITTED_SERVICE_PRICING':'RESEARCH_HYPOTHESIS_ONLY';price.publicationEligible=row.productionEligible&&price.status==='ESTABLISHED'&&price.observations.length>0;}
   row.finalStatus=!bound||row.humanReview.length?'HUMAN_REVIEW_REQUIRED':row.login.status==='ESTABLISHED'||row.management.status==='ESTABLISHED'||row.pricing.some(p=>p.status!=='UNRESOLVED')?'PARTIAL':'UNRESOLVED';return row;
  });
  atomic(directory+'/final-dispositions.json',{services,executionComplete,productionPromoted:false});
