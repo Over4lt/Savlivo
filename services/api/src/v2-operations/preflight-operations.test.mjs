@@ -42,7 +42,7 @@ test('isolated fast Preflight remains asynchronous, never invokes native CLI, an
  // No native CLI exists in this fixture: accidentally spawning it must fail.
  let ticks=0;const timer=setInterval(()=>ticks++,1);
  try{
-  const operation=await operationsRequest({method:'POST',url:new URL('https://offline.invalid/v1/admin/v2-operations/preflight'),body:{...input,capabilities:{...input.capabilities,tavily:false}},actor:'a'},ops);
+  const operation=await operationsRequest({method:'POST',url:new URL('https://offline.invalid/v1/admin/v2-operations/preflight'),body:{...input,idempotencyKey:'offline-api-action-0001',capabilities:{...input.capabilities,tavily:false}},actor:'a'},ops);
   assert.equal(operation.status,'RUNNING');let status;
   for(let i=0;i<500;i++){status=preflightStatus(ops,'a',operation.id);if(status.status!=='RUNNING')break;await new Promise(r=>setTimeout(r,10));}
   assert.equal(status.status,'SUCCEEDED',JSON.stringify(status));assert(status.result.token);assert(ticks>0);
@@ -84,4 +84,26 @@ test('30-minute review clock starts after validation, is independent of login, a
  ops.enqueue=()=>({validationPassed:true});assert.deepEqual(ops.start(saved.token,'stable-user',true),{validationPassed:true});assert.equal(plans,2);
  for(const time of [expiry,expiry+1]){t.mock.timers.setTime(time);assert(time<loginAt+60*60000);assert.equal(preflightStatus(relogged,'stable-user',operation.id).status,'EXPIRED');assert.throws(()=>ops.start(saved.token,'stable-user',true),/PREFLIGHT_EXPIRED/);}
  assert.equal(plans,2);assert.deepEqual(ops.db().jobs,[]);assert.equal(ops.db().preflights[0].expiresAt,saved.expiresAt);
+});
+
+test('new manual action after terminal runs gets a new token/job; retries preserve the same receipt',t=>{
+ const ops=fixture();t.after(()=>fs.rmSync(ops.config.root,{recursive:true,force:true}));
+ ops.plan=config=>({config,catalogHash:'same',liveReady:true,actionable:1,manifest:{catalog:[],targets:[],lifecycle:{admission:{}}}});ops.conflicts=()=>[];ops.retainedProofs=()=>[];
+ const launch=(_c,i,a,done)=>{assert.equal(i.idempotencyKey,undefined);done({result:ops.preflight(i,a)});};
+ const request=n=>({...input,idempotencyKey:`manual-action-${String(n).padStart(8,'0')}`});
+ const pre=n=>{const row=beginPreflight(ops,request(n),'actor',launch);return preflightStatus(ops,'actor',row.id);};
+ let previous;
+ for(const [n,status] of [[1,'INTERRUPTED'],[2,'COMPLETE'],[3,'INTERRUPTED']]){
+  const p=pre(n);assert.equal(pre(n).id,p.id);const job=ops.start(p.result.token,'actor',true);
+  assert.notEqual(job.id,previous?.id);assert.equal(ops.start(p.result.token,'actor',true).id,job.id);
+  const manifest=JSON.parse(fs.readFileSync(path.join(ops.config.root,'runs',job.id,'manifest.json')));assert.equal(manifest.lifecycle.admission.executionGeneration,job.id);
+  if(previous){assert.equal(JSON.stringify(ops.db().jobs.find(j=>j.id===previous.id)),previous.bytes);assert.equal(fs.readFileSync(previous.file,'utf8'),previous.fileBytes);}
+  ops.transaction(db=>{db.jobs.find(j=>j.id===job.id).status=status;});
+  const file=path.join(ops.config.root,'runs',job.id,'operation.json');previous={id:job.id,bytes:JSON.stringify(ops.db().jobs.find(j=>j.id===job.id)),file,fileBytes:fs.readFileSync(file,'utf8')};
+ }
+ assert.equal(ops.db().jobs.length,3);
+ assert.throws(()=>beginPreflight(ops,{...request(3),services:['different']},'actor',launch),/IDEMPOTENCY_CONFLICT/);
+ const resumed=ops.control(previous.id,'resume','actor');assert.equal(resumed.id,previous.id);assert.equal(resumed.status,'QUEUED');
+ for(const status of ['QUEUED','RUNNING']){ops.transaction(db=>{db.jobs.find(j=>j.id===previous.id).status=status;});const p=pre(status==='QUEUED'?4:5);assert.equal(ops.start(p.result.token,'actor',true).status,'SKIPPED_CONFLICT');}
+ assert.throws(()=>beginPreflight(ops,{...input,idempotencyKey:'bad'},'actor',launch),/INVALID_IDEMPOTENCY_KEY/);
 });

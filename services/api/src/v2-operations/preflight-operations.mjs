@@ -40,13 +40,16 @@ export function beginPreflight(ops,input,actor,launch=launchPreflight){
  if(input&&Object.hasOwn(input,'humanLeadSnapshot'))fail('CLIENT_LEAD_SNAPSHOT_FORBIDDEN',400);
  if(!ops.config.control)fail('RUN_CONTROL_DISABLED',403);
  if(!input||!['MATURE_LIFECYCLE','LOGIN_MANAGE'].includes(input.objective))fail('INVALID_CONFIG',400);
+ const {idempotencyKey,...config}=input;
+ if(idempotencyKey!==undefined&&(typeof idempotencyKey!=='string'||!/^[a-zA-Z0-9-]{16,80}$/.test(idempotencyKey)))fail('INVALID_IDEMPOTENCY_KEY',400);
+ input=config; // Request identity is not research configuration or admission evidence.
  // No authenticated lifecycle work on the HTTP thread. The worker performs all original checks.
  const requestKey=hash(canonical({...input,...(Array.isArray(input.services)?{services:[...input.services].sort()}: {})}));
  let created=false;
- const record=ops.transaction(db=>{prune(db);const key=input.objective==='MATURE_LIFECYCLE'?hash(canonical({requestKey,leads:(db.humanLeads??[]).filter(l=>l.status==='UNVERIFIED'&&(!input.services?.length||input.services.includes(l.serviceId))).sort((a,b)=>a.leadId.localeCompare(b.leadId))})):requestKey;const same=db.preflightOperations.find(r=>r.kind!=='START'&&r.actor===actor&&r.key===key&&['RUNNING','SUCCEEDED'].includes(r.status));if(same)return view(same);
+ const record=ops.transaction(db=>{prune(db);const key=input.objective==='MATURE_LIFECYCLE'?hash(canonical({requestKey,leads:(db.humanLeads??[]).filter(l=>l.status==='UNVERIFIED'&&(!input.services?.length||input.services.includes(l.serviceId))).sort((a,b)=>a.leadId.localeCompare(b.leadId))})):requestKey;const same=db.preflightOperations.find(r=>r.kind!=='START'&&r.actor===actor&&(idempotencyKey!==undefined?r.idempotencyKey===idempotencyKey:r.idempotencyKey===undefined&&r.key===key)&&['RUNNING','SUCCEEDED'].includes(r.status));if(same){if(same.key!==key)fail('IDEMPOTENCY_CONFLICT');return view(same);}
   if(db.preflightOperations.some(r=>r.status==='RUNNING'))fail('PREFLIGHT_BUSY');
   if(db.preflightOperations.length>=32)db.preflightOperations.shift();
-  const r={id:randomUUID(),key,actor,input:structuredClone(input),createdAt:new Date().toISOString(),ownerPid:process.pid,ownerBoot:bootId,status:'RUNNING'};db.preflightOperations.push(r);created=true;return view(r);
+  const r={id:randomUUID(),key,...(idempotencyKey!==undefined?{idempotencyKey}:{}),actor,input:structuredClone(input),createdAt:new Date().toISOString(),ownerPid:process.pid,ownerBoot:bootId,status:'RUNNING'};db.preflightOperations.push(r);created=true;return view(r);
  });
  if(created)dispatch(ops,record,input,actor,launch);
  return record;

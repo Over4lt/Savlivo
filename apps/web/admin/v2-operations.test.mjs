@@ -411,3 +411,11 @@ test('recorded result overview filters the existing service cards locally and re
  for(const [label,expected]of [['Research complete: 1',['Ready']],['Human Review: 1',['Review']],['Pending evidence: 1',['Pending']],['Discovery exhausted: 1',['Review']],['Budget exhausted: 1',['Pending']],['Pricing established: 1',['Ready']],['Pricing unresolved / partial: 1',['Review']],['Action needed: 1',['Review']],['Show all services',['Ready','Review','Pending']]]){await button(root,label).listeners.click();assert.deepEqual(names(),expected);}
  assert.equal(calls.length,before);assert(!calls.some(c=>c.o?.method==='POST'));assert(text(root).includes('Execution completion does not imply research completion'));assert(text(root).includes('Result overview'));
 });
+
+test('each new manual Preflight click carries a distinct action identity',async t=>{
+ const {root,calls}=await builder(t);
+ await button(root,'Preflight').listeners.click();await button(root,'Preflight').listeners.click();
+ const bodies=calls.filter(c=>c.p.endsWith('/preflight')).map(c=>c.body);
+ assert.equal(bodies.length,2);assert.match(bodies[0].idempotencyKey,/^[a-zA-Z0-9-]{16,80}$/);assert.notEqual(bodies[0].idempotencyKey,bodies[1].idempotencyKey);
+ const {idempotencyKey:a,...first}=bodies[0],{idempotencyKey:b,...second}=bodies[1];assert.deepEqual(first,second);
+});
