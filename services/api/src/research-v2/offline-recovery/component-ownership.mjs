@@ -114,6 +114,30 @@ export function boundedOwnership(c,source){
  return resolveSubscriptionIdentity(repairBoundedOwnership(c,source),source);
 }
 
+// A bounded heading/price/selection group is the same provider relationship
+// whether rendered as an article, nested card, form, or alternate-price heading.
+// This recognizes ownership only: selection is not purchase/market/role proof.
+function headingSelectionGroup(candidate,source,path){
+ const owner=source.nodes.get(candidate.productOwnerEvidence?.path),node=source.nodes.get(path);
+ if(!owner||!node||!['div','section','fieldset'].includes(owner.tag)||owner.text.length>=6000||!inside(node,owner))return false;
+ const ds=descendants(owner),headings=ds.filter(n=>/^h[1-6]$/.test(n.tag));
+ const labels=headings.filter(n=>textLabel(n.text));
+ if(labels.length!==1||labels[0].parent!==owner||norm(labels[0].text)!==norm(candidate.product))return false;
+ // Non-label headings may express price alternatives, not a second product or
+ // informational section. Do not borrow through a nested offer boundary.
+ if(headings.some(n=>n!==labels[0]&&(!monetary(n.text).length||n.parent!==owner)))return false;
+ if(ds.some(n=>n!==owner&&(['article','section','fieldset'].includes(n.tag)||n.attrs?.['data-product-name']!==undefined)))return false;
+ for(let n=node;n;n=n.parent){if(['nav','footer','header'].includes(n.tag)||n.attrs?.hidden!==undefined||n.attrs?.['aria-hidden']==='true')return false;}
+ const controls=ds.filter(n=>n.tag==='button'&&n.attrs?.disabled===undefined&&n.attrs?.['aria-disabled']!=='true');
+ return controls.some(n=>{
+  // A submitted exact price is itself the option label; no SKU is needed.
+  const priced=matchesPrice(n.text,candidate)&&n.parent?.tag==='form';
+  // Ordinary selection/purchase verbs, not provider CSS classes or product IDs.
+  const selection=/^(?:select|choose|subscribe|buy|purchase|add\b.*\b(?:cart|basket)|wählen|auswählen|abonnieren|kaufen|sélectionner|choisir|acheter|s.abonner|seleccionar|elegir|comprar|suscribirse|selecteer|kiezen|abonneren|köp|välj|velg)(?:\s|[\p{P}\p{S}]|$)/iu.test(norm(n.text));
+  return priced||selection;
+ });
+}
+
 // Independent source check for a generic heading claim. The extractor's strong
 // flag is not a proof; reuse the bounded component recognizer against source nodes.
 export function headingPriceOwnership(candidate,source){
@@ -125,6 +149,6 @@ export function headingPriceOwnership(candidate,source){
   // A bounded article is an existing product-card structure even when its
   // distinct principal/secondary monetary branches need later role adjudication.
   const card=owner?.tag==='article'&&owner.text.length<6000&&node&&inside(node,owner)&&(owner.headings??[]).length===1&&textLabel(owner.headings[0].text)&&norm(owner.headings[0].text)===norm(candidate.product)&&!descendants(owner).some(n=>n!==owner&&['article','section'].includes(n.tag));
-  return !!card||linked.length===1&&!!node;
+  return !!card||headingSelectionGroup(candidate,source,path)||linked.length===1&&!!node;
  });
 }
