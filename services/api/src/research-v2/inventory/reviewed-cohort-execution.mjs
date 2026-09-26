@@ -178,7 +178,9 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
   const retained=[];
   for(const target of targets){if(stopped())break;const dest=directory+'/replay/'+target.id;
    if(lifecycle){
-    const seedFile=dest+'/lifecycle-seed.json';if(fs.existsSync(seedFile)){const seed=json(seedFile);revalidateTargetAdmission(seed);retained.push(seed);continue;}
+    // Immutable campaign input: admission is revalidated on cloned working targets
+    // by initializeAdaptiveState and on resumed checkpoint targets after fingerprint verification.
+    const seedFile=dest+'/lifecycle-seed.json';if(fs.existsSync(seedFile)){retained.push(json(seedFile));continue;}
     const seed=lifecycleSeed(target,lifecycle);applyPriceQuarantine(seed,lifecycle.quarantine??[]);
     const material=[...(lifecycle.sources[target.service]??[])];
     // Pages acquired by catalog research flow to market/pricing in this same run.

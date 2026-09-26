@@ -1,3 +1,5 @@
+import {revalidateTargetAdmission} from '../../../../services/api/src/research-v2/intelligence/service-admission.mjs';
+import {candidateLeads} from '../../../../services/api/src/research-v2/human-leads/snapshot.mjs';
 import test,{after} from 'node:test';import os from 'node:os';import path from 'node:path';import assert from 'node:assert/strict';import fs from 'node:fs';
 import {evaluateProviderCandidate,lifecycleBudgets,lifecycleSeed,assertLifecycleCohort,snapshotLifecycle,validateLifecycleSnapshot} from '../../../../services/api/src/research-v2/inventory/lifecycle-continuation.mjs';
 import {runAdaptiveCampaign,initializeAdaptiveState,assessAdaptiveService} from '../../../../services/api/src/research-v2/inventory/adaptive-campaign.mjs';
@@ -32,6 +34,9 @@ test('native reviewed binding, retained admission and login verifier integrate o
  const targets=reviewedTargets([candidate],document).launchTargets,h={config:{runsRoot:root+'/integrated'},cohort:{manifest:{serviceIds:[candidate.slug]},candidates:[candidate]},document,targets,rows:[{service:candidate.slug,providerReview:{}}],inputHashes:{},summary:{historicalRequests:0,baselineExcluded:0}};
  const lifecycle={key:'integration',states:{},parents:[],parentRequests:0,inputHashes:{[dir+'/pages.json']:digest(fs.readFileSync(dir+'/pages.json')),[dir+'/'+bodyFile]:bodyHash},sources:{[candidate.slug]:[{directory:dir,page}]},quarantine:[]};lifecycle.snapshotHash=digest(lifecycle);
  const output=continuationLocation(h,{},false,null,null,lifecycle).directory;const summary=await executeHandoff({handoff:h,researchMarkets:{},directory:output,mode:'plan',lifecycle});assert.equal(summary.additionalRequests,0);const state=JSON.parse(fs.readFileSync(output+'/plan/catalog/adaptive-state.json'));assert.equal(state.targets['native-fixture-catalog'].catalogEligibility.status,'LOGIN_ONLY_ESTABLISHED');assert(!fs.existsSync(output+'/network.jsonl'));assert.equal(JSON.parse(fs.readFileSync(output+'/final-dispositions.json')).services.length,1);
+ const seedFile=output+'/replay/native-fixture-catalog/lifecycle-seed.json',seedBytes=fs.readFileSync(seedFile,'utf8'),seed=JSON.parse(seedBytes),revalidated=structuredClone(seed);revalidateTargetAdmission(revalidated);assert.notDeepEqual(revalidated.serviceAdmission,seed.serviceAdmission);
+ const resumed=await executeHandoff({handoff:h,researchMarkets:{},directory:output,mode:'plan',lifecycle});assert.equal(resumed.additionalRequests,0);const after=JSON.parse(fs.readFileSync(output+'/plan/catalog/adaptive-state.json'));assert.equal(after.fingerprint,state.fingerprint);assert.deepEqual(after.services,state.services);assert.equal(after.turn,state.turn);assert.equal(fs.readFileSync(seedFile,'utf8'),seedBytes);
+ seed.urls.push('https://example.com/changed');fs.writeFileSync(seedFile,JSON.stringify(seed));await assert.rejects(executeHandoff({handoff:h,researchMarkets:{},directory:output,mode:'plan',lifecycle}),/ADAPTIVE_INPUT_CHANGED/);
 });
 test('cross-phase evidence replans same checkpoint without granting a new budget',async()=>{
  const target=t('cross'),dir=root+'/cross',args={directory:dir,manifest:{targets:[target],conditionalFollowupTargets:[]},limits:{reads:1,searches:0,acquisitions:0},stopBeforeNetwork:true,createAdapters:async()=>({read:async()=>{throw Error('network');},search:async()=>{throw Error('network');}})};
@@ -41,3 +46,17 @@ test('cross-phase evidence replans same checkpoint without granting a new budget
 test('request ceiling sums mature reviewed caps and four-attempt candidate caps',()=>{const h={cohort:{manifest:{serviceIds:['a','b','c']}},targets:[t('a')],rows:[{service:'b',providerReview:{selectedCandidate:{url:'https://provider.example'}}},{service:'c',providerReview:{}}]};assert.deepEqual(lifecycleBudgets(h),{byService:{a:36,b:4,c:0},total:40});});
 
 test('ledger ceiling is a budget stop, not fabricated evidence or an authority review',async()=>{const target=t('limited');const state=await runAdaptiveCampaign({directory:root+'/ledger-stop',manifest:{targets:[target],conditionalFollowupTargets:[]},isolateFailures:true,createAdapters:async()=>({read:async()=>{throw Error('HANDOFF_REQUEST_BOUND');},search:async()=>({results:[]})})});assert.equal(state.services.limited.stop.kind,'BUDGET_LIMITED');assert.equal(state.services.limited.failedAction.requiresReview,false);assert(state.complete);});
+
+ test('immutable seed plus Human Lead projection is deterministic; execution still rejects legacy admission',async()=>{
+ const targets=[t('first'),t('second')],retained=targets.map(target=>({...target,serviceAdmission:{status:'ESTABLISHED'},productionEligible:true,subscriptionQualification:{status:'ESTABLISHED'}}));
+ const snapshot={context:{scopes:{first:['US'],second:['US']}},leads:targets.map((target,i)=>({serviceId:target.service,type:'LOGIN',url:'https://provider.example/login/'+i,marketScope:['US'],leadId:String(i)}))},binding={sha256:'a'.repeat(64)};
+ const inject=seeds=>seeds.map(seed=>candidateLeads(seed,snapshot,binding));
+ const args={directory:root+'/seed-leads',manifest:{targets,conditionalFollowupTargets:[]},retainedStates:inject(retained),stopBeforeNetwork:true,createAdapters:async()=>{throw Error('NO_NETWORK');}};
+ const first=await runAdaptiveCampaign(args),resumed=await runAdaptiveCampaign({...args,retainedStates:inject(JSON.parse(JSON.stringify(retained)))});
+ assert.equal(first.fingerprint,resumed.fingerprint);assert.deepEqual(first.services,resumed.services);
+ for(const target of Object.values(resumed.targets)){assert.equal(target.productionEligible,false);for(const dimension of Object.values(target.serviceAdmission.dimensions))assert.equal(dimension.status,'UNRESOLVED');assert.equal(target.leads[0].authoritative,false);}
+ assert.equal(retained[0].serviceAdmission.status,'ESTABLISHED');
+ const changed=inject(retained);changed[0].leads[0].humanLead.snapshotHash='b'.repeat(64);
+ await assert.rejects(runAdaptiveCampaign({...args,retainedStates:changed}),/ADAPTIVE_INPUT_CHANGED/);
+ await assert.rejects(runAdaptiveCampaign({...args,limits:{reads:3}}),/ADAPTIVE_INPUT_CHANGED/);
+ });
