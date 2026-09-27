@@ -302,7 +302,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true){
   const top=section('Summary'),statusLine=el('p',`${r.objective} · ${r.origin} · ${r.status} · actor ${r.actor??'Unavailable'}`,'ops-state ops-status-'+statusTone(r.status)),timeLine=el('p'),actions={};top.append(statusLine,timeLine);
   text(top,r.lifecycle?.researchComplete===true?'Research complete':'Execution completion is separate from research completion. Unresolved pricing and Human Review may remain.');
   text(top,'Details are a recorded snapshot. The live card updates independently; Refresh operations reloads these sections.');
-  if(r.owned){actions.stop=button(top,'Stop safely',async()=>{await post('jobs/'+r.jobId+'/stop');await render();},!summary.flags.control||!['RUNNING','QUEUED'].includes(r.status));actions.resume=button(top,'Resume',async()=>{await post('jobs/'+r.jobId+'/resume');await render();},!summary.flags.control||!['STOPPED','INTERRUPTED','FAILED'].includes(r.status));}else text(top,'Historical / external run: read-only.');
+  if(r.owned){actions.stop=button(top,'Stop safely',async()=>{await post('jobs/'+r.jobId+'/stop');await render();},!summary.flags.control||!['RUNNING','QUEUED'].includes(r.status));actions.resume=button(top,'Resume',async()=>{await post('jobs/'+r.jobId+'/resume');await render();},!summary.flags.control||!(r.resumeAllowed??['STOPPED','INTERRUPTED','FAILED'].includes(r.status)));}else text(top,'Historical / external run: read-only.');
   const research=section('Research');
   const view=liveStatusView({id:r.jobId??r.id,status:r.status,services:[],maximumRequests:r.bounds?.totalRequests},r,data.services);
   text(research,view.research);text(research,view.budget);text(research,view.usage);

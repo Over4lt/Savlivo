@@ -419,3 +419,9 @@ test('each new manual Preflight click carries a distinct action identity',async 
  assert.equal(bodies.length,2);assert.match(bodies[0].idempotencyKey,/^[a-zA-Z0-9-]{16,80}$/);assert.notEqual(bodies[0].idempotencyKey,bodies[1].idempotencyKey);
  const {idempotencyKey:a,...first}=bodies[0],{idempotencyKey:b,...second}=bodies[1];assert.deepEqual(first,second);
 });
+
+for(const allowed of [true,false])test('Resume button uses backend skipped-conflict recovery eligibility '+allowed,async t=>{
+ const root=setup(),run={id:'recorded',jobId:'job',name:'Recorded execution',status:'SKIPPED_CONFLICT',owned:true,origin:'ADMIN',objective:'MATURE_LIFECYCLE',resumeAllowed:allowed},calls=[];
+ const dispose=await mountOperations(root,async(p,o)=>{calls.push({p,o});if(p.endsWith('/summary'))return {...summary,flags:{...summary.flags,control:true}};if(p.startsWith('v2-operations/runs?'))return {rows:[run],total:1};if(p==='v2-operations/runs/recorded')return {run,services:{rows:[],total:0},events:[]};return {rows:[],total:0};});t.after(dispose);
+ await button(root,'Runs').listeners.click();await workspaceDetails(root).listeners.click();assert.equal(button(root,'Resume').disabled,!allowed);assert(!calls.some(c=>c.p.endsWith('/resume')));
+});
