@@ -10,3 +10,14 @@ test('fresh generation cannot abandon an active execution',t=>{const f=fixture(t
 test('out-of-cohort and partial historical ledger fail closed',t=>{const f=fixture(t);fs.writeFileSync(f.dir+'/network.jsonl',JSON.stringify({service:'foreign',kind:'DIRECT'})+'\n');assert.throws(()=>snapshotLifecycle(f.args),/LIFECYCLE_HISTORICAL_ACCOUNTING/);fs.writeFileSync(f.dir+'/network.jsonl',JSON.stringify({service:'north',kind:'DIRECT'}));assert.throws(()=>snapshotLifecycle(f.args),/LIFECYCLE_HISTORICAL_ACCOUNTING/);});
 
 test('missing historical ledger cannot erase reported usage',t=>{const f=fixture(t);fs.unlinkSync(f.dir+'/network.jsonl');assert.throws(()=>snapshotLifecycle(f.args),/LIFECYCLE_HISTORICAL_ACCOUNTING/);});
+
+for(const entry of ['services/api/src/v2-operations/worker.mjs','docs/catalog/global-47/research-v2/run-v15-mature-v2.mjs'])test('fresh snapshot preserves active parent exclusion: '+entry,async t=>{
+ const f=fixture(t),{spawn}=await import('node:child_process'),file=path.resolve(entry);
+ fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,"console.log('ready');setInterval(()=>{},1000);");
+ const child=spawn(process.execPath,[file,...(entry.endsWith('/worker.mjs')?['--execute','33333333-3333-3333-3333-333333333333']:['--lifecycle','--live'])],{stdio:['ignore','pipe','pipe']});t.after(()=>child.kill());await new Promise((resolve,reject)=>{child.once('error',reject);child.stdout.once('data',resolve);});
+ const lock=f.dir+'/handoff.lock';fs.writeFileSync(lock,String(child.pid));
+ for(let i=0;i<2;i++)assert.throws(()=>snapshotLifecycle(f.args),/LIFECYCLE_PARENT_ACTIVE/);
+ assert.equal(fs.readFileSync(lock,'utf8'),String(child.pid));
+ const exited=new Promise(resolve=>child.once('exit',resolve));child.kill();await exited;
+ assert.equal(snapshotLifecycle(f.args).supersededRequests,1);assert.equal(fs.readFileSync(lock,'utf8'),String(child.pid));
+});
