@@ -9,3 +9,17 @@ test('actual live child bound to this job blocks Resume until it exits',async t=
  const child=cp.spawn(process.execPath,[worker,'--execute',job.id],{stdio:['ignore','pipe','pipe']});t.after(()=>child.kill());await new Promise((resolve,reject)=>{child.once('error',reject);child.stdout.once('data',resolve);});ops.transaction(db=>{db.jobs[0].pid=child.pid;});
  assert.throws(()=>ops.control(job.id,'resume','a'),/RUN_NOT_RESUMABLE/);assert.equal(ops.db().events.length,0);const exited=new Promise(resolve=>child.once('exit',resolve));child.kill();await exited;assert.equal(ops.control(job.id,'resume','a').status,'QUEUED');assert.equal(ops.db().events.filter(e=>e.type==='RESUME_REQUESTED').length,1);
 });
+
+test('handoff ownership shares fail-closed worker inspection',async t=>{
+ const {handoffOwnerActive}=await import('./worker-identity.mjs'),{ops,job}=fixture(t);
+ job.pid=process.ppid;inspect(t,ops.config.repo,job,'unknown');
+ assert.equal(handoffOwnerActive(ops.config.repo,job.pid),true);
+});
+for(const entry of ['docs/catalog/global-47/research-v2/run-v15-mature-v2.mjs','docs/catalog/global-47/research-v2/reconcile-v15-retained.mjs','docs/catalog/global-47/research-v2/prepare-reviewed-continuation.mjs','services/api/src/v2-operations/worker.mjs'])test('active handoff owner: '+entry,async t=>{
+ const {handoffOwnerActive}=await import('./worker-identity.mjs'),{ops,job}=fixture(t),file=path.join(ops.config.repo,entry);
+ fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,"console.log('ready');setInterval(()=>{},1000);");
+ const child=cp.spawn(process.execPath,[file,...(entry.endsWith('/worker.mjs')?['--execute',job.id]:['--live'])],{stdio:['ignore','pipe','pipe']});t.after(()=>child.kill());await new Promise((resolve,reject)=>{child.once('error',reject);child.stdout.once('data',resolve);});
+ assert.equal(handoffOwnerActive(ops.config.repo,child.pid),true);
+ const exited=new Promise(resolve=>child.once('exit',resolve));child.kill();await exited;
+ assert.equal(handoffOwnerActive(ops.config.repo,child.pid),false);
+});

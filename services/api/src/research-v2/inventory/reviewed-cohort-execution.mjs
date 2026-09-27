@@ -10,6 +10,7 @@ import {finalizeRun} from '../storage/finalize.mjs';
 import {resolveCapabilities,requireCapability} from '../capabilities/config.mjs';
 import {capabilityLedger} from '../capabilities/ledger.mjs';
 import {enrichProvider} from '../capabilities/enrichment.mjs';
+import {handoffOwnerActive} from '../../v2-operations/worker-identity.mjs';
 import {claimLeases,releaseLeases} from '../../v2-operations/leases.mjs';
 import {validateLifecycleSnapshot,lifecycleSeed,evaluateProviderCandidate,writeLifecycleDisposition,writeLifecycleReviewQueue,lifecycleBudgets} from './lifecycle-continuation.mjs';
 // Reuses the mature adaptive controller, public reader and verifier boundaries.
@@ -111,7 +112,8 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
  for(const name of fs.readdirSync(parent)){const other=path.join(parent,name);if((name.startsWith('v15-mature-continuation-')||name.startsWith('mature-lifecycle-'))&&other!==directory&&(!lifecycle||!fs.existsSync(other+'/lineage.json')||digest(json(other+'/lineage.json').cohort)===digest(handoff.cohort.manifest.serviceIds))&&fs.existsSync(other+'/network.jsonl')&&fs.statSync(other+'/network.jsonl').size>0&&other!==reconciliationState?.parentDirectory&&!continuationState?.parents.includes(other)&&!lifecycle?.parents.some(p=>p.directory===other)&&!lifecycle?.supersededExecutions?.some(p=>lifecycle.executionGeneration&&p.execution===path.basename(other)&&p.ledgerHash===digest(fs.readFileSync(other+'/network.jsonl'))&&p.lineageHash===digest(fs.readFileSync(other+'/lineage.json'))))throw Error('HANDOFF_PREVIOUS_CONTINUATION_RECONCILIATION_REQUIRED');}
  let cursor=process.cwd();for(const part of directory.split('/')){cursor=path.join(cursor,part);if(fs.existsSync(cursor)&&fs.lstatSync(cursor).isSymbolicLink())throw Error('HANDOFF_SYMLINK_OUTPUT');}
  fs.mkdirSync(directory,{recursive:true});const lock=directory+'/handoff.lock';
- if(fs.existsSync(lock)){const pid=Number(fs.readFileSync(lock));if(!Number.isInteger(pid)||pid<1)throw Error('HANDOFF_LOCK');try{process.kill(pid,0);throw Error('HANDOFF_ACTIVE');}catch(e){if(e.code!=='ESRCH')throw e;}fs.unlinkSync(lock);}fs.writeFileSync(lock,String(process.pid),{flag:'wx'});
+ if(fs.existsSync(lock)){const pid=Number(fs.readFileSync(lock));if(!Number.isInteger(pid)||pid<2)throw Error('HANDOFF_LOCK');}
+ try{claimLeases([lock],process.pid,{ownerActive:(_file,pid)=>handoffOwnerActive(process.cwd(),pid)});}catch(error){if(error.message==='ACTIVE_EXECUTION_CONFLICT'||error.code==='EEXIST')throw Error('HANDOFF_ACTIVE');throw error;}
  let cohortLeases=[];try{
  if(lifecycle)cohortLeases=claimLeases([path.join(parent,'cohort-'+digest(handoff.cohort.manifest.serviceIds).slice(0,16)+'.lock')]);
  const lineage={storageBoundaryVersion:1,...(lifecycle?.executionGeneration?{executionGeneration:lifecycle.executionGeneration,supersededExecutions:lifecycle.supersededExecutions,supersededRequests:lifecycle.supersededRequests}:{}),...(leadBinding?{humanLeadSnapshot:leadBinding}:{}),capabilities,fingerprint:location.fingerprint,cohort:handoff.cohort.manifest.serviceIds,inputHashes:handoff.inputHashes,historicalRequests:handoff.summary.historicalRequests,historicalSearches:handoff.summary.historicalSearches,historicalReads:handoff.summary.historicalReads,previousRun:runDirectory,review:handoff.document,researchMarkets,candidateRound,reconciliation,continuation,lifecycle:lifecycle?{key:lifecycle.key,parents:lifecycle.parents,inputHashes:lifecycle.inputHashes}:null,parentRequests:lifecycle?.parentRequests??continuationState?.parentRequests??reconciliationState?.parentRequests??0,additionalRequestCeiling:reconciliation?0:lifecycle?lifecycleBudget.total:continuation?selected.length*additionalRequestLimit:188*additionalRequestLimit};
@@ -228,7 +230,7 @@ export async function executeHandoff({handoff,researchMarkets,directory,mode='pl
   try{finalizeRun(process.cwd(),{directory,baseline:handoff.baselineIds,engine:lifecycle.codeHash,createdAt:events.at(-1)?.at??fs.statSync(directory+'/lineage.json').mtime.toISOString()});}catch(error){console.error('STORAGE_FINALIZATION_PENDING: '+error.message);}
  }
  return summary;
- }finally{releaseLeases(cohortLeases,process.pid);fs.unlinkSync(lock);}
+ }finally{releaseLeases(cohortLeases,process.pid);releaseLeases([lock],process.pid);}
 }
 
 export function applyPriceQuarantine(target,entries){
