@@ -50,21 +50,32 @@ test('new admitted generation isolates interrupted history; legacy continuation 
  const {spawn}=await import('node:child_process'),script=path.join(os.tmpdir(),'parent-unrelated-'+process.pid+'.mjs');fs.writeFileSync(script,"console.log('ready');setInterval(()=>{},1000);");t.after(()=>fs.rmSync(script,{force:true}));
  const unrelated=spawn(process.execPath,[script],{stdio:['ignore','pipe','pipe']});t.after(()=>unrelated.kill());await new Promise((resolve,reject)=>{unrelated.once('error',reject);unrelated.stdout.once('data',resolve);});process.kill(unrelated.pid,0);
  fs.writeFileSync(dir+'/handoff.lock',String(unrelated.pid));
+ const cohortLock=path.join(path.dirname(dir),'cohort-'+hash(cohort).slice(0,16)+'.lock');fs.writeFileSync(cohortLock,String(unrelated.pid));
  const oldFiles=['lineage.json','network.jsonl','catalog/adaptive-state.json','handoff.lock'];const original=oldFiles.map(p=>fs.readFileSync(dir+'/'+p));
  const old=process.cwd();try{process.chdir(f.dest);
  const preflight=f.ops.preflight({objective:'MATURE_LIFECYCLE',scope:'FULL_CATALOG',capabilities},'actor'),first=f.ops.start(preflight.token,'actor',true),manifest=JSON.parse(fs.readFileSync(f.ops.config.root+'/runs/'+first.id+'/manifest.json'));
  assert.equal(f.ops.start(preflight.token,'actor',true).id,first.id);assert.equal(f.ops.db().jobs.filter(j=>j.id===first.id).length,1);
  verifyExecutionBinding(f.dest,first,manifest);
  await assert.rejects(lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--live']),/HANDOFF_PREVIOUS_CONTINUATION_RECONCILIATION_REQUIRED/);
- const control={executionGeneration:manifest.lifecycle.admission.executionGeneration};
+ let validated=0;const control={executionGeneration:manifest.lifecycle.admission.executionGeneration,beforeExecution:()=>{validated++;}};
  assert.equal(control.executionGeneration,first.id);
  const check=await lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--check'],control);assert.equal(check.requestsConsumed,0);
  const result=await lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--live'],control);assert.equal(result.additionalRequests,0);assert.equal(result.executionComplete,true);
+ assert.equal(validated,1);assert.equal(fs.existsSync(cohortLock),false);assert.equal(fs.existsSync(check.output+'/handoff.lock'),false);
  const lineage=JSON.parse(fs.readFileSync(check.output+'/lineage.json'));assert.equal(lineage.supersededExecutions.length,1);assert.equal(lineage.supersededRequests,1);assert.equal(lineage.supersededExecutions[0].execution,path.basename(dir));
  f.ops.patchJob(first.id,{status:'COMPLETE'});
  const second=f.ops.start(f.ops.preflight({objective:'MATURE_LIFECYCLE',scope:'FULL_CATALOG',capabilities},'actor').token,'actor',true),m2=JSON.parse(fs.readFileSync(f.ops.config.root+'/runs/'+second.id+'/manifest.json'));
  assert.notEqual(second.id,first.id);assert.equal(m2.lifecycle.admission.executionGeneration,second.id);
  const check2=await lifecycleMain(['--lifecycle','--input',m2.lifecycle.input,'--check'],{executionGeneration:m2.lifecycle.admission.executionGeneration});assert.notEqual(check.output,check2.output);
+ const secondControl={executionGeneration:m2.lifecycle.admission.executionGeneration};
+ for(const entry of ['services/api/src/v2-operations/worker.mjs','docs/catalog/global-47/research-v2/run-v15-mature-v2.mjs']){
+  const file=path.join(f.dest,entry);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,"console.log('ready');setInterval(()=>{},1000);");
+  const owner=spawn(process.execPath,[file,...(entry.endsWith('/worker.mjs')?['--execute',first.id]:['--lifecycle','--live'])],{stdio:['ignore','pipe','pipe']});t.after(()=>owner.kill());await new Promise((resolve,reject)=>{owner.once('error',reject);owner.stdout.once('data',resolve);});
+  fs.writeFileSync(cohortLock,String(owner.pid));
+  for(let attempt=0;attempt<2;attempt++){await assert.rejects(lifecycleMain(['--lifecycle','--input',m2.lifecycle.input,'--live'],secondControl),/ACTIVE_EXECUTION_CONFLICT/);assert.equal(fs.readFileSync(cohortLock,'utf8'),String(owner.pid));assert.equal(fs.existsSync(check2.output+'/handoff.lock'),false);}
+  const exited=new Promise(resolve=>owner.once('exit',resolve));owner.kill();await exited;
+ }
+ const next=await lifecycleMain(['--lifecycle','--input',m2.lifecycle.input,'--live'],secondControl);assert.equal(next.executionComplete,true);assert.equal(next.additionalRequests,0);assert.equal(fs.existsSync(cohortLock),false);assert.equal(fs.existsSync(check2.output+'/handoff.lock'),false);
  const tampered=structuredClone(m2);tampered.lifecycle.admission.executionGeneration=first.id;assert.throws(()=>verifyExecutionBinding(f.dest,second,tampered),/EXECUTION_BINDING/);
  for(let i=0;i<oldFiles.length;i++)assert.deepEqual(fs.readFileSync(dir+'/'+oldFiles[i]),original[i]);
  }finally{process.chdir(old);}
