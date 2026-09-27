@@ -1,4 +1,4 @@
-import {executionLeaseActive} from './worker-identity.mjs';
+import {executionLeaseActive,executionWorkerActive} from './worker-identity.mjs';
 import {verifyExecutionBinding} from './lifecycle.mjs';
 import {recordJobPhase,jobTerminalStatuses} from './job-status.mjs';
 import {resolveCapabilities,requireCapability} from '../research-v2/capabilities/config.mjs';
@@ -11,7 +11,7 @@ const config=settings(),ops=new Operations(config),self=fileURLToPath(import.met
 const executionChildren=new Set();
 export async function tick(shouldStop=()=>false){
  if(shouldStop()||!config.read)return;
- for(const j of ops.db().jobs)if(j.status==='RUNNING'&&!alive(j.pid))ops.patchJob(j.id,{status:'INTERRUPTED',error:'WORKER_PROCESS_EXITED_CHECKPOINT_PRESERVED'});
+ for(const j of ops.db().jobs)if(j.status==='RUNNING'&&!executionWorkerActive(config.repo,j))ops.patchJob(j.id,{status:'INTERRUPTED',error:'WORKER_PROCESS_EXITED_CHECKPOINT_PRESERVED'});
  ops.tick();const jobs=ops.db().jobs;
  // A live owned job or an empty queue needs no research-result reconstruction.
  if(jobs.some(j=>j.status==='RUNNING'))return;
