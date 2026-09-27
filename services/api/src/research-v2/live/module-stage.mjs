@@ -5,8 +5,15 @@ import {ResourceBudget,acquireMissingModules} from '../code-dataflow/module-cont
 import {references,sha256} from '../code-dataflow/module-resources.mjs';
 import {createModuleAcquirer} from './acquire-module-resource.mjs';
 import {iterateMarketRunRecords} from '../../research-v1/market-run-store.mjs';
+import {verificationDiagnostics} from './verification-diagnostics.mjs';
 const read=p=>JSON.parse(fs.readFileSync(p));
-export async function verifyRetainedRun(dir){const output=fs.readdirSync(dir).filter(n=>/^interpretation-\d+$/.test(n)).sort().at(-1);if(!output)throw Error('INTERPRETATION_REQUIRED');return new Promise((resolve,reject)=>{const child=spawn(process.execPath,['docs/catalog/global-47/research-v2/targeted-frontier-worker.mjs',dir,output],{env:{PATH:process.env.PATH??''},stdio:['ignore','ignore','ignore']});child.on('error',reject);child.on('exit',n=>n===0?resolve(read(dir+'/'+output+'/targeted-verification.json')):reject(Error('VERIFICATION_WORKER_FAILED')));});}
+export async function verifyRetainedRun(dir){const output=fs.readdirSync(dir).filter(n=>/^interpretation-\d+$/.test(n)).sort().at(-1);if(!output)throw Error('INTERPRETATION_REQUIRED');return new Promise((resolve,reject)=>{
+ const finish=verificationDiagnostics(path.join(dir,output));let child;
+ try{child=spawn(process.execPath,['docs/catalog/global-47/research-v2/targeted-frontier-worker.mjs',dir,output],{env:{PATH:process.env.PATH??''},stdio:['ignore','ignore','ignore']});}
+ catch(error){finish('TARGETED_VERIFICATION_ERROR');reject(error);return;}
+ child.on('error',error=>{finish('TARGETED_VERIFICATION_ERROR',child.pid);reject(error);});
+ child.on('exit',(code,signal)=>{finish('TARGETED_VERIFICATION_END',child.pid,code,signal);code===0?resolve(read(dir+'/'+output+'/targeted-verification.json')):reject(Error('VERIFICATION_WORKER_FAILED'));});
+ });}
 export async function runModuleStage({dir,inventory,runtime,bundle,acquireEndpoint,resolveHost}){
  const dest=path.join(dir,'module-fallback');fs.mkdirSync(dest);const write=(name,x)=>{const p=dest+'/'+name+'.json';fs.writeFileSync(p+'.pending',JSON.stringify(x,null,2)+'\n');fs.renameSync(p+'.pending',p);};
  const event=(type,data)=>{const fd=fs.openSync(dest+'/journal.jsonl','a');fs.writeSync(fd,JSON.stringify({type,...data})+'\n');fs.fsyncSync(fd);fs.closeSync(fd);};
