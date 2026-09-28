@@ -7,6 +7,7 @@ import path from 'node:path';
 import {inspectLifecycleInput} from '../research-v2/inventory/reviewed-cohort-handoff.mjs';
 import {deploymentContract} from '../research-v2/storage/genesis-deployment.mjs';
 import {safe,read,sha,stableBytes,digest,jsonDigest} from '../research-v2/storage/core.mjs';
+import {targetingJson,lengthOnly} from './targeting-json.mjs';
 
 export const presets = Object.freeze([
  ['ALL','All eligible'], ['UNRESOLVED','Unresolved'], ['HUMAN_REVIEW','Needs human review'],
@@ -74,10 +75,10 @@ export function loadTargeting(settings){
  for(const d of files){
   const lineage=read(safe(root,d+'/lineage.json'));
   if(digest(lineage.cohort)!==digest(handoff.cohort.manifest.serviceIds))error('TARGETING_RUN_COHORT');
-  const finals=stableBytes(safe(root,d+'/final-dispositions.json'));
-  fingerprints.push([d,sha(finals)]);
-  for(const s of JSON.parse(finals).services??[]){if(!handoff.cohort.manifest.serviceIds.includes(s.service_id))error('TARGETING_RUN_SERVICE');if(!known.has(s.service_id)){latest.push(s);known.add(s.service_id);}}
-  for(const phase of ['catalog','pricing']){const f=d+'/'+phase+'/adaptive-state.json';if(fs.existsSync(safe(root,f)))for(const [id,target]of Object.entries(read(safe(root,f)).targets??{})){if(!handoff.cohort.manifest.serviceIds.includes(target.service))error('TARGETING_TARGET_SERVICE');if(!states[id])states[id]={target};}}
+  const finals=targetingJson(safe(root,d+'/final-dispositions.json'),{services:{'*':{service_id:true,researchComplete:true,finalStatus:true,humanReview:lengthOnly}}});
+  fingerprints.push([d,finals.sha256]);
+  for(const s of finals.value.services??[]){if(!handoff.cohort.manifest.serviceIds.includes(s.service_id))error('TARGETING_RUN_SERVICE');if(!known.has(s.service_id)){latest.push(s);known.add(s.service_id);}}
+  for(const phase of ['catalog','pricing']){const f=d+'/'+phase+'/adaptive-state.json';if(fs.existsSync(safe(root,f)))for(const [id,target]of Object.entries(targetingJson(safe(root,f),{targets:{'*':{service:true}}}).value.targets??{})){if(!handoff.cohort.manifest.serviceIds.includes(target.service))error('TARGETING_TARGET_SERVICE');if(!states[id])states[id]={target};}}
  }
  // Existing canonical taxonomy is a JSON literal in the authenticated contracts input.
  const taxonomy='packages/contracts/src/catalog.ts';let categories=[];
