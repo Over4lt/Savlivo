@@ -214,3 +214,15 @@ button.ops-action-busy:focus-visible{outline:3px double var(--control-focus);out
 .ops-overview-coverage{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:.5rem 1rem}
 .ops-overview-coverage p{margin:.25rem 0}
 .ops-overview-coverage progress{width:100%;accent-color:var(--control-outline)}
+
+/* Compact Operations workflow; disclosure nodes stay mounted during polling. */
+.ops-disclosure{margin:.65rem 0}
+.ops-disclosure>summary{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.ops-disclosure-toggle{font-size:.85rem;color:var(--muted);white-space:nowrap}
+.ops-feedback{margin:.65rem 0;overflow-wrap:anywhere}
+.ops-feedback.ops-status-error{color:var(--control-danger)}
+.ops-live-card .ops-secondary{margin-top:.75rem;color:var(--muted)}
+.ops-live-card p:empty{display:none}
+.ops-live-timing{display:flex;flex-wrap:wrap;gap:.3rem 1.2rem;font-variant-numeric:tabular-nums}
+.ops-live-card .ops-secondary{margin-inline-end:.5rem}
+.ops-live-announcement{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
