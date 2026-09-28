@@ -35,7 +35,7 @@ export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionCon
  const budgetBlocked=valid.filter(x=>exhaustedExecutionBudget(x.capability)&&(!pendingMarketProof(t).length&&(refresh||reacquire.has(x.url)&&x.informationGain>=4)||!seen.has(x.url)));
  return {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked};
 }
-export function chooseInformationAction(t,{knowledge,retained=null,configurationDemonstrated=false,renderingDemonstrated=false,urls=t.urls??[],discoveryAllowed=true,executionContext}={}){
+export function chooseInformationAction(t,{knowledge,retained=null,configurationDemonstrated=false,renderingDemonstrated=false,urls=t.urls??[],discoveryAllowed=true,discoveryQuery=null,executionContext}={}){
  const {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked}=actionableDestinations(t,{knowledge,urls,executionContext});
  let route,reason,url=null;
  if((!pendingMarketProof(t).length||currentRetainedPriceReview(t,retained)?.market===t.market)&&!marketProofContradicted(t)&&!catalogObjective(t)&&currentRetainedPriceReview(t,retained)?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
@@ -44,15 +44,15 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished===true){route='STOP';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}
  else if(configurationDemonstrated){route='PARK_CONFIGURATOR';reason='CONFIGURATOR_REQUIRED';}
  else if(renderingDemonstrated){route='PARK_RENDERING';reason='RENDERING_REQUIRED';}
- else if(!t.authorities?.some(a=>a.provider===t.serviceName&&a.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(a.sourceType))){route='AUTHORITY_DISCOVERY';reason='AUTHORITY_UNRESOLVED';}
+ else if(!t.authorities?.some(a=>a.provider===t.serviceName&&a.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(a.sourceType))){route=discoveryQuery?'AUTHORITY_DISCOVERY':'STOP';reason=discoveryQuery?'AUTHORITY_UNRESOLVED':'DISCOVERY_EXHAUSTED';}
  else if(reuse&&!pendingMarketProof(t).length){route='REUSE_RETAINED';reason='HASH_BOUND_PROVIDER_SUCCESS_REUSE';url=reuse.url;}
- else if(priceNeedsStop(t)&&!pendingMarketProof(t).length){route='STOP';reason=k.blockedOrigins?.length&&evaluated.filter(x=>x.url).length&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))?'PROVIDER_ACCESS_POLICY_STOP':attempts.filter(a=>a.route==='DISCOVERY'&&a.completed).length>=2?'DISCOVERY_EXHAUSTED':priceNeedsStop(t);}
+ else if(priceNeedsStop(t)&&!pendingMarketProof(t).length){route='STOP';reason=k.blockedOrigins?.length&&evaluated.filter(x=>x.url).length&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))?'PROVIDER_ACCESS_POLICY_STOP':priceNeedsStop(t);}
  else if(candidates.length){route=t.capabilities?.direct===false&&t.capabilities?.decodo===true?'DECODO':'DIRECT';url=candidates[0].url;reason=route==='DECODO'?'DIRECT_PROHIBITED_DECODO_PERMITTED':candidates[0].reason;}
  else {
  const failed=attempts.filter(a=>completed(a)&&a.permittedEscalation===true&&valid.some(x=>x.url===norm(a.url))&&!attempts.some(b=>b.route==='DECODO'&&b.completed&&norm(b.url)===norm(a.url))&&!attempts.some(b=>completed(b)&&b.outcome==='OK'&&norm(b.url)===norm(a.url))).at(-1);
  if(failed){route='CONDITIONAL_DECODO';url=norm(failed.url);reason='EXACT_PERMITTED_FAILED_DESTINATION';}
  else if(!researchablePriceNeeds(t).length&&valid.length&&valid.every(x=>seen.has(x.url))&&(k.unresolvedFields??[]).length>0&&k.unresolvedFields.every(x=>/STRUCTUR|OWNERSHIP|CONFLICT|PRODUCT_UNRESOLVED|PLAN_UNRESOLVED/.test(x))){route='STRUCTURED_REINTERPRETATION';reason='RETAINED_STRUCTURE_REQUIRES_REVIEW';}
- else if(attempts.filter(a=>a.route==='DISCOVERY'&&a.completed).length>=2){route='STOP';reason='DISCOVERY_EXHAUSTED';}
+ else if(!discoveryQuery){route='STOP';reason='DISCOVERY_EXHAUSTED';}
  else if(k.blockedOrigins?.length&&evaluated.some(x=>x.url)&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))){route='STOP';reason='PROVIDER_ACCESS_POLICY_STOP';}
  else if(t.capabilities?.tavily===false){route='STOP';reason='CAPABILITY_DISABLED_TAVILY';}
  else if(!discoveryAllowed){route='STOP';reason='KNOWN_DESTINATION_NEEDS_EVIDENCE_NOT_SEARCH';}

@@ -4,7 +4,7 @@ import {initializeAdaptiveState,assessAdaptiveService,targetExecutionContext} fr
 import {createResearchMemory} from '../live/research-memory.mjs';
 import {destinationDiscoveryNeeded} from '../live/open-web-discovery.mjs';
 import {executableAction,exhaustedExecutionBudget} from '../live/execution-capabilities.mjs';
-import {planResearch} from '../live/research-planner.mjs';
+import {planResearch,contextualQuery} from '../live/research-planner.mjs';
 import {lifecycleBudgets} from './lifecycle-continuation.mjs';
 const cwd=process.cwd(),root=fs.mkdtempSync(path.join(os.tmpdir(),'v2-actionable-'));process.chdir(root);after(()=>{process.chdir(cwd);fs.rmSync(root,{recursive:true});});
 const ref={path:'history.json',hash:createHash('sha256').update('[]').digest('hex')};fs.writeFileSync(ref.path,'[]');
@@ -24,6 +24,6 @@ test('zero read budget is explicit exhaustion',()=>assert.equal(assess(target(),
 test('zero search budget after historical read is explicit exhaustion',()=>assert.equal(assess(target({history:true}),{searches:0}).result.stop.reason,'BUDGET_EXHAUSTED'));
 test('acquisition budget failure remains explicit',()=>{const t=target();t.capabilities.decodo=true;assert.equal(executableAction(t,{route:'CONDITIONAL_DECODO',escalation:{eligible:true}},{bounds:{perServiceAcquisitions:0,acquisitions:0},usage:{acquisitions:0}}).reason,'DECODO_BUDGET_EXHAUSTED');});
 test('provider-access stop is not budget exhaustion',()=>{const t=target({history:true});t.blockedOrigins=['https://provider.example'];const r=assess(t).result;assert.equal(r.next,null);assert.equal(r.stop.reason,'PROVIDER_ACCESS_POLICY_STOP');});
-test('historical discovery limit remains exhaustion of discovery, not new request budget',()=>{const t=target({history:true});t.researchMemory=createResearchMemory({...t,reads:[{requestedUrl:t.urls[0],outcome:'OK'}],queries:[{query:'first'},{query:'second'}]},ref);const r=assess(t).result;assert.equal(r.next,null);assert.equal(r.stop.reason,'DISCOVERY_EXHAUSTED');});
+test('finite applicable historical discovery actions remain exhausted, not a new request budget',()=>{const t=target({history:true});t.researchMemory=createResearchMemory({...t,reads:[{requestedUrl:t.urls[0],outcome:'OK'}],queries:[0,1].map(i=>({query:contextualQuery(t,i)}))},ref);const r=assess(t).result;assert.equal(r.next,null);assert.equal(r.stop.reason,'DISCOVERY_EXHAUSTED');});
 test('same retained memory on repeated assessment never grants duplicate Direct',()=>{const t=target({history:true});for(let i=0;i<3;i++)assert.equal(assess(structuredClone(t)).result.next.plan.route,'DISCOVERY');assert.equal(t.reads.length,0);});
 test('completed objective never forces discovery',()=>{const t=target({history:true});t.catalogEligibility.status='LOGIN_MANAGE_ESTABLISHED';t.loginManageEstablished=true;assert.equal(assess(t).result.next,null);});
