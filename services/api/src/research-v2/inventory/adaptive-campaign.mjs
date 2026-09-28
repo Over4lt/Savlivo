@@ -1,7 +1,7 @@
 import {runtimeDiagnostics} from './runtime-diagnostics.mjs';
 import {revalidateTargetAdmission} from '../intelligence/service-admission.mjs';
 import {pendingMarketProof,marketProofContradicted} from '../live/market-proof-continuation.mjs';
-import {currentRetainedPriceReview} from '../live/retained-pricing.mjs';
+import {currentRetainedPriceReview,targetMarketPriceReview} from '../live/retained-pricing.mjs';
 import {readPriceEvidenceNeeds} from '../intelligence/price-evidence-needs.mjs';
 import {usableResearchMemory} from '../live/research-memory.mjs';
 import {managementInformation,missingCatalogFields} from '../intelligence/management-targeting.mjs';
@@ -34,13 +34,15 @@ export function targetExecutionContext(state,t){
  return {bounds:{...executionBounds,managementReserveOnly:borrow,perServiceReads:Math.max(0,b.reads+borrow-(service.used.reads-own.reads)),perServiceSearches:Math.max(0,b.searches-borrow-(service.used.searches-own.searches)),perServiceAcquisitions:Math.max(0,b.acquisitions-(service.used.acquisitions-own.acquisitions))},usage:{reads:own.reads,searches:own.searches,acquisitions:own.acquisitions},catalogBudgetAllocation:borrow?{reason:'UNUSED_DISCOVERY_TO_MISSING_MANAGEMENT',surrenderedSearches:1,managementReads:1,originalReads:b.reads,originalSearches:b.searches,actualServiceUsage:service.used}:null};
 }
 
-function sufficient(state,service){const catalogTargets=Object.values(state.targets).filter(t=>t.service===service&&t.researchObjective==='CATALOG_ONLY');if(catalogTargets.length){const proofs=catalogTargets.flatMap(t=>t.catalogCapabilityProofs??[]);for(const t of catalogTargets){for(const p of proofs)mergeTargetCapabilities(t,p);}return catalogTargets.some(t=>t.loginManageEstablished)?'LOGIN_MANAGE_ESTABLISHED':null;}const ts=Object.values(state.targets).filter(t=>t.service===service),r=ts.find(t=>(!pendingMarketProof(t).length||currentRetainedPriceReview(t)?.market===t.market)&&!marketProofContradicted(t)&&currentRetainedPriceReview(t)?.sourceBound&&['HIGH','MEDIUM'].includes(t.retainedPriceReview.confidence));return r?r.priceStrategy==='USER_PRICE_PREFERRED'?'USER_PRICE_PREFERRED_SUFFICIENT':currentRetainedPriceReview(r).confidence==='HIGH'?'HIGH_SUFFICIENT':'MEDIUM_SUFFICIENT':null;}
+function sufficient(state,service){const catalogTargets=Object.values(state.targets).filter(t=>t.service===service&&t.researchObjective==='CATALOG_ONLY');if(catalogTargets.length){const proofs=catalogTargets.flatMap(t=>t.catalogCapabilityProofs??[]);for(const t of catalogTargets){for(const p of proofs)mergeTargetCapabilities(t,p);}return catalogTargets.some(t=>t.loginManageEstablished)?'LOGIN_MANAGE_ESTABLISHED':null;}const ts=Object.values(state.targets).filter(t=>t.service===service),reasons=ts.map(t=>pricingSufficiency(t,ts));return reasons.length&&reasons.every(Boolean)?reasons.includes('MEDIUM_SUFFICIENT')?'MEDIUM_SUFFICIENT':reasons[0]:null;}
+function pricingSufficiency(t,targets=[t]){const review=targets.filter(x=>x.market===t.market).map(x=>t.market?targetMarketPriceReview(t,x.retainedPriceReview):currentRetainedPriceReview(t,x.retainedPriceReview)).find(Boolean);if(!review||marketProofContradicted(t)||pendingMarketProof(t).length&&review.market!==t.market)return null;return t.priceStrategy==='USER_PRICE_PREFERRED'?'USER_PRICE_PREFERRED_SUFFICIENT':review.confidence==='HIGH'?'HIGH_SUFFICIENT':'MEDIUM_SUFFICIENT';}
 function actionKey(service,p){return JSON.stringify([service,p.route,['DIRECT','DECODO'].includes(p.route)?resourceKey(p.url):p.url??p.query,p.retainedKey]);}
 export function assessAdaptiveService(state,service){
  const s=state.services[service],ts=Object.values(state.targets).filter(t=>t.service===service),enough=sufficient(state,service),signature=hash(ts.map(t=>[t.id,counts(t),t.retainedPriceReview,t.researchDiagnosis,t.blockedOrigins,t.catalogEligibility,readPriceEvidenceNeeds(t)?.evidenceDigest??null])),rows=[];
  const attempted=new Set(ts.flatMap(t=>[...(t.reads??[]).map(r=>resourceKey(r.requestedUrl)),...(t.decisions??[]).filter(d=>d.acquisitionReserved).map(d=>resourceKey(d.url))]));
  for(const t of ts){rankPlannerLeads(t);const context=targetExecutionContext(state,t),p=planResearch(t,{executionContext:context,unreadUrls:t.leads.map(l=>l.url),discoveryAllowed:destinationDiscoveryNeeded(t,context.bounds,context.usage)}),cap=executableAction(t,p,context);let decision='DEFER',reason=p.reason,value=0;
  if(enough){decision='REJECT';reason=enough;}
+ else if(t.researchObjective!=='CATALOG_ONLY'&&pricingSufficiency(t,ts)){decision='REJECT';reason=pricingSufficiency(t,ts);}
  else if(s.reconciliation){reason=s.reconciliation;}
  else if(t.executionBlocked){reason=t.executionBlocked;}
  // Retained review blocks reuse, not independently admitted fresh research.
@@ -59,7 +61,7 @@ export function assessAdaptiveService(state,service){
  }
  const positive=rows.filter(r=>r.decision==='ACTIVATE').sort((a,b)=>b.expectedInformationValue-a.expectedInformationValue||Number(b.initial)-Number(a.initial)||(state.targets[a.targetId].priority??0)-(state.targets[b.targetId].priority??0)||a.targetId.localeCompare(b.targetId));const best=positive[0];
  for(const r of positive.slice(1)){r.decision=r.actionIdentity===best.actionIdentity?'SUPERSEDED':'DEFER';r.reason=r.decision==='SUPERSEDED'?'EQUIVALENT_TO_SELECTED_ACTION':'BETTER_ACTION_SELECTED_REASSESS_AFTER_RESULT';r.supersededBy=best.targetId;r.plan.runnable=false;}
- let stop=null;if(!best){const deferred=rows.filter(r=>r.decision==='DEFER'),budget=deferred.some(r=>r.reason==='BUDGET_EXHAUSTED');stop={kind:budget?'BUDGET_LIMITED':deferred.length?'BLOCKED':'RESEARCH_OPTIMAL_STOP',reason:enough??(budget?'BUDGET_EXHAUSTED':deferred[0]?.reason??rows[0]?.reason??'NO_POSITIVE_VALUE_FOLLOWUP'),scope:'KNOWN_REVIEWED_ACTION_SPACE_ONLY',assessedTargets:rows.length,state:signature};}
+ let stop=null;if(!best){const deferred=rows.filter(r=>r.decision==='DEFER'),budget=deferred.some(r=>r.reason==='BUDGET_EXHAUSTED');stop={kind:budget?'BUDGET_LIMITED':deferred.length?'BLOCKED':'RESEARCH_OPTIMAL_STOP',reason:enough??(budget?'BUDGET_EXHAUSTED':deferred[0]?.reason??rows.find(r=>!['HIGH_SUFFICIENT','MEDIUM_SUFFICIENT','USER_PRICE_PREFERRED_SUFFICIENT'].includes(r.reason))?.reason??rows[0]?.reason??'NO_POSITIVE_VALUE_FOLLOWUP'),scope:'KNOWN_REVIEWED_ACTION_SPACE_ONLY',assessedTargets:rows.length,state:signature};}
  return {service,state:signature,rows,next:best??null,stop};
 }
 function recordAssessment(state,a){for(const row of a.rows){const old=state.decisions[row.targetId];if(!old||hash(old)!==hash(row))state.decisionHistory.push({...row,turn:state.turn});state.decisions[row.targetId]=row;}state.services[a.service].stop=a.stop;}

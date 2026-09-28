@@ -51,9 +51,9 @@ test('retained positive interpreter output remains service and market bound',()=
  const t={...target(),researchObjective:'PRICING'},a=artifact([observation()]);
  assert.equal(retainedPriceReview(a.dir,t).confidence,'HIGH');assert.equal(retainedPriceReview(a.dir,{...t,service:'other'}),null);assert.equal(retainedPriceReview(a.dir,{...t,market:'NO'}),null);
 });
-test('one positive service-coverage claim avoids subsequent market acquisition without overwriting its price',async()=>{
+test('one market claim does not suppress another market acquisition or overwrite its price',async()=>{
  const first={...target(),id:'first'},second={...target(),id:'second',market:'US'},calls=[],a=artifact([observation()]);
  const args={directory:root+'/carry-forward-'+counter++,targets:[second,first],catalog:[first,second],preparedPriorityBatches:[[first.id],[second.id]],createAdapters:async()=>({read:async x=>{calls.push(x.target.id);return {url:x.url,outcome:'OK',body:'fixture'};},search:async()=>({results:[]}),classify:async()=>({eligible:true}),consumeProvider:async()=>({verified:[],runDirectory:a.dir,monetary:1,needsGeo:true}),acquire:async()=>{throw Error('SUFFICIENT_DIRECT_MUST_NOT_ESCALATE');}})};
- const r=await runExpansionCampaign(args);assert.deepEqual(calls,['first']);assert.equal(r.results[1].status,'SOURCE_BOUND_PRICE_ALREADY_AVAILABLE');assert.equal(r.results[1].retainedPriceReview.market,'DE');assert.equal(r.results[1].retainedPriceReview.amount,'12');assert.equal(r.results[1].verified.length,0);
- await runExpansionCampaign(args);assert.deepEqual(calls,['first']);
+ const r=await runExpansionCampaign(args);assert.deepEqual(calls,['first','second']);assert.notEqual(r.results[1].status,'SOURCE_BOUND_PRICE_ALREADY_AVAILABLE');assert.equal(r.results[1].retainedPriceReview.market,'DE');assert.equal(r.results[1].retainedPriceReview.amount,'12');assert.equal(r.results[1].verified.length,0);
+ await runExpansionCampaign(args);assert.deepEqual(calls,['first','second']);
 });

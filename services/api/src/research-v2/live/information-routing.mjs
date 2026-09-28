@@ -1,5 +1,5 @@
 import {pendingMarketProof,marketProofContradicted} from './market-proof-continuation.mjs';
-import {currentRetainedPriceReview} from './retained-pricing.mjs';
+import {currentRetainedPriceReview,targetMarketPriceReview} from './retained-pricing.mjs';
 import {priceNeedsStop,priceNeedRelevance,researchablePriceNeeds} from '../intelligence/price-evidence-needs.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {catalogObjective,capabilityDestination} from '../intelligence/login-manage.mjs';
@@ -38,7 +38,8 @@ export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionCon
 export function chooseInformationAction(t,{knowledge,retained=null,configurationDemonstrated=false,renderingDemonstrated=false,urls=t.urls??[],discoveryAllowed=true,discoveryQuery=null,executionContext}={}){
  const {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked}=actionableDestinations(t,{knowledge,urls,executionContext});
  let route,reason,url=null;
- if((!pendingMarketProof(t).length||currentRetainedPriceReview(t,retained)?.market===t.market)&&!marketProofContradicted(t)&&!catalogObjective(t)&&currentRetainedPriceReview(t,retained)?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
+ const sufficientReview=t.market?targetMarketPriceReview(t,retained):currentRetainedPriceReview(t,retained);
+ if((!pendingMarketProof(t).length||currentRetainedPriceReview(t,retained)?.market===t.market)&&!marketProofContradicted(t)&&!catalogObjective(t)&&sufficientReview?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
  else if(marketProofContradicted(t)){route='STOP';reason='MARKET_CONTRADICTED';}
  else if(k.memoryRejected){route='STOP';reason='RESEARCH_MEMORY_RECONCILIATION_REQUIRED';}
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished===true){route='STOP';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}

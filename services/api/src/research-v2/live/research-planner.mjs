@@ -1,5 +1,5 @@
 import {pendingMarketProof} from './market-proof-continuation.mjs';
-import {currentRetainedPriceReview} from './retained-pricing.mjs';
+import {currentRetainedPriceReview,targetMarketPriceReview} from './retained-pricing.mjs';
 import {priceNeedQuery} from '../intelligence/price-evidence-needs.mjs';
 import {missingCatalogFields} from '../intelligence/management-targeting.mjs';
 import {researchKnowledge} from './research-memory.mjs';
@@ -34,7 +34,7 @@ function planResearchUnrestricted(t,{retained=null,diagnosis=null,history=[],unr
  const urls=(unreadUrls??t.urls??[]).map(u=>normalizeFrontierUrl(u).url).filter(u=>u&&authority.some(a=>a.hostname===new URL(u).hostname));
  const completed=new Set(history.filter(h=>h.completed).map(h=>h.route+'|'+h.url));const fresh=urls.filter(u=>!completed.has('DIRECT|'+u));
  let route,reason;
- if(currentRetainedPriceReview(t,retained)?.sourceBound===true&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
+ if((t.market?targetMarketPriceReview(t,retained):currentRetainedPriceReview(t,retained))?.sourceBound===true&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
  else if(configurationDemonstrated){route='PARK_CONFIGURATOR';reason='CONFIGURATOR_REQUIRED';}
  else if(renderingDemonstrated){route='PARK_RENDERING';reason='RENDERING_REQUIRED';}
  else if(!authority.length){route=discoveryQuery?'AUTHORITY_DISCOVERY':'STOP';reason=discoveryQuery?'AUTHORITY_UNRESOLVED':'DISCOVERY_EXHAUSTED';}

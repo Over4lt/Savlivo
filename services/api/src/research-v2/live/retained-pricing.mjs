@@ -17,8 +17,8 @@ export function currentRetainedPriceReview(target,review=target.retainedPriceRev
  }catch{return null;}
 }
 
-// Final market row only; this does not alter qualified research sufficiency.
-export function targetMarketPriceReview(target){
- const review=currentRetainedPriceReview(target);
+// Shared target-market sufficiency for research stopping and final market rows.
+export function targetMarketPriceReview(target,retained=target.retainedPriceReview){
+ const review=currentRetainedPriceReview(target,retained);
  return review&&establishesTargetMarketPrice(review,target)?review:null;
 }
