@@ -98,7 +98,7 @@ export async function runOpenWebResearch({directory,targets,search,read,classify
  const t=session.target(a.target),cached=a.type==='READ'?session.state.cache[cacheKey(t,a.url)]:null;
  if(a.type==='REUSE'){const reused=consumeRetainedSuccess(t,a.retainedKey);t.retainedReviews??=[];t.retainedReviews.push(reused);if(reused.retainedPriceReview)t.retainedPriceReview=reused.retainedPriceReview;t.providerInterpretations??=[];t.providerInterpretations.push({url:reused.url,blockers:reused.blockers,classification:'RETAINED_INTERPRETATION_REUSED'});session.state.pending=null;session.event('RETAINED_RESULT',{target:t.id,reused});session.save();if(++executed>=maxActions)return session.state;continue;}
 
- // Independent paid acquisition: no Direct request or fabricated failure. The normal
+ // Explicit paid acquisition (independent or semantic geo): no fabricated failure. The normal
  // classifier admits the destination before any acquisition reservation/transport.
  if(a.type==='ACQUIRE'){
   const gate=executableAction(t,{route:a.route,url:a.url},{bounds:session.bounds,usage:session.state.usage});
@@ -115,7 +115,7 @@ export async function runOpenWebResearch({directory,targets,search,read,classify
   mergePriceEvidenceNeeds(t,outcome.priceEvidenceNeeds);acceptMarketResearch(t,outcome,l=>session.add(t,l));
   if(outcome.gaps)t.gaps=outcome.gaps;
   if(outcome.hardStop&&!t.blockedOrigins.includes(new URL(a.url).origin))t.blockedOrigins.push(new URL(a.url).origin);
-  t.acquisitionOutcomes??=[];t.acquisitionOutcomes.push({url:a.url,classification:outcome.classification,channel:'INDEPENDENT_DECODO',routingReason:a.reason,blockers:outcome.blockers??[],runDirectory:outcome.runDirectory??null});
+  t.acquisitionOutcomes??=[];t.acquisitionOutcomes.push({url:a.url,classification:outcome.classification,channel:a.reason==='TARGET_MARKET_OBSERVATION_REQUIRED'?'DIRECT_THEN_GEO':'INDEPENDENT_DECODO',routingReason:a.reason,blockers:outcome.blockers??[],runDirectory:outcome.runDirectory??null});
   t.providerInterpretations??=[];t.providerInterpretations.push({url:a.url,classification:outcome.classification,blockers:outcome.blockers??[],runDirectory:outcome.runDirectory??null});
   const retained=retainedPriceReview(outcome.runDirectory,t);if(retained)t.retainedPriceReview=retained;
   session.state.pending=null;session.save();if(++executed>=maxActions)return session.state;continue;

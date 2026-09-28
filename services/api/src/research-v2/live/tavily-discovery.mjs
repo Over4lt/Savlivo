@@ -1,4 +1,4 @@
-import {providerAccessGap,acquisitionEscalation} from './provider-access-gap.mjs';
+import {providerAccessGap,acquisitionEscalation,targetMarketAcquisition} from './provider-access-gap.mjs';
 import {interpretDirectProvider,directGeoGap} from './direct-provider-evidence.mjs';
 // Runtime binding for the existing bounded controller, public reader and geo acquirer.
 import {createTavilySearch} from './tavily-search.mjs';
@@ -33,6 +33,8 @@ export async function createTavilyDiscovery({inventory,readKeychain,bounds,cover
    },
    async acquire({target,candidate,direct,route,reason}){
     if(target.capabilities?.decodo===false)throw Error('CAPABILITY_DISABLED_DECODO');
+    const semantic=route==='DECODO'&&reason==='TARGET_MARKET_OBSERVATION_REQUIRED'?targetMarketAcquisition(target,candidate.url):null;
+    if(semantic){if(target.capabilities?.decodo!==true)throw Error('CAPABILITY_DISABLED_DECODO');direct={needsGeo:true,acquisitionEscalation:semantic};}
     const independent=route==='DECODO'&&reason==='DIRECT_PROHIBITED_DECODO_PERMITTED';
     // Reservation already exists at dispatch; validate permission again without treating this reservation as a duplicate.
     if(independent&&!(target.capabilities?.direct===false&&target.capabilities?.decodo===true))throw Error('INDEPENDENT_DECODO_PERMISSION_REQUIRED');

@@ -1,3 +1,4 @@
+import {targetMarketAcquisition} from './provider-access-gap.mjs';
 import {pendingMarketProof,marketProofContradicted} from './market-proof-continuation.mjs';
 import {currentRetainedPriceReview,targetMarketPriceReview} from './retained-pricing.mjs';
 import {priceNeedsStop,priceNeedRelevance,researchablePriceNeeds} from '../intelligence/price-evidence-needs.mjs';
@@ -49,6 +50,7 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(reuse&&!pendingMarketProof(t).length){route='REUSE_RETAINED';reason='HASH_BOUND_PROVIDER_SUCCESS_REUSE';url=reuse.url;}
  else if(priceNeedsStop(t)&&!pendingMarketProof(t).length){route='STOP';reason=k.blockedOrigins?.length&&evaluated.filter(x=>x.url).length&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))?'PROVIDER_ACCESS_POLICY_STOP':priceNeedsStop(t);}
  else if(candidates.length){route=t.capabilities?.direct===false&&t.capabilities?.decodo===true?'DECODO':'DIRECT';url=candidates[0].url;reason=route==='DECODO'?'DIRECT_PROHIBITED_DECODO_PERMITTED':candidates[0].reason;}
+ else if(valid.some(x=>targetMarketAcquisition(t,x.url)&&executableAction(t,{route:'DECODO',url:x.url},executionContext).executable)){route='DECODO';url=valid.find(x=>targetMarketAcquisition(t,x.url)&&executableAction(t,{route:'DECODO',url:x.url},executionContext).executable).url;reason='TARGET_MARKET_OBSERVATION_REQUIRED';}
  else {
  const failed=attempts.filter(a=>completed(a)&&a.permittedEscalation===true&&valid.some(x=>x.url===norm(a.url))&&!attempts.some(b=>b.route==='DECODO'&&b.completed&&norm(b.url)===norm(a.url))&&!attempts.some(b=>completed(b)&&b.outcome==='OK'&&norm(b.url)===norm(a.url))).at(-1);
  if(failed){route='CONDITIONAL_DECODO';url=norm(failed.url);reason='EXACT_PERMITTED_FAILED_DESTINATION';}
