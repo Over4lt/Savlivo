@@ -49,7 +49,9 @@ test('new admitted generation isolates interrupted history; legacy continuation 
  fs.mkdirSync(dir+'/catalog');fs.writeFileSync(dir+'/catalog/adaptive-state.json',JSON.stringify({turn:99,cursor:7,pending:{unsafe:true},targets:{poison:{service:cohort[0],unproven:true}}}));
  const {spawn}=await import('node:child_process'),script=path.join(os.tmpdir(),'parent-unrelated-'+process.pid+'.mjs');fs.writeFileSync(script,"console.log('ready');setInterval(()=>{},1000);");t.after(()=>fs.rmSync(script,{force:true}));
  const unrelated=spawn(process.execPath,[script],{stdio:['ignore','pipe','pipe']});t.after(()=>unrelated.kill());await new Promise((resolve,reject)=>{unrelated.once('error',reject);unrelated.stdout.once('data',resolve);});process.kill(unrelated.pid,0);
- fs.writeFileSync(dir+'/handoff.lock',String(unrelated.pid));
+ const pollerFile=path.join(f.dest,'services/api/src/v2-operations/worker.mjs');fs.mkdirSync(path.dirname(pollerFile),{recursive:true});fs.writeFileSync(pollerFile,"console.log('ready');setInterval(()=>{},1000);");
+ const poller=spawn(process.execPath,[pollerFile,'--poll'],{stdio:['ignore','pipe','pipe']});t.after(()=>poller.kill());await new Promise((resolve,reject)=>{poller.once('error',reject);poller.stdout.once('data',resolve);});
+ fs.writeFileSync(dir+'/handoff.lock',String(poller.pid));
  const cohortLock=path.join(path.dirname(dir),'cohort-'+hash(cohort).slice(0,16)+'.lock');fs.writeFileSync(cohortLock,String(unrelated.pid));
  const oldFiles=['lineage.json','network.jsonl','catalog/adaptive-state.json','handoff.lock'];const original=oldFiles.map(p=>fs.readFileSync(dir+'/'+p));
  const old=process.cwd();try{process.chdir(f.dest);
@@ -60,6 +62,10 @@ test('new admitted generation isolates interrupted history; legacy continuation 
  let validated=0;const control={executionGeneration:manifest.lifecycle.admission.executionGeneration,beforeExecution:()=>{validated++;}};
  assert.equal(control.executionGeneration,first.id);
  const check=await lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--check'],control);assert.equal(check.requestsConsumed,0);
+ await assert.rejects(lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--live'],{...control,beforeExecution:()=>{throw Error('SIMULATED_PRE_EXECUTION_INTERRUPTION');}}),/SIMULATED_PRE_EXECUTION_INTERRUPTION/);
+ f.ops.patchJob(first.id,{status:'INTERRUPTED',pid:unrelated.pid,error:'MATURE_EXECUTION_INTERRUPTED_CHECKPOINT_PRESERVED'});
+ assert.equal(f.ops.control(first.id,'resume','actor').status,'QUEUED');assert.throws(()=>f.ops.control(first.id,'resume','actor'),/RUN_NOT_RESUMABLE/);
+ assert.deepEqual(JSON.parse(fs.readFileSync(f.ops.config.root+'/runs/'+first.id+'/manifest.json')),manifest);
  const result=await lifecycleMain(['--lifecycle','--input',manifest.lifecycle.input,'--live'],control);assert.equal(result.additionalRequests,0);assert.equal(result.executionComplete,true);
  assert.equal(validated,1);assert.equal(fs.existsSync(cohortLock),false);assert.equal(fs.existsSync(check.output+'/handoff.lock'),false);
  const lineage=JSON.parse(fs.readFileSync(check.output+'/lineage.json'));assert.equal(lineage.supersededExecutions.length,1);assert.equal(lineage.supersededRequests,1);assert.equal(lineage.supersededExecutions[0].execution,path.basename(dir));

@@ -1,4 +1,4 @@
-import {handoffOwnerActive} from '../../v2-operations/worker-identity.mjs';
+import {historicalLifecycleOwnerActive} from '../../v2-operations/worker-identity.mjs';
 import {revalidateTargetAdmission,evaluateServiceAdmission} from '../intelligence/service-admission.mjs';
 import {reconcileAccessBlocks} from './access-block-compatibility.mjs';
 import {eligibleVerifiedPrices} from '../intelligence/recurring-price-eligibility.mjs';
@@ -38,7 +38,7 @@ export function snapshotLifecycle({handoff,researchMarkets,runsRoot,baselineIds=
    // A new admitted generation records history without claiming this execution
    // as an evidence parent. Its checkpoint and target mutations are never read.
    if(lineage.executionGeneration===executionGeneration)throw Error('LIFECYCLE_GENERATION_ALREADY_EXECUTED');
-   for(const f of filesUnder(d).filter(f=>f.endsWith('.lock'))){const pid=Number(fs.readFileSync(f,'utf8'));if(!Number.isInteger(pid)||pid<2)throw Error('LIFECYCLE_PARENT_LOCK');if(handoffOwnerActive(process.cwd(),pid))throw Error('LIFECYCLE_PARENT_ACTIVE');}
+   for(const f of filesUnder(d).filter(f=>f.endsWith('.lock'))){const pid=Number(fs.readFileSync(f,'utf8'));if(!Number.isInteger(pid)||pid<2)throw Error('LIFECYCLE_PARENT_LOCK');if(historicalLifecycleOwnerActive(process.cwd(),pid,lineage))throw Error('LIFECYCLE_PARENT_ACTIVE');}
    if(!fs.existsSync(ledger)&&summary?.additionalRequests!==0||summary?.additionalRequests!==undefined&&(!Number.isSafeInteger(summary.additionalRequests)||summary.additionalRequests<0||summary.additionalRequests>events.length))throw Error('LIFECYCLE_HISTORICAL_ACCOUNTING');
    const bytes=fs.existsSync(ledger)?fs.readFileSync(ledger):Buffer.from('');
    if(bytes.length&&!bytes.toString().endsWith('\n')||events.some(e=>!ids.includes(e.service)))throw Error('LIFECYCLE_HISTORICAL_ACCOUNTING');

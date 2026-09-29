@@ -23,3 +23,5 @@ for(const entry of ['docs/catalog/global-47/research-v2/run-v15-mature-v2.mjs','
  const exited=new Promise(resolve=>child.once('exit',resolve));child.kill();await exited;
  assert.equal(handoffOwnerActive(ops.config.repo,child.pid),false);
 });
+
+test('historical ownership keeps unknown inspection fail closed',async t=>{const {historicalLifecycleOwnerActive}=await import('./worker-identity.mjs'),{ops,job}=fixture(t);inspect(t,ops.config.repo,job,'unknown');assert.equal(historicalLifecycleOwnerActive(ops.config.repo,job.pid,{executionGeneration:job.id}),true);});
