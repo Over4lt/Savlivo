@@ -54,3 +54,12 @@ test('status projects bounded recorded failure and phase without reconstruction 
  const value=await operationsRequest({method:'GET',url:new URL('https://offline.invalid/v1/admin/v2-operations/jobs/'+id),actor:'one'},ops);
  assert.equal(value.terminal,true);assert.equal(value.diagnostic.kind,'CAUSE');assert.equal(value.diagnostic.reason,'MATURE_EXECUTION_INTERRUPTED_CHECKPOINT_PRESERVED');assert.equal(value.diagnostic.lastPhase,'AUTHORITATIVE_VALIDATION_COMPLETED');assert.equal(value.finishedAt,'2026-09-25T12:01:00Z');assert.deepEqual(fs.readFileSync(path.join(root,'state.json')),before);
 });
+
+test('persistent resumable job listing is actor scoped, paginated and artifact independent',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'job-list-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const ops=new Operations({root,repo:root,read:true,control:true});
+ const statuses=['INTERRUPTED','STOPPED','FAILED','COMPLETE','RUNNING','QUEUED','SKIPPED_CONFLICT'];ops.transaction(db=>{statuses.forEach((status,i)=>db.jobs.push({id:String(i),status,actor:'one'}));db.jobs.push({id:'private',status:'INTERRUPTED',actor:'two'});});
+ const before=fs.readFileSync(root+'/state.json');ops.index=()=>{throw Error('NO_ARTIFACT_RECONSTRUCTION');};
+ const get=(actor='one',query='resumable=true&limit=2')=>operationsRequest({method:'GET',url:new URL('https://offline.invalid/v1/admin/v2-operations/jobs?'+query),actor},ops);
+ for(let i=0;i<3;i++){const first=await get();assert.equal(first.total,3);assert.equal(first.rows.length,2);assert(first.rows.every(r=>r.resumeAllowed));assert.equal((await get('one','resumable=true&limit=2&offset=2')).rows.length,1);}
+ assert.equal((await get('two')).rows[0].id,'private');await assert.rejects(get(null),/UNAUTHORIZED/);assert.deepEqual(fs.readFileSync(root+'/state.json'),before);
+});
