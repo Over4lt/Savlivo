@@ -8,6 +8,16 @@ const escape=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const words=terms.map(t=>new RegExp(/[\u3040-\u30ff\u3400-\u9fff\u0e00-\u0e7f]/u.test(t)?escape(t):'(?:^|[^\\p{L}\\p{N}])'+escape(t)+'(?:$|[^\\p{L}\\p{N}])','u'));
 const has=s=>{const n=normalizePriceIntent(s);return words.some((re,i)=>terms[i]==='goi'?/^(?:goi|cac goi|goi dang ky)$/.test(n):re.test(n));};
 const negative=/(?:^|[^\p{L}\p{N}])(?:account|settings|register|registration|signup|verification|artikler|nyheter|newsletter|privacy|cookies?|legal|terms|blog|news|press|investors?|careers?|jobs|compensation|business|enterprise|teams|advertising|advertiser|partner|merchant|developer|api|affiliate|commission|shipping|roaming|hardware|gift(?:s|card)?|merchandise|cancel(?:lation)?|refund|price change|historical|announcement|promotion article|oauth|authorize|logout|signin|login|reset|delete)(?:$|[^\p{L}\p{N}])/u;
+// A public information link is not a purchase/price entry. Only callers with
+// an existing researchable need may admit it as navigation, never as evidence.
+export function priceInformationLink(lead,{base,authorities=[]}={}){
+ const n=normalizeFrontierUrl(lead.url,base);if(!n.url||lead.hidden||lead.inForm)return false;
+ const u=new URL(n.url);let p;try{p=decodeURIComponent(u.pathname);}catch{return false;}
+ const text=normalizePriceIntent([p,lead.label,lead.accessibleName,lead.context,u.search].filter(Boolean).join(' '));
+ if(!/\b(?:terms|legal|billing|currency|country|region|availability)\b/u.test(text))return false;
+ if(negative.test(text.replace(/\b(?:terms|legal|billing)\b/gu,' '))||/\.(?:pdf|js|css|png|svg|zip|mp4)$/i.test(p))return false;
+ return !unreviewedRedirectParameter(u.href,authorities.map(a=>'https://'+a.hostname));
+}
 export function priceIntent(lead,{base,authorities=[]}={}){
  const n=normalizeFrontierUrl(lead.url,base),no=reason=>({candidate:false,reason});if(!n.url)return no(n.reason);
  let decoded;try{decoded=decodeURIComponent(new URL(n.url).pathname);}catch{return no('INVALID_ENCODING');}

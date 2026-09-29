@@ -1,6 +1,6 @@
 import {pendingMarketProof} from './market-proof-continuation.mjs';
 import {currentRetainedPriceReview,targetMarketPriceReview} from './retained-pricing.mjs';
-import {priceNeedQuery} from '../intelligence/price-evidence-needs.mjs';
+import {priceNeedQuery,priceNeedIntents} from '../intelligence/price-evidence-needs.mjs';
 import {missingCatalogFields} from '../intelligence/management-targeting.mjs';
 import {researchKnowledge} from './research-memory.mjs';
 import {chooseInformationAction} from './information-routing.mjs';
@@ -14,10 +14,16 @@ export function contextualQuery(t,attempt=0){if(t.researchObjective==='CATALOG_O
 // Scoped research memory supplies the history; no count creates exhaustion and
 // no wording variants are generated to manufacture a fresh action.
 export const discoveryQueryIdentity=query=>String(query??'').normalize('NFKC').toLowerCase().replace(/[“”]/gu,'"').replace(/[‘’]/gu,"'").replace(/\s+/gu,' ').trim();
+// Finite semantic families, scoped to the target. Query text is deterministic;
+// historical records without action metadata remain consumed by normalized text.
+export function discoveryActions(t){
+ const actions=[0,1].map(family=>({family,need:'CONTEXT',query:contextualQuery(t,family)}));
+ if(t.smartResearch?.version===2&&t.researchObjective!=='CATALOG_ONLY')for(const need of priceNeedIntents(t))for(const family of [0,1])actions.push({need,family,query:priceNeedQuery(t,family,need)});
+ return [...new Map(actions.filter(a=>a.query).map(a=>[discoveryQueryIdentity(a.query),{...a,key:discoveryQueryIdentity(a.query)}])).values()];
+}
 export function nextDiscoveryQuery(t,attempts=[]){
  const attempted=new Set(attempts.filter(a=>['DISCOVERY','AUTHORITY_DISCOVERY'].includes(a.route)&&(a.completed||a.rejected===true)&&typeof a.query==='string').map(a=>discoveryQueryIdentity(a.query)));
- const candidates=new Map([0,1].map(family=>{const query=contextualQuery(t,family);return [discoveryQueryIdentity(query),query];}));
- return [...candidates].find(([identity])=>identity&&!attempted.has(identity))?.[1]??null;
+ return discoveryActions(t).find(a=>!attempted.has(a.key))?.query??null;
 }
 export function diagnoseResearch({authority=false,target=false,priceCount=0,blockers=[],failure=null,configurator=false,rendering=false,discoveryExhausted=false,navigationExhausted=false}={}){
  if(!authority)return 'AUTHORITY_UNRESOLVED';if(!target)return 'NO_PROVIDER_TARGET';

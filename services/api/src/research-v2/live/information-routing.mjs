@@ -55,7 +55,7 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  const failed=attempts.filter(a=>completed(a)&&a.permittedEscalation===true&&valid.some(x=>x.url===norm(a.url))&&!attempts.some(b=>b.route==='DECODO'&&b.completed&&norm(b.url)===norm(a.url))&&!attempts.some(b=>completed(b)&&b.outcome==='OK'&&norm(b.url)===norm(a.url))).at(-1);
  if(failed){route='CONDITIONAL_DECODO';url=norm(failed.url);reason='EXACT_PERMITTED_FAILED_DESTINATION';}
  else if(!researchablePriceNeeds(t).length&&valid.length&&valid.every(x=>seen.has(x.url))&&(k.unresolvedFields??[]).length>0&&k.unresolvedFields.every(x=>/STRUCTUR|OWNERSHIP|CONFLICT|PRODUCT_UNRESOLVED|PLAN_UNRESOLVED/.test(x))){route='STRUCTURED_REINTERPRETATION';reason='RETAINED_STRUCTURE_REQUIRES_REVIEW';}
- else if(!discoveryQuery){route='STOP';reason='DISCOVERY_EXHAUSTED';}
+ else if(!discoveryQuery){route='STOP';reason=!catalogObjective(t)&&(t.pricingFrontierLimited||(t.reads??[]).some(r=>r.navigation?.omittedDestinations>0))?'PRICING_NAVIGATION_BOUND_REACHED':'DISCOVERY_EXHAUSTED';}
  else if(k.blockedOrigins?.length&&evaluated.some(x=>x.url)&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))){route='STOP';reason='PROVIDER_ACCESS_POLICY_STOP';}
  else if(t.capabilities?.tavily===false){route='STOP';reason='CAPABILITY_DISABLED_TAVILY';}
  else if(!discoveryAllowed){route='STOP';reason='KNOWN_DESTINATION_NEEDS_EVIDENCE_NOT_SEARCH';}
