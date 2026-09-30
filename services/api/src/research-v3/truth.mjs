@@ -1,4 +1,5 @@
 import { canonical, digest, providerBound, servicePropositions, pricePropositions } from './model.mjs';
+import {projectSemantic} from './semantic.mjs';
 import { projectWebSource } from './source.mjs';
 const currencies = new Set(Intl.supportedValuesOf('currency'));
 const blank = () => ({ state: 'UNRESOLVED', value: null, evidence: [], contradictions: [] });
@@ -18,6 +19,7 @@ function claim(slot, value, reference, sufficient = true) {
     slot.contradictions = slot.state === 'CONTRADICTED' ? slot.evidence : [];
 }
 export function readSource(observation, objective) {
+    if (observation.semantic) return projectSemantic(observation, objective).source;
     if (observation.format === 'WEB') return projectWebSource(observation, objective).source;
     try { return JSON.parse(observation.body); }
     catch { return null; }
@@ -35,7 +37,8 @@ export function evaluate(k) {
     for (const o of k.observations) {
         if (o.kind !== 'PROVIDER' || o.outcome !== 'OK' || o.truncated || digest(o.body) !== o.sha256 || !providerBound(k.objective, o.url))
             continue;
-        const web = o.format === 'WEB' ? projectWebSource(o, k.objective) : null;
+        const web = o.semantic ? projectSemantic(o,k.objective) : o.format === 'WEB' ? projectWebSource(o, k.objective) : null;
+        if(web?.error) continue;
         const source = web?.source ?? readSource(o);
         if (source?.serviceId !== k.objective.serviceId)
             continue;

@@ -1,5 +1,6 @@
 import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound } from './model.mjs';
 import { evaluate, interpretStructured, readSource } from './truth.mjs';
+import {projectSemantic} from './semantic.mjs';
 import { projectWebSource } from './source.mjs';
 const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.context?.transport;
 function searches(k, truth) {
@@ -99,7 +100,7 @@ function stop(k, reason, details = {}) {
     k.trace.push({ event: 'STOP', ...k.stop });
     return k;
 }
-function accept(k, a, response, interpret, navigate) {
+async function accept(k, a, response, interpret, navigate) {
     if (!response || typeof response !== 'object')
         throw Error('CAPABILITY_RESPONSE_REQUIRED');
     if (response.accounting) {
@@ -146,19 +147,26 @@ function accept(k, a, response, interpret, navigate) {
     if(!response.accounting) k.usage.bytes += bytes;
     const o = { id: a.id, kind: 'PROVIDER', url, context: structuredClone(a.context), outcome: response.outcome ?? 'ERROR', truncated: response.truncated === true, body, bytes, sha256: digest(body), action: a.id, candidates: [],
         ...(response.format==='WEB'?{format:'WEB',contentType:response.contentType,requestedUrl:a.url,httpStatus:response.httpStatus,acquiredAt:response.acquiredAt,transport:response.transport,access:response.access}: {}) };
-    if (o.outcome === 'OK' && !o.truncated) {
-        const candidates = interpret(structuredClone(o),structuredClone(k.objective));
-        if (!Array.isArray(candidates))
-            throw Error('INVALID_INTERPRETER_RESULT');
-        // Candidate count cannot exceed the bounded source structure. Evaluation also
-        // checks the actual source pointer and ignores planner/interpreter fact values.
-        const source = readSource(o,k.objective), maximum = 1 + (Array.isArray(source?.offers) ? source.offers.length : 0);
-        o.candidates = candidates.slice(0, maximum).map(c => ({ kind: c.kind, pointer: c.pointer }));
-    }
     k.observations.push(o);
+    if (o.outcome === 'OK' && !o.truncated) {
+        const candidates = await interpret(structuredClone(o),structuredClone(k.objective));
+        if(candidates?.kind==='SEMANTIC') {
+            o.semantic=candidates.envelope;
+            const projection=projectSemantic(o,k.objective);
+            if(projection.error)throw Error(projection.error);
+            o.candidates=projection.candidates;
+            o.interpretation={kind:'SEMANTIC',metadata:o.semantic.metadata,accepted:projection.accepted,rejected:projection.rejected,limited:projection.limited};
+            if(projection.limited)markLimit(k,'interpretationCapacity');
+            k.trace.push({event:'SEMANTIC_INTERPRETATION',observation:o.id,sha256:o.sha256,interpretation:o.interpretation,candidates:o.candidates,sourceSupport:projection.bindings});
+        } else {
+            if (!Array.isArray(candidates))throw Error('INVALID_INTERPRETER_RESULT');
+            const source=readSource(o,k.objective), maximum=1+(Array.isArray(source?.offers)?source.offers.length:0);
+            o.candidates=candidates.slice(0,maximum).map(c=>({kind:c.kind,pointer:c.pointer}));
+        }
+    }
     const web=o.format==='WEB'?projectWebSource(o,k.objective):null;
-    if(web?.limited) markLimit(k,'interpretationCapacity');
-    if(web) o.interpretation={ambiguities:web.ambiguities,limited:web.limited};
+    if(web?.limited&&!o.semantic) markLimit(k,'interpretationCapacity');
+    if(web&&!o.semantic) o.interpretation={ambiguities:web.ambiguities,limited:web.limited};
     const links = (web?.source??readSource(o))?.links;
     if(web) o.navigation=links.map(({url,label,needs,source},index)=>({index,url,label,needs,source}));
     if(web&&navigate&&o.outcome==='OK'&&!o.truncated) {
@@ -250,7 +258,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         await persist(k, save);
         try {
             const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxResults: k.bounds.candidateDestinations, maxRequests:(k.bounds.networkRequests??96)-(k.usage.networkRequests??0) });
-            const observation = accept(k, a, response, interpret, navigate), after = evaluate(k);
+            const observation = await accept(k, a, response, interpret, navigate), after = evaluate(k);
             k.attempts.at(-1).status = 'COMPLETED';
             k.pending = null;
             k.trace.push({ event: 'OBSERVATION', observation, changes: changes(initial, after), remainingNeeds: after.needs.map(n => n.id) });

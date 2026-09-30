@@ -155,3 +155,36 @@ export function interpretWeb(observation, objective) {
     const p=projectWebSource(observation,objective);
     return [{kind:'SERVICE',pointer:''},...p.source.offers.map((_,i)=>({kind:'OFFER',pointer:'/offers/'+i}))];
 }
+
+/** Original-language material, with UTF-16 offsets into the immutable body.
+ * Structural extraction only: no linguistic normalization or market inference. */
+export function semanticMaterial(observation) {
+    const body=observation.body, segments=[];
+    if(!['text/plain','text/html','application/xhtml+xml'].includes(observation.contentType)) return {segments,presentations:[],limited:false};
+    const parsed=document(body,observation.contentType);
+    let limited=parsed.limited;
+    const add=(start,end)=>{if(body.slice(start,end).trim()) segments.push({start,end,text:body.slice(start,end)});};
+    if(observation.contentType==='text/plain') add(0,body.length);
+    else {
+        const re=/<!--[^]*?-->|<\/?([a-z][\w:-]*)\b[^>]*>/gi, stack=[];
+        let cursor=0,tokens=0;
+        for(let m;(m=re.exec(body));) {
+            if(++tokens>20000||segments.length>=2048||stack.length>=128){limited=true;break;}
+            if(!stack.some(n=>n.hidden))add(cursor,m.index);
+            const tag=m[1]?.toLowerCase();
+            if(tag&&m[0][1]==='/') {const i=stack.findLastIndex(n=>n.tag===tag);if(i>=0)stack.length=i;}
+            else if(tag&&!voids.has(tag)&&!m[0].endsWith('/>')) {
+                const hidden=['script','style','template'].includes(tag)||/\shidden(?:\s|=|>)/i.test(m[0])||/aria-hidden\s*=\s*["']?true/i.test(m[0])||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(attrs(m[0]).style??'');
+                stack.push({tag,hidden});
+                if(['script','style','template'].includes(tag)) {
+                    const end=new RegExp('</'+tag+'\\s*>','gi');end.lastIndex=re.lastIndex;
+                    const close=end.exec(body);re.lastIndex=close?end.lastIndex:body.length;stack.pop();
+                }
+            }
+            cursor=re.lastIndex;
+        }
+        if(!limited&&!stack.some(n=>n.hidden))add(cursor,body.length);
+    }
+    const presentations=parsed.nodes.filter(n=>n.tag!=='a').slice(0,256).map((n,i)=>({id:'presentation-'+i,start:n.start,end:n.end}));
+    return {segments:segments.slice(0,2048),presentations,limited:limited||parsed.nodes.length>256||segments.length>2048};
+}

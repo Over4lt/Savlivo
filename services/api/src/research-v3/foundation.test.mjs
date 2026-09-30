@@ -234,9 +234,9 @@ test('navigation/destination/bytes bounds stay explicit; context receipt must ma
 });
 
 test('V3 production modules import no V2, network, filesystem or Operations modules', () => {
-  for (const file of ['model.mjs', 'truth.mjs', 'engine.mjs']) {
+  for (const file of ['model.mjs', 'truth.mjs', 'engine.mjs', 'source.mjs', 'semantic.mjs']) {
     const contents = readFileSync(new URL(file, import.meta.url), 'utf8');
-    for (const match of contents.matchAll(/from ['"]([^'"]+)['"]/g)) assert.ok(['node:crypto', './model.mjs', './truth.mjs', './source.mjs'].includes(match[1]), match[1]);
+    for (const match of contents.matchAll(/from ['"]([^'"]+)['"]/g)) assert.ok(['node:crypto', './model.mjs', './truth.mjs', './source.mjs', './semantic.mjs'].includes(match[1]), match[1]);
     assert.doesNotMatch(contents, /\b(?:fetch|eval)\s*\(|import\s*\(/);
   }
   assert.ok(readdirSync(new URL('.', import.meta.url)).includes('engine.mjs'));

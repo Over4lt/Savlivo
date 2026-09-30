@@ -195,3 +195,11 @@ concrete language/rendering gaps; provide durable atomic checkpoint hosting and
 reconciliation if interruption recovery is required; define reviewed benchmark
 inputs/limits and independently assess facts, acquisitions, stops, duplicates and
 accounting. No provider-specific patches or production-yield claims are implied.
+
+## Multilingual interpretation extension
+
+The optional async `runTarget({interpret})` boundary now accepts original-language,
+source-bound semantic candidates without the English parser. See
+[the semantic contract and rule register](research-v3-semantic-interpretation.md).
+The standalone CLI retains its deterministic interpreter until a live semantic
+completion host is explicitly configured; no model calls are enabled implicitly.

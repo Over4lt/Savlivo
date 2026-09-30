@@ -8,12 +8,12 @@ import {createCapabilities} from './capabilities.mjs';
 import {createReasoner} from './reasoner.mjs';
 import {restore} from './model.mjs';
 
-export async function runTarget({input,capabilities,reasoner,navigate,save,snapshot}={}) {
+export async function runTarget({input,capabilities,reasoner,navigate,interpret=interpretWeb,save,snapshot}={}) {
     const {objective,provider,permissions={},bounds={}}=input??{};
     if(!objective||objective.markets?.length!==1||!provider?.reviewed||provider.serviceId!==objective.serviceId||JSON.stringify([...provider.hosts].sort())!==JSON.stringify([...objective.providerHosts].sort()))throw Error('REVIEWED_SINGLE_TARGET_REQUIRED');
     const knowledge=snapshot?restore(snapshot):undefined;
     if(knowledge&&JSON.stringify(knowledge.objective)!==JSON.stringify({...objective,seeds:objective.seeds??[]}))throw Error('RESUME_OBJECTIVE_MISMATCH');
-    const k=await runResearch({knowledge,objective,permissions,bounds,capabilities,reasoner:reasoner??createReasoner(input.planning),interpret:interpretWeb,navigate,save});
+    const k=await runResearch({knowledge,objective,permissions,bounds,capabilities,reasoner:reasoner??createReasoner(input.planning),interpret,navigate,save});
     return {knowledge:k,result:{objective:k.objective,truth:evaluate(k),stop:k.stop,usage:k.usage,trace:k.trace,decisions:k.decisions}};
 }
 
