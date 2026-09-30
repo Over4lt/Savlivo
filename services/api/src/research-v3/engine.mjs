@@ -97,10 +97,10 @@ async function persist(k, save) {
 }
 function stop(k, reason, details = {}) {
     k.stop = { reason, ...details, remainingNeeds: evaluate(k).needs.map(n => n.id) };
-    k.trace.push({ event: 'STOP', ...k.stop });
+    k.trace.push({ event: 'STOP', ...k.stop,usage:structuredClone(k.usage),bounds:k.bounds });
     return k;
 }
-async function accept(k, a, response, interpret, navigate) {
+async function accept(k, a, response, interpret, navigate, save) {
     if (!response || typeof response !== 'object')
         throw Error('CAPABILITY_RESPONSE_REQUIRED');
     if (response.accounting) {
@@ -149,7 +149,16 @@ async function accept(k, a, response, interpret, navigate) {
         ...(response.format==='WEB'?{format:'WEB',contentType:response.contentType,requestedUrl:a.url,httpStatus:response.httpStatus,acquiredAt:response.acquiredAt,transport:response.transport,access:response.access}: {}) };
     k.observations.push(o);
     if (o.outcome === 'OK' && !o.truncated) {
+        if(interpret.semanticAdapter) {
+            if(k.usage.modelCalls>=k.bounds.modelCalls){markLimit(k,'modelCalls');throw Error('SEMANTIC_MODEL_CALL_BOUND');}
+            k.usage.modelCalls++;
+            o.interpretation={kind:'SEMANTIC_PENDING',adapter:interpret.semanticAdapter};
+            k.trace.push({event:'SEMANTIC_CALL_RESERVED',observation:o.id,sha256:o.sha256,adapter:interpret.semanticAdapter,modelCalls:k.usage.modelCalls,bound:k.bounds.modelCalls});
+            // Reserve before dispatch. Unknown/in-flight calls stay spent on resume.
+            await persist(k,save);
+        }
         const candidates = await interpret(structuredClone(o),structuredClone(k.objective));
+        if(interpret.semanticAdapter?.mode==='LIVE'&&candidates?.kind!=='SEMANTIC')throw Error('LIVE_SEMANTIC_RESULT_REQUIRED');
         if(candidates?.kind==='SEMANTIC') {
             o.semantic=candidates.envelope;
             const projection=projectSemantic(o,k.objective);
@@ -157,7 +166,7 @@ async function accept(k, a, response, interpret, navigate) {
             o.candidates=projection.candidates;
             o.interpretation={kind:'SEMANTIC',metadata:o.semantic.metadata,accepted:projection.accepted,rejected:projection.rejected,limited:projection.limited};
             if(projection.limited)markLimit(k,'interpretationCapacity');
-            k.trace.push({event:'SEMANTIC_INTERPRETATION',observation:o.id,sha256:o.sha256,interpretation:o.interpretation,candidates:o.candidates,sourceSupport:projection.bindings});
+            k.trace.push({event:'SEMANTIC_INTERPRETATION',observation:o.id,sha256:o.sha256,interpretation:o.interpretation,candidates:o.candidates,candidateClaims:o.semantic.claims,sourceSupport:projection.bindings});
         } else {
             if (!Array.isArray(candidates))throw Error('INVALID_INTERPRETER_RESULT');
             const source=readSource(o,k.objective), maximum=1+(Array.isArray(source?.offers)?source.offers.length:0);
@@ -194,10 +203,12 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
     const k = knowledge ? structuredClone(knowledge) : createKnowledge({ objective, permissions, bounds });
     if (k.version !== 1)
         throw Error('UNSUPPORTED_KNOWLEDGE_VERSION');
+    k.usage.modelCalls??=0;
+    k.bounds.modelCalls??=12;
     if (k.stop)
         return k;
     if (!k.trace.length)
-        k.trace.push({ event: 'INITIAL', objective: k.objective, truth: evaluate(k) });
+        k.trace.push({ event: 'INITIAL', objective: k.objective, truth: evaluate(k),semanticAdapter:interpret.semanticAdapter??{mode:'LEGACY_STATIC'} });
     if (k.pending) {
         stop(k, 'RECOVERY_REQUIRED', { action: k.pending.id, why: 'Dispatch outcome is unknown; automatic repetition is prohibited' });
         await persist(k, save);
@@ -209,6 +220,9 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             stop(k, 'OBJECTIVE_ESTABLISHED');
             await persist(k, save);
             return k;
+        }
+        if(interpret.semanticAdapter&&k.usage.modelCalls>=k.bounds.modelCalls) {
+            stop(k,'CAPACITY_BOUND_REACHED',{bounds:['modelCalls']});await persist(k,save);return k;
         }
         if (k.usage.plannerCalls >= k.bounds.plannerCalls) {
             stop(k, 'CAPACITY_BOUND_REACHED', { bounds: ['plannerCalls'] });
@@ -258,15 +272,16 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         await persist(k, save);
         try {
             const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxResults: k.bounds.candidateDestinations, maxRequests:(k.bounds.networkRequests??96)-(k.usage.networkRequests??0) });
-            const observation = await accept(k, a, response, interpret, navigate), after = evaluate(k);
+            const observation = await accept(k, a, response, interpret, navigate, save), after = evaluate(k);
             k.attempts.at(-1).status = 'COMPLETED';
             k.pending = null;
-            k.trace.push({ event: 'OBSERVATION', observation, changes: changes(initial, after), remainingNeeds: after.needs.map(n => n.id) });
+            k.trace.push({ event: 'OBSERVATION', observation, changes: changes(initial, after),evaluations:after,usage:structuredClone(k.usage),bounds:k.bounds,remainingNeeds: after.needs.map(n => n.id) });
         }
         catch (error) {
             k.attempts.at(-1).status = 'FAILED';
             k.pending = null;
-            stop(k, k.limitsHit.includes('transportCapacity')?'CAPACITY_BOUND_REACHED':'CAPABILITY_OR_INTERPRETATION_FAILED', { action: a.id, code: error.message });
+            if(interpret.semanticAdapter)k.trace.push({event:'SEMANTIC_OR_ACQUISITION_FAILED',adapter:interpret.semanticAdapter,modelCalls:k.usage.modelCalls});
+            stop(k, (k.limitsHit.includes('transportCapacity')||k.limitsHit.includes('modelCalls'))?'CAPACITY_BOUND_REACHED':'CAPABILITY_OR_INTERPRETATION_FAILED', { action: a.id, code: error.message });
             await persist(k, save);
             return k;
         }
