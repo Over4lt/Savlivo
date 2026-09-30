@@ -1,4 +1,5 @@
 import { canonical, digest, providerBound, servicePropositions, pricePropositions } from './model.mjs';
+import { projectWebSource } from './source.mjs';
 const currencies = new Set(Intl.supportedValuesOf('currency'));
 const blank = () => ({ state: 'UNRESOLVED', value: null, evidence: [], contradictions: [] });
 const slots = names => Object.fromEntries(names.map(n => [n, blank()]));
@@ -16,14 +17,15 @@ function claim(slot, value, reference, sufficient = true) {
     slot.value = values.length === 1 ? slot.evidence[0].value : null;
     slot.contradictions = slot.state === 'CONTRADICTED' ? slot.evidence : [];
 }
-export function readSource(observation) {
+export function readSource(observation, objective) {
+    if (observation.format === 'WEB') return projectWebSource(observation, objective).source;
     try { return JSON.parse(observation.body); }
     catch { return null; }
 }
 // Initial deterministic interpreter contract. Future interpreters must identify
 // source-backed candidates, not submit proposition states or unsupported values.
-export function interpretStructured(observation) {
-    const source = readSource(observation);
+export function interpretStructured(observation, objective) {
+    const source = readSource(observation, objective);
     if (!source || typeof source !== 'object')
         return [];
     return [{ kind: 'SERVICE', pointer: '' }, ...(Array.isArray(source.offers) ? source.offers.map((_, i) => ({ kind: 'OFFER', pointer: '/offers/' + i })) : [])];
@@ -33,10 +35,11 @@ export function evaluate(k) {
     for (const o of k.observations) {
         if (o.kind !== 'PROVIDER' || o.outcome !== 'OK' || o.truncated || digest(o.body) !== o.sha256 || !providerBound(k.objective, o.url))
             continue;
-        const source = readSource(o);
+        const web = o.format === 'WEB' ? projectWebSource(o, k.objective) : null;
+        const source = web?.source ?? readSource(o);
         if (source?.serviceId !== k.objective.serviceId)
             continue;
-        const reference = pointer => ({ observation: o.id, sha256: o.sha256, pointer });
+        const reference = pointer => ({ observation: o.id, sha256: o.sha256, pointer, ...(web ? {source: web.bindings[pointer]} : {}) });
         for (const c of o.candidates ?? []) {
             if (c.kind === 'SERVICE' && c.pointer === '') {
                 claim(service.SERVICE_IDENTITY, true, reference('/serviceId'));

@@ -1,5 +1,6 @@
 import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound } from './model.mjs';
 import { evaluate, interpretStructured, readSource } from './truth.mjs';
+import { projectWebSource } from './source.mjs';
 const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.context?.transport;
 function searches(k, truth) {
     const markets = k.objective.kind === 'PRICE' ? k.objective.markets : [null];
@@ -25,7 +26,7 @@ function proposals(k, truth) {
     return [...actions, ...searches(k, truth)];
 }
 function capacity(k, a) {
-    const u = k.usage, b = k.bounds, checks = [['actions', u.actions, b.actions], ['bytes', u.bytes, b.bytes]];
+    const u = k.usage, b = k.bounds, checks = [['actions', u.actions, b.actions], ['bytes', u.bytes, b.bytes], ['networkRequests', u.networkRequests ?? 0, b.networkRequests ?? 96]];
     if (a.kind === 'DISCOVER')
         checks.push(['searches', u.searches, b.searches]);
     else {
@@ -98,15 +99,29 @@ function stop(k, reason, details = {}) {
     k.trace.push({ event: 'STOP', ...k.stop });
     return k;
 }
-function accept(k, a, response, interpret) {
+function accept(k, a, response, interpret, navigate) {
     if (!response || typeof response !== 'object')
         throw Error('CAPABILITY_RESPONSE_REQUIRED');
+    if (response.accounting) {
+        const {requests,bytes}=response.accounting;
+        if(!Number.isSafeInteger(requests)||requests<0||!Number.isSafeInteger(bytes)||bytes<0) throw Error('INVALID_TRANSPORT_ACCOUNTING');
+        k.usage.networkRequests=(k.usage.networkRequests??0)+requests;
+        // Include robots, redirects, geo probes and failed responses, not only evidence.
+        k.usage.bytes+=bytes;
+        if(k.usage.bytes>k.bounds.bytes||k.usage.networkRequests>(k.bounds.networkRequests??96)) {
+            markLimit(k,'transportCapacity'); throw Error('TRANSPORT_CAPACITY_BOUND');
+        }
+    }
+    if(response.failure) {
+        if(response.failure.kind==='CAPACITY') markLimit(k,'transportCapacity');
+        throw Error(response.failure.code);
+    }
     if (a.kind === 'DISCOVER') {
         // Results are grounding for navigation only. Their snippets never enter truth.
         const bytes = Buffer.byteLength(JSON.stringify(response));
-        if (bytes > k.bounds.bytes - k.usage.bytes)
+        if (!response.accounting && bytes > k.bounds.bytes - k.usage.bytes)
             throw Error('CAPABILITY_BYTE_CONTRACT_VIOLATION');
-        k.usage.bytes += bytes;
+        if(!response.accounting) k.usage.bytes += bytes;
         const results = Array.isArray(response.results) ? response.results : [], limit = k.bounds.candidateDestinations;
         if (results.length > limit)
             markLimit(k, 'candidateDestinations');
@@ -123,23 +138,40 @@ function accept(k, a, response, interpret) {
         k.policyBlocks.push({ scope, value: scope === 'ORIGIN' ? new URL(url).origin : url, observation: a.id });
     }
     const body = typeof response.body === 'string' ? response.body : '', bytes = Buffer.byteLength(body), remaining = k.bounds.bytes - k.usage.bytes;
+    if(response.accounting && bytes>response.accounting.bytes) throw Error('INVALID_TRANSPORT_ACCOUNTING');
     // The capability contract must enforce maxBytes while receiving data. Never
     // interpret or retain an over-bound response, even from a faulty offline adapter.
-    if (bytes > remaining)
+    if (!response.accounting && bytes > remaining)
         throw Error('CAPABILITY_BYTE_CONTRACT_VIOLATION');
-    k.usage.bytes += bytes;
-    const o = { id: a.id, kind: 'PROVIDER', url, context: structuredClone(a.context), outcome: response.outcome ?? 'ERROR', truncated: response.truncated === true, body, bytes, sha256: digest(body), action: a.id, candidates: [] };
+    if(!response.accounting) k.usage.bytes += bytes;
+    const o = { id: a.id, kind: 'PROVIDER', url, context: structuredClone(a.context), outcome: response.outcome ?? 'ERROR', truncated: response.truncated === true, body, bytes, sha256: digest(body), action: a.id, candidates: [],
+        ...(response.format==='WEB'?{format:'WEB',contentType:response.contentType,requestedUrl:a.url,httpStatus:response.httpStatus,acquiredAt:response.acquiredAt,transport:response.transport,access:response.access}: {}) };
     if (o.outcome === 'OK' && !o.truncated) {
-        const candidates = interpret(structuredClone(o));
+        const candidates = interpret(structuredClone(o),structuredClone(k.objective));
         if (!Array.isArray(candidates))
             throw Error('INVALID_INTERPRETER_RESULT');
         // Candidate count cannot exceed the bounded source structure. Evaluation also
         // checks the actual source pointer and ignores planner/interpreter fact values.
-        const source = readSource(o), maximum = 1 + (Array.isArray(source?.offers) ? source.offers.length : 0);
+        const source = readSource(o,k.objective), maximum = 1 + (Array.isArray(source?.offers) ? source.offers.length : 0);
         o.candidates = candidates.slice(0, maximum).map(c => ({ kind: c.kind, pointer: c.pointer }));
     }
     k.observations.push(o);
-    const links = readSource(o)?.links;
+    const web=o.format==='WEB'?projectWebSource(o,k.objective):null;
+    if(web?.limited) markLimit(k,'interpretationCapacity');
+    if(web) o.interpretation={ambiguities:web.ambiguities,limited:web.limited};
+    const links = (web?.source??readSource(o))?.links;
+    if(web) o.navigation=links.map(({url,label,needs,source},index)=>({index,url,label,needs,source}));
+    if(web&&navigate&&o.outcome==='OK'&&!o.truncated) {
+        // Intelligence may classify an observed anchor, never invent its href.
+        const proposals=navigate(structuredClone(o.navigation),structuredClone(evaluate(k).needs));
+        if(!Array.isArray(proposals)) throw Error('INVALID_NAVIGATION_RESULT');
+        if(proposals.length>k.bounds.candidateDestinations)markLimit(k,'candidateDestinations');
+        for(const p of proposals.slice(0,k.bounds.candidateDestinations)) {
+            if(!Number.isSafeInteger(p?.index)||!links[p.index]||!Array.isArray(p.needs))continue;
+            const current=evaluate(k).needs.map(n=>n.proposition);
+            links[p.index].needs=[...new Set([...links[p.index].needs,...p.needs.filter(n=>current.includes(n))])];
+        }
+    }
     const navigation = [];
     if (o.outcome === 'OK' && !o.truncated && Array.isArray(links)) {
         if (links.length > k.bounds.candidateDestinations)
@@ -150,7 +182,7 @@ function accept(k, a, response, interpret) {
     }
     return { kind: 'PROVIDER', id: o.id, url, context: o.context, outcome: o.outcome, sha256: o.sha256, bytes, navigation };
 }
-export async function runResearch({ knowledge, objective, permissions, bounds, capabilities = {}, reasoner, interpret = interpretStructured, save } = {}) {
+export async function runResearch({ knowledge, objective, permissions, bounds, capabilities = {}, reasoner, interpret = interpretStructured, navigate, save } = {}) {
     const k = knowledge ? structuredClone(knowledge) : createKnowledge({ objective, permissions, bounds });
     if (k.version !== 1)
         throw Error('UNSUPPORTED_KNOWLEDGE_VERSION');
@@ -181,7 +213,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             // A reasoning component receives a copy, and can propose/rank only. It cannot
             // mutate evidence, counters, permissions, or established propositions.
             try {
-                decision = await reasoner(structuredClone({ objective: k.objective, truth: initial, destinations: k.destinations, observations: k.observations.map(({ body, candidates, ...o }) => o), actions: offered.actions, attempts: k.attempts }));
+                decision = await reasoner(structuredClone({ objective: k.objective, truth: initial, destinations: k.destinations, observations: k.observations.map(({ body, candidates, ...o }) => o), actions: offered.actions, attempts: k.attempts, permissions:k.permissions, bounds:k.bounds, usage:k.usage }));
             }
             catch {
                 stop(k, 'REASONER_FAILED');
@@ -217,8 +249,8 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         k.trace.push({ event: 'ACTION_SELECTED', action: a, reason: audit.reason });
         await persist(k, save);
         try {
-            const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxResults: k.bounds.candidateDestinations });
-            const observation = accept(k, a, response, interpret), after = evaluate(k);
+            const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxResults: k.bounds.candidateDestinations, maxRequests:(k.bounds.networkRequests??96)-(k.usage.networkRequests??0) });
+            const observation = accept(k, a, response, interpret, navigate), after = evaluate(k);
             k.attempts.at(-1).status = 'COMPLETED';
             k.pending = null;
             k.trace.push({ event: 'OBSERVATION', observation, changes: changes(initial, after), remainingNeeds: after.needs.map(n => n.id) });
@@ -226,7 +258,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         catch (error) {
             k.attempts.at(-1).status = 'FAILED';
             k.pending = null;
-            stop(k, 'CAPABILITY_OR_INTERPRETATION_FAILED', { action: a.id, code: error.message });
+            stop(k, k.limitsHit.includes('transportCapacity')?'CAPACITY_BOUND_REACHED':'CAPABILITY_OR_INTERPRETATION_FAILED', { action: a.id, code: error.message });
             await persist(k, save);
             return k;
         }

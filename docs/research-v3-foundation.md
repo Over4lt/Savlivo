@@ -1,5 +1,8 @@
 # Research Engine V3: first-principles offline foundation
 
+This document records milestone 1. See [milestone 2](research-v3-capabilities.md)
+for the added source interpreter, capability adapters and standalone runner.
+
 ## Objective and boundary
 
 V3 researches independent factual propositions by choosing useful observations of
