@@ -150,6 +150,7 @@ export function needsUnderstanding(o,objective) {
     return !parts.some(p=>p.source.serviceId&&p.source.offers.some(v=>v.amount>0&&v.currency&&v.cadence&&v.consumer===true&&['SUBSCRIPTION','MEMBERSHIP'].includes(v.relationship)&&v.role==='ORDINARY'&&v.amountDerivation==='EXPLICIT'));
 }
 export function understandingError(error) {
+    if(/^WIRE_[A-Z_]+$/.test(error?.message??''))return {code:error.message};
     if(error?.v3Diagnostics) {const clean=understandingError(Object.assign(Object.create(Object.getPrototypeOf(error)),error,{v3Diagnostics:null}));return {...clean,diagnostics:error.v3Diagnostics};}
     const safe=new Set(['EVIDENCE_ENVELOPE_INVALID','EVIDENCE_MATERIAL_BOUND','EVIDENCE_TRANSLATION_BINDING_INVALID','EVIDENCE_SERVICE_INVALID','EVIDENCE_OFFER_INVALID','EVIDENCE_MARKET_INVALID','EVIDENCE_CHARGE_INVALID','EVIDENCE_TRANSITION_INVALID','EVIDENCE_POPULATION_INVALID','EVIDENCE_ACCOUNT_INVALID','EVIDENCE_INVALID','EVIDENCE_RESPONSE_BOUND','EVIDENCE_UNIT_INVALID','EVIDENCE_UNIT_BOUND','EVIDENCE_REQUEST_BOUND','EVIDENCE_ACCOUNT_GRAPH_INVALID','UNDERSTANDING_TIMEOUT','UNDERSTANDING_ENDPOINT_NOT_ALLOWED','UNDERSTANDING_RESPONSE_UNAVAILABLE','UNDERSTANDING_RESPONSE_BOUND','UNDERSTANDING_RESPONSE_INCOMPLETE','UNDERSTANDING_REFUSAL']);
     for(let e=error,depth=0;e&&depth<3;e=e.cause,depth++)if(safe.has(e.message))return {code:e.message};

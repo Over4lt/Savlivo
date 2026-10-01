@@ -43,3 +43,17 @@ export function evidenceCompletion(r,f) {
   }),transitions:plan.transition?[{from:'intro',to:'recurring',kind:'RECURS_AFTER_INTRO',ambiguity:false,support:supports}]:[]};
  })};
 }
+// Mock semantic response to the actual compact wire input. No provenance is emitted.
+export function wireCompletion(r,f) {
+ const response={language:f.language,serviceSources:r.segments.filter(s=>s.text.includes(f.name)).slice(0,1).map(s=>s.id),serviceAmbiguous:false,offers:[],charges:[],relations:[],accounts:[],populations:[],accountStatements:[]};
+ for(const [i,plan] of f.plans.entries()) {
+  const anchor=r.segments.find(s=>s.text.includes(plan.anchor));
+  const enclosing=r.presentations.filter(p=>p.segments.includes(anchor?.id)).sort((a,b)=>a.segments.length-b.segments.length);
+  const p=plan.container?enclosing.at(-1):enclosing[0];if(!p)throw Error('MOCK_PRESENTATION_MISSING');
+  const offer='o'+i;
+  response.offers.push({id:offer,presentation:p.id,name:plan.name,audience:'CONSUMER',relationship:plan.relationship??'SUBSCRIPTION',market:plan.market??null,marketSources:plan.market?p.segments:[],qualifiers:[],ambiguous:false});
+  for(const c of plan.charges)response.charges.push({id:offer+'-'+c.id,offer,sources:p.segments,amountText:c.money.amountText,currency:c.money.currency,currencyText:c.money.currencyText,cadence:c.cadence.unit,cadenceText:c.cadence.expression,role:c.role==='ORDINARY'?'ORDINARY_RECURRING':c.role,durationText:c.duration,derivation:c.derivation,qualifiers:c.qualifiers,ambiguous:c.ambiguity});
+  if(plan.transition)response.relations.push({from:offer+'-intro',to:offer+'-recurring',kind:'FOLLOWED_BY',sources:p.segments,ambiguous:false});
+ }
+ return response;
+}

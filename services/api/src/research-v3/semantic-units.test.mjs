@@ -84,7 +84,7 @@ test('unit-count capacity is explicit and never expands the global model budget'
 });
 test('strict account schema never contains an invalid empty enum on a page without destinations',async()=>{
  const {liveSemanticContract}=await import('./live-semantic.mjs');const input=fixtureInput(f),o=observation(input.fixtures.at(-1).body,input.objective),r=evidenceRequest(o,input.objective,selectSemanticUnits(o,input.objective)[0]),schema=liveSemanticContract(r);
- assert.equal(JSON.stringify(schema).includes('"enum":[]'),false);assert.equal(schema.properties.accountGraph.properties.nodes.maxItems,0);
+ assert.equal(JSON.stringify(schema).includes('"enum":[]'),false);assert.equal(schema.properties.accounts.type,'array');
 });
 for(const role of ['DISCOUNT','INSTALLMENT','TAX'])test('represented '+role+' amount does not establish ordinary recurring price',async()=>{
  const other=evidenceFixtures.find(f=>f.key==='norwegian'),input=fixtureInput(other);const result=await run(input,r=>{const e=evidenceCompletion(r,other);e.offers[0].charges[0].role=role;return e;});

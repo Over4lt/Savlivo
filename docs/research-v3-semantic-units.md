@@ -118,3 +118,11 @@ One sufficient provider presentation can establish truth. Introductory, credit,
 benefit, installment and annual-equivalent evidence does not become an ordinary
 monthly price. Language/currency/path do not establish a country. The retained
 pricing oracle is an offline fixture, never a production branch or injected truth.
+
+
+## Current provider wire
+
+The internal `V3_EVIDENCE_V2` envelope is now reconstructed locally from compact
+unit-local semantic records. The current LIVE schema is `v3_semantic_unit_v1`,
+not the previous rich envelope schema. See [compact semantic wire](research-v3-semantic-wire.md).
+Original source/unit ceilings and deterministic truth predicates are unchanged.
