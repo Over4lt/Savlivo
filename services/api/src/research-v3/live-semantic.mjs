@@ -57,7 +57,7 @@ async function createLiveAdapter({env=process.env,client,fetchImpl=fetch,timeout
         try {
             const parsed=parseSemanticWire(result.choices[0].message?.content);wire=parsed.wire;
             const envelope=reconstructWire(request,wire);
-            return {envelope,wire:{...wireSummary(request,wire),marketDiagnostics:[...parsed.ignored,...(envelope.marketDiagnostics??[])],observationGeography:request.observation.geography,requestBytes}};
+            return {envelope,wire:{...wireSummary(request,wire),currencyDiagnostics:envelope.currencyDiagnostics??[],marketDiagnostics:[...parsed.ignored,...(envelope.marketDiagnostics??[])],observationGeography:request.observation.geography,requestBytes}};
         } catch(error) {
             error.v3Diagnostics={requestBytes,maxOutputTokens,schema:payload.response_format.json_schema.name,unit:request.unit?.id??null,observationGeography:request.observation.geography,...(wire?{wire:wireSummary(request,wire)}:{}),...error.v3Diagnostics};
             throw error;

@@ -100,3 +100,5 @@ The current provider contract is `v3_semantic_unit_v3`. Currency references and
 explicit provider market statements are documented in
 [currency source identity and market ownership](research-v3-currency-market.md).
 Numeric occurrence identity remains unchanged.
+
+Observation service association and one-way verified-market currency narrowing are described in [service/currency context](research-v3-service-currency-context.md). Offers can reference the system-owned observation service through `serviceRef` and represent local `association`; these fields are semantics, never identity/truth verdicts. Currency source selections remain separately traceable from deterministic resolution.

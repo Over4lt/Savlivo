@@ -35,7 +35,7 @@ function document(body, contentType) {
         if (!closing && !voids.has(tag) && !m[0].endsWith('/>')) {
             if (stack.length >= 128) {limited=true; break;}
             const attributes=attrs(m[0]);
-            stack.push({tag,start:m.index,openEnd:token.lastIndex,attrs:attributes,hidden:stack.some(n=>n.hidden)||/\shidden(?:\s|=|>)/i.test(m[0])||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(attributes.style??'')});
+            stack.push({ancestry:stack.map(a=>({tag:a.tag,start:a.start,role:a.attrs.role??null,itemType:a.attrs.itemtype??null,itemProp:a.attrs.itemprop??null})),tag,start:m.index,openEnd:token.lastIndex,attrs:attributes,hidden:stack.some(n=>n.hidden)||/\shidden(?:\s|=|>)/i.test(m[0])||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(attributes.style??'')});
         } else if (closing) {
             const index=stack.findLastIndex(n=>n.tag===tag); if(index<0) continue;
             const n=stack[index]; stack.length=index;
@@ -195,7 +195,7 @@ export function semanticMaterial(observation) {
         }
         if(!limited&&!stack.some(n=>n.hidden))add(cursor,body.length);
     }
-    const presentations=parsed.nodes.filter(n=>n.tag!=='a').slice(0,256).map((n,i)=>({id:'presentation-'+i,start:n.start,end:n.end}));
+    const presentations=parsed.nodes.filter(n=>n.tag!=='a').slice(0,256).map((n,i)=>({id:'presentation-'+i,start:n.start,end:n.end,tag:n.tag,role:n.attrs.role??null,itemType:n.attrs.itemtype??null,itemProp:n.attrs.itemprop??null,ancestry:n.ancestry??[]}));
     return {segments:segments.slice(0,2048),presentations,limited:limited||parsed.nodes.length>256||segments.length>2048};
 }
 
