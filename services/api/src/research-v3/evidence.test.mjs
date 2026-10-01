@@ -4,6 +4,7 @@ import {createEvidenceInterpreter,projectEvidence,evidenceRequest} from './evide
 import {runTarget,offlineCapabilities} from './runner.mjs';
 import {createKnowledge,context,digest,checkpoint,restore} from './model.mjs';
 import {runResearch} from './engine.mjs';
+import {selectSemanticUnits} from './semantic-units.mjs';
 import {evaluate,truthContract} from './truth.mjs';
 import {evidenceFixtures,fixtureInput,evidenceCompletion,url} from './evidence-fixtures.test-support.mjs';
 const fixture=key=>evidenceFixtures.find(f=>f.key===key);
@@ -76,7 +77,7 @@ test('actual incompatible observations contradict the same offer; later missing 
  assert.equal(evaluate(k).prices.US.propositions.PRICE_AMOUNT.state,'ESTABLISHED');
  const changed=structuredClone(original);changed.id='new-observation';changed.body=changed.body.replace('14.99','15.99');changed.sha256=digest(changed.body);
  const nextFixture={...f,plans:f.plans.map(p=>({...p,charges:p.charges.map(c=>({...c,money:{...c.money,amount:15.99,amountText:'15.99'}}))}))};
- changed.evidence.envelope=evidenceCompletion(evidenceRequest(changed,k.objective),nextFixture);changed.evidence.envelope.offers[0].charges[0].id='different-local-link-id';k.observations.push(changed);
+ changed.evidence.unit=selectSemanticUnits(changed,k.objective)[0];changed.evidence.envelope=evidenceCompletion(evidenceRequest(changed,k.objective,changed.evidence.unit),nextFixture);changed.evidence.envelope.offers[0].charges[0].id='different-local-link-id';k.observations.push(changed);
  assert.equal(evaluate(k).prices.US.propositions.PRICE_AMOUNT.state,'CONTRADICTED');
 });
 test('understanding failure remains scoped, preserves native identity and permits same-URL country action',async()=>{

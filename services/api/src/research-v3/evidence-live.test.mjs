@@ -21,8 +21,8 @@ test('live contract: source understanding from original material, no translation
  assert.equal(run.result.truth.established,true);assert.equal(run.calls.length,1);assert.equal(run.knowledge.semanticAdapter.role,'EVIDENCE_UNDERSTANDING');
  assert.equal(r.translation,null);assert.equal('objective' in r,false);assert.equal('context' in r.observation,false);
  assert.equal(p.response_format.type,'json_schema');assert.equal(p.response_format.json_schema.strict,true);
- assert.equal(p.response_format.json_schema.name,'v3_source_bound_evidence');assert.equal(p.max_completion_tokens,8192);
- const contract=liveSemanticContract(r);assert.deepEqual(Object.keys(contract.properties).sort(),['language','observationId','observationSha256','offers','schema','service','translationArtifact']);
+ assert.equal(p.response_format.json_schema.name,'v3_source_bound_evidence_v2');assert.equal(p.max_completion_tokens,8192);
+ const contract=liveSemanticContract(r);assert.deepEqual(Object.keys(contract.properties).sort(),['accountGraph','language','observationId','observationSha256','offers','schema','service','translationArtifact']);
  assert.equal(JSON.stringify(contract).includes('ESTABLISHED'),false);assert.equal(JSON.stringify(contract).includes('verified'),false);
 });
 for(const [name,reply,code] of [
@@ -45,7 +45,7 @@ test('real SDK exercised through offline fetch: strict evidence mode and no retr
  let calls=0;const i=input();
  const interpret=await createLiveSemanticInterpreter({env:{...env,GROQ_API_KEY:'offline-not-a-secret'},fetchImpl:async(url,options)=>{
   calls++;assert.equal(String(url),'https://api.groq.com/openai/v1/chat/completions');assert.equal(options.redirect,'error');
-  const p=JSON.parse(options.body),r=JSON.parse(p.messages[1].content);assert.equal(p.response_format.json_schema.name,'v3_source_bound_evidence');
+  const p=JSON.parse(options.body),r=JSON.parse(p.messages[1].content);assert.equal(p.response_format.json_schema.name,'v3_source_bound_evidence_v2');
   return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(evidenceCompletion(r,f))}}]}),{headers:{'content-type':'application/json'}});
  }});
  const {result}=await runTarget({input:i,interpret,capabilities:offlineCapabilities(i)});assert.equal(result.truth.established,true);assert.equal(calls,1);assert.equal(interpret.semanticAdapter.maxRetries,0);

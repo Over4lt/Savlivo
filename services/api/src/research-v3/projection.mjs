@@ -1,6 +1,7 @@
 // Derived artifacts supplement, never erase, usable original evidence.
 import {projectWebSource} from './source.mjs';
 import {projectTranslation} from './translation.mjs';
+import {digest} from './model.mjs';
 import {projectEvidence} from './evidence.mjs';
 export function projectObservation(o,objective) {
     const parts=[projectWebSource(o,objective)],errors=[];
@@ -9,12 +10,17 @@ export function projectObservation(o,objective) {
         const p=project(o,objective);
         if(p.error)errors.push({kind:key,code:p.error});else parts.push(p);
     }
+    const seenFragments=new Set(o.evidence?[digest([o.evidence.unit,o.evidence.envelope])]:[]);
+    for(const fragment of o.evidenceFragments??[]) {
+        const key=digest([fragment.unit,fragment.envelope]);if(seenFragments.has(key))continue;seenFragments.add(key);
+        const p=projectEvidence(o,objective,fragment.envelope,fragment.unit);
+        if(p.error)errors.push({kind:'evidence',unit:fragment.unit?.id,code:p.error});else parts.push(p);
+    }
     // A validated explicit graph resolves the semantics of an overlapping native
     // partial presentation. Do not retain an anonymous duplicate offer that can
     // hide a real contradiction for the identified offer. Unrelated native offers
     // and all native evidence on failed/ambiguous understanding remain available.
-    const graph=parts.find(p=>p.accepted);
-    if(graph) {
+    for(const graph of parts.filter(p=>p.accepted)) {
         const covered=Object.values(graph.bindings).filter(b=>b.presentation&&graph.accepted.some(a=>a.offer===b.offerIndex&&a.charge===b.charge)).map(b=>b.presentation);
         const native=parts[0];
         for(const [i,offer] of graph.source.offers.entries()) {
@@ -34,8 +40,9 @@ export function projectObservation(o,objective) {
         }
         parts[0]={...original,source:{...original.source,offers},bindings};
     }
-    const source={offers:[],populations:[],accountStatements:[],links:parts[0].source.links??[]},bindings={};
+    const source={offers:[],populations:[],accountStatements:[],accountGraphs:[],links:parts[0].source.links??[]},bindings={};
     for(const p of parts) {
+        if(p.source.accountGraph)source.accountGraphs.push(p.source.accountGraph);
         for(const field of ['serviceId','population','account'])if(source[field]===undefined&&p.source[field]!==undefined)source[field]=p.source[field];
         for(const [pointer,b] of Object.entries(p.bindings))if(!['offers','populations','accountStatements'].some(k=>pointer.startsWith('/'+k+'/'))&&bindings[pointer]===undefined)bindings[pointer]=b;
         for(const key of ['offers','populations','accountStatements'])for(const [i,value] of (p.source[key]??[]).entries()) {

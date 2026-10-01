@@ -34,7 +34,7 @@ export function interpretStructured(observation, objective) {
     return [{ kind: 'SERVICE', pointer: '' }, ...(Array.isArray(source.offers) ? source.offers.map((_, i) => ({ kind: 'OFFER', pointer: '/offers/' + i })) : [])];
 }
 export function evaluate(k) {
-    const service = slots(servicePropositions), groups = new Map();
+    const service = slots(servicePropositions), groups = new Map(), accountAccess={LOGIN:blank(),ACCOUNT:blank(),MANAGE:blank(),CANCEL:blank()};
     for (const o of k.observations) {
         if (o.kind !== 'PROVIDER' || o.outcome !== 'OK' || o.truncated || digest(o.body) !== o.sha256 || !providerBound(k.objective, o.url))
             continue;
@@ -44,6 +44,14 @@ export function evaluate(k) {
         const source = web?.source ?? readSource(o);
         if (source?.serviceId !== k.objective.serviceId)
             continue;
+        for(const graph of source.accountGraphs??[]) {
+            for(const node of graph.nodes) {
+                const ref={observation:o.id,sha256:o.sha256,node:node.id,destination:node.url,support:node.support};
+                if(node.providerControlled&&['LOGIN','ACCOUNT','CANCEL'].includes(node.role))claim(accountAccess[node.role],true,ref);
+                if(node.role==='AUTH'&&graph.edges.some(e=>e.from===node.id&&e.kind==='AUTHENTICATES_TO'&&graph.nodes.some(n=>n.id===e.to&&n.role==='ACCOUNT'&&n.providerControlled)))claim(accountAccess.LOGIN,true,ref);
+                if(node.role==='MANAGE'&&node.providerControlled&&graph.edges.some(e=>e.to===node.id&&e.kind==='MANAGES_SUBSCRIPTION'&&graph.nodes.some(n=>n.id===e.from&&n.role==='ACCOUNT'&&n.providerControlled)))claim(accountAccess.MANAGE,true,ref);
+            }
+        }
         const reference = pointer => ({ observation: o.id, sha256: o.sha256, pointer, ...(web ? {source: web.bindings[pointer]} : {}) });
         for (const c of o.candidates ?? []) {
             if (c.kind === 'SERVICE' && c.pointer === '') {
@@ -115,5 +123,5 @@ export function evaluate(k) {
             for (const n of pricePropositions)
                 if (v.propositions[n].state !== 'ESTABLISHED')
                     needs.push({ id: market + ':' + n, proposition: n, market, offerId: v.id, state: v.propositions[n].state });
-    return { service, offers: [...groups.values()], prices, needs, established: needs.length === 0, admitted: servicePropositions.every(n => service[n].state === 'ESTABLISHED') };
+    return { service, accountAccess, offers: [...groups.values()], prices, needs, established: needs.length === 0, admitted: servicePropositions.every(n => service[n].state === 'ESTABLISHED') };
 }

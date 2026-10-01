@@ -9,7 +9,7 @@ const decode = s => s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi,
 });
 const text = s => decode(s.replace(/<!--[^]*?-->/g,' ').replace(/<(script|style|template)\b[^>]*>[^]*?<\/\1\s*>/gi,' ').replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim();
 const attrs = s => Object.fromEntries([...s.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)].map(m => [m[1].toLowerCase(),decode(m[2]??m[3]??m[4])]));
-const blocks = new Set(['p','li','article','section','div','h1','h2','h3','title','a']);
+const blocks = new Set(['p','li','article','section','div','h1','h2','h3','title','a','form']);
 const voids = new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
 
 function document(body, contentType) {
@@ -197,4 +197,9 @@ export function semanticMaterial(observation) {
     }
     const presentations=parsed.nodes.filter(n=>n.tag!=='a').slice(0,256).map((n,i)=>({id:'presentation-'+i,start:n.start,end:n.end}));
     return {segments:segments.slice(0,2048),presentations,limited:limited||parsed.nodes.length>256||segments.length>2048};
+}
+
+// Structural destination provenance. Labels are routing hints, never truth.
+export function semanticDestinations(o) {
+    return document(o.body,o.contentType).nodes.filter(n=>(n.tag==='a'&&n.attrs.href)||(n.tag==='form'&&n.attrs.action)).slice(0,512).map((n,i)=>({id:'destination-'+i,kind:n.tag==='form'?'FORM':'LINK',url:n.attrs.href??n.attrs.action,start:n.start,end:n.end,label:n.text.slice(0,256)}));
 }

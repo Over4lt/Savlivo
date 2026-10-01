@@ -54,7 +54,7 @@ context. Provenance validation does not independently prove semantic accuracy.
 
 Original authoritative observation → bounded visible segments/presentation boundaries
 → optional translation → native extraction or bounded multilingual understanding
-→ `V3_EVIDENCE_V1` structure → binding/projection validation → deterministic truth.
+→ `V3_EVIDENCE_V2` structure → binding/projection validation → deterministic truth.
 
 The default live Groq path understands original material in ONE call when native
 extraction cannot handle it. It receives a service name for relevance, original
@@ -179,3 +179,12 @@ accurate source semantics. The smallest correction requires ORDINARY recurring
 role for this monthly-subscription predicate. It does not require a known amount,
 known currency, extra sources or a proof count. Pricing remains independent of
 service admission. Benefit/credit cadence cannot establish subscription recurrence.
+
+
+## Bounded understanding
+
+The LIVE runner now uses local semantic units rather than the whole visible page.
+See [bounded semantic units](research-v3-semantic-units.md). Original material is
+still authoritative; each fragment is reconstructed against its supplied unit.
+Strict accountGraph nodes/edges extend source representation without coupling
+service-wide account access to market-scoped pricing.

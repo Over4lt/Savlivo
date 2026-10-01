@@ -32,7 +32,7 @@ export function fixtureInput(f,{country=true,bounds={},seeds=[url]}={}) {
 const span=s=>({start:s.start,end:s.end,quote:s.text,translated:null});
 export function evidenceCompletion(r,f) {
  const identity=r.material.segments.find(s=>s.text===f.name);
- return {schema:r.schema,observationId:r.observation.id,observationSha256:r.observation.sha256,language:f.language,translationArtifact:null,service:{name:f.name,ambiguity:false,support:[span(identity)],populations:[],account:[]},offers:f.plans.map(plan=>{
+ return {accountGraph:{nodes:[],edges:[]},schema:r.schema,observationId:r.observation.id,observationSha256:r.observation.sha256,language:f.language,translationArtifact:null,service:{name:f.name,ambiguity:false,support:[span(identity)],populations:[],account:[]},offers:f.plans.map(plan=>{
   const anchor=r.material.segments.find(s=>s.text.includes(plan.anchor));
   const enclosing=r.material.presentations.filter(p=>p.start<=anchor.start&&p.end>=anchor.end).sort((a,b)=>(a.end-a.start)-(b.end-b.start));
   const p=plan.container?enclosing.at(-1):enclosing[0];

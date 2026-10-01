@@ -3,6 +3,7 @@ import { evaluate, interpretStructured, readSource } from './truth.mjs';
 import {projectTranslation,translationError} from './translation.mjs';
 import {projectEvidence,understandingError} from './evidence.mjs';
 import {projectObservation} from './projection.mjs';
+import {semanticUnitLimits} from './semantic-units.mjs';
 import { projectWebSource } from './source.mjs';
 const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.context?.transport;
 function searches(k, truth) {
@@ -152,6 +153,9 @@ async function accept(k, a, response, interpret, navigate, save) {
     k.observations.push(o);
     if (o.outcome === 'OK' && !o.truncated) {
         o.candidates=o.format==='WEB'?projectObservation(o,k.objective).candidates:interpretStructured(o,k.objective);
+        if(interpret.semanticUnits) {
+            await understandUnits(k,o,interpret,save);
+        } else {
         const understanding=interpret.semanticAdapter?.role==='EVIDENCE_UNDERSTANDING';
         const stage=understanding?'UNDERSTANDING':'TRANSLATION';
         const modelNeeded=!!interpret.semanticAdapter&&(!interpret.requiresModel||interpret.requiresModel(o,k.objective));
@@ -199,6 +203,7 @@ async function accept(k, a, response, interpret, navigate, save) {
         }
         if(/(?:MATERIAL|RESPONSE)_BOUND$/.test(o.interpretation?.code??''))markLimit(k,'interpretationCapacity');
         if(o.interpretation?.kind?.startsWith(stage+'_'))k.trace.push({event:stage+'_UNAVAILABLE',observation:o.id,...o.interpretation});
+        }
 
     }
     const web=o.format==='WEB'?projectWebSource(o,k.objective):null;
@@ -311,5 +316,37 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             return k;
         }
         await persist(k, save);
+    }
+}
+
+async function understandUnits(k,o,interpret,save) {
+    const needs=evaluate(k).needs.map(n=>n.proposition),plan=interpret.semanticPlan(o,k.objective,needs),units=plan.units;
+    if(plan.capacityHit)markLimit(k,'semanticUnits');
+    o.semanticUnits=units;o.evidenceFragments??=[];o.semanticAttempts??=[];
+    k.trace.push({event:'SEMANTIC_UNITS_SELECTED',observation:o.id,units,capacityHit:plan.capacityHit,reason:plan.reason});
+    for(const unit of units.slice(0,semanticUnitLimits.modelCallsPerAction)) {
+        const truth=evaluate(k);
+        if(truth.established||!truth.needs.some(n=>unit.needs.includes(n.proposition)))break;
+        if(k.usage.modelCalls>=k.bounds.modelCalls) {markLimit(k,'modelCalls');o.interpretation={kind:'UNDERSTANDING_UNAVAILABLE',code:'UNDERSTANDING_MODEL_CALL_BOUND'};break;}
+        k.usage.modelCalls++;
+        const attempt={unit:unit.id,status:'RESERVED',modelCalls:k.usage.modelCalls};o.semanticAttempts.push(attempt);
+        o.interpretation={kind:'UNDERSTANDING_PENDING',unit:unit.id,adapter:interpret.semanticAdapter};
+        k.trace.push({event:'UNDERSTANDING_CALL_RESERVED',observation:o.id,sha256:o.sha256,unit:unit.id,adapter:interpret.semanticAdapter,modelCalls:k.usage.modelCalls,bound:k.bounds.modelCalls});
+        await persist(k,save);
+        try {
+            const value=await interpret(structuredClone(o),structuredClone(k.objective),structuredClone(unit));
+            if(value?.kind!=='EVIDENCE'||value.unit?.id!==unit.id)throw Error('EVIDENCE_UNIT_INVALID');
+            const projection=projectEvidence(o,k.objective,value.envelope,unit);
+            if(projection.error)throw Error(projection.error);
+            const fragment={envelope:value.envelope,unit,adapter:interpret.semanticAdapter};
+            if(o.evidence)o.evidenceFragments.push(fragment);else o.evidence=fragment;
+            o.candidates=projectObservation(o,k.objective).candidates;
+            attempt.status='COMPLETED';o.interpretation={kind:'EVIDENCE',unit:unit.id,accepted:projection.accepted,rejected:projection.rejected};
+            k.trace.push({event:'EVIDENCE_UNDERSTANDING',observation:o.id,sha256:o.sha256,unit:unit.id,evidence:fragment,interpretation:o.interpretation,sourceSupport:projection.bindings,candidates:o.candidates});
+        } catch(error) {
+            attempt.status='FAILED';if(/_BOUND$/.test(error.message))markLimit(k,'interpretationCapacity');o.interpretation={kind:'UNDERSTANDING_FAILED',unit:unit.id,...understandingError(error)};
+            k.trace.push({event:'UNDERSTANDING_UNAVAILABLE',observation:o.id,...o.interpretation});
+        }
+        await persist(k,save);
     }
 }
