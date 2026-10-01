@@ -87,6 +87,7 @@ export function evaluate(k) {
             if (!groups.has(key))
                 groups.set(key, { id, market, conditions: offer.conditions ?? null, propositions: slots(pricePropositions) });
             const g = groups.get(key), p = g.propositions, ref = reference(c.pointer);
+            for(const excluded of offer.excludedMarkets??[])if(/^[A-Z]{2}$/.test(excluded)) {g.exclusions??=[];g.exclusions.push({country:excluded,reference:ref});}
             claim(p.SERVICE_IDENTITY, true, reference('/serviceId'));
             const ordinary = offer.role === 'ORDINARY' && (!offer.amountDerivation || offer.amountDerivation === 'EXPLICIT');
             claim(p.PRICE_AMOUNT, offer.amount, ref, ordinary && typeof offer.amount === 'number' && Number.isFinite(offer.amount) && offer.amount > 0);
@@ -103,6 +104,7 @@ export function evaluate(k) {
     for (const market of k.objective.markets) {
         const options = [...groups.values()].map(g => {
             const p = structuredClone(g.propositions);
+            for(const exclusion of g.exclusions??[])if(exclusion.country===market)claim(p.TARGET_MARKET,false,{...exclusion.reference,marketContext:{basis:'EXPLICIT_PROVIDER_EXCLUSION',country:market}});
             if (g.market && g.market !== market) {
                 p.TARGET_MARKET.state = 'CONTRADICTED';
                 p.TARGET_MARKET.contradictions = p.TARGET_MARKET.evidence;

@@ -24,14 +24,14 @@ for(const f of evidenceFixtures)test('compact wire '+f.key+' '+f.language+' reta
 test('real SDK offline oracle reconstructs provenance locally; model emits no hashes or offsets',async()=>{
  const run=await liveMock(oracle,x=>x,{sdk:true}),{r,p}=run.calls[0];assert.equal(run.calls.length,1);assert.equal(run.result.truth.established,true);
  const text=p.messages[1].content;for(const field of ['sha256','observationId','observationSha256','start','end','quote','amountSpan'])assert.equal(text.includes('"'+field+'"'),false);
- assert.equal(p.response_format.json_schema.name,'v3_semantic_unit_v2');assert.ok(Buffer.byteLength(JSON.stringify(p))<10000);
+ assert.equal(p.response_format.json_schema.name,'v3_semantic_unit_v3');assert.ok(Buffer.byteLength(JSON.stringify(p))<10000);
  const o=run.knowledge.observations[0],e=o.evidence.envelope;assert.equal(e.observationId,o.id);assert.equal(e.observationSha256,o.sha256);
  assert.equal(e.offers[0].charges[0].money.amount,0);assert.equal(e.offers[0].charges[0].role,'INTRODUCTORY');assert.equal(e.offers[0].charges[1].money.amount,1080);assert.equal(e.offers[0].charges[1].role,'SUBSEQUENT');assert.equal(e.offers[0].transitions[0].kind,'RECURS_AFTER_INTRO');
  assert.ok(e.offers[0].charges[1].support.every(s=>o.body.slice(s.start,s.end)===s.quote));assert.equal(evaluate(restore(checkpoint(run.knowledge))).prices.JP.propositions.PRICE_AMOUNT.value,1080);
  assert.equal(run.result.truth.prices.JP.propositions.TARGET_MARKET.evidence[0].reference.marketContext.basis,'VERIFIED_COUNTRY_OBSERVATION');
 });
 for(const [name,mutate] of [
- ['unknown segment',e=>e.charges[1].sources=['s_missing']],['unknown presentation',e=>e.offers[0].presentation='p_missing'],['unknown charge owner',e=>e.charges[1].offer='o_missing'],['unknown relationship endpoint',e=>e.relations[0].to='missing'],['duplicate charge ID',e=>e.charges[1].id=e.charges[0].id],['fabricated numeric text',e=>e.charges[1].amountRef='n_missing'],['partial numeric token',e=>e.charges[1].amount=80],['ambiguous temporal link',e=>e.relations[0].ambiguous=true],['unsupported temporal source',e=>e.relations[0].sources=e.serviceSources],['unbound currency',e=>e.charges[1].currencyText='fabricated']
+ ['unknown segment',e=>e.charges[1].sources=['s_missing']],['unknown presentation',e=>e.offers[0].presentation='p_missing'],['unknown charge owner',e=>e.charges[1].offer='o_missing'],['unknown relationship endpoint',e=>e.relations[0].to='missing'],['duplicate charge ID',e=>e.charges[1].id=e.charges[0].id],['fabricated numeric text',e=>e.charges[1].amountRef='n_missing'],['partial numeric token',e=>e.charges[1].amount=80],['ambiguous temporal link',e=>e.relations[0].ambiguous=true],['unsupported temporal source',e=>e.relations[0].sources=e.serviceSources],['unbound currency',e=>e.charges[1].currencyRef='u_missing']
 ])test('compact wire rejects '+name+' without ordinary price promotion',async()=>{
  const run=await liveMock(oracle,e=>{mutate(e);return e;});assert.equal(run.result.truth.established,false);assert.notEqual(run.result.truth.prices.JP.propositions.PRICE_AMOUNT.value,1080);
 });
@@ -39,7 +39,7 @@ for(const field of ['truthState','established','verified','admitted','sufficient
  const run=await liveMock(oracle,e=>{e[field]=true;return e;});assert.equal(run.result.truth.established,false);assert.ok(run.result.trace.some(t=>t.code==='WIRE_FIELDS_INVALID'));
 });
 test('simple strict schema uses only basic supported JSON types and fixed semantic enums',()=>{
- const walk=s=>{for(const key of Object.keys(s))assert.ok(['type','properties','required','additionalProperties','items','enum'].includes(key));if(s.type==='object'){assert.equal(s.additionalProperties,false);assert.deepEqual(s.required,Object.keys(s.properties));Object.values(s.properties).forEach(walk);}if(s.type==='array')walk(s.items);};walk(semanticWireSchema());assert.ok(Buffer.byteLength(JSON.stringify(semanticWireSchema()))<4000);
+ const walk=s=>{for(const key of Object.keys(s))assert.ok(['type','properties','required','additionalProperties','items','enum'].includes(key));if(s.type==='object'){assert.equal(s.additionalProperties,false);assert.deepEqual(s.required,Object.keys(s.properties));Object.values(s.properties).forEach(walk);}if(s.type==='array')walk(s.items);};walk(semanticWireSchema());assert.ok(Buffer.byteLength(JSON.stringify(semanticWireSchema()))<4500);
 });
 test('provider failure generation is diagnosed locally without retaining raw generation or reasoning',async()=>{
  const input={...fixtureInput(oracle),semantic:{mode:'LIVE'},bounds:{modelCalls:1}};
@@ -71,7 +71,7 @@ test('compact account relationships survive adapter -> reconstruction -> determi
 });
 test('source value alternatives are explicitly selected rather than guessed from currency minor digits',()=>{
  const input=fixtureInput(oracle),o={id:'o',format:'WEB',body:'<title>Spotify Premium</title><p>KWD 1,080 monthly subscription</p>',contentType:'text/html',url:input.objective.seeds[0]};o.sha256=digest(o.body);const unit=selectSemanticUnits(o,input.objective)[0],r=evidenceRequest(o,input.objective,unit),i=wireInput(r);
- const wire={language:'en',serviceSources:[i.segments[0].id],serviceAmbiguous:false,offers:[{id:'o1',presentation:i.presentations.at(-1).id,name:'Personal',audience:'CONSUMER',relationship:'SUBSCRIPTION',market:null,marketSources:[],qualifiers:[],ambiguous:false}],charges:[{id:'c1',offer:'o1',sources:[i.segments.at(-1).id],amountRef:i.numbers.find(n=>n.raw==='1,080').id,amount:1080,currency:'KWD',currencyText:'KWD',cadence:'MONTHLY',cadenceText:'monthly',role:'ORDINARY_RECURRING',durationText:null,derivation:'EXPLICIT',qualifiers:[],ambiguous:false}],relations:[],accounts:[],populations:[],accountStatements:[]};
+ const wire={language:'en',serviceSources:[i.segments[0].id],serviceAmbiguous:false,offers:[{id:'o1',presentation:i.presentations.at(-1).id,name:'Personal',audience:'CONSUMER',relationship:'SUBSCRIPTION',marketStatements:[],qualifiers:[],ambiguous:false}],charges:[{id:'c1',offer:'o1',sources:[i.segments.at(-1).id],amountRef:i.numbers.find(n=>n.raw==='1,080').id,amount:1080,currencyRef:i.currencies.find(u=>u.raw==='KWD').id,currency:'KWD',cadence:'MONTHLY',cadenceText:'monthly',role:'ORDINARY_RECURRING',durationText:null,derivation:'EXPLICIT',qualifiers:[],ambiguous:false}],relations:[],accounts:[],populations:[],accountStatements:[]};
  assert.equal(reconstructWire(r,wire).offers[0].charges[0].money.amount,1080);wire.charges[0].amount=1.08;assert.equal(reconstructWire(r,wire).offers[0].charges[0].money.amount,1.08);
 });
 

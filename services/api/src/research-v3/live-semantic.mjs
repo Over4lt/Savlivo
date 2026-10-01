@@ -2,7 +2,7 @@
 // Preflight never dispatches IO.
 import {createTranslationInterpreter,translationSchema,translationLimits} from './translation.mjs';
 import {createEvidenceInterpreter} from './evidence.mjs';
-import {semanticWireSchema,wireInput,semanticWireInstructions,reconstructWire,validateWire,wireSummary,wireRevision} from './semantic-wire.mjs';
+import {semanticWireSchema,wireInput,semanticWireInstructions,reconstructWire,validateWire,parseSemanticWire,wireSummary,wireRevision} from './semantic-wire.mjs';
 const liveInterpreters=new WeakSet();
 export const isLiveSemanticInterpreter=interpreter=>liveInterpreters.has(interpreter);
 export const liveSemanticRevision=wireRevision;
@@ -33,7 +33,7 @@ async function createLiveAdapter({env=process.env,client,fetchImpl=fetch,timeout
     const factory=translationOnly?createTranslationInterpreter:createEvidenceInterpreter;
     const interpreter=factory({adapter,timeoutMs,complete:async(request,{signal})=>{
         const input=translationOnly?request:wireInput(request);
-        const payload={model,temperature:0,max_completion_tokens:maxOutputTokens,response_format:{type:'json_schema',json_schema:{name:translationOnly?'v3_source_bound_translation':'v3_semantic_unit_v2',strict:true,schema:translationOnly?liveTranslationContract(request):liveSemanticContract(request)}},messages:[{role:'system',content:translationOnly?request.instructions:semanticWireInstructions},{role:'user',content:JSON.stringify(input)}]};
+        const payload={model,temperature:0,max_completion_tokens:maxOutputTokens,response_format:{type:'json_schema',json_schema:{name:translationOnly?'v3_source_bound_translation':'v3_semantic_unit_v3',strict:true,schema:translationOnly?liveTranslationContract(request):liveSemanticContract(request)}},messages:[{role:'system',content:translationOnly?request.instructions:semanticWireInstructions},{role:'user',content:JSON.stringify(input)}]};
         const requestBytes=Buffer.byteLength(JSON.stringify(payload));
         if(!translationOnly&&requestBytes>24576)throw Error('EVIDENCE_REQUEST_BOUND');
         let result;
@@ -55,11 +55,11 @@ async function createLiveAdapter({env=process.env,client,fetchImpl=fetch,timeout
         if(translationOnly)return result.choices[0].message?.content;
         let wire;
         try {
-            wire=validateWire(JSON.parse(result.choices[0].message?.content));
+            const parsed=parseSemanticWire(result.choices[0].message?.content);wire=parsed.wire;
             const envelope=reconstructWire(request,wire);
-            return {envelope,wire:wireSummary(request,wire)};
+            return {envelope,wire:{...wireSummary(request,wire),marketDiagnostics:[...parsed.ignored,...(envelope.marketDiagnostics??[])],observationGeography:request.observation.geography,requestBytes}};
         } catch(error) {
-            error.v3Diagnostics={requestBytes,maxOutputTokens,schema:payload.response_format.json_schema.name,unit:request.unit?.id??null,...(wire?{wire:wireSummary(request,wire)}:{}),...error.v3Diagnostics};
+            error.v3Diagnostics={requestBytes,maxOutputTokens,schema:payload.response_format.json_schema.name,unit:request.unit?.id??null,observationGeography:request.observation.geography,...(wire?{wire:wireSummary(request,wire)}:{}),...error.v3Diagnostics};
             throw error;
         }
     }});

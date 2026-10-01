@@ -93,3 +93,10 @@ and a checked numeric value instead of reproduced `amountText`; populations use
 `countRef`. See [numeric occurrence identity](research-v3-numeric-occurrences.md)
 for exact source identity, normalization and safe diagnostic behavior. The
 sections above describe the preceding wire revision.
+
+## Currency and market revision
+
+The current provider contract is `v3_semantic_unit_v3`. Currency references and
+explicit provider market statements are documented in
+[currency source identity and market ownership](research-v3-currency-market.md).
+Numeric occurrence identity remains unchanged.

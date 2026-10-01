@@ -51,8 +51,8 @@ export function wireCompletion(r,f) {
   const enclosing=r.presentations.filter(p=>p.segments.includes(anchor?.id)).sort((a,b)=>a.segments.length-b.segments.length);
   const p=plan.container?enclosing.at(-1):enclosing[0];if(!p)throw Error('MOCK_PRESENTATION_MISSING');
   const offer='o'+i;
-  response.offers.push({id:offer,presentation:p.id,name:plan.name,audience:'CONSUMER',relationship:plan.relationship??'SUBSCRIPTION',market:plan.market??null,marketSources:plan.market?p.segments:[],qualifiers:[],ambiguous:false});
-  for(const c of plan.charges) {const number=r.numbers.find(n=>p.segments.includes(n.segment)&&n.raw===c.money.amountText);response.charges.push({id:offer+'-'+c.id,offer,sources:p.segments,amountRef:number?.id??null,amount:c.money.amount,currency:c.money.currency,currencyText:c.money.currencyText,cadence:c.cadence.unit,cadenceText:c.cadence.expression,role:c.role==='ORDINARY'?'ORDINARY_RECURRING':c.role,durationText:c.duration,derivation:c.derivation,qualifiers:c.qualifiers,ambiguous:c.ambiguity});}
+  response.offers.push({id:offer,presentation:p.id,name:plan.name,audience:'CONSUMER',relationship:plan.relationship??'SUBSCRIPTION',marketStatements:plan.market?[{country:plan.market,polarity:'INCLUDED',sources:p.segments,ambiguous:false}]:[],qualifiers:[],ambiguous:false});
+  for(const c of plan.charges) {const number=r.numbers.find(n=>p.segments.includes(n.segment)&&n.raw===c.money.amountText);response.charges.push({id:offer+'-'+c.id,offer,sources:p.segments,amountRef:number?.id??null,amount:c.money.amount,currencyRef:r.currencies.find(u=>p.segments.includes(u.segment)&&u.raw===c.money.currencyText&&u.candidates.includes(c.money.currency))?.id??null,currency:c.money.currency,cadence:c.cadence.unit,cadenceText:c.cadence.expression,role:c.role==='ORDINARY'?'ORDINARY_RECURRING':c.role,durationText:c.duration,derivation:c.derivation,qualifiers:c.qualifiers,ambiguous:c.ambiguity});}
   if(plan.transition)response.relations.push({from:offer+'-intro',to:offer+'-recurring',kind:'FOLLOWED_BY',sources:p.segments,ambiguous:false});
  }
  return response;

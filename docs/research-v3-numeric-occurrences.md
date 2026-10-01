@@ -52,3 +52,7 @@ guard. It did not prove that the page contained too many numbers. Old source
 matching simply selected the first full-token text match, losing repeated-token
 identity. The previous live responses were discarded, so their exact offending
 field cannot be retrospectively identified.
+
+The subsequent `v3_semantic_unit_v3` revision preserves this numeric identity
+contract and adds source-owned currency references; see
+[currency/market ownership](research-v3-currency-market.md).
