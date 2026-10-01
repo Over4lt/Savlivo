@@ -52,7 +52,7 @@ export function wireCompletion(r,f) {
   const p=plan.container?enclosing.at(-1):enclosing[0];if(!p)throw Error('MOCK_PRESENTATION_MISSING');
   const offer='o'+i;
   response.offers.push({id:offer,presentation:p.id,name:plan.name,audience:'CONSUMER',relationship:plan.relationship??'SUBSCRIPTION',market:plan.market??null,marketSources:plan.market?p.segments:[],qualifiers:[],ambiguous:false});
-  for(const c of plan.charges)response.charges.push({id:offer+'-'+c.id,offer,sources:p.segments,amountText:c.money.amountText,currency:c.money.currency,currencyText:c.money.currencyText,cadence:c.cadence.unit,cadenceText:c.cadence.expression,role:c.role==='ORDINARY'?'ORDINARY_RECURRING':c.role,durationText:c.duration,derivation:c.derivation,qualifiers:c.qualifiers,ambiguous:c.ambiguity});
+  for(const c of plan.charges) {const number=r.numbers.find(n=>p.segments.includes(n.segment)&&n.raw===c.money.amountText);response.charges.push({id:offer+'-'+c.id,offer,sources:p.segments,amountRef:number?.id??null,amount:c.money.amount,currency:c.money.currency,currencyText:c.money.currencyText,cadence:c.cadence.unit,cadenceText:c.cadence.expression,role:c.role==='ORDINARY'?'ORDINARY_RECURRING':c.role,durationText:c.duration,derivation:c.derivation,qualifiers:c.qualifiers,ambiguous:c.ambiguity});}
   if(plan.transition)response.relations.push({from:offer+'-intro',to:offer+'-recurring',kind:'FOLLOWED_BY',sources:p.segments,ambiguous:false});
  }
  return response;

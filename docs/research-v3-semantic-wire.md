@@ -85,3 +85,11 @@ establish the ordinary recurring oracle price through this path while retaining
 introductory zero and original eligibility qualifiers. They do not prove future
 live model fidelity or eliminate remote rate limits. No live request was used to
 implement or validate this milestone.
+
+## Numeric-reference revision
+
+The current provider contract is `v3_semantic_unit_v2`. Charges use `amountRef`
+and a checked numeric value instead of reproduced `amountText`; populations use
+`countRef`. See [numeric occurrence identity](research-v3-numeric-occurrences.md)
+for exact source identity, normalization and safe diagnostic behavior. The
+sections above describe the preceding wire revision.

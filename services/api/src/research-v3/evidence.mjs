@@ -150,8 +150,8 @@ export function needsUnderstanding(o,objective) {
     return !parts.some(p=>p.source.serviceId&&p.source.offers.some(v=>v.amount>0&&v.currency&&v.cadence&&v.consumer===true&&['SUBSCRIPTION','MEMBERSHIP'].includes(v.relationship)&&v.role==='ORDINARY'&&v.amountDerivation==='EXPLICIT'));
 }
 export function understandingError(error) {
+    if(error?.v3Diagnostics) {const clean=understandingError(Object.assign(Object.create(Object.getPrototypeOf(error)),error,{message:error.message,v3Diagnostics:null}));return {...clean,diagnostics:error.v3Diagnostics};}
     if(/^WIRE_[A-Z_]+$/.test(error?.message??''))return {code:error.message};
-    if(error?.v3Diagnostics) {const clean=understandingError(Object.assign(Object.create(Object.getPrototypeOf(error)),error,{v3Diagnostics:null}));return {...clean,diagnostics:error.v3Diagnostics};}
     const safe=new Set(['EVIDENCE_ENVELOPE_INVALID','EVIDENCE_MATERIAL_BOUND','EVIDENCE_TRANSLATION_BINDING_INVALID','EVIDENCE_SERVICE_INVALID','EVIDENCE_OFFER_INVALID','EVIDENCE_MARKET_INVALID','EVIDENCE_CHARGE_INVALID','EVIDENCE_TRANSITION_INVALID','EVIDENCE_POPULATION_INVALID','EVIDENCE_ACCOUNT_INVALID','EVIDENCE_INVALID','EVIDENCE_RESPONSE_BOUND','EVIDENCE_UNIT_INVALID','EVIDENCE_UNIT_BOUND','EVIDENCE_REQUEST_BOUND','EVIDENCE_ACCOUNT_GRAPH_INVALID','UNDERSTANDING_TIMEOUT','UNDERSTANDING_ENDPOINT_NOT_ALLOWED','UNDERSTANDING_RESPONSE_UNAVAILABLE','UNDERSTANDING_RESPONSE_BOUND','UNDERSTANDING_RESPONSE_INCOMPLETE','UNDERSTANDING_REFUSAL']);
     for(let e=error,depth=0;e&&depth<3;e=e.cause,depth++)if(safe.has(e.message))return {code:e.message};
     if(error?.name==='AbortError'||error?.name==='APIConnectionTimeoutError')return {code:'UNDERSTANDING_TIMEOUT'};
@@ -176,11 +176,13 @@ export function createEvidenceInterpreter({complete,adapter={mode:'INJECTED_EVID
         const controller=new AbortController();let timer;
         try {
             const raw=await Promise.race([complete(evidenceRequest(o,objective,unit),{signal:controller.signal}),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(Error('UNDERSTANDING_TIMEOUT'));},timeoutMs);})]);
-            const encoded=typeof raw==='string'?raw:JSON.stringify(raw);
+            const artifact=exact(raw,['envelope','wire'])?raw:null;
+            const value=artifact?artifact.envelope:raw;
+            const encoded=typeof value==='string'?value:JSON.stringify(value);
             if(typeof encoded!=='string'||Buffer.byteLength(encoded)>evidenceLimits.responseBytes)throw Error('EVIDENCE_RESPONSE_BOUND');
             const envelope=JSON.parse(encoded),p=projectEvidence(o,objective,envelope,unit);
-            if(p.error)throw Error(p.error);
-            return {kind:'EVIDENCE',envelope,...(unit?{unit}:{})};
+            if(p.error) {const error=Error(p.error);if(artifact)error.v3Diagnostics={unit:unit.id,wire:artifact.wire};throw error;}
+            return {kind:'EVIDENCE',envelope,...(artifact?{wire:artifact.wire}:{}),...(unit?{unit}:{})};
         } finally {clearTimeout(timer);controller.abort();}
     };
     interpret.semanticAdapter=Object.freeze({...adapter,role:'EVIDENCE_UNDERSTANDING'});

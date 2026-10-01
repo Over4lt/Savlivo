@@ -338,7 +338,7 @@ async function understandUnits(k,o,interpret,save) {
             if(value?.kind!=='EVIDENCE'||value.unit?.id!==unit.id)throw Error('EVIDENCE_UNIT_INVALID');
             const projection=projectEvidence(o,k.objective,value.envelope,unit);
             if(projection.error)throw Error(projection.error);
-            const fragment={envelope:value.envelope,unit,adapter:interpret.semanticAdapter};
+            const fragment={envelope:value.envelope,unit,adapter:interpret.semanticAdapter,...(value.wire?{wire:value.wire}:{})};
             if(o.evidence)o.evidenceFragments.push(fragment);else o.evidence=fragment;
             o.candidates=projectObservation(o,k.objective).candidates;
             attempt.status='COMPLETED';o.interpretation={kind:'EVIDENCE',unit:unit.id,accepted:projection.accepted,rejected:projection.rejected};
