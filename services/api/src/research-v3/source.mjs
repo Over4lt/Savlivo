@@ -1,5 +1,8 @@
 // Bounded deterministic HTML/text interpretation. No network, model calls or V2 policy.
 import {digest, pricePropositions, servicePropositions} from './model.mjs';
+import {presentationCapacity as capacity} from './acquisition-contract.mjs';
+const documents=new WeakMap();
+function observationDocument(o){const old=documents.get(o),cached=old?.parsed.deref();if(cached&&old.body===o.body&&old.contentType===o.contentType)return cached;const parsed=document(o.body,o.contentType);documents.set(o,{body:o.body,contentType:o.contentType,parsed:new WeakRef(parsed)});return parsed;}
 
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const decode = s => s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (all, key) => {
@@ -13,8 +16,13 @@ const blocks = new Set(['p','li','article','section','div','h1','h2','h3','title
 const voids = new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
 
 function document(body, contentType) {
-    if (contentType === 'text/plain') return {nodes: body.split(/\n\s*\n/).map(part => ({tag:'p',start:body.indexOf(part),end:body.indexOf(part)+part.length,inner:part,text:part.trim(),attrs:{}})), limited:false};
-    const nodes=[], stack=[],hidden=[]; let limited=false, tokens=0;
+    if(contentType==='text/plain'){
+        const nodes=[];let start=0,limited=false;
+        const add=end=>{const part=body.slice(start,end);if(part.trim()){if(nodes.length>=capacity.presentations){limited=true;return;}nodes.push({tag:'p',start,end,text:part.trim(),attrs:{}});}};
+        for(const separator of body.matchAll(/\n\s*\n/g)){add(separator.index);if(limited)break;start=separator.index+separator[0].length;}
+        if(!limited)add(body.length);return {nodes,limited};
+    }
+    const nodes=[], stack=[],hidden=[]; let limited=false, tokens=0,textBytes=0;
     const visibleText=(start,end)=>{
         let cursor=start, material='';
         for(const range of hidden.filter(r=>r.start>=start&&r.end<=end).sort((a,b)=>a.start-b.start||b.end-a.end)) {
@@ -25,7 +33,7 @@ function document(body, contentType) {
     };
     const token=/<\!--[^]*?-->|<\/?([a-z][\w:-]*)\b[^>]*>/gi;
     for (let m; (m=token.exec(body));) {
-        if (++tokens > 20000) {limited=true; break;}
+        if (++tokens > capacity.tokens) {limited=true; break;}
         if (!m[1]) continue;
         const tag=m[1].toLowerCase(), closing=m[0][1]==='/';
         if (!closing && ['script','style','template'].includes(tag)) {
@@ -33,16 +41,18 @@ function document(body, contentType) {
             const close=end.exec(body); token.lastIndex=close?end.lastIndex:body.length; continue;
         }
         if (!closing && !voids.has(tag) && !m[0].endsWith('/>')) {
-            if (stack.length >= 128) {limited=true; break;}
+            if (stack.length >= capacity.depth) {limited=true; break;}
             const attributes=attrs(m[0]);
-            stack.push({ancestry:stack.map(a=>({tag:a.tag,start:a.start,role:a.attrs.role??null,itemType:a.attrs.itemtype??null,itemProp:a.attrs.itemprop??null})),tag,start:m.index,openEnd:token.lastIndex,attrs:attributes,hidden:stack.some(n=>n.hidden)||/\shidden(?:\s|=|>)/i.test(m[0])||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(attributes.style??'')});
+            stack.push({ancestry:stack.map(a=>a.identity),identity:{tag,start:m.index,role:attributes.role??null,itemType:attributes.itemtype??null,itemProp:attributes.itemprop??null},tag,start:m.index,openEnd:token.lastIndex,attrs:attributes,hidden:stack.some(n=>n.hidden)||/\shidden(?:\s|=|>)/i.test(m[0])||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(attributes.style??'')});
         } else if (closing) {
             const index=stack.findLastIndex(n=>n.tag===tag); if(index<0) continue;
             const n=stack[index]; stack.length=index;
             if(n.hidden)hidden.push({start:n.start,end:token.lastIndex});
             if (blocks.has(tag)) {
-                const inner=body.slice(n.openEnd,m.index), visible=visibleText(n.openEnd,m.index);
-                if (visible && !n.hidden) nodes.push({...n,end:token.lastIndex,inner,text:visible});
+                if(n.hidden)continue;
+                const visible=visibleText(n.openEnd,m.index);textBytes+=Buffer.byteLength(visible);
+                if(textBytes>capacity.textBytes||nodes.length>=capacity.presentations){limited=true;break;}
+                if (visible) nodes.push({...n,end:token.lastIndex,text:visible});
             }
         }
     }
@@ -122,7 +132,7 @@ function relevance(s) {
 export function projectWebSource(observation, objective) {
     const source={offers:[],links:[]}, bindings={}, ambiguities=[];
     if(!['text/html','application/xhtml+xml','text/plain'].includes(observation.contentType)) return {source,bindings,ambiguities,limited:false};
-    const parsed=document(observation.body,observation.contentType), nodes=parsed.nodes;
+    const parsed=observationDocument(observation), nodes=parsed.nodes;
     const name=new RegExp('(?:^|[^\\p{L}\\p{N}])'+escape(objective.serviceName)+'(?=$|[^\\p{L}\\p{N}])','iu');
     const pointer=n=>({start:n.start,end:n.end,sha256:digest(observation.body.slice(n.start,n.end))});
     const identity=nodes.find(n=>['title','h1','p'].includes(n.tag)&&name.test(n.text));
@@ -130,7 +140,7 @@ export function projectWebSource(observation, objective) {
     // Keep an offer within one presentation. Prefer small enclosing offer sections,
     // never pool an entire page's prices, currencies and headings.
     const priced=nodes.filter(n=>n.tag!=='a'&&monetary(n.text).length&&/\b(?:subscription|membership)\b/i.test(n.text));
-    const selected=priced.filter(n=>!priced.some(c=>c!==n&&c.start>n.start&&c.end<n.end));
+    const selected=priced.filter((n,i)=>!(priced[i+1]?.start>n.start&&priced[i+1].end<n.end));
     for(const n of selected.slice(0,64)) {
         const value=nativePresentationFacts(n.text), p='/offers/'+source.offers.length;
         source.offers.push(value); bindings[p]=pointer(n);
@@ -171,15 +181,15 @@ export function interpretWeb(observation, objective) {
 export function semanticMaterial(observation) {
     const body=observation.body, segments=[];
     if(!['text/plain','text/html','application/xhtml+xml'].includes(observation.contentType)) return {segments,presentations:[],limited:false};
-    const parsed=document(body,observation.contentType);
+    const parsed=observationDocument(observation);
     let limited=parsed.limited;
     const add=(start,end)=>{if(body.slice(start,end).trim()) segments.push({start,end,text:body.slice(start,end)});};
-    if(observation.contentType==='text/plain') add(0,body.length);
+    if(observation.contentType==='text/plain') parsed.nodes.forEach(n=>add(n.start,n.end));
     else {
         const re=/<!--[^]*?-->|<\/?([a-z][\w:-]*)\b[^>]*>/gi, stack=[];
         let cursor=0,tokens=0;
         for(let m;(m=re.exec(body));) {
-            if(++tokens>20000||segments.length>=2048||stack.length>=128){limited=true;break;}
+            if(++tokens>capacity.tokens||segments.length>=capacity.segments||stack.length>=capacity.depth){limited=true;break;}
             if(!stack.some(n=>n.hidden))add(cursor,m.index);
             const tag=m[1]?.toLowerCase();
             if(tag&&m[0][1]==='/') {const i=stack.findLastIndex(n=>n.tag===tag);if(i>=0)stack.length=i;}
@@ -195,11 +205,11 @@ export function semanticMaterial(observation) {
         }
         if(!limited&&!stack.some(n=>n.hidden))add(cursor,body.length);
     }
-    const presentations=parsed.nodes.filter(n=>n.tag!=='a').slice(0,256).map((n,i)=>({id:'presentation-'+i,start:n.start,end:n.end,tag:n.tag,role:n.attrs.role??null,itemType:n.attrs.itemtype??null,itemProp:n.attrs.itemprop??null,ancestry:n.ancestry??[]}));
-    return {segments:segments.slice(0,2048),presentations,limited:limited||parsed.nodes.length>256||segments.length>2048};
+    const presentations=parsed.nodes.filter(n=>n.tag!=='a').slice(0,capacity.presentations).map((n,i)=>({id:'presentation-'+i,start:n.start,end:n.end,tag:n.tag,role:n.attrs.role??null,itemType:n.attrs.itemtype??null,itemProp:n.attrs.itemprop??null,ancestry:n.ancestry??[]}));
+    return {segments:segments.slice(0,capacity.segments),presentations,limited:limited||parsed.nodes.length>capacity.presentations||segments.length>capacity.segments};
 }
 
 // Structural destination provenance. Labels are routing hints, never truth.
 export function semanticDestinations(o) {
-    return document(o.body,o.contentType).nodes.filter(n=>(n.tag==='a'&&n.attrs.href)||(n.tag==='form'&&n.attrs.action)).slice(0,512).map((n,i)=>({id:'destination-'+i,kind:n.tag==='form'?'FORM':'LINK',url:n.attrs.href??n.attrs.action,start:n.start,end:n.end,label:n.text.slice(0,256)}));
+    return observationDocument(o).nodes.filter(n=>(n.tag==='a'&&n.attrs.href)||(n.tag==='form'&&n.attrs.action)).slice(0,512).map((n,i)=>({id:'destination-'+i,kind:n.tag==='form'?'FORM':'LINK',url:n.attrs.href??n.attrs.action,start:n.start,end:n.end,label:n.text.slice(0,256)}));
 }

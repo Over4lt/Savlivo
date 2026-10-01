@@ -3,6 +3,7 @@ import { evaluate, interpretStructured, readSource } from './truth.mjs';
 import {projectTranslation,translationError} from './translation.mjs';
 import {projectEvidence,understandingError} from './evidence.mjs';
 import {projectObservation} from './projection.mjs';
+import {acquisitionCapacity as acquisition} from './acquisition-contract.mjs';
 import {semanticUnitLimits} from './semantic-units.mjs';
 import { projectWebSource } from './source.mjs';
 const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.context?.transport;
@@ -30,7 +31,7 @@ function proposals(k, truth) {
     return [...actions, ...searches(k, truth)];
 }
 function capacity(k, a) {
-    const u = k.usage, b = k.bounds, checks = [['actions', u.actions, b.actions], ['bytes', u.bytes, b.bytes], ['networkRequests', u.networkRequests ?? 0, b.networkRequests ?? 96]];
+    const u = k.usage, b = k.bounds, checks = [['actions', u.actions, b.actions], ['bytes', u.bytes, b.bytes], ['decodedBytes', u.decodedBytes??0, b.decodedBytes??acquisition.objectiveDecodedBytes], ['acquisitionMs', u.acquisitionMs??0, b.acquisitionMs??acquisition.objectiveAcquisitionMs], ['networkRequests', u.networkRequests ?? 0, b.networkRequests ?? 96]];
     if (a.kind === 'DISCOVER')
         checks.push(['searches', u.searches, b.searches]);
     else {
@@ -107,20 +108,31 @@ async function accept(k, a, response, interpret, navigate, save) {
     if (!response || typeof response !== 'object')
         throw Error('CAPABILITY_RESPONSE_REQUIRED');
     if (response.accounting) {
-        const {requests,bytes}=response.accounting;
+        const {requests,bytes,decodedBytes=bytes,retainedBytes=0}=response.accounting;
+        if([decodedBytes,retainedBytes].some(n=>!Number.isSafeInteger(n)||n<0))throw Error('INVALID_TRANSPORT_ACCOUNTING');
         if(!Number.isSafeInteger(requests)||requests<0||!Number.isSafeInteger(bytes)||bytes<0) throw Error('INVALID_TRANSPORT_ACCOUNTING');
         k.usage.networkRequests=(k.usage.networkRequests??0)+requests;
         // Include robots, redirects, geo probes and failed responses, not only evidence.
         k.usage.bytes+=bytes;
+        k.usage.decodedBytes=(k.usage.decodedBytes??0)+decodedBytes;
+        k.usage.retainedBytes=(k.usage.retainedBytes??0)+retainedBytes;
+    }
+    if(response.acquisitionTiming){
+        const elapsed=response.acquisitionTiming.elapsedMs;
+        if(!Number.isSafeInteger(elapsed)||elapsed<0)throw Error('INVALID_TRANSPORT_ACCOUNTING');
+        k.usage.acquisitionMs=(k.usage.acquisitionMs??0)+elapsed;
     }
     if(response.requestLedger) {
         if(!Array.isArray(response.requestLedger)||response.requestLedger.length!==response.accounting?.requests)throw Error('INVALID_REQUEST_LEDGER');
         k.attempts.at(-1).requestLedger=structuredClone(response.requestLedger);
         k.attempts.at(-1).acquisitionTiming=structuredClone(response.acquisitionTiming);
+        k.attempts.at(-1).acquisitionCapacity=structuredClone(response.acquisitionCapacity);
+        k.attempts.at(-1).externalHttpRequests=response.externalHttpRequests;
+        k.attempts.at(-1).acquisitionOperations=structuredClone(response.acquisitionOperations??[]);
         if(response.failure)k.attempts.at(-1).failure=structuredClone(response.failure);
-        k.trace.push({event:'ACQUISITION_LEDGER',action:a.id,requests:structuredClone(response.requestLedger),timing:structuredClone(response.acquisitionTiming),...(response.failure?{failure:structuredClone(response.failure)}:{})});
+        k.trace.push({event:'ACQUISITION_LEDGER',action:a.id,requests:structuredClone(response.requestLedger),timing:structuredClone(response.acquisitionTiming),operations:structuredClone(response.acquisitionOperations??[]),capacity:response.acquisitionCapacity,externalHttpRequests:response.externalHttpRequests,...(response.failure?{failure:structuredClone(response.failure)}:{})});
     }
-    if(k.usage.bytes>k.bounds.bytes||k.usage.networkRequests>(k.bounds.networkRequests??96)) {
+    if(k.usage.bytes>k.bounds.bytes||(k.usage.decodedBytes??0)>(k.bounds.decodedBytes??acquisition.objectiveDecodedBytes)||(k.usage.acquisitionMs??0)>(k.bounds.acquisitionMs??acquisition.objectiveAcquisitionMs)||k.usage.networkRequests>(k.bounds.networkRequests??96)) {
         markLimit(k,'transportCapacity'); throw Error('TRANSPORT_CAPACITY_BOUND');
     }
     if(response.failure) {
@@ -148,17 +160,18 @@ async function accept(k, a, response, interpret, navigate, save) {
         const scope = response.policyScope === 'ORIGIN' ? 'ORIGIN' : 'URL';
         k.policyBlocks.push({ scope, value: scope === 'ORIGIN' ? new URL(url).origin : url, observation: a.id });
     }
+    if(response.outcome==='OK'&&response.completeness!==undefined&&response.completeness!=='COMPLETE')throw Error('INCOMPLETE_RESPONSE');
     const body = typeof response.body === 'string' ? response.body : '', bytes = Buffer.byteLength(body), remaining = k.bounds.bytes - k.usage.bytes;
-    if(response.accounting && bytes>response.accounting.bytes) throw Error('INVALID_TRANSPORT_ACCOUNTING');
+    if(response.accounting && bytes>(response.accounting.retainedBytes??response.accounting.decodedBytes??response.accounting.bytes)) throw Error('INVALID_TRANSPORT_ACCOUNTING');
     // The capability contract must enforce maxBytes while receiving data. Never
     // interpret or retain an over-bound response, even from a faulty offline adapter.
     if (!response.accounting && bytes > remaining)
         throw Error('CAPABILITY_BYTE_CONTRACT_VIOLATION');
     if(!response.accounting) k.usage.bytes += bytes;
     const o = { id: a.id, kind: 'PROVIDER', url, context: structuredClone(a.context), outcome: response.outcome ?? 'ERROR', truncated: response.truncated === true, body, bytes, sha256: digest(body), action: a.id, candidates: [],
-        ...(response.format==='WEB'?{format:'WEB',contentType:response.contentType,requestedUrl:a.url,httpStatus:response.httpStatus,acquiredAt:response.acquiredAt,transport:response.transport,access:response.access}: {}) };
+        ...(response.format==='WEB'?{format:'WEB',contentType:response.contentType,requestedUrl:a.url,httpStatus:response.httpStatus,acquiredAt:response.acquiredAt,transport:response.transport,access:response.access,completeness:response.completeness??(response.truncated?'INCOMPLETE':'COMPLETE'),responseMetadata:response.responseMetadata,redirects:response.redirects,acquisitionTiming:response.acquisitionTiming}: {}) };
     k.observations.push(o);
-    if (o.outcome === 'OK' && !o.truncated) {
+    if (o.outcome === 'OK' && !o.truncated && (o.completeness===undefined||o.completeness==='COMPLETE')) {
         o.candidates=o.format==='WEB'?projectObservation(o,k.objective).candidates:interpretStructured(o,k.objective);
         if(interpret.semanticUnits) {
             await understandUnits(k,o,interpret,save);
@@ -308,7 +321,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         k.trace.push({ event: 'ACTION_SELECTED', action: a, reason: audit.reason });
         await persist(k, save);
         try {
-            const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxResults: k.bounds.candidateDestinations, maxRequests:(k.bounds.networkRequests??96)-(k.usage.networkRequests??0) });
+            const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxDecodedBytes:(k.bounds.decodedBytes??acquisition.objectiveDecodedBytes)-(k.usage.decodedBytes??0), maxAcquisitionMs:(k.bounds.acquisitionMs??acquisition.objectiveAcquisitionMs)-(k.usage.acquisitionMs??0), maxResults: k.bounds.candidateDestinations, maxRequests:(k.bounds.networkRequests??96)-(k.usage.networkRequests??0) });
             const observation = await accept(k, a, response, interpret, navigate, save), after = evaluate(k);
             k.attempts.at(-1).status = 'COMPLETED';
             k.pending = null;

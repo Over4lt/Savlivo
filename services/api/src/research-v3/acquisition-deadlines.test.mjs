@@ -66,7 +66,7 @@ test('request budget dispatches and accounts only allowed actual hops',async()=>
 test('DNS deadline is phase-specific and does not consume HTTP request budget',async()=>{
  const timing=fakeTiming(),caps=createCapabilities({objective,permissions:{DIRECT:true},timeoutMs:15,acquisitionTimeoutMs:90,timing,network:{resolveHost:()=>new Promise(()=>{}),requestOnce:()=>assert.fail('no DNS result')}});
  const pending=caps.DIRECT({...action,context:{transport:'DIRECT',networkGeography:'UNBOUND'}},limits);await flush();timing.advance(15);const r=await pending;
- assert.equal(r.failure.code,'PROVIDER_DNS_TIMEOUT');assert.equal(r.failure.phase,'DNS');assert.equal(r.accounting.requests,0);assert.deepEqual(r.requestLedger,[]);assert.equal(timing.size,0);
+ assert.equal(r.failure.code,'ROBOTS_DNS_TIMEOUT');assert.equal(r.failure.phase,'DNS');assert.equal(r.accounting.requests,0);assert.deepEqual(r.requestLedger,[]);assert.equal(timing.size,0);
 });
 test('successful operations just before deadlines clear timers and later requests get fresh signals',async()=>{
  const timing=fakeTiming(),parent=new AbortController();let complete,first;
@@ -110,7 +110,7 @@ test('direct hop streams bounded bytes and retains no sensitive response headers
  f.response.emit('data',Buffer.from('test'));f.response.emit('end');const r=await pending;assert.equal(count,4);assert.equal(r.body.toString(),'test');assert.equal(r.headers['set-cookie'],undefined);assert.equal(controller.signal.aborted,false);assert.equal(f.request.destroyed,true);
 });
 test('direct hop rejects unsupported content and declared oversize before reading a body',async()=>{
- for(const [headers,code] of [[{'content-type':'text/html','content-length':'100'},'RESPONSE_TOO_LARGE'],[{'content-type':'application/pdf'},'UNSUPPORTED_CONTENT'],[{'content-type':'text/html','content-encoding':'gzip'},'UNSUPPORTED_ENCODING']]){
+ for(const [headers,code] of [[{'content-type':'text/html','content-length':'100'},'RESPONSE_TOO_LARGE'],[{'content-type':'application/pdf'},'UNSUPPORTED_CONTENT']]){
   const f=directFixture(headers);await assert.rejects(directHop({url:new URL(objective.seeds[0]),address:'93.184.216.34',family:4,maxBytes:20,onBodyBytes:()=>assert.fail('no body'),onPhase:()=>{},onHeaders:()=>{},userAgent:'offline',requestImpl:f.requestImpl}),{code});assert.equal(f.request.destroyed,true);assert.equal(f.response.destroyed,true);
  }
 });

@@ -1,5 +1,6 @@
 // Independent V3 domain primitives. No filesystem, network or V2 imports.
 import { createHash } from 'node:crypto';
+import {acquisitionCapacity} from './acquisition-contract.mjs';
 export const canonical = value => JSON.stringify(sort(value));
 function sort(v) {
     if (Array.isArray(v)) return v.map(sort);
@@ -10,7 +11,7 @@ export const digest = value => createHash('sha256').update(typeof value === 'str
 export const states = Object.freeze({ ESTABLISHED: 'ESTABLISHED', UNRESOLVED: 'UNRESOLVED', CONTRADICTED: 'CONTRADICTED' });
 export const servicePropositions = Object.freeze(['SERVICE_IDENTITY', 'SERVICE_SIZE_100K_PLUS', 'CONSUMER_MONTHLY_SUBSCRIPTION_EXISTS', 'ACCOUNT_LOGIN_EXISTS', 'MEMBERSHIP_MANAGEMENT_EXISTS']);
 export const pricePropositions = Object.freeze(['SERVICE_IDENTITY', 'PRICE_AMOUNT', 'CURRENCY', 'MONTHLY_CADENCE', 'CONSUMER_SUBSCRIPTION', 'TARGET_MARKET']);
-export const defaultBounds = Object.freeze({ actions: 20, searches: 4, acquisitions: 12, countryAcquisitions: 8, navigationDepth: 3, candidateDestinations: 24, bytes: 262144, observationsPerContext: 1, observationsPerDestination: 3, plannerCalls: 24, networkRequests: 96, modelCalls: 12 });
+export const defaultBounds = Object.freeze({ actions: 20, searches: 4, acquisitions: 12, countryAcquisitions: 8, navigationDepth: 3, candidateDestinations: 24, bytes: acquisitionCapacity.objectiveWireBytes, decodedBytes: acquisitionCapacity.objectiveDecodedBytes, acquisitionMs: acquisitionCapacity.objectiveAcquisitionMs, observationsPerContext: 1, observationsPerDestination: 3, plannerCalls: 24, networkRequests: 96, modelCalls: 12 });
 export function normalizeUrl(value, base) {
     try {
         const u = new URL(value, base);
@@ -50,7 +51,7 @@ export function createKnowledge({ objective, permissions = {}, bounds = {} }) {
         throw Error('SERVICE_SIZE_IS_NOT_PER_MARKET');
     if (o.providerHosts.some(h => typeof h !== 'string' || !normalizeUrl('https://' + h + '/') || new URL('https://' + h + '/').hostname !== h))
         throw Error('INVALID_PROVIDER_HOST');
-    const k = { version: 1, objective: o, permissions: Object.fromEntries(['DIRECT', 'TAVILY', 'DECODO'].map(p => [p, permissions[p] === true])), bounds: b, destinations: [], observations: [], attempts: [], decisions: [], trace: [], policyBlocks: [], limitsHit: [], usage: { actions: 0, searches: 0, acquisitions: 0, countryAcquisitions: 0, bytes: 0, plannerCalls: 0, networkRequests: 0, modelCalls: 0 }, pending: null, stop: null };
+    const k = { version: 1, objective: o, permissions: Object.fromEntries(['DIRECT', 'TAVILY', 'DECODO'].map(p => [p, permissions[p] === true])), bounds: b, destinations: [], observations: [], attempts: [], decisions: [], trace: [], policyBlocks: [], limitsHit: [], usage: { actions: 0, searches: 0, acquisitions: 0, countryAcquisitions: 0, bytes: 0, decodedBytes: 0, retainedBytes: 0, acquisitionMs: 0, plannerCalls: 0, networkRequests: 0, modelCalls: 0 }, pending: null, stop: null };
     for (const url of o.seeds)
         addDestination(k, { url, depth: 0, needs: o.kind === 'PRICE' ? pricePropositions : servicePropositions, grounding: { kind: 'OPERATOR_SEED' } });
     return k;
