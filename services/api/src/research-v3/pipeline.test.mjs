@@ -91,7 +91,7 @@ test('provider navigation: relevant link followed, irrelevant/external links rej
     const {result,knowledge}=await execute({input:i,pages:{UNBOUND:{[home]:intro,[price]:enough()}}});
     assert.equal(result.stop.reason,'OBJECTIVE_ESTABLISHED');
     assert.deepEqual(knowledge.observations.map(o=>o.url),[home,price]);
-    assert.equal(knowledge.destinations.length,2);
+    assert.equal(knowledge.destinations.length,3); // Broad advisory frontier retains news without acquiring it.
     assert.equal(knowledge.destinations[1].grounding.kind,'PROVIDER_LINK');
 });
 

@@ -11,10 +11,12 @@ export function createReasoner({initialPerspective='AUTO'}={}) {
                 const prior=state.observations.find(o=>o.url===action.url&&o.context.transport==='DIRECT'&&o.outcome==='OK');
                 if(country) {value=60;reason='Observe the provider in the target country for these unresolved facts';}
                 else reason='Inspect this grounded provider presentation for these unresolved facts';
-                if(country&&prior) {value=100;reason='Direct succeeded but did not establish the remaining target facts; country observation is distinct';}
+                if(country&&prior&&state.truth.needs.every(n=>n.proposition==='TARGET_MARKET')) {value=100;reason='Direct succeeded but did not establish the remaining target facts; country observation is distinct';}
                 if(state.observations.length===0&&initialPerspective==='UNBOUND'&&!country) {value=80;reason='Requested initial unbound perspective; this is not a prerequisite for country acquisition';}
                 if(state.observations.length===0&&initialPerspective==='COUNTRY'&&country) {value=90;reason='Requested target-country perspective has the greatest expected information value';}
                 const destination=state.destinations.find(d=>d.url===action.url);
+                value+=(destination?.discovery?.score??0)*4;
+                if(destination?.discovery?.resource==='SITEMAP')value-=10;
                 if(destination?.grounding.kind==='PROVIDER_LINK') {value+=15;reason+='; provider navigation grounds this destination';}
             }
             return {action,value,reason};

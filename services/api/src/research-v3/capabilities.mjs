@@ -4,7 +4,8 @@ import {randomBytes} from 'node:crypto';
 import {isIP} from 'node:net';
 import {publicAddress,researchUserAgent} from '../research-v1/public-network.mjs';
 import {createIndependentExitVerifier} from '../../../../docs/catalog/global-47/research-v1/independent-exit-verifier.mjs';
-import {providerBound,normalizeUrl,digest} from './model.mjs';
+import {navigationOwned,validateNamespaces} from './discovery-authority.mjs';
+import {normalizeUrl,digest} from './model.mjs';
 import {boundedOperation,directHop,createProxyHop,systemTiming,safeOrigin} from './acquisition-io.mjs';
 import {createAcquisitionReader} from './acquisition-reader.mjs';
 import {parseAcquisitionRobots,evaluateAcquisitionRobots} from './acquisition-robots.mjs';
@@ -26,15 +27,16 @@ function budget(limits) {
 }
 export function createCapabilities({objective,permissions={},network={},tavily={},decodo={},clock=()=>new Date().toISOString(),timeoutMs,acquisitionTimeoutMs=timeoutMs===undefined?cap.acquisitionMs:Math.min(180000,timeoutMs*6),timing=systemTiming}={}) {
  if(!Number.isSafeInteger(acquisitionTimeoutMs)||acquisitionTimeoutMs<1||acquisitionTimeoutMs>600000||timeoutMs!==undefined&&(!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>90000))throw fault('INVALID_TIMEOUT');
- const check=url=>{if(!normalizeUrl(url)||!providerBound(objective,url))throw fault('PROVIDER_BOUNDARY');};
+ validateNamespaces(objective);
+ const check=url=>{if(!normalizeUrl(url)||!navigationOwned(objective,url))throw fault('PROVIDER_BOUNDARY');};
  async function acquire(action,limits,geo) {
-  const account=budget(limits),access=[],controller=new AbortController(),ledger=[],redirects=[],operations=[],secretTokens=[],attemptId=randomBytes(12).toString('hex'),started=timing.now();let lastFailure=null,stage='SETUP',status=null,finalUrl=action.url;
+  const account=budget(limits),access=[],controller=new AbortController(),ledger=[],redirects=[],navigationDocuments=[],operations=[],secretTokens=[],attemptId=randomBytes(12).toString('hex'),started=timing.now();let lastFailure=null,stage='SETUP',status=null,finalUrl=action.url;
   const acquisitionDeadline=Math.min(acquisitionTimeoutMs,limits.maxAcquisitionMs??acquisitionTimeoutMs);
   const checkDeadline=()=>{if(timing.now()-started>acquisitionDeadline)throw fault('ACQUISITION_DEADLINE_EXCEEDED');};
   const timer=timing.set(()=>controller.abort('ACQUISITION_DEADLINE_EXCEEDED'),acquisitionDeadline);
   const explicitAbort=()=>controller.abort('EXPLICIT_CANCELLATION');limits.signal?.addEventListener('abort',explicitAbort,{once:true});if(limits.signal?.aborted)explicitAbort();
   const hopDeadline=purpose=>timeoutMs??(purpose.startsWith('GEO_')?cap.geographyRequestMs:purpose==='ROBOTS'?cap.robotsRequestMs:cap.providerRequestMs);
-  const details=()=>({requestLedger:ledger,redirects,acquisitionOperations:operations,acquisitionTiming:{attemptId,elapsedMs:Math.max(0,Math.round(timing.now()-started)),requestTimeoutMs:timeoutMs??cap.providerRequestMs,acquisitionTimeoutMs:acquisitionDeadline},acquisitionCapacity:cap,externalHttpRequests:ledger.reduce((n,r)=>n+Math.max(1,r.transportRequests.length),0)});
+  const details=()=>({requestLedger:ledger,redirects,navigationDocuments,acquisitionOperations:operations,acquisitionTiming:{attemptId,elapsedMs:Math.max(0,Math.round(timing.now()-started)),requestTimeoutMs:timeoutMs??cap.providerRequestMs,acquisitionTimeoutMs:acquisitionDeadline},acquisitionCapacity:cap,externalHttpRequests:ledger.reduce((n,r)=>n+Math.max(1,r.transportRequests.length),0)});
   const base={format:'WEB',url:action.url,requestedUrl:action.url,context:action.context,acquiredAt:clock(),body:'',truncated:false,completeness:'REJECTED',access};
   const recordFailure=(error,extra={})=>{lastFailure={...normalizedFailure(error),stage,...extra};};
   let transport={kind:'DIRECT',networkGeography:'UNBOUND'};
@@ -113,7 +115,13 @@ export function createCapabilities({objective,permissions={},network={},tavily={
      if([404,410].includes(result.status))policy={absent:true,status:result.status};
      else if(result.status===200){
       const row=ledger.at(-1);if(row)row.processingPhase='ROBOTS_PARSE';
-      try{const parsedAt=timing.now();policy={parsed:parseAcquisitionRobots(result.text),status:result.status};if(timing.now()-parsedAt>(timeoutMs??cap.processingMs))throw fault('ROBOTS_PROCESSING_TIMEOUT');checkDeadline();if(row){row.robotsDiagnostics=policy.parsed.diagnostics;row.processingState='COMPLETED';}}
+      try{const parsedAt=timing.now();policy={parsed:parseAcquisitionRobots(result.text),status:result.status};
+       if(policy.parsed.sitemaps.length) {
+        if(geo&&[decodo.username,decodo.password].some(s=>result.text.includes(s)))throw fault('SECRET_IN_RESPONSE');
+        const bodySha256=digest(result.text);
+        navigationDocuments.push({kind:'ROBOTS',url:result.url,body:result.text,sha256:bodySha256,completeness:'COMPLETE',declarations:policy.parsed.sitemaps});
+        account.retained(Buffer.byteLength(result.text));
+       }if(timing.now()-parsedAt>(timeoutMs??cap.processingMs))throw fault('ROBOTS_PROCESSING_TIMEOUT');checkDeadline();if(row){row.robotsDiagnostics=policy.parsed.diagnostics;row.processingState='COMPLETED';}}
       catch(e){if(row){row.processingState='FAILED';row.processingFailure=e.code;row.robotsDiagnostic=e.diagnostics??null;}recordFailure(e,{phase:'ROBOTS_PARSE',requestSequence:row?.sequence??null});throw e;}
      }else throw fault('ROBOTS_HTTP_UNAVAILABLE');policies.set(origin,policy);
     }
@@ -145,14 +153,14 @@ export function createCapabilities({objective,permissions={},network={},tavily={
             if(typeof tavily.apiKey!=='string'||!tavily.apiKey)throw fault('TAVILY_CONFIGURATION_REQUIRED');
             if(action.query.includes(tavily.apiKey))throw fault('INVALID_DISCOVERY_QUERY');
             account.request();
-            const res=await (tavily.fetchImpl??fetch)('https://api.tavily.com/search',{method:'POST',redirect:'error',signal:AbortSignal.timeout(timeoutMs??cap.geographyRequestMs),headers:{'Content-Type':'application/json',Authorization:'Bearer '+tavily.apiKey},body:JSON.stringify({query:action.query,include_domains:objective.providerHosts,max_results:Math.min(8,limits.maxResults),include_answer:false,include_raw_content:false,include_images:false,search_depth:'basic'})});
+            const res=await (tavily.fetchImpl??fetch)('https://api.tavily.com/search',{method:'POST',redirect:'error',signal:AbortSignal.timeout(timeoutMs??cap.geographyRequestMs),headers:{'Content-Type':'application/json',Authorization:'Bearer '+tavily.apiKey},body:JSON.stringify({query:action.query,include_domains:[...new Set([...objective.providerHosts,...(objective.providerNamespaces??[]).map(s=>s.domain)])],max_results:Math.min(8,limits.maxResults),include_answer:false,include_raw_content:false,include_images:false,search_depth:'basic'})});
             if(!res.ok)throw fault('TAVILY_HTTP_UNAVAILABLE');
             const reader=res.body.getReader(), chunks=[];
             try {for(;;){const {done,value}=await reader.read();if(done)break;account.bytes(value.byteLength);chunks.push(Buffer.from(value));}}finally{await reader.cancel().catch(()=>{});}
             const material=Buffer.concat(chunks);account.decoded(material.length);
             const data=JSON.parse(material.toString('utf8'));
             if(!Array.isArray(data.results))throw fault('TAVILY_INVALID_RESPONSE');
-            const results=data.results.slice(0,Math.min(8,limits.maxResults)).filter(r=>typeof r.url==='string'&&!r.url.includes(tavily.apiKey)&&providerBound(objective,r.url)).map(r=>({url:normalizeUrl(r.url)}));
+            const results=data.results.slice(0,Math.min(8,limits.maxResults)).filter(r=>typeof r.url==='string'&&!r.url.includes(tavily.apiKey)&&navigationOwned(objective,r.url)).map(r=>({url:normalizeUrl(r.url)}));
             return {results,accounting:account.result()};
         }catch(error){return {results:[],accounting:account.result(),failure:{kind:error.kind==='CAPACITY'?'CAPACITY':'DISCOVERY',code:'TAVILY_REQUEST_UNAVAILABLE'}};}
     };

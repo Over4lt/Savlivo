@@ -29,7 +29,12 @@ export function parseAcquisitionRobots(body) {
    group.pacing=true;hasRules=true;
   }else note(i+1,'IGNORED_EXTENSION');
  }
- return {groups,diagnostics};
+ const sitemaps=[];
+ for(const m of body.matchAll(/^[ \t]*sitemap[ \t]*:[ \t]*([^\r\n#]+)/gim)) {
+  if(sitemaps.length===16)break;
+  sitemaps.push({url:m[1].trim(),start:m.index,end:m.index+m[0].length});
+ }
+ return {groups,diagnostics,sitemaps};
 }
 export function evaluateAcquisitionRobots(parsed,target,productToken=researchProductToken) {
  const token=productToken.toLowerCase();

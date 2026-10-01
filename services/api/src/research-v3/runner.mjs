@@ -7,7 +7,8 @@ import {evaluate} from './truth.mjs';
 import {interpretWeb} from './source.mjs';
 import {createCapabilities} from './capabilities.mjs';
 import {createReasoner} from './reasoner.mjs';
-import {restore,checkpoint,createKnowledge} from './model.mjs';
+import {navigationOwned} from './discovery-authority.mjs';
+import {restore,checkpoint,createKnowledge,addDestination,pricePropositions,servicePropositions} from './model.mjs';
 import {createLiveSemanticInterpreter,isLiveSemanticInterpreter} from './live-semantic.mjs';
 
 export async function runTarget({input,capabilities,reasoner,navigate,interpret,save,snapshot,env=process.env}={}) {
@@ -15,10 +16,18 @@ export async function runTarget({input,capabilities,reasoner,navigate,interpret,
     if(!objective||objective.markets?.length!==1||!provider?.reviewed||provider.serviceId!==objective.serviceId||JSON.stringify([...provider.hosts].sort())!==JSON.stringify([...objective.providerHosts].sort()))throw Error('REVIEWED_SINGLE_TARGET_REQUIRED');
     interpret=await configuredInterpreter(input,interpret,env);
     const knowledge=snapshot?restore(snapshot):undefined;
-    if(knowledge&&JSON.stringify(knowledge.objective)!==JSON.stringify({...objective,seeds:objective.seeds??[]}))throw Error('RESUME_OBJECTIVE_MISMATCH');
+    if(knowledge) {
+        const restoredObjective=structuredClone(knowledge.objective);
+        if(restoredObjective.providerHosts.some(h=>!navigationOwned(objective,'https://'+h+'/')))throw Error('RESUME_OBJECTIVE_MISMATCH');
+        restoredObjective.providerHosts=[...objective.providerHosts];
+        if(JSON.stringify(restoredObjective)!==JSON.stringify({...objective,seeds:objective.seeds??[]}))throw Error('RESUME_OBJECTIVE_MISMATCH');
+    }
     if(knowledge&&knowledge.semanticAdapter&&JSON.stringify(knowledge.semanticAdapter)!==JSON.stringify(interpret.semanticAdapter??{mode:'LEGACY_STATIC'}))throw Error('RESUME_SEMANTIC_ADAPTER_MISMATCH');
     if(knowledge&&input.semantic?.mode==='LIVE'&&(!knowledge.semanticAdapter||!Number.isSafeInteger(knowledge.usage.modelCalls)||!Number.isSafeInteger(knowledge.bounds.modelCalls)||knowledge.observations.some(o=>o.semantic)))throw Error('RESUME_SEMANTIC_ADAPTER_MISMATCH');
     const initial=knowledge??createKnowledge({objective,permissions,bounds});
+    if(!snapshot&&(input.discovery?.bootstrapRoots===true||(input.discovery?.bootstrapRoots!==false&&!permissions.TAVILY))&&!objective.seeds?.length) {
+        for(const host of objective.providerHosts)addDestination(initial,{url:'https://'+host+'/',depth:0,needs:objective.kind==='PRICE'?pricePropositions:servicePropositions,grounding:{kind:'PROVIDER_ROOT',host}});
+    }
     initial.semanticAdapter=interpret.semanticAdapter??{mode:'LEGACY_STATIC'};
     const k=await runResearch({knowledge:initial,objective,permissions,bounds,capabilities,reasoner:reasoner??createReasoner(input.planning),interpret,navigate,save});
     return {knowledge:k,result:{objective:k.objective,truth:evaluate(k),stop:k.stop,usage:k.usage,trace:k.trace,decisions:k.decisions}};

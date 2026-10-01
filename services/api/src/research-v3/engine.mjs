@@ -1,22 +1,23 @@
-import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound } from './model.mjs';
+import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound, materializeAuthority } from './model.mjs';
 import { evaluate, interpretStructured, readSource } from './truth.mjs';
 import {projectTranslation,translationError} from './translation.mjs';
 import {projectEvidence,understandingError} from './evidence.mjs';
 import {projectObservation} from './projection.mjs';
-import {acquisitionCapacity as acquisition} from './acquisition-contract.mjs';
+import {acquisitionCapacity as acquisition,failureClass} from './acquisition-contract.mjs';
 import {semanticUnitLimits} from './semantic-units.mjs';
 import { projectWebSource } from './source.mjs';
+import {extractNavigation,extractSitemap,queryFamilies,discoveryCapacity} from './discovery.mjs';
+const resourceCapacityFailure=f=>f?.kind==='CAPACITY'&&['BODY_CAPACITY','DECOMPRESSION_CAPACITY','DECODED_CAPACITY','OBSERVATION_CAPACITY','HEADER_CAPACITY','REDIRECT_CAPACITY'].includes(failureClass(f.code));
 const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.context?.transport;
 function searches(k, truth) {
     const markets = k.objective.kind === 'PRICE' ? k.objective.markets : [null];
-    return markets.map(m => {
-        const needs = truth.needs.filter(n => n.market === m);
-        return {
-            kind: 'DISCOVER', market: m, needs: needs.map(n => n.id),
-            query: [k.objective.serviceName, m, needs.map(n => n.proposition.toLowerCase().replaceAll('_', ' ')).join(' '), 'site:' + k.objective.providerHosts[0]].filter(Boolean).join(' '),
-            reason: 'Locate a provider source addressing the current unknowns', value: 2
-        };
-    }).filter(a => a.needs.length);
+    return markets.flatMap(m => {
+        const needs=truth.needs.filter(n=>n.market===m).map(n=>n.id);
+        if(!needs.length)return [];
+        // A legacy free-form proposal consumes its semantic intent once, not endless paraphrases.
+        if(k.attempts.some(x=>x.action.kind==='DISCOVER'&&!x.action.family&&(x.action.market??null)===m&&canonical(x.action.needs)===canonical([...needs].sort())))return [];
+        return queryFamilies(k.objective,m,needs);
+    });
 }
 function proposals(k, truth) {
     const actions = [];
@@ -24,9 +25,9 @@ function proposals(k, truth) {
         const needs = truth.needs.filter(n => d.needs.includes(n.proposition));
         if (!needs.length)
             continue;
-        actions.push({ kind: 'ACQUIRE', url: d.url, context: context('DIRECT'), needs: needs.map(n => n.id), reason: 'Observe this grounded provider resource for unresolved facts', value: 5 });
+        actions.push({ kind: 'ACQUIRE', url: d.url, context: context('DIRECT'), needs: needs.map(n => n.id), reason: 'Observe this grounded provider resource for unresolved facts', value: 5+(d.discovery?.score??0) });
         for (const market of [...new Set(needs.map(n => n.market).filter(Boolean))])
-            actions.push({ kind: 'ACQUIRE', url: d.url, context: context('DECODO', market), needs: needs.filter(n => n.market === market).map(n => n.id), reason: 'Target-country perspective may reveal the missing market-specific presentation', value: 10 });
+            actions.push({ kind: 'ACQUIRE', url: d.url, context: context('DECODO', market), needs: needs.filter(n => n.market === market).map(n => n.id), reason: 'Target-country perspective may reveal the missing market-specific presentation', value: 10+(d.discovery?.score??0) });
     }
     return [...actions, ...searches(k, truth)];
 }
@@ -36,6 +37,7 @@ function capacity(k, a) {
         checks.push(['searches', u.searches, b.searches]);
     else {
         checks.push(['acquisitions', u.acquisitions, b.acquisitions]);
+        if(k.destinations.find(d=>d.url===a.url)?.discovery?.resource==='SITEMAP')checks.push(['sitemapAcquisitions',u.sitemapAcquisitions??0,b.sitemapAcquisitions??4]);
         if (a.context.transport === 'DECODO')
             checks.push(['countryAcquisitions', u.countryAcquisitions, b.countryAcquisitions]);
         checks.push(['observationsPerDestination', k.attempts.filter(x => x.action.kind === 'ACQUIRE' && x.action.url === a.url).length, b.observationsPerDestination]);
@@ -70,10 +72,14 @@ function validate(k, truth, input, adapters) {
     }
     else if (typeof a.query !== 'string' || !a.query.trim() || a.query.length > 1000 || a.needs.some(id => truth.needs.find(n => n.id === id).market !== (a.market ?? null)))
         return { action: a, reason: 'INVALID_DISCOVERY_INTENT' };
+    if(a.kind==='DISCOVER'&&a.family) {
+        const expected=queryFamilies(k.objective,a.market??null,a.needs).find(x=>x.family===a.family);
+        if(!expected||expected.query!==a.query)return {action:a,reason:'INVALID_DISCOVERY_FAMILY'};
+    }
     a.id = actionIdentity(a);
     if (!k.permissions[route(a)] || typeof adapters[route(a)] !== 'function')
         return { action: a, reason: 'CAPABILITY_NOT_PERMITTED_OR_AVAILABLE' };
-    if (k.attempts.some(x => x.id === a.id) || a.kind === 'ACQUIRE' && k.observations.some(o => o.url === a.url && canonical(o.context) === canonical(a.context)))
+    if (k.attempts.some(x => x.id === a.id) || a.kind === 'ACQUIRE' && [...k.observations,...(k.navigationResources??[])].some(o => o.url === a.url && canonical(o.context) === canonical(a.context)))
         return { action: a, reason: 'SEMANTIC_DUPLICATE' };
     const bounds = capacity(k, a);
     if (bounds.length)
@@ -136,7 +142,8 @@ async function accept(k, a, response, interpret, navigate, save) {
         markLimit(k,'transportCapacity'); throw Error('TRANSPORT_CAPACITY_BOUND');
     }
     if(response.failure) {
-        if(response.failure.kind==='CAPACITY') markLimit(k,'transportCapacity');
+        k.attempts.at(-1).failure??={kind:response.failure.kind,code:response.failure.code};
+        if(response.failure.kind==='CAPACITY')markLimit(k,resourceCapacityFailure(response.failure)?'acquisitionResourceCapacity':'transportCapacity');
         throw Error(response.failure.code);
     }
     if (a.kind === 'DISCOVER') {
@@ -154,7 +161,7 @@ async function accept(k, a, response, interpret, navigate, save) {
     if (canonical(response.context) !== canonical(a.context))
         throw Error('OBSERVATION_CONTEXT_MISMATCH');
     const url = normalizeUrl(response.url ?? a.url);
-    if (!url || !providerBound(k.objective, url))
+    if (!url || !materializeAuthority(k,url) || !providerBound(k.objective, url))
         throw Error('PROVIDER_REDIRECT_NOT_AUTHORIZED');
     if (response.outcome === 'POLICY_BLOCKED') {
         const scope = response.policyScope === 'ORIGIN' ? 'ORIGIN' : 'URL';
@@ -170,6 +177,12 @@ async function accept(k, a, response, interpret, navigate, save) {
     if(!response.accounting) k.usage.bytes += bytes;
     const o = { id: a.id, kind: 'PROVIDER', url, context: structuredClone(a.context), outcome: response.outcome ?? 'ERROR', truncated: response.truncated === true, body, bytes, sha256: digest(body), action: a.id, candidates: [],
         ...(response.format==='WEB'?{format:'WEB',contentType:response.contentType,requestedUrl:a.url,httpStatus:response.httpStatus,acquiredAt:response.acquiredAt,transport:response.transport,access:response.access,completeness:response.completeness??(response.truncated?'INCOMPLETE':'COMPLETE'),responseMetadata:response.responseMetadata,redirects:response.redirects,acquisitionTiming:response.acquisitionTiming}: {}) };
+    if(k.destinations.find(d=>d.url===a.url)?.discovery?.resource==='SITEMAP') {
+        k.navigationResources??=[];k.navigationResources.push(o);
+        const plan=extractSitemap(o,k.objective,evaluate(k).needs.map(n=>n.proposition));
+        const navigation=admitNavigation(k,o,a,plan,'SITEMAP_ENTRY');
+        return {kind:'NAVIGATION_RESOURCE',id:o.id,url,sha256:o.sha256,bytes,navigation};
+    }
     k.observations.push(o);
     if (o.outcome === 'OK' && !o.truncated && (o.completeness===undefined||o.completeness==='COMPLETE')) {
         o.candidates=o.format==='WEB'?projectObservation(o,k.objective).candidates:interpretStructured(o,k.objective);
@@ -229,26 +242,51 @@ async function accept(k, a, response, interpret, navigate, save) {
     const web=o.format==='WEB'?projectWebSource(o,k.objective):null;
     if(web?.limited&&!o.translation) markLimit(k,'interpretationCapacity');
     if(web&&!o.interpretation) o.interpretation={ambiguities:web.ambiguities,limited:web.limited};
-    const links = (web?.source??readSource(o))?.links;
-    if(web) o.navigation=links.map(({url,label,needs,source},index)=>({index,url,label,needs,source}));
-    if(web&&navigate&&o.outcome==='OK'&&!o.truncated) {
-        // Intelligence may classify an observed anchor, never invent its href.
-        const proposals=navigate(structuredClone(o.navigation),structuredClone(evaluate(k).needs));
-        if(!Array.isArray(proposals)) throw Error('INVALID_NAVIGATION_RESULT');
-        if(proposals.length>k.bounds.candidateDestinations)markLimit(k,'candidateDestinations');
-        for(const p of proposals.slice(0,k.bounds.candidateDestinations)) {
-            if(!Number.isSafeInteger(p?.index)||!links[p.index]||!Array.isArray(p.needs))continue;
-            const current=evaluate(k).needs.map(n=>n.proposition);
-            links[p.index].needs=[...new Set([...links[p.index].needs,...p.needs.filter(n=>current.includes(n))])];
+    const current=evaluate(k).needs.map(n=>n.proposition);
+    if(current.length&&o.outcome==='OK'&&!o.truncated)for(const doc of (response.navigationDocuments??[]).slice(0,9)) {
+        if(doc.kind!=='ROBOTS'||doc.completeness!=='COMPLETE'||typeof doc.body!=='string'||Buffer.byteLength(doc.body)>acquisition.robotsBytes||doc.sha256!==digest(doc.body))continue;
+        const resource={...doc,id:'robots-'+digest([a.id,doc.url,doc.sha256]),context:o.context};
+        // Auxiliary policy/navigation source is retained separately and never evaluated as price evidence.
+        k.navigationResources.push(resource);
+        for(const ref of (doc.declarations??[]).slice(0,16)) {
+            if(!Number.isSafeInteger(ref.start)||!Number.isSafeInteger(ref.end)||ref.start<0||ref.end>doc.body.length||ref.start>=ref.end)continue;
+            const slice=doc.body.slice(ref.start,ref.end),value=slice.match(/^\s*sitemap\s*:\s*([^#\r\n]+)/i)?.[1]?.trim();
+            if(value!==ref.url)continue;
+            const target=normalizeUrl(ref.url,doc.url);if(!target)continue;
+            addDestination(k,{url:target,depth:(k.destinations.find(d=>d.url===a.url)?.depth??0)+1,needs:current,grounding:{kind:'ROBOTS_SITEMAP',observation:resource.id,source:{start:ref.start,end:ref.end,sha256:digest(slice),bodySha256:doc.sha256}},discovery:{resource:'SITEMAP',score:2,kind:'ROBOTS_SITEMAP'}});
         }
     }
-    const navigation = [];
-    if (o.outcome === 'OK' && !o.truncated && Array.isArray(links)) {
-        if (links.length > k.bounds.candidateDestinations)
-            markLimit(k, 'candidateDestinations');
-        const depth = (k.destinations.find(d => d.url === a.url)?.depth ?? 0) + 1;
-        for (const [index, l] of links.slice(0, k.bounds.candidateDestinations).entries())
-            navigation.push({ url: l.url, result: addDestination(k, { url: normalizeUrl(l.url, url), depth, needs: l.needs, grounding: { kind: 'PROVIDER_LINK', observation: o.id, pointer: '/links/' + index } }) });
+    const navigation=[];
+    if(current.length&&o.outcome==='OK'&&!o.truncated) {
+        if(web) {
+            const plan=extractNavigation(o,k.objective,current);
+            o.navigation=plan.candidates.map((c,index)=>({...c,index}));
+            if(navigate&&o.navigation.length) {
+                // Advisory bounded source-owned references. No new hrefs or truth fields are honored.
+                try {
+                    const rows=o.navigation.slice(0,discoveryCapacity.advisoryCandidates);
+                    const advice=await boundedNavigationAdvice(navigate,rows,evaluate(k).needs);
+                    if(!Array.isArray(advice))throw Error('INVALID_NAVIGATION_RESULT');
+                    const promoted=[];
+                    for(const p of advice.slice(0,discoveryCapacity.advisoryCandidates)) {
+                        if(!p||typeof p!=='object')continue;
+                        const c=rows.find(c=>p.candidateId?c.id===p.candidateId:c.index===p.index);
+                        if(!c||!Array.isArray(p.needs)||!p.needs.some(n=>current.includes(n)))continue;
+                        // The index resolves into the complete candidate plan, never an invented URL.
+                        const target=plan.candidates[c.index];target.score=Math.min(20,target.score+4);promoted.push(target.id);
+                    }
+                    plan.candidates.sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));
+                    k.trace.push({event:'NAVIGATION_ADVICE',observation:o.id,exposedIds:rows.map(c=>c.id),promoted,accepted:'SOURCE_IDS_ONLY'});
+                } catch {k.trace.push({event:'NAVIGATION_ADVICE_UNAVAILABLE',observation:o.id,code:'ADVISORY_FAILED_NATIVE_FRONTIER_PRESERVED'});}
+            }
+            navigation.push(...admitNavigation(k,o,a,plan,'PROVIDER_LINK'));
+        } else {
+            // Existing source-bound structured fixtures keep their explicit needs contract.
+            const links=readSource(o)?.links??[];
+            const depth=(k.destinations.find(d=>d.url===a.url)?.depth??0)+1;
+            for(const [index,l]of links.slice(0,k.bounds.candidateDestinations).entries())navigation.push({url:l.url,result:addDestination(k,{url:normalizeUrl(l.url,url),depth,needs:l.needs,grounding:{kind:'PROVIDER_LINK',observation:o.id,pointer:'/links/'+index}})});
+            if(links.length>k.bounds.candidateDestinations)markLimit(k,'candidateDestinations');
+        }
     }
     return { kind: 'PROVIDER', id: o.id, url, context: o.context, outcome: o.outcome, sha256: o.sha256, bytes, navigation };
 }
@@ -256,6 +294,8 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
     const k = knowledge ? structuredClone(knowledge) : createKnowledge({ objective, permissions, bounds });
     if (k.version !== 1)
         throw Error('UNSUPPORTED_KNOWLEDGE_VERSION');
+    k.usage.sitemapAcquisitions??=0;
+    k.navigationResources??=[];
     k.usage.modelCalls??=0;
     k.bounds.modelCalls??=12;
     if (k.stop)
@@ -299,7 +339,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             offered = availableActions(k, capabilities, Array.isArray(decision.proposals) ? decision.proposals.slice(0, k.bounds.candidateDestinations) : []);
         }
         const selected = offered.actions.find(a => a.id === decision.actionId) ?? offered.actions[0];
-        const audit = { needs: initial.needs.map(n => n.id), evaluated: offered.evaluated.map(r => ({ id: r.action.id ?? null, kind: r.action.kind, url: r.action.url ?? null, context: r.action.context ?? null, needs: r.action.needs, reason: r.reason, bounds: r.bounds ?? [] })), selected: selected?.id ?? null, reason: selected ? (decision.actionId === selected.id && typeof decision.reason === 'string' ? decision.reason : selected.reason) : 'No admissible useful action in the current grounded knowledge' };
+        const audit = { needs: initial.needs.map(n => n.id), evaluated: offered.evaluated.map(r => ({ id: r.action.id ?? null, kind: r.action.kind, url: r.action.url ?? null, context: r.action.context ?? null, value:r.action.value, family:r.action.family??null, needs: r.action.needs, reason: r.reason, bounds: r.bounds ?? [] })), selected: selected?.id ?? null, reason: selected ? (decision.actionId === selected.id && typeof decision.reason === 'string' ? decision.reason : selected.reason) : 'No admissible useful action in the current grounded knowledge' };
         k.decisions.push(audit);
         if (!selected) {
             const hit = [...new Set([...k.limitsHit, ...offered.evaluated.flatMap(r => r.bounds ?? [])])];
@@ -313,6 +353,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             k.usage.searches++;
         else {
             k.usage.acquisitions++;
+            if(k.destinations.find(d=>d.url===a.url)?.discovery?.resource==='SITEMAP')k.usage.sitemapAcquisitions++;
             if (a.context.transport === 'DECODO')
                 k.usage.countryAcquisitions++;
         }
@@ -328,10 +369,21 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             k.trace.push({ event: 'OBSERVATION', observation, changes: changes(initial, after),evaluations:after,usage:structuredClone(k.usage),bounds:k.bounds,remainingNeeds: after.needs.map(n => n.id) });
         }
         catch (error) {
+            const code=/^[A-Z][A-Z0-9_]{0,80}$/.test(error?.message??'')?error.message:'CAPABILITY_INTERNAL_ERROR';
             k.attempts.at(-1).status = 'FAILED';
             k.pending = null;
             if(interpret.semanticAdapter)k.trace.push({event:'SEMANTIC_OR_ACQUISITION_FAILED',adapter:interpret.semanticAdapter,modelCalls:k.usage.modelCalls});
-            stop(k, (k.limitsHit.includes('transportCapacity')||k.limitsHit.includes('modelCalls'))?'CAPACITY_BOUND_REACHED':'CAPABILITY_OR_INTERPRETATION_FAILED', { action: a.id, code: error.message });
+            k.trace.push({event:'ACTION_FAILED',action:a.id,code});
+            if(/^SITEMAP_(?:UNSUPPORTED|INCOMPLETE)$/.test(code))k.attempts.at(-1).failure={kind:'NAVIGATION',code};
+            const failure=k.attempts.at(-1).failure;
+            const recoverable=(['ACQUISITION','DISCOVERY','NAVIGATION'].includes(failure?.kind)||resourceCapacityFailure(failure))&&!/^GEO/.test(failure.code??'')&&!/^GEO/.test(failure.stage??'');
+            const alternates=availableActions(k,capabilities).actions.filter(x=>x.kind==='DISCOVER'?a.kind!=='DISCOVER':x.id!==a.id);
+            // No redispatch of the consumed observation identity. Another context is a distinct observation.
+            if(recoverable&&!k.limitsHit.includes('transportCapacity')&&alternates.length) {
+                k.trace.push({event:'GROUNDED_FAILURE_RECOVERY',failedAction:a.id,alternatives:alternates.map(x=>x.id)});
+                await persist(k,save);continue;
+            }
+            stop(k, (k.limitsHit.includes('transportCapacity')||k.limitsHit.includes('modelCalls')||resourceCapacityFailure(failure))?'CAPACITY_BOUND_REACHED':'CAPABILITY_OR_INTERPRETATION_FAILED', { action: a.id, code });
             await persist(k, save);
             return k;
         }
@@ -371,4 +423,26 @@ async function understandUnits(k,o,interpret,save) {
         }
         await persist(k,save);
     }
+}
+
+function admitNavigation(k,o,a,plan,kind) {
+    if(plan.limited)markLimit(k,'discoveryExtraction');
+    const depth=(k.destinations.find(d=>d.url===a.url)?.depth??0)+1;
+    const rows=[];
+    for(const c of plan.candidates.slice(0,k.bounds.candidateDestinations)) {
+        rows.push({candidate:c.id,url:c.url,result:addDestination(k,{url:c.url,depth,needs:c.needs,grounding:{kind,observation:o.id,source:c.source,candidate:c.id},discovery:c})});
+    }
+    if(plan.candidates.length>k.bounds.candidateDestinations)markLimit(k,'candidateDestinations');
+    k.trace.push({event:'PROVIDER_FRONTIER',observation:o.id,limited:plan.limited,inspected:plan.inspected??null,candidates:rows});
+    return rows;
+}
+
+async function boundedNavigationAdvice(navigate,rows,needs) {
+    let timer;
+    try {
+        return await Promise.race([
+            Promise.resolve().then(()=>navigate(structuredClone(rows),structuredClone(needs))),
+            new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('NAVIGATION_ADVICE_DEADLINE')),discoveryCapacity.advisoryMs);})
+        ]);
+    } finally {clearTimeout(timer);}
 }
