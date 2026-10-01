@@ -206,7 +206,9 @@ export function reconstructWire(request,raw) {
             const n=resolve(c.id,'amount',c.amountRef,c.amount,c.sources,p),resolvedCurrency=currency(c,p,n,converted.market),rows=support([...new Set([...c.sources,...(resolvedCurrency.token?[resolvedCurrency.token.segment]:[])])]);
             if(resolvedCurrency.diagnostics)currencyDiagnostics.push({charge:c.id,...resolvedCurrency.diagnostics});
             const amountSpan=n?{start:n.start,end:n.end,quote:n.raw}:null;
-            const cadenceRows=c.cadenceKind==='RECURRENCE'&&c.cadenceSources.length&&c.cadenceSources.every(id=>c.sources.includes(id)&&(!currencies.some(u=>u.segment===id)||n?.segment===id))?support(c.cadenceSources):[];
+            // Charge ownership, not amount-segment equality. Redundant inapplicable
+            // support cannot erase another valid source-bound recurrence item.
+            const cadenceRows=c.cadenceKind==='RECURRENCE'?support(c.cadenceSources.filter(id=>c.sources.includes(id))):[];
             const cadenceExpression=cadenceRows.length?cadenceRows[0].translated?.text??cadenceRows[0].quote:c.cadenceSources.length?null:c.cadenceText;
             converted.charges.push({...(c.currencyRef?{currencySource:{reference:c.currencyRef,selected:c.currency}}:{}),id:c.id,money:{amount:c.amount,amountText:n?.raw??null,amountSpan,currency:resolvedCurrency.code,currencyText:resolvedCurrency.code?resolvedCurrency.token.raw:null},cadence:{unit:c.cadenceKind==='DURATION'?'UNKNOWN':c.cadence,expression:c.cadenceKind==='DURATION'?null:cadenceExpression},role:c.role==='ORDINARY_RECURRING'?'ORDINARY':c.role==='UNKNOWN'&&wire.relations.some(r=>r.to===c.id&&r.kind==='FOLLOWED_BY')?'SUBSEQUENT':c.role,derivation:c.derivation,duration:c.durationText,qualifiers:c.qualifiers,ambiguity:c.ambiguous,support:rows});
         }

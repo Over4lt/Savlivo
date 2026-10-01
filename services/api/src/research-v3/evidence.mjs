@@ -97,7 +97,7 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
             if(item.ambiguity||!support(item.support)||item.polarity==='UNKNOWN'||item.operation==='LOGIN'&&item.access!=='ACCOUNT'||item.operation==='MANAGE_SUBSCRIPTION'&&item.access!=='POST_LOGIN'){result.rejected.push({reason:'ACCOUNT_SUPPORT_OR_AMBIGUITY'});continue;}
             const accountText=item.support.map(s=>s.translated?.text??s.quote).join(' ');
             const nativeAccount=projectWebSource(o,objective),nativeAccountBinding=nativeAccount.bindings[item.operation==='LOGIN'?'/account/login':'/account/manageMembership'];
-            const nativeAccountSupport=nativeAccountBinding&&item.support.every(s=>s.start>=nativeAccountBinding.start&&s.end<=nativeAccountBinding.end);
+            const nativeAccountSupport=nativeAccountBinding&&item.support.some(s=>s.start>=nativeAccountBinding.start&&s.end<=nativeAccountBinding.end);
             if(/\p{Sc}\s*\p{N}|\b[A-Z]{3}\s*\d/u.test(accountText)&&!nativeAccountSupport){result.rejected.push({proposition:item.operation,reason:'ACCOUNT_PRICE_SUPPORT_INSUFFICIENT',support:item.support,modelAccess:item.access});continue;}
             const pointer='/accountStatements/'+result.source.accountStatements.length;
             result.source.accountStatements.push({operation:item.operation,value:item.polarity==='AFFIRMED'});result.bindings[pointer]=binding(item.support);
@@ -245,7 +245,7 @@ function projectAccounts(o,objective,graph,material,support,binding,result) {
         const visible=n.support.map(s=>s.translated?.text??s.quote).join(' '),path=new URL(url).pathname;
         const labels={LOGIN:/\b(?:log[ -]?in|sign[ -]?in)\b/i,AUTH:/\b(?:log[ -]?in|sign[ -]?in|authenticate)\b/i,ACCOUNT:/\baccount\b/i,MANAGE:/\b(?:subscription|membership|billing)\b/i,CANCEL:/\bcancel(?:lation)?\b/i};
         const routes={LOGIN:/(?:^|\/)(?:login|signin|sign-in)(?:\/|$)/i,AUTH:/(?:^|\/)(?:auth|oauth|authorize|login)(?:\/|$)/i,ACCOUNT:/(?:^|\/)account(?:\/|$)/i,MANAGE:/(?:^|\/)(?:billing|subscription|membership)(?:\/|$)/i,CANCEL:/(?:^|\/)(?:cancel|cancellation)(?:\/|$)/i};
-        if(n.role==='UNKNOWN'||!(labels[n.role]?.test(visible)||routes[n.role]?.test(path))){result.rejected.push({node:n.id,proposition:n.role,reason:'DESTINATION_ROLE_UNSUPPORTED',destination:d.id,support:n.support,modelRole:n.role});continue;}
+        if(n.role==='UNKNOWN'||(/\p{Sc}\s*\p{N}|\b[A-Z]{3}\s*\d/u.test(visible)&&!(labels[n.role]?.test(visible)||routes[n.role]?.test(path)))){result.rejected.push({node:n.id,proposition:n.role,reason:'DESTINATION_ROLE_UNSUPPORTED',destination:d.id,support:n.support,modelRole:n.role});continue;}
         nodes.set(n.id,{...n,url,providerControlled:providerBound(objective,url),sourceDestination:d});
     }
     const edges=[];

@@ -31,7 +31,7 @@ test('bad legacy cadence copy does not discard amount/currency; recurrence sourc
 });
 test('cadence borrowed from introductory monetary segment remains unresolved without discarding amount',async()=>{
  const separate={...oracle,html:oracle.html.replace('1ヶ月間￥0、その後は月額￥1,080。','1ヶ月間￥0').replace('キャンペーン期間終了後は月額￥1,080','その後は月額￥1,080')};
- const r=await execute(separate,(w,r)=>{w.relations=[];w.charges[1].cadenceSources=[r.numbers.find(n=>n.id===w.charges[0].amountRef).segment];w.charges[1].cadenceText=null;});assert.equal(r.result.truth.established,false);assert.equal(r.result.truth.prices.JP.propositions.MONTHLY_CADENCE.state,'UNRESOLVED');assert.equal(r.result.truth.prices.JP.propositions.PRICE_AMOUNT.value,1080);
+ const r=await execute(separate,(w,r)=>{w.relations=[];w.charges[1].sources=w.charges[1].sources.filter(id=>id!==r.numbers.find(n=>n.id===w.charges[0].amountRef).segment);w.charges[1].cadenceSources=[r.numbers.find(n=>n.id===w.charges[0].amountRef).segment];w.charges[1].cadenceText=null;});assert.equal(r.result.truth.established,false);assert.equal(r.result.truth.prices.JP.propositions.MONTHLY_CADENCE.state,'UNRESOLVED');assert.equal(r.result.truth.prices.JP.propositions.PRICE_AMOUNT.value,1080);
 });
 test('duration cannot establish recurring cadence',async()=>{
  const r=await execute(oracle,w=>{w.charges[1].cadenceKind='DURATION';});assert.equal(r.result.truth.established,false);assert.equal(r.result.truth.prices.JP.propositions.MONTHLY_CADENCE.state,'UNRESOLVED');
@@ -67,4 +67,20 @@ test('independently explicit ordinary charge does not need an optional temporal 
 });
 test('a subsequent-only classification still requires validated introductory relationship',async()=>{
  const r=await execute(oracle,w=>{w.charges[1].role='SUBSEQUENT';w.relations[0].ambiguous=true;});assert.equal(r.result.truth.established,false);
+});
+
+test('live-shaped redundant monetary cadence support does not erase sufficient recurrence',async()=>{
+ const r=await execute(oracle,(w,i)=>{const c=w.charges[1],own=i.numbers.find(n=>n.id===c.amountRef).segment,other=i.segments.find(s=>s.id!==own&&s.text.includes('1,080'));assert.ok(other);c.sources=[own,other.id];c.cadenceSources=[own,other.id];c.cadenceText=null;});
+ assert.equal(r.result.truth.established,true);assert.equal(r.result.stop.reason,'OBJECTIVE_ESTABLISHED');assert.equal(r.result.usage.acquisitions,1);assert.equal(r.result.usage.modelCalls,1);
+});
+test('non-applicable redundant cadence support does not erase applicable support',async()=>{
+ const r=await execute(oracle,(w,i)=>{const c=w.charges[1],own=i.numbers.find(n=>n.id===c.amountRef).segment,other=i.numbers.find(n=>n.id===w.charges[0].amountRef).segment;c.sources=[own];c.cadenceSources=[other,own];c.cadenceText=null;});assert.equal(r.result.truth.established,true);
+});
+
+test('amount and recurring cadence compose across charge-bound segments',async()=>{
+ const f={...evidenceFixtures[0],html:'<article><h2>Reader</h2><p>For individuals: our subscription price is USD 14.99.</p><p>This Reader subscription renews every month.</p></article>',plans:evidenceFixtures[0].plans.map(p=>({...p,container:true}))};
+ const r=await execute(f,(w,i)=>{const c=w.charges[0],amount=i.numbers.find(n=>n.id===c.amountRef),recurrence=i.segments.find(s=>s.text==='This Reader subscription renews every month.');assert.notEqual(amount.segment,recurrence.id);c.cadenceSources=[recurrence.id];c.cadenceKind='RECURRENCE';c.cadenceText=null;});assert.equal(r.result.truth.established,true);
+});
+test('source-bound foreign account label is not required to match English labels or conventional routes',async()=>{
+ const f={...oracle,html:oracle.html.replace('</section>','<a href="/session/start">Se connecter</a></section>')};const r=await execute(f,(w,i)=>{const d=i.destinations[0];w.accounts=[{id:'login',destination:d.id,role:'LOGIN',sources:d.segments,ambiguous:false}];});assert.equal(r.result.truth.accountAccess.LOGIN.state,'ESTABLISHED');assert.equal(r.result.truth.established,true);
 });
