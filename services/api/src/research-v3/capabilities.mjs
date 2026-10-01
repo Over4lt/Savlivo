@@ -7,6 +7,7 @@ import {parseRobots, evaluateRobots} from '../research-v1/robots-access.mjs';
 import {createPinnedConnectRequest} from '../../../../docs/catalog/global-47/research-v1/proxy-connect.mjs';
 import {createIndependentExitVerifier} from '../../../../docs/catalog/global-47/research-v1/independent-exit-verifier.mjs';
 import {providerBound, normalizeUrl, digest} from './model.mjs';
+import {boundedOperation,directHop,systemTiming,safeOrigin} from './acquisition-io.mjs';
 
 const fault=(code,kind='ACQUISITION')=>Object.assign(new Error(code),{code,kind});
 const safeCodes=new Set(['UNSAFE_DNS','UNSAFE_HOST','TIMEOUT','ABORTED','RESPONSE_TOO_LARGE','UNSUPPORTED_CONTENT','UNSUPPORTED_ENCODING','REDIRECT_LIMIT','REDIRECT_LOOP','NETWORK_FAILED','DNS_FAILED','UNSUPPORTED_OR_INVALID_CHARSET']);
@@ -24,25 +25,39 @@ function budget(limits) {
 
 /** All IO overrides are trusted host dependencies, never planner/page input.
  * Credentials are explicit closure inputs. No environment/keychain side effects. */
-export function createCapabilities({objective,permissions={},network={},tavily={},decodo={},clock=()=>new Date().toISOString(),timeoutMs=15000}={}) {
-    if(!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>60000)throw fault('INVALID_TIMEOUT');
+export function createCapabilities({objective,permissions={},network={},tavily={},decodo={},clock=()=>new Date().toISOString(),timeoutMs=15000,acquisitionTimeoutMs=Math.min(180000,timeoutMs*6),timing=systemTiming}={}) {
+    if(!Number.isSafeInteger(acquisitionTimeoutMs)||acquisitionTimeoutMs<1||acquisitionTimeoutMs>180000||!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>60000)throw fault('INVALID_TIMEOUT');
     const check=url=>{if(!normalizeUrl(url)||!providerBound(objective,url))throw fault('PROVIDER_BOUNDARY');};
     async function acquire(action,limits,geo) {
-        const account=budget(limits), access=[], controller=new AbortController();
-        const timer=setTimeout(()=>controller.abort(),timeoutMs);
+        const account=budget(limits),access=[],controller=new AbortController(),ledger=[],attemptId=randomBytes(12).toString('hex'),started=timing.now();let lastFailure=null;
+        const timer=timing.set(()=>controller.abort('ACQUISITION_DEADLINE_EXCEEDED'),acquisitionTimeoutMs);
+        const explicitAbort=()=>controller.abort('EXPLICIT_CANCELLATION');limits.signal?.addEventListener('abort',explicitAbort,{once:true});if(limits.signal?.aborted)explicitAbort();
+        const details=()=>({requestLedger:ledger,acquisitionTiming:{attemptId,elapsedMs:Math.max(0,Math.round(timing.now()-started)),requestTimeoutMs:timeoutMs,acquisitionTimeoutMs}});
+        const recordFailure=(e,extra={})=>{lastFailure={code:e.code??'NETWORK_FAILED',stage,...extra};};
         const base={format:'WEB',url:action.url,requestedUrl:action.url,context:action.context,acquiredAt:clock(),body:'',truncated:false,access};
         let stage='SETUP',status=null,finalUrl=action.url;
         try {
             check(action.url);
             if(action.context.transport!==(geo?'DECODO':'DIRECT')||geo&&!objective.markets.includes(action.context.networkGeography)||!geo&&action.context.networkGeography!=='UNBOUND')throw fault('INVALID_CONTEXT');
             let requestOnce=network.requestOnce, before=null, transport={kind:'DIRECT',networkGeography:'UNBOUND'};
-            const resolveHost=host=>new Promise((resolve,reject)=>{
-                const abort=()=>reject(fault('ABORTED'));
-                if(controller.signal.aborted)return abort();
-                controller.signal.addEventListener('abort',abort,{once:true});
-                Promise.resolve().then(()=>(network.resolveHost??resolver)(host)).then(resolve,reject).finally(()=>controller.signal.removeEventListener('abort',abort));
-            });
-            const makeReader=(extra={})=>createPublicReader({resolveHost,requestOnce,timeoutMs,maxBytes:Math.max(1,account.remaining()),maxRedirects:3,onBodyBytes:n=>account.bytes(n),...extra});
+            const resolveHost=async host=>{
+                const began=timing.now();
+                try {return await boundedOperation({signal:controller.signal,timeoutMs,timing,phase:()=>stage+'_DNS',onFailure:e=>recordFailure(e,{phase:'DNS',destinationOrigin:safeOrigin('https://'+host),elapsedMs:Math.round(timing.now()-began),deadlineMs:timeoutMs}),run:()=> (network.resolveHost??resolver)(host)});}
+                catch(e){if(!lastFailure)recordFailure({code:'DNS_FAILED'},{phase:'DNS',destinationOrigin:safeOrigin('https://'+host)});throw e;}
+            };
+            const wireRequest=async(r,purpose)=>{
+                account.request();const row={sequence:ledger.length+1,actionId:action.id??null,attemptId,transport:action.context.transport,purpose,destinationOrigin:safeOrigin(r.url),requestedGeography:action.context.networkGeography,startOrder:ledger.length+1,startOffsetMs:Math.round(timing.now()-started),elapsedMs:0,deadlineMs:timeoutMs,acquisitionDeadlineMs:acquisitionTimeoutMs,phase:'CONNECT_TLS',state:'STARTED',httpStatus:null,bytes:0,redirectFrom:ledger.filter(x=>x.purpose===purpose).at(-1)?.redirect===true?ledger.filter(x=>x.purpose===purpose).at(-1).sequence:null};ledger.push(row);const began=timing.now();
+                try {
+                    const result=await boundedOperation({signal:controller.signal,timeoutMs,timing,phase:()=>purpose+'_'+row.phase,onFailure:e=>recordFailure(e,{phase:row.phase,requestSequence:row.sequence}),run:state=>requestOnce({...r,userAgent:researchUserAgent,signal:state.signal,
+                        onPhase:p=>{if(state.active&&['CONNECT_TLS','HEADERS','BODY'].includes(p))row.phase=p;},onHeaders:status=>{if(state.active&&Number.isInteger(status))row.httpStatus=status;},
+                        onBodyBytes:n=>{if(!state.active)return;row.phase='BODY';row.bytes+=n;r.onBodyBytes(n);}})});
+                    if(!row.bytes&&result.body?.length){row.bytes=result.body.length;r.onBodyBytes(row.bytes);}
+                    row.httpStatus=result.status;row.redirect=[301,302,303,307,308].includes(result.status);row.state='COMPLETED';return result;
+                } catch(e) {const code=lastFailure?.requestSequence===row.sequence?lastFailure.code:e.code==='TIMEOUT'?purpose+'_'+row.phase+'_TIMEOUT':e.code==='ABORTED'?(controller.signal.reason==='ACQUISITION_DEADLINE_EXCEEDED'?'ACQUISITION_DEADLINE_EXCEEDED':'EXPLICIT_CANCELLATION'):safeCodes.has(e.code)?e.code:'NETWORK_FAILED';row.state='FAILED';row.failure=code;recordFailure({code},{phase:row.phase,requestSequence:row.sequence});throw e;}
+                finally {row.elapsedMs=Math.max(0,Math.round(timing.now()-began));}
+            };
+            requestOnce??=directHop;
+            const makeReader=(extra={},purpose=stage)=>createPublicReader({resolveHost:host=>{stage=purpose;return resolveHost(host);},requestOnce:r=>wireRequest(r,purpose),timeoutMs:acquisitionTimeoutMs,maxBytes:Math.max(1,account.remaining()),maxRedirects:3,onBodyBytes:n=>account.bytes(n),...extra});
             if(geo) {
                 const {username,password}=decodo;
                 if(typeof username!=='string'||!username||typeof password!=='string'||!password||/[:\r\n]|^user-|-country-|-session-/i.test(username)||/[\r\n]/.test(password))throw fault('DECODO_CONFIGURATION_REQUIRED');
@@ -54,7 +69,7 @@ export function createCapabilities({objective,permissions={},network={},tavily={
                 const requestHop=decodo.requestHop??createPinnedConnectRequest();
                 requestOnce=async r=> {
                     let counted=0;
-                    const result=await requestHop({...r,proxyHost,proxyPort,proxyAddress:addresses[0].address,username:authUsername,password,timeoutMs,
+                    const result=await requestHop({...r,proxyHost,proxyPort,proxyAddress:addresses[0].address,username:authUsername,password,timeoutMs,onConnect:()=>r.onPhase('CONNECT_TLS'),onTarget:()=>r.onPhase('HEADERS'),
                         headers:{'user-agent':researchUserAgent,accept:'text/html,text/plain,application/xhtml+xml'},
                         onBytes:n=>{counted+=n;r.onBodyBytes(n);}});
                     if(!result.tlsVerified)throw fault('DECODO_TLS_NOT_VERIFIED');
@@ -65,22 +80,22 @@ export function createCapabilities({objective,permissions={},network={},tavily={
                 };
                 transport={kind:'DECODO',requestedCountry:action.context.networkGeography,binding:digest(binding),gateway:proxyHost,verification:'PENDING'};
             }
-            const probe=async()=>{
-                stage='GEO_VERIFICATION';
-                const result=await makeReader({maxBytes:Math.min(10000,account.remaining()),jsonUrls:[verifier.url],maxRedirects:0,beforeRequest:r=>{if(r.url!==verifier.url)throw fault('GEO_VERIFIER_REDIRECT');account.request();}})(verifier.url,{signal:controller.signal});
+            const probe=async purpose=>{
+                stage=purpose;
+                const result=await makeReader({maxBytes:Math.min(10000,account.remaining()),jsonUrls:[verifier.url],maxRedirects:0,beforeRequest:r=>{if(r.url!==verifier.url)throw fault('GEO_VERIFIER_REDIRECT');}} ,purpose)(verifier.url,{signal:controller.signal});
                 if(result.status!==200)throw fault('GEO_VERIFICATION_FAILED');
                 const proof=verifier.parse({text:result.text});
                 if(proof.country!==action.context.networkGeography)throw fault('GEO_COUNTRY_MISMATCH');
                 return proof;
             };
-            if(geo) before=await probe();
+            if(geo) before=await probe('GEO_PRE');
             const policies=new Map();
             const page=await makeReader({beforeRequest:async r=>{
                 check(r.url);stage='ROBOTS';
                 const origin=new URL(r.url).origin;
                 let policy=policies.get(origin);
                 if(!policy) {
-                    const result=await makeReader({maxBytes:Math.min(64000,account.remaining()),robotsPolicyRetrieval:true,beforeRequest:x=>{check(x.url);account.request();}})(origin+'/robots.txt',{signal:controller.signal});
+                    const result=await makeReader({maxBytes:Math.min(64000,account.remaining()),robotsPolicyRetrieval:true,beforeRequest:x=>{check(x.url);}} ,'ROBOTS')(origin+'/robots.txt',{signal:controller.signal});
                     if([404,410].includes(result.status))policy={absent:true,status:result.status};
                     else if(result.status===200&&result.contentType==='text/plain')policy={parsed:parseRobots(result.text),status:result.status};
                     else throw fault('ROBOTS_UNAVAILABLE');
@@ -90,29 +105,29 @@ export function createCapabilities({objective,permissions={},network={},tavily={
                 access.push({url:r.url,status:policy.status,...evaluation});
                 if(evaluation.decision==='DISALLOWED')throw fault('ROBOTS_DISALLOWED','POLICY');
                 if(evaluation.decision!=='ALLOWED')throw fault('ROBOTS_UNAVAILABLE');
-                stage='PROVIDER';account.request();
-            }})(action.url,{signal:controller.signal,locale:objective.language??null});
+                stage='PROVIDER';
+            }},'PROVIDER')(action.url,{signal:controller.signal,locale:objective.language??null});
             status=page.status;finalUrl=page.url;
             if([401,403].includes(page.status))throw fault('PROVIDER_ACCESS_CONTROL','POLICY');
             if(geo) {
-                const after=await probe();
+                const after=await probe('GEO_POST');
                 if(before.address!==after.address)throw fault('GEO_BINDING_CHANGED');
                 transport={...transport,verification:'BRACKET_VERIFIED',verifiedCountry:after.country,exitAddressHash:digest(after.address)};
             }
             // Account for a decoded UTF-8 representation larger than received bytes.
             const extraRepresentation=Math.max(0,Buffer.byteLength(page.text)-account.result().bytes);
             if(extraRepresentation)account.bytes(extraRepresentation);
-            return {...base,url:page.url,httpStatus:page.status,contentType:page.contentType,body:page.text,outcome:page.status===200?'OK':'HTTP_UNAVAILABLE',transport,accounting:account.result()};
+            return {...base,url:page.url,httpStatus:page.status,contentType:page.contentType,body:page.text,outcome:page.status===200?'OK':'HTTP_UNAVAILABLE',transport,accounting:account.result(),...details()};
         } catch(error) {
             // The reused public reader wraps unknown hook errors. Recover only our
             // typed policy decision, never arbitrary exception text or credentials.
             const denied=access.at(-1)?.decision==='DISALLOWED';
             const policy=denied||error.kind==='POLICY';
             const spent=account.result(), capacity=error.kind==='CAPACITY'||spent.bytes>=limits.maxBytes||spent.requests>=limits.maxRequests&&error.code==='NETWORK_FAILED'||error.code==='RESPONSE_TOO_LARGE';
-            const code=denied?'ROBOTS_DISALLOWED':error.code&&(/^(?:DECODO_|GEO_|ROBOTS_|PROVIDER_|SECRET_|NETWORK_REQUEST_BOUND|RESPONSE_BYTE_BOUND)/.test(error.code)||safeCodes.has(error.code))?error.code:'ACQUISITION_FAILED';
-            return {...base,url:finalUrl,httpStatus:status,outcome:policy?'POLICY_BLOCKED':'ERROR',policyScope:'URL',accounting:spent,
-                ...(policy?{}:{failure:{kind:capacity?'CAPACITY':'ACQUISITION',code,stage}})};
-        } finally {clearTimeout(timer);controller.abort();}
+            const code=denied?'ROBOTS_DISALLOWED':controller.signal.reason==='ACQUISITION_DEADLINE_EXCEEDED'?'ACQUISITION_DEADLINE_EXCEEDED':controller.signal.reason==='EXPLICIT_CANCELLATION'?'EXPLICIT_CANCELLATION':lastFailure?.code&&(/_TIMEOUT$/.test(lastFailure.code)||safeCodes.has(lastFailure.code))?lastFailure.code:error.code&&(/^(?:DECODO_|GEO_|ROBOTS_|PROVIDER_|SECRET_|NETWORK_REQUEST_BOUND|RESPONSE_BYTE_BOUND)/.test(error.code)||safeCodes.has(error.code))?error.code:'ACQUISITION_FAILED';
+            return {...base,url:finalUrl,httpStatus:status,outcome:policy?'POLICY_BLOCKED':'ERROR',policyScope:'URL',accounting:spent,...details(),
+                ...(policy?{}:{failure:{kind:capacity?'CAPACITY':'ACQUISITION',stage,...lastFailure,code}})};
+        } finally {timing.clear(timer);limits.signal?.removeEventListener('abort',explicitAbort);controller.abort('COMPLETED');}
     }
     const capabilities={};
     if(permissions.DIRECT)capabilities.DIRECT=(a,l)=>acquire(a,l,false);

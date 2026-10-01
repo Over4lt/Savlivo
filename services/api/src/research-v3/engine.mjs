@@ -112,9 +112,16 @@ async function accept(k, a, response, interpret, navigate, save) {
         k.usage.networkRequests=(k.usage.networkRequests??0)+requests;
         // Include robots, redirects, geo probes and failed responses, not only evidence.
         k.usage.bytes+=bytes;
-        if(k.usage.bytes>k.bounds.bytes||k.usage.networkRequests>(k.bounds.networkRequests??96)) {
-            markLimit(k,'transportCapacity'); throw Error('TRANSPORT_CAPACITY_BOUND');
-        }
+    }
+    if(response.requestLedger) {
+        if(!Array.isArray(response.requestLedger)||response.requestLedger.length!==response.accounting?.requests)throw Error('INVALID_REQUEST_LEDGER');
+        k.attempts.at(-1).requestLedger=structuredClone(response.requestLedger);
+        k.attempts.at(-1).acquisitionTiming=structuredClone(response.acquisitionTiming);
+        if(response.failure)k.attempts.at(-1).failure=structuredClone(response.failure);
+        k.trace.push({event:'ACQUISITION_LEDGER',action:a.id,requests:structuredClone(response.requestLedger),timing:structuredClone(response.acquisitionTiming),...(response.failure?{failure:structuredClone(response.failure)}:{})});
+    }
+    if(k.usage.bytes>k.bounds.bytes||k.usage.networkRequests>(k.bounds.networkRequests??96)) {
+        markLimit(k,'transportCapacity'); throw Error('TRANSPORT_CAPACITY_BOUND');
     }
     if(response.failure) {
         if(response.failure.kind==='CAPACITY') markLimit(k,'transportCapacity');
