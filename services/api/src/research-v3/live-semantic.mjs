@@ -33,7 +33,7 @@ async function createLiveAdapter({env=process.env,client,fetchImpl=fetch,timeout
     const factory=translationOnly?createTranslationInterpreter:createEvidenceInterpreter;
     const interpreter=factory({adapter,timeoutMs,complete:async(request,{signal})=>{
         const input=translationOnly?request:wireInput(request);
-        const payload={model,temperature:0,max_completion_tokens:maxOutputTokens,response_format:{type:'json_schema',json_schema:{name:translationOnly?'v3_source_bound_translation':'v3_semantic_unit_v3',strict:true,schema:translationOnly?liveTranslationContract(request):liveSemanticContract(request)}},messages:[{role:'system',content:translationOnly?request.instructions:semanticWireInstructions},{role:'user',content:JSON.stringify(input)}]};
+        const payload={model,temperature:0,max_completion_tokens:maxOutputTokens,response_format:{type:'json_schema',json_schema:{name:translationOnly?'v3_source_bound_translation':'v3_semantic_unit_v4',strict:true,schema:translationOnly?liveTranslationContract(request):liveSemanticContract(request)}},messages:[{role:'system',content:translationOnly?request.instructions:semanticWireInstructions},{role:'user',content:JSON.stringify(input)}]};
         const requestBytes=Buffer.byteLength(JSON.stringify(payload));
         if(!translationOnly&&requestBytes>24576)throw Error('EVIDENCE_REQUEST_BOUND');
         let result;

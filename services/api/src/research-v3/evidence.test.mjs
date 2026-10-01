@@ -83,7 +83,7 @@ test('actual incompatible observations contradict the same offer; later missing 
 test('understanding failure remains scoped, preserves native identity and permits same-URL country action',async()=>{
  const f=fixture('norwegian'),input=fixtureInput(f);input.planning.initialPerspective='UNBOUND';
  const run=await execute(f,{input,complete:()=>{throw Object.assign(Error('PRIVATE_ERROR'),{status:429});}});
- assert.equal(run.result.usage.acquisitions,2);assert.equal(run.result.usage.modelCalls,2);assert.equal(run.result.truth.service.SERVICE_IDENTITY.state,'ESTABLISHED');
+ assert.equal(run.result.usage.acquisitions,2);assert.equal(run.result.usage.modelCalls,1);assert.equal(run.result.truth.service.SERVICE_IDENTITY.state,'ESTABLISHED');
  assert.equal(run.result.truth.prices.NO.propositions.PRICE_AMOUNT.state,'UNRESOLVED');assert.equal(JSON.stringify(run.knowledge).includes('PRIVATE_ERROR'),false);
  assert.deepEqual(run.knowledge.observations.map(o=>o.context.transport),['DIRECT','DECODO']);assert.notEqual(run.knowledge.observations[0].id,run.knowledge.observations[1].id);
 });

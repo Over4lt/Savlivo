@@ -86,7 +86,7 @@ function monetary(s) {
     }
     return found;
 }
-function offerFrom(s) {
+export function nativePresentationFacts(s) {
     const money=monetary(s), ambiguity=[];
     const repeated= [...new Set(money.map(v=>JSON.stringify(v)))];
     if(repeated.length>1) ambiguity.push('MULTIPLE_MONETARY_VALUES');
@@ -101,7 +101,7 @@ function offerFrom(s) {
     const relationship=/\bsubscription\b/i.test(s)?'SUBSCRIPTION':/\bmembership\b/i.test(s)?'MEMBERSHIP':null;
     const consumer=/\b(?:consumer|personal|individual)\b/i.test(s) && !/\b(?:business|enterprise|corporate)\b/i.test(s);
     const uncertain=/\b(?:not|no|example|illustrative|starting at|from)\b/i.test(s);
-    const role=uncertain?null:/\b(?:trial|introductory|first month|first \d+ months|promotional)\b/i.test(s)?'TRIAL':/\b(?:benefit|credit|worth|value of)\b/i.test(s)?'BENEFIT':/\bdiscount\b/i.test(s)?'DISCOUNT':relationship?'ORDINARY':null;
+    const role=/\b(?:benefit|credit|worth|value of)\b/i.test(s)?'BENEFIT':uncertain?null:/\b(?:trial|introductory|first month|first \d+ months|promotional)\b/i.test(s)?'TRIAL':/\b(?:benefit|credit|worth|value of)\b/i.test(s)?'BENEFIT':/\bdiscount\b/i.test(s)?'DISCOUNT':relationship?'ORDINARY':null;
     const amountDerivation=/\b(?:divided by|equivalent|installment|instalment)\b|\/\s*12\b/i.test(s)?'ARITHMETIC':'EXPLICIT';
     if(!one.currency) ambiguity.push('CURRENCY_OR_AMOUNT_NOT_EXPLICIT');
     return {...one,cadence,relationship,consumer:consumer&&!uncertain?true:null,role,amountDerivation,market:explicitMarket(s),ambiguity};
@@ -132,7 +132,7 @@ export function projectWebSource(observation, objective) {
     const priced=nodes.filter(n=>n.tag!=='a'&&monetary(n.text).length&&/\b(?:subscription|membership)\b/i.test(n.text));
     const selected=priced.filter(n=>!priced.some(c=>c!==n&&c.start>n.start&&c.end<n.end));
     for(const n of selected.slice(0,64)) {
-        const value=offerFrom(n.text), p='/offers/'+source.offers.length;
+        const value=nativePresentationFacts(n.text), p='/offers/'+source.offers.length;
         source.offers.push(value); bindings[p]=pointer(n);
         if(value.ambiguity.length) ambiguities.push({pointer:p,reasons:value.ambiguity,source:bindings[p]});
     }
@@ -149,7 +149,7 @@ export function projectWebSource(observation, objective) {
         if(login) {source.account.login=true;bindings['/account/login']=pointer(n);}
         if(management) {source.account.manageMembership=true;bindings['/account/manageMembership']=pointer(n);}
         if(!monetary(n.text).length&&/\b(?:subscription|membership)\b/i.test(n.text)&&/\bmonthly\b/i.test(n.text)) {
-            const p='/offers/'+source.offers.length;source.offers.push(offerFrom(n.text));bindings[p]=pointer(n);
+            const p='/offers/'+source.offers.length;source.offers.push(nativePresentationFacts(n.text));bindings[p]=pointer(n);
         }
     }
     for(const n of nodes.filter(n=>n.tag==='a'&&n.attrs.href).slice(0,512)) {

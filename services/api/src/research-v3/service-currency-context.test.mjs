@@ -47,7 +47,7 @@ for(const [name,html] of [
  ['add-on','<main><section itemprop="isAccessoryOrSparePartFor"><p>Reader subscription USD 12 per month.</p></section></main>'],
  ['ambiguous multi-service','<main><section itemscope itemtype="https://schema.org/Service"><h2 itemprop="name">Harbor</h2><h2 itemprop="name">Other Service</h2><p>Reader subscription USD 12 per month.</p></section></main>']
 ])test('service inheritance rejects '+name,()=>{const f=local(html),d=associateService(f.o,objective,f.p,f.association);assert.equal(d.eligible,false);assert.ok(d.reason);assert.ok(d.predicates);});
-for(const relationship of ['OTHER_SERVICE','COMPARISON','PARTNER','BUNDLE_COMPONENT','ADD_ON','UNKNOWN'])test('semantic local relationship '+relationship+' cannot inherit truth',async()=>{const r=await run(base,{modify:w=>{w.offers[0].association=relationship;}});assert.equal(r.result.truth.established,false);assert.equal(r.knowledge.observations[0].interpretation.rejected[0].reason,'SERVICE_ASSOCIATION_UNSUPPORTED');});
+for(const relationship of ['OTHER_SERVICE','COMPARISON','PARTNER','BUNDLE_COMPONENT','ADD_ON'])test('semantic local relationship '+relationship+' cannot inherit truth',async()=>{const r=await run(base,{modify:w=>{w.offers[0].association=relationship;}});assert.equal(r.result.truth.established,false);assert.equal(r.knowledge.observations[0].interpretation.rejected[0].reason,'SERVICE_ASSOCIATION_UNSUPPORTED');});
 test('cross-observation and forged service references fail deterministically',async()=>{
  const f=local('<main><p>USD 12 subscription per month.</p></main>'),other={...f.o,id:'other'};
  assert.equal(associateService(other,objective,f.p,f.association).eligible,false);

@@ -332,6 +332,7 @@ async function understandUnits(k,o,interpret,save) {
     o.semanticUnits=units;o.evidenceFragments??=[];o.semanticAttempts??=[];
     k.trace.push({event:'SEMANTIC_UNITS_SELECTED',observation:o.id,units,capacityHit:plan.capacityHit,reason:plan.reason});
     for(const unit of units.slice(0,semanticUnitLimits.modelCallsPerAction)) {
+        if(k.semanticUnavailable){o.interpretation={kind:'UNDERSTANDING_UNAVAILABLE',code:'UNDERSTANDING_PROVIDER_UNAVAILABLE',cause:k.semanticUnavailable};break;}
         const truth=evaluate(k);
         if(truth.established||!truth.needs.some(n=>unit.needs.includes(n.proposition)))break;
         if(k.usage.modelCalls>=k.bounds.modelCalls) {markLimit(k,'modelCalls');o.interpretation={kind:'UNDERSTANDING_UNAVAILABLE',code:'UNDERSTANDING_MODEL_CALL_BOUND'};break;}
@@ -353,6 +354,7 @@ async function understandUnits(k,o,interpret,save) {
         } catch(error) {
             attempt.status='FAILED';if(/_BOUND$/.test(error.message))markLimit(k,'interpretationCapacity');o.interpretation={kind:'UNDERSTANDING_FAILED',unit:unit.id,...understandingError(error)};
             k.trace.push({event:'UNDERSTANDING_UNAVAILABLE',observation:o.id,...o.interpretation});
+            if(o.interpretation.status===429||o.interpretation.apiCode==='model_not_found'||o.interpretation.apiCode==='invalid_api_key'){k.semanticUnavailable={code:o.interpretation.code,status:o.interpretation.status??null,apiCode:o.interpretation.apiCode??null};}
         }
         await persist(k,save);
     }

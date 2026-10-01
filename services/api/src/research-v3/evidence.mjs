@@ -1,6 +1,6 @@
 // Candidate evidence semantics, never proposition states or sufficiency verdicts.
 import {digest,canonical,normalizeUrl,providerBound} from './model.mjs';
-import {semanticMaterial,projectWebSource} from './source.mjs';
+import {semanticMaterial,projectWebSource,nativePresentationFacts} from './source.mjs';
 import {observationService,associateService} from './service-association.mjs';
 import {verifiedCountryContext} from './truth-contract.mjs';
 import {currencyOccurrences,resolveSourceCurrency} from './currency-sources.mjs';
@@ -82,7 +82,7 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
         // Never attach another service's evidence to a native page identity.
         if(result.source.serviceId!==objective.serviceId) {
             const known=observationService(o,objective);
-            if(!service.ambiguity&&normalized(service.name)===normalized(objective.serviceName)&&known) {result.source.serviceId=objective.serviceId;result.bindings['/serviceId']={...known.identity,observation:o.id,sha256:o.sha256,knownService:known.reference};}
+            if(normalized(service.name)===normalized(objective.serviceName)&&known) {result.source.serviceId=objective.serviceId;result.bindings['/serviceId']={...known.identity,observation:o.id,sha256:o.sha256,knownService:known.reference};}
             else {result.rejected.push({reason:'SERVICE_ASSOCIATION_UNSUPPORTED',observation:o.id,knownService:known?.reference??null});return result;}
         }
         for(const pop of directServiceSupport?service.populations:[]) {
@@ -95,6 +95,10 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
         for(const item of directServiceSupport?service.account:[]) {
             if(!exact(item,['operation','access','polarity','ambiguity','support'])||!known(item.operation,['LOGIN','MANAGE_SUBSCRIPTION'])||!known(item.access,['ACCOUNT','POST_LOGIN','OTHER','UNKNOWN'])||!known(item.polarity,['AFFIRMED','NEGATED','UNKNOWN'])||typeof item.ambiguity!=='boolean')throw Error('EVIDENCE_ACCOUNT_INVALID');
             if(item.ambiguity||!support(item.support)||item.polarity==='UNKNOWN'||item.operation==='LOGIN'&&item.access!=='ACCOUNT'||item.operation==='MANAGE_SUBSCRIPTION'&&item.access!=='POST_LOGIN'){result.rejected.push({reason:'ACCOUNT_SUPPORT_OR_AMBIGUITY'});continue;}
+            const accountText=item.support.map(s=>s.translated?.text??s.quote).join(' ');
+            const nativeAccount=projectWebSource(o,objective),nativeAccountBinding=nativeAccount.bindings[item.operation==='LOGIN'?'/account/login':'/account/manageMembership'];
+            const nativeAccountSupport=nativeAccountBinding&&item.support.every(s=>s.start>=nativeAccountBinding.start&&s.end<=nativeAccountBinding.end);
+            if(/\p{Sc}\s*\p{N}|\b[A-Z]{3}\s*\d/u.test(accountText)&&!nativeAccountSupport){result.rejected.push({proposition:item.operation,reason:'ACCOUNT_PRICE_SUPPORT_INSUFFICIENT',support:item.support,modelAccess:item.access});continue;}
             const pointer='/accountStatements/'+result.source.accountStatements.length;
             result.source.accountStatements.push({operation:item.operation,value:item.polarity==='AFFIRMED'});result.bindings[pointer]=binding(item.support);
         }
@@ -120,15 +124,23 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
             const exclusions=market.exclusions??[];
             if(!Array.isArray(exclusions)||exclusions.length>16||!exclusions.every(e=>exact(e,['country','support'])&&/^[A-Z]{2}$/.test(e.country)&&support(e.support,p)))throw Error('EVIDENCE_MARKET_INVALID');
             const charges=new Map();
-            for(const charge of offer.charges) {
+            for(let charge of offer.charges) {
                 if(!exact(Object.fromEntries(Object.entries(charge).filter(([k])=>k!=='currencySource')),['id','money','cadence','role','derivation','duration','qualifiers','ambiguity','support'])||!label(charge.id)||charges.has(charge.id)||!exact(charge.money,['amount','amountText','amountSpan','currency','currencyText'])||!(charge.money.amount===null||typeof charge.money.amount==='number'&&Number.isFinite(charge.money.amount))||!(charge.money.currency===null||/^[A-Z]{3}$/.test(charge.money.currency))||!exact(charge.cadence,['unit','expression'])||!known(charge.cadence.unit,['MONTHLY','YEARLY','WEEKLY','DAILY','UNKNOWN'])||!known(charge.role,['INTRODUCTORY','ORDINARY','SUBSEQUENT','BENEFIT','CREDIT','DISCOUNT','INSTALLMENT','TAX','OTHER','UNKNOWN'])||!known(charge.derivation,['EXPLICIT','ARITHMETIC','UNKNOWN'])||!(charge.duration===null||label(charge.duration))||!qualifiers(charge.qualifiers)||typeof charge.ambiguity!=='boolean')throw Error('EVIDENCE_CHARGE_INVALID');
+                const native=nativePresentationFacts(charge.support.map(s=>s.translated?.text??s.quote).join(' '));
+                const singleOccurrence=typeof charge.money.amountText==='string'&&charge.money.amountText.length>0&&charge.support.map(s=>s.quote).join(' ').split(charge.money.amountText).length===2;
+                const sameNativeMoney=singleOccurrence&&native.amount===charge.money.amount&&native.currency===charge.money.currency&&!native.ambiguity.includes('MULTIPLE_MONETARY_VALUES');
+                if(sameNativeMoney&&charge.role==='UNKNOWN'&&native.role==='ORDINARY'&&!native.ambiguity.length)charge={...charge,role:'ORDINARY'};
+                if(sameNativeMoney&&['TRIAL','BENEFIT','DISCOUNT'].includes(native.role)&&['ORDINARY','SUBSEQUENT'].includes(charge.role)){result.rejected.push({offer:index,charge:charge.id,proposition:'ORDINARY_RECURRING_ROLE',reason:'NATIVE_ROLE_CONFLICT',modelRole:charge.role,sourceRole:native.role,support:charge.support});charge={...charge,role:native.role==='TRIAL'?'INTRODUCTORY':native.role};}
+                if(sameNativeMoney&&native.amountDerivation==='ARITHMETIC')charge={...charge,derivation:'ARITHMETIC'};
+                if(sameNativeMoney&&native.cadence&&charge.cadence.unit!==native.cadence){result.rejected.push({offer:index,charge:charge.id,proposition:'CADENCE',reason:'NATIVE_CADENCE_RECOVERY',modelUnit:charge.cadence.unit,sourceUnit:native.cadence,support:charge.support});charge={...charge,cadence:{unit:native.cadence,expression:charge.support[0].quote}};}
+                const cadenceGrounded=charge.cadence.unit==='UNKNOWN'?charge.cadence.expression===null:contains(charge.support,charge.cadence.expression);
                 const grounded=support(charge.support,p)&&charge.qualifiers.every(q=>contains(charge.support,q))&&
                     (charge.money.amount===null?charge.money.amountText===null&&charge.money.amountSpan===null:exact(charge.money.amountSpan,['start','end','quote'])&&Number.isSafeInteger(charge.money.amountSpan.start)&&Number.isSafeInteger(charge.money.amountSpan.end)&&charge.money.amountSpan.end>charge.money.amountSpan.start&&charge.money.amountSpan.quote===charge.money.amountText&&o.body.slice(charge.money.amountSpan.start,charge.money.amountSpan.end)===charge.money.amountText&&charge.support.some(s=>charge.money.amountSpan.start>=s.start&&charge.money.amountSpan.end<=s.end)&&numericSupport(charge.support,charge.money.amountText)&&numericValue(charge.money.amountText,charge.money.amount))&&
                     (charge.money.currency===null?charge.money.currencyText===null:contains(charge.support,charge.money.currencyText))&&
-                    (charge.cadence.unit==='UNKNOWN'?charge.cadence.expression===null:contains(charge.support,charge.cadence.expression))&&
                     (charge.duration===null||contains(charge.support,charge.duration));
+                if(!cadenceGrounded){result.rejected.push({offer:index,charge:charge.id,proposition:'CADENCE',reason:'CADENCE_SUPPORT_INVALID',modelUnit:charge.cadence.unit,support:charge.support,expression:charge.cadence.expression?.slice(0,128)??null});charge={...charge,cadence:{unit:'UNKNOWN',expression:null}};}
                 charges.set(charge.id,{charge,grounded});
-                if(!grounded)result.rejected.push({offer:index,charge:charge.id,reason:'CHARGE_SUPPORT_INVALID'});
+                if(!grounded)result.rejected.push({offer:index,charge:charge.id,reason:'CHARGE_SUPPORT_INVALID',proposition:'CHARGE',predicates:{sourceBound:support(charge.support,p),qualifiers:charge.qualifiers.every(q=>contains(charge.support,q)),amountInSupport:charge.money.amount===null||charge.support.some(s=>charge.money.amountSpan?.start>=s.start&&charge.money.amountSpan?.end<=s.end),currencyInSupport:charge.money.currency===null||contains(charge.support,charge.money.currencyText),durationInSupport:charge.duration===null||contains(charge.support,charge.duration)},model:{amount:charge.money.amount,currency:charge.money.currency,role:charge.role,cadence:charge.cadence.unit},support:charge.support});
             }
             const transitions=[];
             for(const link of offer.transitions) {
@@ -230,6 +242,10 @@ function projectAccounts(o,objective,graph,material,support,binding,result) {
         if(!exact(n,['id','destination','role','ambiguity','support'])||!label(n.id)||nodes.has(n.id)||!known(n.role,['LOGIN','ACCOUNT','MANAGE','CANCEL','AUTH','UNKNOWN'])||typeof n.ambiguity!=='boolean')throw Error('EVIDENCE_ACCOUNT_GRAPH_INVALID');
         const d=destinations.find(d=>d.id===n.destination),url=d&&normalizeUrl(d.url,o.url);
         if(!d||!url||n.ambiguity||!support(n.support)||!n.support.some(s=>s.start>=d.start&&s.end<=d.end)){result.rejected.push({node:n.id,reason:'DESTINATION_SUPPORT_INVALID'});continue;}
+        const visible=n.support.map(s=>s.translated?.text??s.quote).join(' '),path=new URL(url).pathname;
+        const labels={LOGIN:/\b(?:log[ -]?in|sign[ -]?in)\b/i,AUTH:/\b(?:log[ -]?in|sign[ -]?in|authenticate)\b/i,ACCOUNT:/\baccount\b/i,MANAGE:/\b(?:subscription|membership|billing)\b/i,CANCEL:/\bcancel(?:lation)?\b/i};
+        const routes={LOGIN:/(?:^|\/)(?:login|signin|sign-in)(?:\/|$)/i,AUTH:/(?:^|\/)(?:auth|oauth|authorize|login)(?:\/|$)/i,ACCOUNT:/(?:^|\/)account(?:\/|$)/i,MANAGE:/(?:^|\/)(?:billing|subscription|membership)(?:\/|$)/i,CANCEL:/(?:^|\/)(?:cancel|cancellation)(?:\/|$)/i};
+        if(n.role==='UNKNOWN'||!(labels[n.role]?.test(visible)||routes[n.role]?.test(path))){result.rejected.push({node:n.id,proposition:n.role,reason:'DESTINATION_ROLE_UNSUPPORTED',destination:d.id,support:n.support,modelRole:n.role});continue;}
         nodes.set(n.id,{...n,url,providerControlled:providerBound(objective,url),sourceDestination:d});
     }
     const edges=[];

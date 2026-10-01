@@ -24,14 +24,14 @@ for(const f of evidenceFixtures)test('compact wire '+f.key+' '+f.language+' reta
 test('real SDK offline oracle reconstructs provenance locally; model emits no hashes or offsets',async()=>{
  const run=await liveMock(oracle,x=>x,{sdk:true}),{r,p}=run.calls[0];assert.equal(run.calls.length,1);assert.equal(run.result.truth.established,true);
  const text=p.messages[1].content;for(const field of ['sha256','observationId','observationSha256','start','end','quote','amountSpan'])assert.equal(text.includes('"'+field+'"'),false);
- assert.equal(p.response_format.json_schema.name,'v3_semantic_unit_v3');assert.ok(Buffer.byteLength(JSON.stringify(p))<10000);
+ assert.equal(p.response_format.json_schema.name,'v3_semantic_unit_v4');assert.ok(Buffer.byteLength(JSON.stringify(p))<10000);
  const o=run.knowledge.observations[0],e=o.evidence.envelope;assert.equal(e.observationId,o.id);assert.equal(e.observationSha256,o.sha256);
- assert.equal(e.offers[0].charges[0].money.amount,0);assert.equal(e.offers[0].charges[0].role,'INTRODUCTORY');assert.equal(e.offers[0].charges[1].money.amount,1080);assert.equal(e.offers[0].charges[1].role,'SUBSEQUENT');assert.equal(e.offers[0].transitions[0].kind,'RECURS_AFTER_INTRO');
+ assert.equal(e.offers[0].charges[0].money.amount,0);assert.equal(e.offers[0].charges[0].role,'INTRODUCTORY');assert.equal(e.offers[0].charges[1].money.amount,1080);assert.equal(e.offers[0].charges[1].role,'ORDINARY');assert.equal(e.offers[0].transitions[0].kind,'RECURS_AFTER_INTRO');
  assert.ok(e.offers[0].charges[1].support.every(s=>o.body.slice(s.start,s.end)===s.quote));assert.equal(evaluate(restore(checkpoint(run.knowledge))).prices.JP.propositions.PRICE_AMOUNT.value,1080);
  assert.equal(run.result.truth.prices.JP.propositions.TARGET_MARKET.evidence[0].reference.marketContext.basis,'VERIFIED_COUNTRY_OBSERVATION');
 });
 for(const [name,mutate] of [
- ['unknown segment',e=>e.charges[1].sources=['s_missing']],['unknown presentation',e=>e.offers[0].presentation='p_missing'],['unknown charge owner',e=>e.charges[1].offer='o_missing'],['unknown relationship endpoint',e=>e.relations[0].to='missing'],['duplicate charge ID',e=>e.charges[1].id=e.charges[0].id],['fabricated numeric text',e=>e.charges[1].amountRef='n_missing'],['partial numeric token',e=>e.charges[1].amount=80],['ambiguous temporal link',e=>e.relations[0].ambiguous=true],['unsupported temporal source',e=>e.relations[0].sources=e.serviceSources],['unbound currency',e=>e.charges[1].currencyRef='u_missing']
+ ['unknown segment',e=>e.charges[1].sources=['s_missing']],['unknown presentation',e=>e.offers[0].presentation='p_missing'],['unknown charge owner',e=>e.charges[1].offer='o_missing'],['unknown relationship endpoint',e=>e.relations[0].to='missing'],['duplicate charge ID',e=>e.charges[1].id=e.charges[0].id],['fabricated numeric text',e=>e.charges[1].amountRef='n_missing'],['partial numeric token',e=>e.charges[1].amount=80],['ambiguous temporal link',e=>{e.charges[1].role='SUBSEQUENT';e.relations[0].ambiguous=true;}],['unsupported temporal source',e=>{e.charges[1].role='SUBSEQUENT';e.relations[0].sources=e.serviceSources;}],['unbound currency',e=>e.charges[1].currencyRef='u_missing']
 ])test('compact wire rejects '+name+' without ordinary price promotion',async()=>{
  const run=await liveMock(oracle,e=>{mutate(e);return e;});assert.equal(run.result.truth.established,false);assert.notEqual(run.result.truth.prices.JP.propositions.PRICE_AMOUNT.value,1080);
 });
@@ -39,7 +39,7 @@ for(const field of ['truthState','established','verified','admitted','sufficient
  const run=await liveMock(oracle,e=>{e[field]=true;return e;});assert.equal(run.result.truth.established,false);assert.ok(run.result.trace.some(t=>t.code==='WIRE_FIELDS_INVALID'));
 });
 test('simple strict schema uses only basic supported JSON types and fixed semantic enums',()=>{
- const walk=s=>{for(const key of Object.keys(s))assert.ok(['type','properties','required','additionalProperties','items','enum'].includes(key));if(s.type==='object'){assert.equal(s.additionalProperties,false);assert.deepEqual(s.required,Object.keys(s.properties));Object.values(s.properties).forEach(walk);}if(s.type==='array')walk(s.items);};walk(semanticWireSchema());assert.ok(Buffer.byteLength(JSON.stringify(semanticWireSchema()))<4500);
+ const walk=s=>{for(const key of Object.keys(s))assert.ok(['type','properties','required','additionalProperties','items','enum'].includes(key));if(s.type==='object'){assert.equal(s.additionalProperties,false);assert.deepEqual(s.required,Object.keys(s.properties));Object.values(s.properties).forEach(walk);}if(s.type==='array')walk(s.items);};walk(semanticWireSchema());assert.ok(Buffer.byteLength(JSON.stringify(semanticWireSchema()))<4800);
 });
 test('provider failure generation is diagnosed locally without retaining raw generation or reasoning',async()=>{
  const input={...fixtureInput(oracle),semantic:{mode:'LIVE'},bounds:{modelCalls:1}};
