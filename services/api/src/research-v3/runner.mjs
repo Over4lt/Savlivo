@@ -17,7 +17,7 @@ export async function runTarget({input,capabilities,reasoner,navigate,interpret,
     const knowledge=snapshot?restore(snapshot):undefined;
     if(knowledge&&JSON.stringify(knowledge.objective)!==JSON.stringify({...objective,seeds:objective.seeds??[]}))throw Error('RESUME_OBJECTIVE_MISMATCH');
     if(knowledge&&knowledge.semanticAdapter&&JSON.stringify(knowledge.semanticAdapter)!==JSON.stringify(interpret.semanticAdapter??{mode:'LEGACY_STATIC'}))throw Error('RESUME_SEMANTIC_ADAPTER_MISMATCH');
-    if(knowledge&&input.semantic?.mode==='LIVE'&&(!knowledge.semanticAdapter||!Number.isSafeInteger(knowledge.usage.modelCalls)||!Number.isSafeInteger(knowledge.bounds.modelCalls)||knowledge.observations.some(o=>o.candidates?.length&&!o.semantic)))throw Error('RESUME_SEMANTIC_ADAPTER_MISMATCH');
+    if(knowledge&&input.semantic?.mode==='LIVE'&&(!knowledge.semanticAdapter||!Number.isSafeInteger(knowledge.usage.modelCalls)||!Number.isSafeInteger(knowledge.bounds.modelCalls)||knowledge.observations.some(o=>o.semantic)))throw Error('RESUME_SEMANTIC_ADAPTER_MISMATCH');
     const initial=knowledge??createKnowledge({objective,permissions,bounds});
     initial.semanticAdapter=interpret.semanticAdapter??{mode:'LEGACY_STATIC'};
     const k=await runResearch({knowledge:initial,objective,permissions,bounds,capabilities,reasoner:reasoner??createReasoner(input.planning),interpret,navigate,save});

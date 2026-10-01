@@ -1,3 +1,5 @@
+> Superseded: see [source-bound evidence truth](research-v3-evidence-truth.md) and [optional translation](research-v3-translation-boundary.md). This document records the retired flat candidate-extraction contract.
+
 # V3 multilingual semantic interpretation
 
 This milestone removes the English-parser prerequisite **for the injected semantic

@@ -66,15 +66,22 @@ function explicitMarket(s) {
 function monetary(s) {
     const found=[];
     const amount=raw=>{
+        if(/\s/.test(raw)) {
+            if(!/^\d{1,3}(?: \d{3})+(?:[.,]\d{1,2})?$/.test(raw))return null;
+            raw=raw.replaceAll(' ','');
+        }
         if(/^\d+$/.test(raw)||/^\d+\.\d{1,2}$/.test(raw))return Number(raw);
         if(/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(raw))return Number(raw.replaceAll(',',''));
         if(/^\d+,\d{1,2}$/.test(raw))return Number(raw.replace(',','.'));
         if(/^\d{1,3}(?:\.\d{3})+,\d{1,2}$/.test(raw))return Number(raw.replaceAll('.','').replace(',','.'));
         return null;
     };
-    const re=/\b([A-Z]{3})\s*(\d+(?:[.,]\d+)*)(?!\d|[.,]\d)\b|\b(\d+(?:[.,]\d+)*)(?!\d|[.,]\d)\s*([A-Z]{3})\b/g;
+    const re=/\b([A-Z]{3})\s*(\d+(?:[.,]\d+| \d{3})*)(?!\d|[.,]\d)\b|\b(\d+(?:[.,]\d+| \d{3})*)(?!\d|[.,]\d)\s*([A-Z]{3})\b/g;
     for(const m of s.matchAll(re)) {
-        const currency=m[1]??m[4], value=amount(m[2]??m[3]);
+        const notation=m[2]??m[3],start=m.index+m[0].indexOf(notation),end=start+notation.length;
+        // Never read a suffix/prefix of an unresolved numeric group as a price.
+        if(/\p{N}[.,\s]+$/u.test(s.slice(0,start))||/^[.,\s]+\p{N}/u.test(s.slice(end)))continue;
+        const currency=m[1]??m[4], value=amount(notation);
         if(currencies.has(currency)&&value!==null) found.push({amount:value,currency});
     }
     return found;
@@ -86,7 +93,10 @@ function offerFrom(s) {
     const one=repeated.length===1?JSON.parse(repeated[0]):{};
     const monthly=/\b(?:per month|each month|monthly|every month)\b|\/\s*month\b/i.test(s);
     const annual=/\b(?:per year|yearly|annually|annual|billed yearly)\b|\/\s*(?:year|yr)\b/i.test(s);
-    const cadence=annual?'YEARLY':monthly?'MONTHLY':null;
+    // Flat native extraction cannot associate competing cadence expressions.
+    // Leave that relationship to the source-bound presentation understanding path.
+    const cadence=annual&&monthly?null:annual?'YEARLY':monthly?'MONTHLY':null;
+    if(annual&&monthly)ambiguity.push('CADENCE_RELATIONSHIP_UNRESOLVED');
     if(!cadence) ambiguity.push('CADENCE_NOT_EXPLICIT');
     const relationship=/\bsubscription\b/i.test(s)?'SUBSCRIPTION':/\bmembership\b/i.test(s)?'MEMBERSHIP':null;
     const consumer=/\b(?:consumer|personal|individual)\b/i.test(s) && !/\b(?:business|enterprise|corporate)\b/i.test(s);

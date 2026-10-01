@@ -1,3 +1,5 @@
+> Superseded: see [source-bound evidence truth](research-v3-evidence-truth.md) and [optional translation](research-v3-translation-boundary.md). This document records the retired flat candidate-extraction contract.
+
 # Research V3 bounded live semantic preparation
 
 This milestone prepares one separately authorized single-target run. No live

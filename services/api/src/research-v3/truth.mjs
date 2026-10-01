@@ -1,6 +1,7 @@
 import { canonical, digest, providerBound, servicePropositions, pricePropositions } from './model.mjs';
-import {projectSemantic} from './semantic.mjs';
-import { projectWebSource } from './source.mjs';
+import {projectObservation} from './projection.mjs';
+import {verifiedCountryContext} from './truth-contract.mjs';
+export {truthContract} from './truth-contract.mjs';
 const currencies = new Set(Intl.supportedValuesOf('currency'));
 const blank = () => ({ state: 'UNRESOLVED', value: null, evidence: [], contradictions: [] });
 const slots = names => Object.fromEntries(names.map(n => [n, blank()]));
@@ -19,8 +20,8 @@ function claim(slot, value, reference, sufficient = true) {
     slot.contradictions = slot.state === 'CONTRADICTED' ? slot.evidence : [];
 }
 export function readSource(observation, objective) {
-    if (observation.semantic) return projectSemantic(observation, objective).source;
-    if (observation.format === 'WEB') return projectWebSource(observation, objective).source;
+    if (observation.semantic) return null; // Retired model-produced proposition envelopes are not evidence.
+    if (observation.format === 'WEB') return projectObservation(observation, objective).source;
     try { return JSON.parse(observation.body); }
     catch { return null; }
 }
@@ -37,7 +38,8 @@ export function evaluate(k) {
     for (const o of k.observations) {
         if (o.kind !== 'PROVIDER' || o.outcome !== 'OK' || o.truncated || digest(o.body) !== o.sha256 || !providerBound(k.objective, o.url))
             continue;
-        const web = o.semantic ? projectSemantic(o,k.objective) : o.format === 'WEB' ? projectWebSource(o, k.objective) : null;
+        if(o.semantic)continue;
+        const web = o.format === 'WEB' ? projectObservation(o,k.objective) : null;
         if(web?.error) continue;
         const source = web?.source ?? readSource(o);
         if (source?.serviceId !== k.objective.serviceId)
@@ -46,11 +48,13 @@ export function evaluate(k) {
         for (const c of o.candidates ?? []) {
             if (c.kind === 'SERVICE' && c.pointer === '') {
                 claim(service.SERVICE_IDENTITY, true, reference('/serviceId'));
-                const n = source.population;
-                if (n?.scope === 'SERVICE_TOTAL' && ['USERS', 'MEMBERS', 'CUSTOMERS', 'SUBSCRIBERS', 'ACTIVE_USERS'].includes(n.measure) && Number.isSafeInteger(n.count) && n.count >= 0) {
-                    if (n.kind === 'EXACT' || n.kind === 'LOWER_BOUND' && n.count >= 100000)
-                        claim(service.SERVICE_SIZE_100K_PLUS, n.count >= 100000, reference('/population'));
+                for(const [index,n] of [source.population,...(source.populations??[])].entries()) {
+                    if (n?.scope === 'SERVICE_TOTAL' && ['USERS', 'MEMBERS', 'CUSTOMERS', 'SUBSCRIBERS', 'ACTIVE_USERS'].includes(n.measure) && Number.isSafeInteger(n.count) && n.count >= 0) {
+                        if (n.kind === 'EXACT' || n.kind === 'LOWER_BOUND' && n.count >= 100000)
+                            claim(service.SERVICE_SIZE_100K_PLUS, n.count >= 100000, reference(index===0?'/population':'/populations/'+(index-1)));
+                    }
                 }
+                for(const [i,item] of (source.accountStatements??[]).entries())claim(service[item.operation==='LOGIN'?'ACCOUNT_LOGIN_EXISTS':'MEMBERSHIP_MANAGEMENT_EXISTS'],item.value,reference('/accountStatements/'+i));
                 if (typeof source.account?.login === 'boolean')
                     claim(service.ACCOUNT_LOGIN_EXISTS, source.account.login, reference('/account/login'));
                 if (typeof source.account?.manageMembership === 'boolean')
@@ -63,9 +67,11 @@ export function evaluate(k) {
                 continue;
             const consumer = offer.consumer === true && ['SUBSCRIPTION', 'MEMBERSHIP'].includes(offer.relationship);
             const explicitCadence = !offer.amountDerivation || offer.amountDerivation === 'EXPLICIT';
-            if (consumer && offer.cadence === 'MONTHLY' && explicitCadence && offer.role !== 'TRIAL')
+            if (consumer && offer.cadence === 'MONTHLY' && explicitCadence && offer.role === 'ORDINARY')
                 claim(service.CONSUMER_MONTHLY_SUBSCRIPTION_EXISTS, true, reference(c.pointer));
-            const market = typeof offer.market === 'string' && /^[A-Z]{2}$/.test(offer.market) ? offer.market : null;
+            const explicitMarket = typeof offer.market === 'string' && /^[A-Z]{2}$/.test(offer.market) ? offer.market : null;
+            const country = !offer.marketAmbiguous ? verifiedCountryContext(o) : null;
+            const market = explicitMarket ?? country;
             // Never assemble a price from unrelated plans, qualifiers, or geographically
             // different unlocalized presentations. A source without an offer ID stands alone.
             const id = typeof offer.id === 'string' && offer.id ? offer.id : o.id + c.pointer;
@@ -82,7 +88,7 @@ export function evaluate(k) {
             if (typeof offer.consumer === 'boolean' && ['SUBSCRIPTION', 'MEMBERSHIP', 'INSTALLMENT', 'ONE_TIME'].includes(offer.relationship))
                 claim(p.CONSUMER_SUBSCRIPTION, consumer, ref);
             if (market)
-                claim(p.TARGET_MARKET, market, ref);
+                claim(p.TARGET_MARKET, market, explicitMarket?ref:{...ref,marketContext:{basis:'VERIFIED_COUNTRY_OBSERVATION',country,verification:o.transport.verification}});
         }
     }
     const prices = {};

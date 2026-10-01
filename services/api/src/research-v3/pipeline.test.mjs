@@ -103,18 +103,19 @@ test('navigation intelligence can classify an observed non-keyword anchor, never
     assert.equal(f.calls.some(c=>c.url?.endsWith('invented')),false);
 });
 
-test('wrong market remains unresolved; geo observation itself is not market evidence',async()=>{
-    for(const geo of [enough('AU'),partial()]) {
-        const {result,knowledge}=await execute({direct:partial(),geo});
-        assert.notEqual(result.stop.reason,'OBJECTIVE_ESTABLISHED');
-        assert.equal(result.truth.prices.JP.established,false);
-        assert.equal(knowledge.observations.length,2);
-        assert.equal(result.stop.reason,'SEMANTIC_EXHAUSTION');
-    }
+test('explicit wrong-market evidence overrides verified country; country otherwise contributes market',async()=>{
+    const wrong=await execute({direct:partial(),geo:enough('AU')});
+    assert.equal(wrong.result.truth.prices.JP.established,false);
+    assert.equal(wrong.result.stop.reason,'SEMANTIC_EXHAUSTION');
+    const localized=await execute({direct:partial(),geo:partial()});
+    assert.equal(localized.result.truth.prices.JP.established,true);
+    assert.equal(localized.knowledge.observations.length,2);
+    assert.equal(localized.result.truth.prices.JP.propositions.TARGET_MARKET.evidence[0].reference.marketContext.basis,'VERIFIED_COUNTRY_OBSERVATION');
 });
 
 test('same observation context consumed; semantic exhaustion distinct from capacity',async()=>{
-    const exhausted=await execute({direct:partial(),geo:partial()});
+    const incomplete=page('Personal subscription price JPY 1400.');
+    const exhausted=await execute({direct:incomplete,geo:incomplete});
     assert.equal(exhausted.result.usage.actions,2);
     assert.equal(exhausted.result.stop.reason,'SEMANTIC_EXHAUSTION');
     assert.ok(exhausted.knowledge.decisions.at(-1).evaluated.some(r=>r.reason==='SEMANTIC_DUPLICATE'));
@@ -126,7 +127,7 @@ test('same observation context consumed; semantic exhaustion distinct from capac
 });
 
 test('planner proposals cannot manufacture truth, contexts, permissions or destinations',async()=>{
-    const f=fixture({direct:partial(),geo:partial()});
+    const f=fixture({direct:partial(),input:input({permissions:{DIRECT:true}})});
     const {result}=await runTarget({input:f.input,capabilities:f.caps,reasoner:state=>{
         state.truth.established=true;
         return {propositions:{TARGET_MARKET:'JP'},proposals:[{kind:'ACQUIRE',url:'https://provider.example/invented',context:context('DIRECT'),needs:['JP:TARGET_MARKET'],value:999,reason:'Invented'}]};
@@ -219,10 +220,10 @@ test('hidden/script material and navigation labels cannot establish provider tru
     assert.equal(result.truth.service.MEMBERSHIP_MANAGEMENT_EXISTS.state,'UNRESOLVED');
 });
 
-test('explicit country name can support market, but locale/currency/transport cannot',async()=>{
+test('explicit country name or verified country may support market; Direct locale/currency cannot',async()=>{
     const named=await execute({direct:enough('Japan')});
     assert.equal(named.result.truth.prices.JP.established,true);
-    const unlocalized=await execute({direct:partial(),geo:partial()});
+    const unlocalized=await execute({direct:partial(),input:input({permissions:{DIRECT:true}})});
     assert.equal(unlocalized.result.truth.prices.JP.propositions.TARGET_MARKET.state,'UNRESOLVED');
 });
 

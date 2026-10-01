@@ -1,6 +1,8 @@
 import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound } from './model.mjs';
 import { evaluate, interpretStructured, readSource } from './truth.mjs';
-import {projectSemantic} from './semantic.mjs';
+import {projectTranslation,translationError} from './translation.mjs';
+import {projectEvidence,understandingError} from './evidence.mjs';
+import {projectObservation} from './projection.mjs';
 import { projectWebSource } from './source.mjs';
 const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.context?.transport;
 function searches(k, truth) {
@@ -149,33 +151,59 @@ async function accept(k, a, response, interpret, navigate, save) {
         ...(response.format==='WEB'?{format:'WEB',contentType:response.contentType,requestedUrl:a.url,httpStatus:response.httpStatus,acquiredAt:response.acquiredAt,transport:response.transport,access:response.access}: {}) };
     k.observations.push(o);
     if (o.outcome === 'OK' && !o.truncated) {
-        if(interpret.semanticAdapter) {
-            if(k.usage.modelCalls>=k.bounds.modelCalls){markLimit(k,'modelCalls');throw Error('SEMANTIC_MODEL_CALL_BOUND');}
-            k.usage.modelCalls++;
-            o.interpretation={kind:'SEMANTIC_PENDING',adapter:interpret.semanticAdapter};
-            k.trace.push({event:'SEMANTIC_CALL_RESERVED',observation:o.id,sha256:o.sha256,adapter:interpret.semanticAdapter,modelCalls:k.usage.modelCalls,bound:k.bounds.modelCalls});
-            // Reserve before dispatch. Unknown/in-flight calls stay spent on resume.
-            await persist(k,save);
-        }
-        const candidates = await interpret(structuredClone(o),structuredClone(k.objective));
-        if(interpret.semanticAdapter?.mode==='LIVE'&&candidates?.kind!=='SEMANTIC')throw Error('LIVE_SEMANTIC_RESULT_REQUIRED');
-        if(candidates?.kind==='SEMANTIC') {
-            o.semantic=candidates.envelope;
-            const projection=projectSemantic(o,k.objective);
-            if(projection.error)throw Error(projection.error);
-            o.candidates=projection.candidates;
-            o.interpretation={kind:'SEMANTIC',metadata:o.semantic.metadata,accepted:projection.accepted,rejected:projection.rejected,limited:projection.limited};
-            if(projection.limited)markLimit(k,'interpretationCapacity');
-            k.trace.push({event:'SEMANTIC_INTERPRETATION',observation:o.id,sha256:o.sha256,interpretation:o.interpretation,candidates:o.candidates,candidateClaims:o.semantic.claims,sourceSupport:projection.bindings});
+        o.candidates=o.format==='WEB'?projectObservation(o,k.objective).candidates:interpretStructured(o,k.objective);
+        const understanding=interpret.semanticAdapter?.role==='EVIDENCE_UNDERSTANDING';
+        const stage=understanding?'UNDERSTANDING':'TRANSLATION';
+        const modelNeeded=!!interpret.semanticAdapter&&(!interpret.requiresModel||interpret.requiresModel(o,k.objective));
+        let candidates;
+        if(modelNeeded&&k.usage.modelCalls>=k.bounds.modelCalls) {
+            markLimit(k,'modelCalls');
+            o.interpretation={kind:stage+'_UNAVAILABLE',code:stage+'_MODEL_CALL_BOUND'};
         } else {
-            if (!Array.isArray(candidates))throw Error('INVALID_INTERPRETER_RESULT');
-            const source=readSource(o,k.objective), maximum=1+(Array.isArray(source?.offers)?source.offers.length:0);
+            if(modelNeeded) {
+                k.usage.modelCalls++;
+                o.interpretation={kind:stage+'_PENDING',adapter:interpret.semanticAdapter};
+                k.trace.push({event:stage+'_CALL_RESERVED',observation:o.id,sha256:o.sha256,adapter:interpret.semanticAdapter,modelCalls:k.usage.modelCalls,bound:k.bounds.modelCalls});
+                await persist(k,save);
+            }
+            try {candidates=await interpret(structuredClone(o),structuredClone(k.objective));}
+            catch(error) {
+                if(!interpret.requiresModel)throw error;
+                o.interpretation={kind:stage+'_FAILED',...(understanding?understandingError(error):translationError(error))};
+            }
+        }
+        if(candidates?.kind==='NATIVE'&&!modelNeeded) {
+            // The already revalidated original/translated projection remains usable.
+        } else if(candidates?.kind==='EVIDENCE') {
+            const projection=projectEvidence(o,k.objective,candidates.envelope);
+            if(projection.error)o.interpretation={kind:'UNDERSTANDING_REJECTED',code:projection.error};
+            else {
+                o.evidence={envelope:candidates.envelope,adapter:interpret.semanticAdapter};
+                o.candidates=projectObservation(o,k.objective).candidates;
+                o.interpretation={kind:'EVIDENCE',adapter:interpret.semanticAdapter,accepted:projection.accepted,rejected:projection.rejected};
+                k.trace.push({event:'EVIDENCE_UNDERSTANDING',observation:o.id,sha256:o.sha256,evidence:o.evidence,interpretation:o.interpretation,sourceSupport:projection.bindings,candidates:o.candidates});
+            }
+        } else if(candidates?.kind==='TRANSLATION') {
+            const translation={envelope:candidates.envelope,adapter:interpret.semanticAdapter};
+            const projection=projectTranslation(o,k.objective,translation.envelope);
+            if(projection.error)o.interpretation={kind:'TRANSLATION_REJECTED',code:projection.error};
+            else {
+                o.translation=translation;o.candidates=projectObservation(o,k.objective).candidates;
+                o.interpretation={kind:'TRANSLATION',adapter:interpret.semanticAdapter,limited:projection.limited};
+                k.trace.push({event:'TRANSLATION',observation:o.id,sha256:o.sha256,translation,sourceSupport:projection.bindings,candidates:o.candidates});
+            }
+        } else if(candidates!==undefined) {
+            if(!Array.isArray(candidates)||modelNeeded)throw Error('INVALID_INTERPRETER_RESULT');
+            const source=readSource(o,k.objective),maximum=1+(source?.offers?.length??0);
             o.candidates=candidates.slice(0,maximum).map(c=>({kind:c.kind,pointer:c.pointer}));
         }
+        if(/(?:MATERIAL|RESPONSE)_BOUND$/.test(o.interpretation?.code??''))markLimit(k,'interpretationCapacity');
+        if(o.interpretation?.kind?.startsWith(stage+'_'))k.trace.push({event:stage+'_UNAVAILABLE',observation:o.id,...o.interpretation});
+
     }
     const web=o.format==='WEB'?projectWebSource(o,k.objective):null;
-    if(web?.limited&&!o.semantic) markLimit(k,'interpretationCapacity');
-    if(web&&!o.semantic) o.interpretation={ambiguities:web.ambiguities,limited:web.limited};
+    if(web?.limited&&!o.translation) markLimit(k,'interpretationCapacity');
+    if(web&&!o.interpretation) o.interpretation={ambiguities:web.ambiguities,limited:web.limited};
     const links = (web?.source??readSource(o))?.links;
     if(web) o.navigation=links.map(({url,label,needs,source},index)=>({index,url,label,needs,source}));
     if(web&&navigate&&o.outcome==='OK'&&!o.truncated) {
@@ -220,9 +248,6 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             stop(k, 'OBJECTIVE_ESTABLISHED');
             await persist(k, save);
             return k;
-        }
-        if(interpret.semanticAdapter&&k.usage.modelCalls>=k.bounds.modelCalls) {
-            stop(k,'CAPACITY_BOUND_REACHED',{bounds:['modelCalls']});await persist(k,save);return k;
         }
         if (k.usage.plannerCalls >= k.bounds.plannerCalls) {
             stop(k, 'CAPACITY_BOUND_REACHED', { bounds: ['plannerCalls'] });
