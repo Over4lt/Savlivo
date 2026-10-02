@@ -81,7 +81,10 @@ export function addDestination(k, { url, depth, needs, grounding, discovery }) {
         old.depth = Math.min(old.depth, depth);
         old.provenance??=[old.grounding];
         if(old.provenance.length<k.bounds.discoveryProvenance&&!old.provenance.some(g=>canonical(g)===canonical(grounding)))old.provenance.push(structuredClone(grounding));
+        const stateRelations=[...(old.discovery?.stateRelations??(old.discovery?.state?[old.discovery.state]:[])),...(discovery?.state?[discovery.state]:[])];
         if(discovery&&(discovery.score??0)>(old.discovery?.score??0))old.discovery=structuredClone(discovery);
+        if(stateRelations.length){old.discovery??={score:0};old.discovery.stateRelations=[...new Map(stateRelations.map(s=>[s.variant,s])).values()].slice(0,k.bounds.discoveryProvenance);old.discovery.state??=structuredClone(discovery?.state??old.discovery.stateRelations[0]);}
+
         return 'KNOWN_DESTINATION';
     }
     if (k.destinations.length >= k.bounds.candidateDestinations) {

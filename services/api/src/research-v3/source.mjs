@@ -1,4 +1,5 @@
 // Bounded deterministic HTML/text interpretation. No network, model calls or V2 policy.
+import {selectedStateContext,providerStates} from './provider-states.mjs';
 import {digest, pricePropositions, servicePropositions} from './model.mjs';
 import {presentationCapacity as capacity} from './acquisition-contract.mjs';
 const documents=new WeakMap();
@@ -111,10 +112,20 @@ export function nativePresentationFacts(s) {
     const relationship=/\bsubscription\b/i.test(s)?'SUBSCRIPTION':/\bmembership\b/i.test(s)?'MEMBERSHIP':null;
     const consumer=/\b(?:consumer|personal|individual)\b/i.test(s) && !/\b(?:business|enterprise|corporate)\b/i.test(s);
     const uncertain=/\b(?:not|no|example|illustrative|starting at|from)\b/i.test(s);
-    const role=/\b(?:benefit|credit|worth|value of)\b/i.test(s)?'BENEFIT':uncertain?null:/\b(?:trial|introductory|first month|first \d+ months|promotional)\b/i.test(s)?'TRIAL':/\b(?:benefit|credit|worth|value of)\b/i.test(s)?'BENEFIT':/\bdiscount\b/i.test(s)?'DISCOUNT':relationship?'ORDINARY':null;
+    const role=/\b(?:benefits?|credits?|worth|value of)\b/i.test(s)?'BENEFIT':uncertain?null:/\b(?:trial|introductory|first month|first \d+ months|promotional)\b/i.test(s)?'TRIAL':/\b(?:benefits?|credits?|worth|value of)\b/i.test(s)?'BENEFIT':/\bdiscount\b/i.test(s)?'DISCOUNT':relationship?'ORDINARY':null;
     const amountDerivation=/\b(?:divided by|equivalent|installment|instalment)\b|\/\s*12\b/i.test(s)?'ARITHMETIC':'EXPLICIT';
     if(!one.currency) ambiguity.push('CURRENCY_OR_AMOUNT_NOT_EXPLICIT');
     return {...one,cadence,relationship,consumer:consumer&&!uncertain?true:null,role,amountDerivation,market:explicitMarket(s),ambiguity};
+}
+// Optional native understanding of actual selected source labels. Annual
+// benefits are not billing intervals. Uninterpreted associated conditions are
+// preserved for semantic understanding rather than silently treated as absent.
+export function nativeStateContext(s) {
+    const facts=nativePresentationFacts(s);
+    if(/\b(?:no|not|without)\b/i.test(s))return {purpose:'UNKNOWN',cadence:null};
+    if(['BENEFIT','CREDIT'].includes(facts.role))return {purpose:'FEATURE',cadence:null};
+    if(facts.cadence&&(/\b(?:billed|billing|charged|pay|payments?|commitment)\b/i.test(s)||s.trim().split(/\s+/).length===1))return {purpose:'BILLING',cadence:facts.cadence};
+    return {purpose:'UNKNOWN',cadence:null};
 }
 function relevance(s) {
     const need=new Set();
@@ -132,18 +143,25 @@ function relevance(s) {
 export function projectWebSource(observation, objective) {
     const source={offers:[],links:[]}, bindings={}, ambiguities=[];
     if(!['text/html','application/xhtml+xml','text/plain'].includes(observation.contentType)) return {source,bindings,ambiguities,limited:false};
-    const parsed=observationDocument(observation), nodes=parsed.nodes;
+    const parsed=observationDocument(observation), nodes=parsed.nodes,state=providerStates(observation);
     const name=new RegExp('(?:^|[^\\p{L}\\p{N}])'+escape(objective.serviceName)+'(?=$|[^\\p{L}\\p{N}])','iu');
     const pointer=n=>({start:n.start,end:n.end,sha256:digest(observation.body.slice(n.start,n.end))});
     const identity=nodes.find(n=>['title','h1','p'].includes(n.tag)&&name.test(n.text));
     if(identity) {source.serviceId=objective.serviceId; bindings['/serviceId']=pointer(identity);}
     // Keep an offer within one presentation. Prefer small enclosing offer sections,
     // never pool an entire page's prices, currencies and headings.
-    const priced=nodes.filter(n=>n.tag!=='a'&&monetary(n.text).length&&/\b(?:subscription|membership)\b/i.test(n.text));
+    if(state.limited)ambiguities.push({reason:'SOURCE_STATE_CONTEXT_BOUND'});
+    const priced=state.limited?[]:nodes.filter(n=>n.tag!=='a'&&monetary(n.text).length&&/\b(?:subscription|membership)\b/i.test(n.text));
     const selected=priced.filter((n,i)=>!(priced[i+1]?.start>n.start&&priced[i+1].end<n.end));
     for(const n of selected.slice(0,64)) {
-        const value=nativePresentationFacts(n.text), p='/offers/'+source.offers.length;
-        source.offers.push(value); bindings[p]=pointer(n);
+        const context=selectedStateContext(observation,n);
+        const labels=context.map(c=>c.spans.map(s=>observation.body.slice(s.start,s.end)).join(' ')),understood=labels.map(nativeStateContext);
+        const stateContext=labels.filter((_,i)=>understood[i].purpose==='BILLING').join(' ');
+        const value=nativePresentationFacts([n.text,stateContext].filter(Boolean).join(' ')), p='/offers/'+source.offers.length;
+        if(understood.some(c=>c.purpose==='BILLING'&&c.cadence==='YEARLY')&&nativePresentationFacts(n.text).cadence==='MONTHLY')value.amountDerivation='ARITHMETIC';
+        if(understood.some(c=>c.purpose==='UNKNOWN')){value.amountDerivation='UNKNOWN';value.ambiguity.push('SELECTED_SOURCE_CONTEXT_UNINTERPRETED');}
+
+        source.offers.push(value); bindings[p]={...pointer(n),...(context.length?{context:context.map(c=>({...c,spans:c.spans.map(s=>({...s,sha256:digest(observation.body.slice(s.start,s.end))}))}))}: {})};
         if(value.ambiguity.length) ambiguities.push({pointer:p,reasons:value.ambiguity,source:bindings[p]});
     }
     const prose=nodes.filter(n=>['p','li'].includes(n.tag));
@@ -168,7 +186,7 @@ export function projectWebSource(observation, objective) {
         source.links.push({url:n.attrs.href,needs:[...new Set(needs)],label:n.text.slice(0,160),source:pointer(n)});
     }
     source.links.sort((a,b)=>b.needs.length-a.needs.length||a.url.localeCompare(b.url));
-    return {source,bindings,ambiguities,limited:parsed.limited||selected.length>64||nodes.filter(n=>n.tag==='a').length>512};
+    return {source,bindings,ambiguities,limited:parsed.limited||state.limited||selected.length>64||nodes.filter(n=>n.tag==='a').length>512};
 }
 
 export function interpretWeb(observation, objective) {
@@ -182,7 +200,7 @@ export function semanticMaterial(observation) {
     const body=observation.body, segments=[];
     if(!['text/plain','text/html','application/xhtml+xml'].includes(observation.contentType)) return {segments,presentations:[],limited:false};
     const parsed=observationDocument(observation);
-    let limited=parsed.limited;
+    let limited=parsed.limited||providerStates(observation).limited;
     const add=(start,end)=>{if(body.slice(start,end).trim()) segments.push({start,end,text:body.slice(start,end)});};
     if(observation.contentType==='text/plain') parsed.nodes.forEach(n=>add(n.start,n.end));
     else {
@@ -205,6 +223,11 @@ export function semanticMaterial(observation) {
         }
         if(!limited&&!stack.some(n=>n.hidden))add(cursor,body.length);
     }
+    // Accessibility labels are exact source attributes, not invented visible
+    // quotations. Selected control relationships retain their source tag/hash.
+    for(const g of providerStates(observation).groups)for(const v of g.variants.filter(v=>v.selected&&v.submission!=='OMIT'))for(const b of v.labelSpans)
+        if(b.start>=v.source.start&&b.end<=v.source.end&&!segments.some(s=>s.start<=b.start&&s.end>=b.end))add(b.start,b.end);
+    segments.sort((a,b)=>a.start-b.start||a.end-b.end);
     const presentations=parsed.nodes.filter(n=>n.tag!=='a').slice(0,capacity.presentations).map((n,i)=>({id:'presentation-'+i,start:n.start,end:n.end,tag:n.tag,role:n.attrs.role??null,itemType:n.attrs.itemtype??null,itemProp:n.attrs.itemprop??null,ancestry:n.ancestry??[]}));
     return {segments:segments.slice(0,capacity.segments),presentations,limited:limited||parsed.nodes.length>capacity.presentations||segments.length>capacity.segments};
 }

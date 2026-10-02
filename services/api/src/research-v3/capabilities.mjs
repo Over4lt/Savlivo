@@ -115,20 +115,23 @@ export function createCapabilities({objective,permissions={},network={},tavily={
      if([404,410].includes(result.status))policy={absent:true,status:result.status};
      else if(result.status===200){
       const row=ledger.at(-1);if(row)row.processingPhase='ROBOTS_PARSE';
-      try{const parsedAt=timing.now();policy={parsed:parseAcquisitionRobots(result.text),status:result.status};
-       if(policy.parsed.sitemaps.length) {
-        if(geo&&[decodo.username,decodo.password].some(s=>result.text.includes(s)))throw fault('SECRET_IN_RESPONSE');
-        const bodySha256=digest(result.text);
-        navigationDocuments.push({kind:'ROBOTS',url:result.url,body:result.text,sha256:bodySha256,completeness:'COMPLETE',declarations:policy.parsed.sitemaps});
-        account.retained(Buffer.byteLength(result.text));
-       }if(timing.now()-parsedAt>(timeoutMs??cap.processingMs))throw fault('ROBOTS_PROCESSING_TIMEOUT');checkDeadline();if(row){row.robotsDiagnostics=policy.parsed.diagnostics;row.processingState='COMPLETED';}}
-      catch(e){if(row){row.processingState='FAILED';row.processingFailure=e.code;row.robotsDiagnostic=e.diagnostics??null;}recordFailure(e,{phase:'ROBOTS_PARSE',requestSequence:row?.sequence??null});throw e;}
+      // Retain the decoded source before local parsing can fail. This is an
+      // auxiliary policy artifact, never provider pricing evidence. Capacity
+      // and credential checks apply equally to successful and rejected policies.
+      if(geo&&[decodo.username,decodo.password].some(s=>result.text.includes(s)))throw fault('SECRET_IN_RESPONSE');
+      const policyArtifact={kind:'ROBOTS',url:result.url,body:result.text,sha256:digest(result.text),completeness:'COMPLETE',httpStatus:result.status,requestSequence:row?.sequence??null,encodedBytes:row?.bytes??null,decodedBytes:row?.decodedBytes??null,contentType:row?.contentType??null,contentEncoding:row?.contentEncoding??null,processingState:'PENDING',declarations:[]};
+      navigationDocuments.push(policyArtifact);account.retained(Buffer.byteLength(result.text));if(row)row.retainedBytes=Buffer.byteLength(result.text);
+      try{const parsedAt=timing.now();policy={parsed:parseAcquisitionRobots(result.text),status:result.status,artifact:policyArtifact};
+       policyArtifact.declarations=policy.parsed.sitemaps;policyArtifact.processingState='COMPLETED';
+       if(timing.now()-parsedAt>(timeoutMs??cap.processingMs))throw fault('ROBOTS_PROCESSING_TIMEOUT');checkDeadline();if(row){row.robotsDiagnostics=policy.parsed.diagnostics;row.processingState='COMPLETED';}}
+      catch(e){policyArtifact.processingState='FAILED';policyArtifact.failure={code:e.code,diagnostics:e.diagnostics??null};if(row){row.processingState='FAILED';row.processingFailure=e.code;row.robotsDiagnostic=e.diagnostics??null;}recordFailure(e,{phase:'ROBOTS_PARSE',requestSequence:row?.sequence??null});throw e;}
      }else throw fault('ROBOTS_HTTP_UNAVAILABLE');policies.set(origin,policy);
     }
     const evaluationRow=ledger.filter(x=>x.purpose==='ROBOTS').at(-1);if(evaluationRow)evaluationRow.processingPhase='ROBOTS_EVALUATE';
     const evaluatedAt=timing.now();const evaluation=policy.absent?{decision:'ALLOWED',reason:'ROBOTS_ABSENT'}:evaluateAcquisitionRobots(policy.parsed,r.url);
     if(timing.now()-evaluatedAt>(timeoutMs??cap.processingMs))throw fault('ROBOTS_PROCESSING_TIMEOUT');checkDeadline();
     const safeEvaluation={...evaluation,...(evaluation.rule?{rule:{directive:evaluation.rule.directive,line:evaluation.rule.line,pathHash:digest(evaluation.rule.path??'')}}:{})};
+    if(policy.artifact)policy.artifact.decision=safeEvaluation;
     access.push({destinationOrigin:safeOrigin(r.url),destinationHash:digest(r.url),status:policy.status,...safeEvaluation});if(evaluationRow)evaluationRow.robotsDecision=safeEvaluation;
     if(evaluation.decision==='DISALLOWED')throw fault('ROBOTS_DISALLOWED','POLICY');if(evaluation.decision!=='ALLOWED')throw fault('ROBOTS_REVIEW_REQUIRED','POLICY');stage='PROVIDER';
    }},'PROVIDER')(action.url,{signal:controller.signal,locale:objective.language??null});

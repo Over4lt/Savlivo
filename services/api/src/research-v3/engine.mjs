@@ -6,7 +6,7 @@ import {projectObservation} from './projection.mjs';
 import {acquisitionCapacity as acquisition,failureClass} from './acquisition-contract.mjs';
 import {semanticUnitLimits} from './semantic-units.mjs';
 import { projectWebSource } from './source.mjs';
-import {extractNavigation,extractSitemap,queryFamilies,discoveryCapacity} from './discovery.mjs';
+import {extractNavigation,extractSitemap,queryFamilies,discoveryCapacity,diverseCandidates,rankCandidate} from './discovery.mjs';
 const resourceCapacityFailure=f=>f?.kind==='CAPACITY'&&['BODY_CAPACITY','DECOMPRESSION_CAPACITY','DECODED_CAPACITY','OBSERVATION_CAPACITY','HEADER_CAPACITY','REDIRECT_CAPACITY'].includes(failureClass(f.code));
 const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.context?.transport;
 function searches(k, truth) {
@@ -141,6 +141,14 @@ async function accept(k, a, response, interpret, navigate, save) {
     if(k.usage.bytes>k.bounds.bytes||(k.usage.decodedBytes??0)>(k.bounds.decodedBytes??acquisition.objectiveDecodedBytes)||(k.usage.acquisitionMs??0)>(k.bounds.acquisitionMs??acquisition.objectiveAcquisitionMs)||k.usage.networkRequests>(k.bounds.networkRequests??96)) {
         markLimit(k,'transportCapacity'); throw Error('TRANSPORT_CAPACITY_BOUND');
     }
+    // Failed acquisition cannot erase an intact robots source received earlier.
+    // Policy artifacts are checkpointed outside the truth observation collection.
+    for(const doc of (response.navigationDocuments??[]).slice(0,9)) {
+        if(doc.kind!=='ROBOTS'||doc.completeness!=='COMPLETE'||typeof doc.body!=='string'||Buffer.byteLength(doc.body)>acquisition.robotsBytes||doc.sha256!==digest(doc.body))continue;
+        k.policyArtifacts??=[];
+        const resource={...doc,id:'robots-'+digest([a.id,doc.url,doc.sha256]),context:structuredClone(a.context),action:a.id};
+        if((response.failure||!(doc.declarations??[]).length)&&!k.policyArtifacts.some(r=>r.id===resource.id))k.policyArtifacts.push(resource);
+    }
     if(response.failure) {
         k.attempts.at(-1).failure??={kind:response.failure.kind,code:response.failure.code};
         if(response.failure.kind==='CAPACITY')markLimit(k,resourceCapacityFailure(response.failure)?'acquisitionResourceCapacity':'transportCapacity');
@@ -155,7 +163,7 @@ async function accept(k, a, response, interpret, navigate, save) {
         const results = Array.isArray(response.results) ? response.results : [], limit = k.bounds.candidateDestinations;
         if (results.length > limit)
             markLimit(k, 'candidateDestinations');
-        const outcomes = results.slice(0, limit).map((r, i) => ({ url: r.url, result: addDestination(k, { url: r.url, depth: 0, needs: a.needs.map(id => id.split(':').at(-1)), grounding: { kind: 'DISCOVERY_RESULT', action: a.id, index: i } }) }));
+        const outcomes = results.slice(0, limit).map((r, i) => ({ url: r.url, result: addDestination(k, { url: r.url, depth: 0, needs: a.needs.map(id => id.split(':').at(-1)), grounding: { kind: 'DISCOVERY_RESULT', action: a.id, index: i },discovery:{kind:'SEARCH_RESULT',label:typeof r.title==='string'?r.title.slice(0,240):'',score:normalizeUrl(r.url)?rankCandidate({url:r.url,label:typeof r.title==='string'?r.title.slice(0,240):'',kind:'SEARCH_RESULT',context:'SEARCH'},k.objective):0,family:a.family??a.id,signals:{discoveryOnly:true,origin:'SEARCH_DESTINATION'}} }) }));
         return { kind: 'DISCOVERY', results: results.length, destinations: outcomes };
     }
     if (canonical(response.context) !== canonical(a.context))
@@ -244,10 +252,10 @@ async function accept(k, a, response, interpret, navigate, save) {
     if(web&&!o.interpretation) o.interpretation={ambiguities:web.ambiguities,limited:web.limited};
     const current=evaluate(k).needs.map(n=>n.proposition);
     if(current.length&&o.outcome==='OK'&&!o.truncated)for(const doc of (response.navigationDocuments??[]).slice(0,9)) {
-        if(doc.kind!=='ROBOTS'||doc.completeness!=='COMPLETE'||typeof doc.body!=='string'||Buffer.byteLength(doc.body)>acquisition.robotsBytes||doc.sha256!==digest(doc.body))continue;
+        if(doc.kind!=='ROBOTS'||!(doc.declarations??[]).length||doc.completeness!=='COMPLETE'||typeof doc.body!=='string'||Buffer.byteLength(doc.body)>acquisition.robotsBytes||doc.sha256!==digest(doc.body))continue;
         const resource={...doc,id:'robots-'+digest([a.id,doc.url,doc.sha256]),context:o.context};
         // Auxiliary policy/navigation source is retained separately and never evaluated as price evidence.
-        k.navigationResources.push(resource);
+        if(!k.navigationResources.some(r=>r.id===resource.id))k.navigationResources.push(resource);
         for(const ref of (doc.declarations??[]).slice(0,16)) {
             if(!Number.isSafeInteger(ref.start)||!Number.isSafeInteger(ref.end)||ref.start<0||ref.end>doc.body.length||ref.start>=ref.end)continue;
             const slice=doc.body.slice(ref.start,ref.end),value=slice.match(/^\s*sitemap\s*:\s*([^#\r\n]+)/i)?.[1]?.trim();
@@ -397,7 +405,15 @@ async function understandUnits(k,o,interpret,save) {
     o.semanticUnits=units;o.evidenceFragments??=[];o.semanticAttempts??=[];
     k.trace.push({event:'SEMANTIC_UNITS_SELECTED',observation:o.id,units,capacityHit:plan.capacityHit,reason:plan.reason});
     for(const unit of units.slice(0,semanticUnitLimits.modelCallsPerAction)) {
-        if(k.semanticUnavailable){o.interpretation={kind:'UNDERSTANDING_UNAVAILABLE',code:'UNDERSTANDING_PROVIDER_UNAVAILABLE',cause:k.semanticUnavailable};break;}
+        if(k.semanticUnavailable){
+            const unavailable=k.semanticUnavailable;
+            // No retry of the failed unit. A temporary rate limit can permit one
+            // later attempt on genuinely new acquired material after its bounded
+            // cooldown, using the original action/model budgets. No timer/wait loop.
+            const recover=unavailable.status===429&&Date.now()>=unavailable.until&&unavailable.bodySha256!==o.sha256&&(k.semanticRecoveries??0)<1;
+            if(recover){k.semanticRecoveries=(k.semanticRecoveries??0)+1;k.semanticUnavailable=null;k.trace.push({event:'SEMANTIC_DEPENDENCY_RECOVERY',observation:o.id,reason:'COOLDOWN_EXPIRED_NEW_SOURCE',previous:unavailable});}
+            else{o.interpretation={kind:'UNDERSTANDING_UNAVAILABLE',code:'UNDERSTANDING_PROVIDER_UNAVAILABLE',cause:unavailable};break;}
+        }
         const truth=evaluate(k);
         if(truth.established||!truth.needs.some(n=>unit.needs.includes(n.proposition)))break;
         if(k.usage.modelCalls>=k.bounds.modelCalls) {markLimit(k,'modelCalls');o.interpretation={kind:'UNDERSTANDING_UNAVAILABLE',code:'UNDERSTANDING_MODEL_CALL_BOUND'};break;}
@@ -419,7 +435,7 @@ async function understandUnits(k,o,interpret,save) {
         } catch(error) {
             attempt.status='FAILED';if(/_BOUND$/.test(error.message))markLimit(k,'interpretationCapacity');o.interpretation={kind:'UNDERSTANDING_FAILED',unit:unit.id,...understandingError(error)};
             k.trace.push({event:'UNDERSTANDING_UNAVAILABLE',observation:o.id,...o.interpretation});
-            if(o.interpretation.status===429||o.interpretation.apiCode==='model_not_found'||o.interpretation.apiCode==='invalid_api_key'){k.semanticUnavailable={code:o.interpretation.code,status:o.interpretation.status??null,apiCode:o.interpretation.apiCode??null};}
+            if(o.interpretation.status===429||o.interpretation.apiCode==='model_not_found'||o.interpretation.apiCode==='invalid_api_key'){k.semanticUnavailable={code:o.interpretation.code,status:o.interpretation.status??null,apiCode:o.interpretation.apiCode??null,...(o.interpretation.status===429?{until:Date.now()+(o.interpretation.diagnostics?.retryAfterMs??30000),bodySha256:o.sha256}: {})};}
         }
         await persist(k,save);
     }
@@ -429,7 +445,7 @@ function admitNavigation(k,o,a,plan,kind) {
     if(plan.limited)markLimit(k,'discoveryExtraction');
     const depth=(k.destinations.find(d=>d.url===a.url)?.depth??0)+1;
     const rows=[];
-    for(const c of plan.candidates.slice(0,k.bounds.candidateDestinations)) {
+    for(const c of diverseCandidates(plan.candidates,k.bounds.candidateDestinations)) {
         rows.push({candidate:c.id,url:c.url,result:addDestination(k,{url:c.url,depth,needs:c.needs,grounding:{kind,observation:o.id,source:c.source,candidate:c.id},discovery:c})});
     }
     if(plan.candidates.length>k.bounds.candidateDestinations)markLimit(k,'candidateDestinations');

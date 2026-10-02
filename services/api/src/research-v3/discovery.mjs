@@ -1,4 +1,5 @@
 // Source-owned research candidates. All signals below are advisory, never truth.
+import {providerStates} from './provider-states.mjs';
 import {digest,normalizeUrl} from './model.mjs';
 import {navigationOwned,authorityBinding,navigationParametersSafe} from './discovery-authority.mjs';
 export const discoveryCapacity=Object.freeze({tokens:131072,extracted:2048,sourceSlice:4096,label:240,jsonBytes:262144,jsonNodes:4096,jsonDepth:32,jsonScripts:32,jsonPointer:2048,sitemapEntries:4096,provenance:8,advisoryCandidates:64,advisoryMs:1000});
@@ -23,6 +24,10 @@ export function rankCandidate(c,objective) {
     if(c.kind==='ALTERNATE')score+=2;
     if(c.kind==='SITEMAP')score+=1;
     if(c.kind==='STRUCTURED_NAVIGATION')score+=3;
+    if(c.kind==='PROVIDER_STATE')score+=5;
+    const target=objective.serviceName.normalize('NFKC').toLocaleLowerCase('en').split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>2);
+    const candidate=(c.label+' '+new URL(c.url).hostname+' '+new URL(c.url).pathname).normalize('NFKC').toLocaleLowerCase('en');
+    if(target.length)score+=Math.round(12*target.filter(w=>candidate.includes(w)).length/target.length);
     const words=(new URL(c.url).pathname+' '+c.label).normalize('NFKC');
     // Small optional native hints, not a multilingual interpretation engine.
     if(/\b(?:pricing|plans?|subscription|membership|premium)\b/i.test(words))score+=5;
@@ -43,8 +48,8 @@ export function extractNavigation(o,objective,needs) {
         if(base.invalid&&!/^https:\/\//i.test(raw))return;
         const spanKey=start+':'+end;
         if(!sourceHashes.has(spanKey))sourceHashes.set(spanKey,digest(body.slice(start,end)));
-        const c={id:'nav-'+digest([o.id,o.sha256,kind,start,end,url,extra.pointer??null]).slice(0,24),url,kind,label:extra.label??'',locale:extra.locale??null,context:extra.context??stack.at(-1)??'CONTENT',resource:kind==='SITEMAP'?'SITEMAP':'PAGE',needs:[...new Set(needs)],authority:authorityBinding(objective,url),source:{observation:o.id,bodySha256:o.sha256,start,end,...(base.source?{base:base.source}:{}),sha256:sourceHashes.get(spanKey),...(extra.pointer!==undefined?{pointer:extra.pointer}:{})}};
-        c.score=rankCandidate(c,objective);candidates.push(c);
+        const c={id:'nav-'+digest([o.id,o.sha256,kind,start,end,url,extra.pointer??null]).slice(0,24),url,kind,label:label(extra.label??''),locale:extra.locale??null,context:extra.context??stack.at(-1)??'CONTENT',resource:kind==='SITEMAP'?'SITEMAP':'PAGE',needs:[...new Set(needs)],authority:authorityBinding(objective,url),source:{observation:o.id,bodySha256:o.sha256,start,end,...(base.source?{base:base.source}:{}),sha256:sourceHashes.get(spanKey),...(extra.pointer!==undefined?{pointer:extra.pointer}:{})},...(extra.state?{state:extra.state}:{})};
+        c.score=rankCandidate(c,objective);c.family=c.state?.group??(c.kind==='ALTERNATE'?'alternate-'+o.id:new URL(c.url).origin+new URL(c.url).pathname.replace(/\/[^/]*$/, '/'));c.signals={structure:c.context,kind:c.kind,service:objective.serviceName,state:c.state??null,locale:c.locale,discoveryOnly:true};candidates.push(c);
     };
     const token=/<!--[^]*?-->|<\/?([a-z][\w:-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
     for(let m;(m=token.exec(body));) {
@@ -87,6 +92,8 @@ export function extractNavigation(o,objective,needs) {
         if(tag==='option'&&a.value&&/^(?:https:\/\/|\/)/.test(a.value))add(a.value,'LOCALE_OPTION',m.index,token.lastIndex,{locale:a.lang??null,label:a.label??''});
         if(tag==='form'&&a.action&&(a.method??'get').toLowerCase()==='get')add(a.action,'GET_FORM',m.index,token.lastIndex,{label:label(a['aria-label']??'' )});
     }
+    const states=providerStates(o);limited||=states.limited;
+    for(const group of states.groups)for(const variant of group.variants)if(variant.destination)add(variant.destination,'PROVIDER_STATE',variant.source.start,variant.source.end,{label:variant.label,state:{group:group.id,variant:variant.id,selected:variant.selected,scope:group.scope,observation:o.id,bodySha256:o.sha256,context:o.context,source:variant.source}});
     return {candidates:candidates.sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id)),limited};
 }
 export function extractSitemap(o,objective,needs) {
@@ -97,7 +104,7 @@ export function extractSitemap(o,objective,needs) {
         if(++inspected>discoveryCapacity.sitemapEntries){limited=true;break;}
         const url=safeCandidate(m[1].trim(),o.url,objective);if(!url)continue;
         const c={id:'nav-'+digest([o.id,o.sha256,m.index,url]).slice(0,24),url,kind:index?'SITEMAP':'SITEMAP_ENTRY',resource:index?'SITEMAP':'PAGE',label:'',locale:null,context:'SITEMAP',needs:[...new Set(needs)],authority:authorityBinding(objective,url),source:{observation:o.id,bodySha256:o.sha256,start:m.index,end:m.index+m[0].length,sha256:digest(m[0])}};
-        c.score=rankCandidate(c,objective);candidates.push(c);
+        c.score=rankCandidate(c,objective);c.family=c.state?.group??(c.kind==='ALTERNATE'?'alternate-'+o.id:new URL(c.url).origin+new URL(c.url).pathname.replace(/\/[^/]*$/, '/'));c.signals={structure:c.context,kind:c.kind,service:objective.serviceName,state:c.state??null,locale:c.locale,discoveryOnly:true};candidates.push(c);
     }
     return {candidates:candidates.sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id)),limited,inspected};
 }
@@ -123,4 +130,14 @@ function documentBase(o) {
         }
     }
     return {url:o.url,limited:false};
+}
+
+// Breadth without crawling: retain high-value representatives of source families
+// before letting repeated global/locale navigation consume the bounded frontier.
+export function diverseCandidates(candidates,limit) {
+ const groups=new Map();for(const c of candidates){const key=c.family??c.url;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(c);}
+ const output=[];for(let round=0;output.length<limit;round++){
+  let added=false;for(const rows of groups.values())if(rows[round]&&output.length<limit){output.push(rows[round]);added=true;}
+  if(!added)break;
+ }return output;
 }

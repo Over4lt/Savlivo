@@ -18,6 +18,14 @@ export function createReasoner({initialPerspective='AUTO'}={}) {
                 value+=(destination?.discovery?.score??0)*4;
                 if(destination?.discovery?.resource==='SITEMAP')value-=10;
                 if(destination?.grounding.kind==='PROVIDER_LINK') {value+=15;reason+='; provider navigation grounds this destination';}
+                const discovery=destination?.discovery;
+                const siblings=discovery?.family?state.destinations.filter(d=>d.discovery?.family===discovery.family&&d.url!==action.url):[];
+                const explored=siblings.filter(d=>state.observations.some(o=>o.url===d.url&&o.context.transport===action.context.transport&&o.context.networkGeography===action.context.networkGeography));
+                value-=Math.min(36,explored.length*12);
+                if(explored.length)reason+='; lower novelty after related provider surfaces';
+                if(discovery?.state){value+=discovery.state.selected?4:20;reason+='; source-exposed '+(discovery.state.selected?'current':'alternative')+' state may resolve remaining pricing context';}
+                if(destination?.depth)value-=Math.min(8,destination.depth*2);
+
             }
             return {action,value,reason};
         }).sort((a,b)=>b.value-a.value||a.action.id.localeCompare(b.action.id));

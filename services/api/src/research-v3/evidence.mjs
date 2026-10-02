@@ -1,6 +1,6 @@
 // Candidate evidence semantics, never proposition states or sufficiency verdicts.
 import {digest,canonical,normalizeUrl,providerBound} from './model.mjs';
-import {semanticMaterial,projectWebSource,nativePresentationFacts} from './source.mjs';
+import {semanticMaterial,projectWebSource,nativePresentationFacts,nativeStateContext} from './source.mjs';
 import {observationService,associateService} from './service-association.mjs';
 import {verifiedCountryContext} from './truth-contract.mjs';
 import {currencyOccurrences,resolveSourceCurrency} from './currency-sources.mjs';
@@ -123,24 +123,53 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
             if(market.support.length&&!support(market.support)){reject('MARKET_SUPPORT_INVALID');continue;}
             const exclusions=market.exclusions??[];
             if(!Array.isArray(exclusions)||exclusions.length>16||!exclusions.every(e=>exact(e,['country','support'])&&/^[A-Z]{2}$/.test(e.country)&&support(e.support,p)))throw Error('EVIDENCE_MARKET_INVALID');
-            const charges=new Map();
+            const charges=new Map(),chargeContexts=new Map();
             for(let charge of offer.charges) {
                 if(!exact(Object.fromEntries(Object.entries(charge).filter(([k])=>k!=='currencySource')),['id','money','cadence','role','derivation','duration','qualifiers','ambiguity','support'])||!label(charge.id)||charges.has(charge.id)||!exact(charge.money,['amount','amountText','amountSpan','currency','currencyText'])||!(charge.money.amount===null||typeof charge.money.amount==='number'&&Number.isFinite(charge.money.amount))||!(charge.money.currency===null||/^[A-Z]{3}$/.test(charge.money.currency))||!exact(charge.cadence,['unit','expression'])||!known(charge.cadence.unit,['MONTHLY','YEARLY','WEEKLY','DAILY','UNKNOWN'])||!known(charge.role,['INTRODUCTORY','ORDINARY','SUBSEQUENT','BENEFIT','CREDIT','DISCOUNT','INSTALLMENT','TAX','OTHER','UNKNOWN'])||!known(charge.derivation,['EXPLICIT','ARITHMETIC','UNKNOWN'])||!(charge.duration===null||label(charge.duration))||!qualifiers(charge.qualifiers)||typeof charge.ambiguity!=='boolean')throw Error('EVIDENCE_CHARGE_INVALID');
+                // A source-selected control is part of the presentation's meaning,
+                // even when the model omits a redundant qualifier. No control is
+                // required when the source contains none. These are original
+                // spans from a structurally associated pricing scope, not URL hints.
+                const localContexts=(material.contexts??[]).filter(c=>p.start>=c.scope.start&&p.end<=c.scope.end||c.scope.start>=p.start&&c.scope.end<=p.end),contextRows=localContexts.flatMap(c=>material.segments.filter(s=>c.spans.some(b=>s.start<=b.start&&s.end>=b.end)));
+                if(contextRows.length){
+                    const contextSupport=contextRows.map(s=>({start:s.start,end:s.end,quote:s.text,translated:null}));
+                    const contextual=localContexts.map(c=>nativeStateContext(contextSupport.filter(s=>c.spans.some(b=>s.start<=b.start&&s.end>=b.end)).map(s=>s.quote).join(' ')));
+                    if(contextual.some(c=>c.purpose==='BILLING'&&c.cadence==='YEARLY')&&charge.cadence.unit==='MONTHLY'){
+                        result.rejected.push({offer:index,charge:charge.id,proposition:'AMOUNT_DERIVATION',reason:'SOURCE_SELECTED_ANNUAL_CONTEXT',modelDerivation:charge.derivation,support:contextSupport});
+                        charge={...charge,derivation:'ARITHMETIC'};
+                    }
+                    chargeContexts.set(charge.id,contextSupport);
+                    // Context qualifies meaning; it is not automatically monetary,
+                    // cadence, or benefit support for the charge itself.
+                }
                 const native=nativePresentationFacts(charge.support.map(s=>s.translated?.text??s.quote).join(' '));
                 const singleOccurrence=typeof charge.money.amountText==='string'&&charge.money.amountText.length>0&&charge.support.map(s=>s.quote).join(' ').split(charge.money.amountText).length===2;
+                const uninterpretedContext=localContexts.some(c=>nativeStateContext(contextRows.filter(s=>c.spans.some(b=>s.start<=b.start&&s.end>=b.end)).map(s=>s.text).join(' ')).purpose==='UNKNOWN');
                 const sameNativeMoney=singleOccurrence&&native.amount===charge.money.amount&&native.currency===charge.money.currency&&!native.ambiguity.includes('MULTIPLE_MONETARY_VALUES');
-                if(sameNativeMoney&&charge.role==='UNKNOWN'&&native.role==='ORDINARY'&&!native.ambiguity.length)charge={...charge,role:'ORDINARY'};
-                if(sameNativeMoney&&['TRIAL','BENEFIT','DISCOUNT'].includes(native.role)&&['ORDINARY','SUBSEQUENT'].includes(charge.role)){result.rejected.push({offer:index,charge:charge.id,proposition:'ORDINARY_RECURRING_ROLE',reason:'NATIVE_ROLE_CONFLICT',modelRole:charge.role,sourceRole:native.role,support:charge.support});charge={...charge,role:native.role==='TRIAL'?'INTRODUCTORY':native.role};}
+                // A symbol is source money only when this exact reconstructed
+                // number is adjacent to its own source currency occurrence. This
+                // never turns a nearby duration/percentage into a monetary fact.
+                const span=charge.money.amountSpan,u=charge.currencySource?currencyOccurrences({observation:{id:o.id,sha256:o.sha256},unit,material}).find(t=>t.id===charge.currencySource.reference):null;
+                const owner=span&&charge.support.find(s=>span.start>=s.start&&span.end<=s.end);
+                const adjacent=u&&span&&owner&&u.start>=owner.start&&u.end<=owner.end&&(u.end<=span.start?o.body.slice(u.end,span.start):u.start>=span.end?o.body.slice(span.end,u.start):'not adjacent').trim()==='';
+                const boundSymbol=singleOccurrence&&adjacent&&u.candidates.includes(charge.money.currency)&&span.quote===charge.money.amountText&&o.body.slice(span.start,span.end)===span.quote&&numericValue(span.quote,charge.money.amount)&&support(charge.support,p);
+                const before=boundSymbol?o.body.slice(owner.start,Math.min(u.start,span.start)).trimEnd():'',after=boundSymbol?o.body.slice(Math.max(u.end,span.end),owner.end):'';
+                const symbolRoleBound=native.role==='ORDINARY'||native.role==='BENEFIT'&&(/\b(?:benefit(?: of)?|credit(?: of)?|worth|value of)\s*$/i.test(before)||/^\s*(?:in\s+)?(?:credits?|benefits?)\b/i.test(after))||native.role==='TRIAL'&&(/\b(?:trial|introductory|first (?:month|\d+ months))(?: (?:price|costs?|fee|at|of))?\s*$/i.test(before)||/^\s*(?:for (?:the )?)?first (?:month|\d+ months)\b/i.test(after))||native.role==='DISCOUNT'&&/\bdiscount(?: (?:price|of))?\s*$/i.test(before);
+                const sourceMoney=sameNativeMoney||boundSymbol&&symbolRoleBound;
+
+                if(sourceMoney&&!uninterpretedContext&&charge.role==='UNKNOWN'&&native.role==='ORDINARY'&&!native.ambiguity.length)charge={...charge,role:'ORDINARY'};
+                if(sourceMoney&&['TRIAL','BENEFIT','DISCOUNT'].includes(native.role)&&['ORDINARY','SUBSEQUENT'].includes(charge.role)){result.rejected.push({offer:index,charge:charge.id,proposition:'ORDINARY_RECURRING_ROLE',reason:'NATIVE_ROLE_CONFLICT',modelRole:charge.role,sourceRole:native.role,support:charge.support});charge={...charge,role:native.role==='TRIAL'?'INTRODUCTORY':native.role};}
                 if(sameNativeMoney&&native.amountDerivation==='ARITHMETIC')charge={...charge,derivation:'ARITHMETIC'};
                 if(sameNativeMoney&&native.cadence&&charge.cadence.unit!==native.cadence){result.rejected.push({offer:index,charge:charge.id,proposition:'CADENCE',reason:'NATIVE_CADENCE_RECOVERY',modelUnit:charge.cadence.unit,sourceUnit:native.cadence,support:charge.support});charge={...charge,cadence:{unit:native.cadence,expression:charge.support[0].quote}};}
+                const qualifierSupported=q=>contains(charge.support,q)||contains(chargeContexts.get(charge.id)??[],q);
                 const cadenceGrounded=charge.cadence.unit==='UNKNOWN'?charge.cadence.expression===null:contains(charge.support,charge.cadence.expression);
-                const grounded=support(charge.support,p)&&charge.qualifiers.every(q=>contains(charge.support,q))&&
+                const grounded=support(charge.support,p)&&charge.qualifiers.every(qualifierSupported)&&
                     (charge.money.amount===null?charge.money.amountText===null&&charge.money.amountSpan===null:exact(charge.money.amountSpan,['start','end','quote'])&&Number.isSafeInteger(charge.money.amountSpan.start)&&Number.isSafeInteger(charge.money.amountSpan.end)&&charge.money.amountSpan.end>charge.money.amountSpan.start&&charge.money.amountSpan.quote===charge.money.amountText&&o.body.slice(charge.money.amountSpan.start,charge.money.amountSpan.end)===charge.money.amountText&&charge.support.some(s=>charge.money.amountSpan.start>=s.start&&charge.money.amountSpan.end<=s.end)&&numericSupport(charge.support,charge.money.amountText)&&numericValue(charge.money.amountText,charge.money.amount))&&
                     (charge.money.currency===null?charge.money.currencyText===null:contains(charge.support,charge.money.currencyText))&&
                     (charge.duration===null||contains(charge.support,charge.duration));
                 if(!cadenceGrounded){result.rejected.push({offer:index,charge:charge.id,proposition:'CADENCE',reason:'CADENCE_SUPPORT_INVALID',modelUnit:charge.cadence.unit,support:charge.support,expression:charge.cadence.expression?.slice(0,128)??null});charge={...charge,cadence:{unit:'UNKNOWN',expression:null}};}
                 charges.set(charge.id,{charge,grounded});
-                if(!grounded)result.rejected.push({offer:index,charge:charge.id,reason:'CHARGE_SUPPORT_INVALID',proposition:'CHARGE',predicates:{sourceBound:support(charge.support,p),qualifiers:charge.qualifiers.every(q=>contains(charge.support,q)),amountInSupport:charge.money.amount===null||charge.support.some(s=>charge.money.amountSpan?.start>=s.start&&charge.money.amountSpan?.end<=s.end),currencyInSupport:charge.money.currency===null||contains(charge.support,charge.money.currencyText),durationInSupport:charge.duration===null||contains(charge.support,charge.duration)},model:{amount:charge.money.amount,currency:charge.money.currency,role:charge.role,cadence:charge.cadence.unit},support:charge.support});
+                if(!grounded)result.rejected.push({offer:index,charge:charge.id,reason:'CHARGE_SUPPORT_INVALID',proposition:'CHARGE',predicates:{sourceBound:support(charge.support,p),qualifiers:charge.qualifiers.every(qualifierSupported),amountInSupport:charge.money.amount===null||charge.support.some(s=>charge.money.amountSpan?.start>=s.start&&charge.money.amountSpan?.end<=s.end),currencyInSupport:charge.money.currency===null||contains(charge.support,charge.money.currencyText),durationInSupport:charge.duration===null||contains(charge.support,charge.duration)},model:{amount:charge.money.amount,currency:charge.money.currency,role:charge.role,cadence:charge.cadence.unit},support:charge.support});
             }
             const transitions=[];
             for(const link of offer.transitions) {
@@ -172,7 +201,7 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
                     currencyDiagnostic=resolved.diagnostics;
                 }
                 result.source.offers.push({id:digest([new URL(o.url).hostname,normalized(service.name),normalized(offer.name),phase,ordinal,...(unit?['SOURCE_LOCAL',o.url,p.id]:[])]),amount:explicit?c.money.amount:null,currency:explicit?currency:null,cadence:explicit?c.cadence.unit:'UNKNOWN',consumer:!offer.ambiguity?(offer.audience==='CONSUMER'?true:offer.audience==='BUSINESS'?false:null):null,relationship:!offer.ambiguity?offer.relationship:'UNKNOWN',role:explicit?(c.role==='INTRODUCTORY'?'TRIAL':c.role==='SUBSEQUENT'?'ORDINARY':c.role):'UNKNOWN',amountDerivation:explicit?c.derivation:'UNKNOWN',market:!market.ambiguity&&market.basis==='EXPLICIT'?market.country:null,marketAmbiguous:market.ambiguity,...(exclusions.length?{excludedMarkets:exclusions.map(e=>e.country)}:{}),conditions:offer.qualifiers.length||c.qualifiers.length?canonical([...offer.qualifiers,...c.qualifiers]):null});
-                result.bindings[pointer]={offerIndex:index,presentation:{id:p.id,start:p.start,end:p.end},offer:offer.name,charge:c.id,serviceAssociation:association,currencyResolution:currencyDiagnostic,qualifiers:[...offer.qualifiers,...c.qualifiers],...binding([...offer.support,...c.support,...market.support,...exclusions.flatMap(e=>e.support),...transitions.filter(l=>l.to===c.id).flatMap(l=>l.support)])};
+                result.bindings[pointer]={offerIndex:index,presentation:{id:p.id,start:p.start,end:p.end},offer:offer.name,charge:c.id,serviceAssociation:association,currencyResolution:currencyDiagnostic,qualifiers:[...offer.qualifiers,...c.qualifiers],associatedContext:chargeContexts.get(c.id)??[],...binding([...offer.support,...c.support,...(chargeContexts.get(c.id)??[]),...market.support,...exclusions.flatMap(e=>e.support),...transitions.filter(l=>l.to===c.id).flatMap(l=>l.support)])};
                 if(explicit)result.accepted.push({offer:index,charge:c.id});
                 else result.rejected.push({offer:index,charge:c.id,reason:'SEMANTIC_AMBIGUITY_OR_MISSING_TRANSITION'});
             }
