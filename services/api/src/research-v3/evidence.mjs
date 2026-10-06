@@ -1,3 +1,4 @@
+import {normalizeSourceNumber,sourceNumberCandidates} from './numeric-source.mjs';
 // Candidate evidence semantics, never proposition states or sufficiency verdicts.
 import {digest,canonical,normalizeUrl,providerBound} from './model.mjs';
 import {semanticMaterial,projectWebSource,nativePresentationFacts,nativeStateContext} from './source.mjs';
@@ -33,15 +34,13 @@ export function evidenceRequest(o,objective,unit) {
     }
     return request;
 }
-function numericValue(text,value) {
-    const raw=text.normalize('NFKC').trim();
-    if(!/^[0-9]+(?:[.,\s][0-9]+)*$/.test(raw))return false;
-    if(/\s/.test(raw)&&!/^\d{1,3}(?:\s+\d{3})+(?:[.,]\d{1,2})?$/.test(raw))return false;
-    const compact=raw.replace(/\s/g,'');
-    const candidates=[Number(compact),Number(compact.replace(/[.,]/g,''))];
-    const m=compact.match(/^(.*)[.,](\d{1,2})$/);
-    if(m)candidates.push(Number(m[1].replace(/[.,]/g,'')+'.'+m[2]));
-    return candidates.some(n=>Number.isFinite(n)&&n===value);
+function numericValue(text,value) {return sourceNumberCandidates(text.trim()).includes(value);}
+function isolatedDisplay(row,charge){
+ let text=row.quote;for(const token of [charge.money.amountText,charge.money.currencyText])if(token)text=text.replace(token,' ');
+ text=normalizeSourceNumber(text).trim();
+ // This bounded native display fragment has no payment/subscription assertion.
+ // It does not interpret billing phrases or commitment terms.
+ return /^(?:\/|per|a|each|every)?\s*(?:months?|years?|weeks?|days?|monthly|yearly|annually|weekly|daily)[.!]?$/i.test(text);
 }
 function numericSupport(rows,text) {
     if(typeof text!=='string'||!text.length)return false;
@@ -105,7 +104,7 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
         for(const [index,offer] of envelope.offers.entries()) {
             const p=material.presentations.find(p=>p.id===offer?.presentation);
             const reject=reason=>result.rejected.push({offer:index,reason});
-            if(!exact(Object.fromEntries(Object.entries(offer).filter(([k])=>k!=='association')),['presentation','name','service','audience','relationship','qualifiers','ambiguity','support','market','charges','transitions'])||!p||!label(offer.name)||offer.service!==service.name||!known(offer.audience,['CONSUMER','BUSINESS','UNKNOWN'])||!known(offer.relationship,['SUBSCRIPTION','MEMBERSHIP','INSTALLMENT','ONE_TIME','UNKNOWN'])||!qualifiers(offer.qualifiers)||typeof offer.ambiguity!=='boolean'||!Array.isArray(offer.charges)||offer.charges.length>evidenceLimits.charges||!Array.isArray(offer.transitions)||offer.transitions.length>evidenceLimits.charges)throw Error('EVIDENCE_OFFER_INVALID');
+            if(!exact(Object.fromEntries(Object.entries(offer).filter(([k])=>!['association','availability'].includes(k))),['presentation','name','service','audience','relationship','qualifiers','ambiguity','support','market','charges','transitions'])||!p||!label(offer.name)||offer.service!==service.name||!known(offer.audience,['CONSUMER','BUSINESS','UNKNOWN'])||!known(offer.relationship,['SUBSCRIPTION','MEMBERSHIP','INSTALLMENT','ONE_TIME','UNKNOWN'])||!qualifiers(offer.qualifiers)||typeof offer.ambiguity!=='boolean'||!Array.isArray(offer.charges)||offer.charges.length>evidenceLimits.charges||!Array.isArray(offer.transitions)||offer.transitions.length>evidenceLimits.charges)throw Error('EVIDENCE_OFFER_INVALID');
             const localMatch=directServiceSupport;
             let association=associateService(o,objective,p,offer.association);
             if(offer.association&&(!exact(offer.association,['reference','relationship'])||!['PRIMARY_SERVICE','OTHER_SERVICE','COMPARISON','PARTNER','BUNDLE_COMPONENT','ADD_ON','UNKNOWN'].includes(offer.association.relationship)))throw Error('EVIDENCE_SERVICE_REFERENCE_INVALID');
@@ -123,9 +122,21 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
             if(market.support.length&&!support(market.support)){reject('MARKET_SUPPORT_INVALID');continue;}
             const exclusions=market.exclusions??[];
             if(!Array.isArray(exclusions)||exclusions.length>16||!exclusions.every(e=>exact(e,['country','support'])&&/^[A-Z]{2}$/.test(e.country)&&support(e.support,p)))throw Error('EVIDENCE_MARKET_INVALID');
+            const availability=offer.availability;
+            if(availability) {
+                if(!exact(availability,['scope','choiceSet','cadences','support'])||!known(availability.scope,['SERVICE','PLAN','UNKNOWN'])||!known(availability.choiceSet,['COMPLETE','PARTIAL','EXPLICIT_NO_MONTHLY','UNKNOWN'])||!Array.isArray(availability.cadences)||availability.cadences.length>8||!availability.cadences.every(v=>known(v,['MONTHLY','YEARLY','WEEKLY','DAILY','UNKNOWN'])))throw Error('EVIDENCE_AVAILABILITY_INVALID');
+                if(!offer.ambiguity&&availability.scope==='SERVICE'&&!availability.cadences.includes('MONTHLY')&&support(availability.support,p)&&availability.support.length&&(availability.choiceSet==='EXPLICIT_NO_MONTHLY'||availability.choiceSet==='COMPLETE'&&offer.audience==='CONSUMER'&&['SUBSCRIPTION','MEMBERSHIP'].includes(offer.relationship)&&availability.cadences.length&&!availability.cadences.includes('UNKNOWN')&&!availability.cadences.includes('MONTHLY'))) {
+                    result.source.subscriptionChoices??=[];result.source.subscriptionChoices.push({monthlyOffered:false,scope:'SERVICE',basis:availability.choiceSet,market:market.country,marketAmbiguous:market.ambiguity,excludedMarkets:exclusions.map(e=>e.country)});
+                    result.bindings['/subscriptionChoices/'+(result.source.subscriptionChoices.length-1)]={...binding(availability.support),serviceAssociation:association};
+                }
+            }
+            if(availability&&!offer.ambiguity&&offer.audience==='CONSUMER'&&['SUBSCRIPTION','MEMBERSHIP'].includes(offer.relationship)&&['SERVICE','PLAN'].includes(availability.scope)&&['COMPLETE','PARTIAL'].includes(availability.choiceSet)&&availability.cadences.includes('MONTHLY')&&support(availability.support,p)&&availability.support.length){
+                result.source.subscriptionChoices??=[];result.source.subscriptionChoices.push({monthlyOffered:true,scope:availability.scope,basis:availability.choiceSet,market:market.country,marketAmbiguous:market.ambiguity,excludedMarkets:exclusions.map(e=>e.country)});
+                result.bindings['/subscriptionChoices/'+(result.source.subscriptionChoices.length-1)]={...binding(availability.support),serviceAssociation:association};
+            }
             const charges=new Map(),chargeContexts=new Map();
             for(let charge of offer.charges) {
-                if(!exact(Object.fromEntries(Object.entries(charge).filter(([k])=>k!=='currencySource')),['id','money','cadence','role','derivation','duration','qualifiers','ambiguity','support'])||!label(charge.id)||charges.has(charge.id)||!exact(charge.money,['amount','amountText','amountSpan','currency','currencyText'])||!(charge.money.amount===null||typeof charge.money.amount==='number'&&Number.isFinite(charge.money.amount))||!(charge.money.currency===null||/^[A-Z]{3}$/.test(charge.money.currency))||!exact(charge.cadence,['unit','expression'])||!known(charge.cadence.unit,['MONTHLY','YEARLY','WEEKLY','DAILY','UNKNOWN'])||!known(charge.role,['INTRODUCTORY','ORDINARY','SUBSEQUENT','BENEFIT','CREDIT','DISCOUNT','INSTALLMENT','TAX','OTHER','UNKNOWN'])||!known(charge.derivation,['EXPLICIT','ARITHMETIC','UNKNOWN'])||!(charge.duration===null||label(charge.duration))||!qualifiers(charge.qualifiers)||typeof charge.ambiguity!=='boolean')throw Error('EVIDENCE_CHARGE_INVALID');
+                if(!exact(Object.fromEntries(Object.entries(charge).filter(([k])=>!['currencySource','temporal'].includes(k))),['id','money','cadence','role','derivation','duration','qualifiers','ambiguity','support'])||!label(charge.id)||charges.has(charge.id)||!exact(charge.money,['amount','amountText','amountSpan','currency','currencyText'])||!(charge.money.amount===null||typeof charge.money.amount==='number'&&Number.isFinite(charge.money.amount))||!(charge.money.currency===null||/^[A-Z]{3}$/.test(charge.money.currency))||!exact(charge.cadence,['unit','expression'])||!known(charge.cadence.unit,['MONTHLY','YEARLY','WEEKLY','DAILY','UNKNOWN'])||!known(charge.role,['INTRODUCTORY','ORDINARY','SUBSEQUENT','BENEFIT','CREDIT','DISCOUNT','INSTALLMENT','TAX','OTHER','UNKNOWN'])||!known(charge.derivation,['EXPLICIT','ARITHMETIC','UNKNOWN'])||!(charge.duration===null||label(charge.duration))||!qualifiers(charge.qualifiers)||typeof charge.ambiguity!=='boolean')throw Error('EVIDENCE_CHARGE_INVALID');
                 // A source-selected control is part of the presentation's meaning,
                 // even when the model omits a redundant qualifier. No control is
                 // required when the source contains none. These are original
@@ -141,6 +152,29 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
                     chargeContexts.set(charge.id,contextSupport);
                     // Context qualifies meaning; it is not automatically monetary,
                     // cadence, or benefit support for the charge itself.
+                }
+                const nativeBilling=[...new Set(localContexts.map(c=>nativeStateContext(contextRows.filter(s=>c.spans.some(b=>s.start<=b.start&&s.end>=b.end)).map(s=>s.text).join(' '))).filter(c=>c.purpose==='BILLING'&&['MONTHLY','YEARLY'].includes(c.cadence)).map(c=>c.cadence))];
+                let temporal=charge.temporal??{billingCadence:'UNKNOWN',billingSupport:[],commitmentText:null,commitmentSupport:[],priceKind:'UNKNOWN'};
+
+                if(temporal) {
+                    if(!exact(temporal,['billingCadence','billingSupport','commitmentText','commitmentSupport','priceKind'])||!known(temporal.billingCadence,['MONTHLY','YEARLY','WEEKLY','DAILY','UNKNOWN'])||!known(temporal.priceKind,['CHARGE','EQUIVALENT','UNKNOWN'])||!(temporal.commitmentText===null||label(temporal.commitmentText)))throw Error('EVIDENCE_TEMPORAL_INVALID');
+                    if(!Array.isArray(temporal.billingSupport)||!Array.isArray(temporal.commitmentSupport))throw Error('EVIDENCE_TEMPORAL_INVALID');
+                    const associated=chargeContexts.get(charge.id)??[];
+                    const applies=b=>support([b])&&(charge.support.some(s=>s.start<=b.start&&s.end>=b.end)||associated.some(s=>s.start<=b.start&&s.end>=b.end));
+                    const billingSupport=temporal.billingSupport.filter(applies),commitmentSupport=temporal.commitmentSupport.filter(applies);
+                    for(const item of temporal.billingSupport.filter(b=>!applies(b)))result.rejected.push({offer:index,charge:charge.id,proposition:'BILLING_CADENCE',reason:'BILLING_ITEM_NOT_APPLICABLE',support:[item]});
+                    const billingGrounded=temporal.billingCadence!=='UNKNOWN'&&billingSupport.some(b=>!isolatedDisplay(b,charge)&&b.quote.trim()!==temporal.commitmentText?.trim());
+                    const commitmentGrounded=temporal.commitmentText!==null&&contains(commitmentSupport,temporal.commitmentText);
+                    temporal={...temporal,billingSupport,commitmentSupport};
+                    temporal={...temporal,billingCadence:billingGrounded?temporal.billingCadence:'UNKNOWN',commitmentText:commitmentGrounded?temporal.commitmentText:null};
+                    if(!billingGrounded&&charge.temporal?.billingCadence&&charge.temporal.billingCadence!=='UNKNOWN')result.rejected.push({offer:index,charge:charge.id,proposition:'BILLING_CADENCE',reason:'BILLING_SUPPORT_INVALID',support:charge.temporal.billingSupport});
+                    if(!commitmentGrounded&&charge.temporal?.commitmentText!=null)result.rejected.push({offer:index,charge:charge.id,proposition:'COMMITMENT_TERM',reason:'COMMITMENT_SUPPORT_INVALID',support:charge.temporal.commitmentSupport});
+                    if(nativeBilling.length===1&&temporal.billingCadence==='UNKNOWN'){temporal={...temporal,billingCadence:nativeBilling[0],billingSupport:chargeContexts.get(charge.id)??[]};result.rejected.push({offer:index,charge:charge.id,proposition:'BILLING_CADENCE',reason:'SOURCE_BILLING_CONTEXT_RECOVERY',sourceCadence:nativeBilling[0],support:temporal.billingSupport});}
+                    else if(nativeBilling.length===1&&temporal.billingCadence!=='UNKNOWN'&&temporal.billingCadence!==nativeBilling[0]) {
+                        result.rejected.push({offer:index,charge:charge.id,proposition:'BILLING_CADENCE',reason:'SOURCE_BILLING_CONTEXT_CONFLICT',modelCadence:temporal.billingCadence,sourceCadence:nativeBilling[0],support:chargeContexts.get(charge.id)??[]});
+                        temporal={...temporal,billingCadence:'UNKNOWN'};
+                    }
+                    charge={...charge,temporal};
                 }
                 const native=nativePresentationFacts(charge.support.map(s=>s.translated?.text??s.quote).join(' '));
                 const singleOccurrence=typeof charge.money.amountText==='string'&&charge.money.amountText.length>0&&charge.support.map(s=>s.quote).join(' ').split(charge.money.amountText).length===2;
@@ -200,8 +234,8 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
                     if(resolved.code!==currency||currency!==null&&!u.candidates.includes(currency))throw Error('EVIDENCE_CURRENCY_BINDING_INVALID');
                     currencyDiagnostic=resolved.diagnostics;
                 }
-                result.source.offers.push({id:digest([new URL(o.url).hostname,normalized(service.name),normalized(offer.name),phase,ordinal,...(unit?['SOURCE_LOCAL',o.url,p.id]:[])]),amount:explicit?c.money.amount:null,currency:explicit?currency:null,cadence:explicit?c.cadence.unit:'UNKNOWN',consumer:!offer.ambiguity?(offer.audience==='CONSUMER'?true:offer.audience==='BUSINESS'?false:null):null,relationship:!offer.ambiguity?offer.relationship:'UNKNOWN',role:explicit?(c.role==='INTRODUCTORY'?'TRIAL':c.role==='SUBSEQUENT'?'ORDINARY':c.role):'UNKNOWN',amountDerivation:explicit?c.derivation:'UNKNOWN',market:!market.ambiguity&&market.basis==='EXPLICIT'?market.country:null,marketAmbiguous:market.ambiguity,...(exclusions.length?{excludedMarkets:exclusions.map(e=>e.country)}:{}),conditions:offer.qualifiers.length||c.qualifiers.length?canonical([...offer.qualifiers,...c.qualifiers]):null});
-                result.bindings[pointer]={offerIndex:index,presentation:{id:p.id,start:p.start,end:p.end},offer:offer.name,charge:c.id,serviceAssociation:association,currencyResolution:currencyDiagnostic,qualifiers:[...offer.qualifiers,...c.qualifiers],associatedContext:chargeContexts.get(c.id)??[],...binding([...offer.support,...c.support,...(chargeContexts.get(c.id)??[]),...market.support,...exclusions.flatMap(e=>e.support),...transitions.filter(l=>l.to===c.id).flatMap(l=>l.support)])};
+                result.source.offers.push({id:digest([new URL(o.url).hostname,normalized(service.name),normalized(offer.name),phase,ordinal,...(unit?['SOURCE_LOCAL',o.url,p.id]:[])]),amount:explicit?c.money.amount:null,currency:explicit?currency:null,cadence:explicit?c.cadence.unit:'UNKNOWN',consumer:!offer.ambiguity?(offer.audience==='CONSUMER'?true:offer.audience==='BUSINESS'?false:null):null,relationship:!offer.ambiguity?offer.relationship:'UNKNOWN',role:explicit?(c.role==='INTRODUCTORY'?'TRIAL':c.role==='SUBSEQUENT'?'ORDINARY':c.role):'UNKNOWN',amountDerivation:explicit?(c.temporal?.priceKind==='EQUIVALENT'?'ARITHMETIC':c.derivation):'UNKNOWN',billingCadence:!offer.ambiguity&&!c.ambiguity&&sequence?(c.temporal?.billingCadence??'UNKNOWN'):'UNKNOWN',commitment:c.temporal?.commitmentText??c.duration??null,market:!market.ambiguity&&market.basis==='EXPLICIT'?market.country:null,marketAmbiguous:market.ambiguity,...(exclusions.length?{excludedMarkets:exclusions.map(e=>e.country)}:{}),conditions:offer.qualifiers.length||c.qualifiers.length?canonical([...offer.qualifiers,...c.qualifiers]):null});
+                result.bindings[pointer]={offerIndex:index,presentation:{id:p.id,start:p.start,end:p.end},offer:offer.name,charge:c.id,serviceAssociation:association,currencyResolution:currencyDiagnostic,temporal:c.temporal??null,duration:c.duration,qualifiers:[...offer.qualifiers,...c.qualifiers],associatedContext:chargeContexts.get(c.id)??[],...binding([...offer.support,...c.support,...(chargeContexts.get(c.id)??[]),...market.support,...exclusions.flatMap(e=>e.support),...transitions.filter(l=>l.to===c.id).flatMap(l=>l.support)])};
                 if(explicit)result.accepted.push({offer:index,charge:c.id});
                 else result.rejected.push({offer:index,charge:c.id,reason:'SEMANTIC_AMBIGUITY_OR_MISSING_TRANSITION'});
             }
@@ -219,7 +253,7 @@ export function needsUnderstanding(o,objective) {
     if(objective.kind==='SERVICE_QUALIFICATION')return true;
     const parts=[native];
     if(o.translation){const p=projectTranslation(o,objective);if(!p.error)parts.push(p);}
-    return !parts.some(p=>p.source.serviceId&&p.source.offers.some(v=>v.amount>0&&v.currency&&v.cadence&&v.consumer===true&&['SUBSCRIPTION','MEMBERSHIP'].includes(v.relationship)&&v.role==='ORDINARY'&&v.amountDerivation==='EXPLICIT'));
+    return !parts.some(p=>p.source.serviceId&&p.source.offers.some(v=>v.amount>0&&v.currency&&v.cadence&&v.billingCadence==='MONTHLY'&&v.consumer===true&&['SUBSCRIPTION','MEMBERSHIP'].includes(v.relationship)&&v.role==='ORDINARY'&&v.amountDerivation==='EXPLICIT'));
 }
 export function understandingError(error) {
     if(error?.v3Diagnostics) {const clean=understandingError(Object.assign(Object.create(Object.getPrototypeOf(error)),error,{message:error.message,v3Diagnostics:null}));return {...clean,diagnostics:error.v3Diagnostics};}

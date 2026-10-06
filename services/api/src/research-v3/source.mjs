@@ -124,7 +124,7 @@ export function nativeStateContext(s) {
     const facts=nativePresentationFacts(s);
     if(/\b(?:no|not|without)\b/i.test(s))return {purpose:'UNKNOWN',cadence:null};
     if(['BENEFIT','CREDIT'].includes(facts.role))return {purpose:'FEATURE',cadence:null};
-    if(facts.cadence&&(/\b(?:billed|billing|charged|pay|payments?|commitment)\b/i.test(s)||s.trim().split(/\s+/).length===1))return {purpose:'BILLING',cadence:facts.cadence};
+    if(facts.cadence&&/\b(?:billed|billing|charged|pay|payments?)\b/i.test(s))return {purpose:'BILLING',cadence:facts.cadence};
     return {purpose:'UNKNOWN',cadence:null};
 }
 function relevance(s) {

@@ -1,0 +1,32 @@
+[
+  {
+    "case": "10",
+    "url": "https://mubi.com/robots.txt",
+    "sha256": "5e25fac90e48757b3e5d35bd4cbd43e5aa69d394addb32c467fb34c1f2f59c73",
+    "body": "User-agent: *\n\nDisallow: /login\nDisallow: /search\nDisallow: /*/search/\nDisallow: /users/\nDisallow: /*/users/\nDisallow: */awards-and-festivals/\n\nAllow: /*awards-and-festivals/asian-fas\nAllow: /*awards-and-festivals/berlinale\nAllow: /*awards-and-festivals/cannes\nAllow: /*awards-and-festivals/istanbul\nAllow: /*awards-and-festivals/london\nAllow: /*awards-and-festivals/oscars\nAllow: /*awards-and-festivals/outfest\nAllow: /*awards-and-festivals/rotterdam\nAllow: /*awards-and-festivals/san-sebastian\nAllow: /*awards-and-festivals/sarajevo\nAllow: /*awards-and-festivals/sundance\nAllow: /*awards-and-festivals/toronto\nAllow: /*awards-and-festivals/venice\n\nSitemap: https://feeds.mubi.com/sitemap.xml\n",
+    "httpStatus": 200,
+    "oldFailure": {
+      "code": "ROBOTS_PARSE_FAILED",
+      "diagnostics": {
+        "reason": "INVALID_PATH",
+        "line": 8
+      }
+    },
+    "target": "https://mubi.com/en/films"
+  },
+  {
+    "case": "12",
+    "url": "https://www.malwarebytes.com/robots.txt",
+    "sha256": "e3e2f786da001f6035832e591b2d543184508af2626ef15bb175d279b022244c",
+    "body": "User-agent: *\nUser-Agent: Googlebot\nUser-Agent: applebot\nUser-Agent: PerplexityBot\nUser-Agent: bingbot\nUser-Agent:  OAI-SearchBot\nUser-Agent:  GPTBot\nUser-Agent: GeminiBot\nUser-Agent: ClaudeBot\n\nDisallow: /wp-admin/\nAllow: /wp-admin/admin-ajax.php\nDisallow: /*?wg-choose-original= \nDISALLOW: /*?x-clickref=\nDISALLOW: /*?amp\nDISALLOW: /*?d=\nDISALLOW: /*?sid2=\nDISALLOW: /*.pdf\nDISALLOW: /ctrl/*\nDISALLOW: /v1a/*\nDISALLOW: /*.php\nDISALLOW: /404\nDISALLOW: /press/2008*\nDISALLOW: /press/2009*\nDISALLOW: /press/2010*\nDISALLOW: /press/2011*\nDISALLOW: /press/2012*\nDISALLOW: /press/2013*\nDISALLOW: /press/2014*\nDISALLOW: /press/2015*\nDISALLOW: /press/2016*\nDISALLOW: /press/2017*\nDISALLOW: /press/2018*\nDISALLOW: /press/2019*\nDISALLOW: /press/2020*\nDISALLOW: /press/2021*\nDISALLOW: /press/2022*\nDISALLOW: /press/category/in-the-news*\nDISALLOW: /business/solutions/gdpr/contact-us\nDISALLOW: /education/contact/thankyou\nDISALLOW: /eula/*\nDISALLOW: /finance/contact/thankyou\nDISALLOW: /lp/*\nDISALLOW: /mac-download\nDISALLOW: /pricing/inapp/*\nDISALLOW: /secure\nDISALLOW: /secure/guidelines\nDISALLOW: /support/thirdpartynotices/*\nDISALLOW: /thank_you*\nDISALLOW: /thank-you*\nDISALLOW: /threezerodays\nDisallow: *.ttf?\nDISALLOW: /mbam-whats-new.json*\nSitemap: https://www.malwarebytes.com/sitemap_index.xml\nSitemap: https://www.malwarebytes.com/pt-br/page-sitemap.xml\nSitemap: https://www.malwarebytes.com/nl/page-sitemap.xml\nSitemap: https://www.malwarebytes.com/es/page-sitemap.xml\nSitemap: https://www.malwarebytes.com/de/page-sitemap.xml\nSitemap: https://www.malwarebytes.com/fr/page-sitemap.xml\nSitemap: https://www.malwarebytes.com/pl/page-sitemap.xml\nSitemap: https://www.malwarebytes.com/it/page-sitemap.xml\nSitemap: https://www.malwarebytes.com/ru/page-sitemap.xml\nSitemap: https://www.malwarebytes.com/pt/page-sitemap.xml",
+    "httpStatus": 200,
+    "oldFailure": {
+      "code": "ROBOTS_PARSE_FAILED",
+      "diagnostics": {
+        "reason": "INVALID_PATH",
+        "line": 52
+      }
+    },
+    "target": "https://www.malwarebytes.com/pricing"
+  }
+]

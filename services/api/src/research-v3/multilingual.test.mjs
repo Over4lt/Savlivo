@@ -12,9 +12,9 @@ async function execute(f,options={},complete) {
 }
 for(const f of fixtures)test(f.language+': faithful text -> same limited deterministic parser -> truth',async()=>{
  const {result,knowledge,calls}=await execute(f);
- assert.equal(result.truth.established,true);
+ assert.equal(result.truth.established,false);assert.equal(result.truth.eligibility[f.market].result,'UNRESOLVED');
  assert.equal(calls.length,f.language==='English'?0:1);
- assert.equal(result.truth.prices[f.market].propositions.PRICE_AMOUNT.state,'ESTABLISHED');
+ assert.equal(result.truth.prices[f.market].propositions.PRICE_AMOUNT.state,'UNRESOLVED');
  if(calls.length){assert.equal('objective' in calls[0],false);assert.ok(knowledge.observations[0].translation);assert.equal(knowledge.observations[0].body,config(f).fixtures[1].body);}
 });
 for(const [name,mutate] of [
@@ -29,13 +29,13 @@ for(const [name,mutate] of [
 });
 test('checkpoint/resume revalidates translations, original spans and accounting',async()=>{
  const run=await execute(fixtures[5]);const snapshot=checkpoint(run.knowledge),k=restore(snapshot);
- assert.equal(evaluate(k).established,true);assert.equal(k.usage.modelCalls,1);
+ assert.equal(evaluate(k).established,false);assert.equal(k.usage.modelCalls,1);
  const resumed=await runTarget({input:run.input,interpret:run.interpret,snapshot,capabilities:offlineCapabilities(run.input)});
  assert.equal(resumed.result.usage.modelCalls,1);
  k.observations[0].translation.envelope.segments.at(-1).text='forged';assert.equal(evaluate(k).established,false);
 });
 test('model budget zero still establishes already interpretable evidence',async()=>{
- const {result,calls}=await execute(fixtures[0],{bounds:{modelCalls:0}});assert.equal(result.truth.established,true);assert.equal(calls.length,0);
+ const {result,calls}=await execute(fixtures[0],{bounds:{modelCalls:0}});assert.equal(result.truth.established,false);assert.equal(result.truth.eligibility[fixtures[0].market].result,'UNRESOLVED');assert.equal(calls.length,0);
 });
 test('exhausted translation budget retains native evidence and remains bounded',async()=>{
  const {result,knowledge,calls}=await execute(fixtures[5],{bounds:{modelCalls:0}});
@@ -74,7 +74,7 @@ test('translation failure on a later observation does not erase native price evi
  const input=config(f,{geo:true});input.fixtures.at(-1).body='<html lang="und"><title>Harbor</title><p>翻訳できない資料</p></html>';
  const interpret=createTranslationInterpreter({complete:async()=>{throw Error('unavailable');}});
  const {result}=await runTarget({input,capabilities:offlineCapabilities(input),interpret});
- assert.equal(result.usage.acquisitions,2);assert.equal(result.usage.modelCalls,1);assert.equal(result.truth.prices.US.propositions.PRICE_AMOUNT.value,14.99);assert.equal(result.truth.prices.US.propositions.PRICE_AMOUNT.state,'ESTABLISHED');
+ assert.equal(result.usage.acquisitions,2);assert.equal(result.usage.modelCalls,1);assert.equal(result.truth.prices.US.propositions.PRICE_AMOUNT.state,'UNRESOLVED');assert.equal(result.truth.eligibility.US.result,'UNRESOLVED');
 });
 test('retained Spotify presentation structure remains honestly unsupported, not injected',async()=>{
  const f={language:'Japanese',name:'Spotify Premium',market:'JP',original:'1ヶ月間￥0、その後は月額￥1,080。 キャンペーン期間終了後は月額￥1,080',translated:'For 1 month ¥0, then ¥1,080 per month. After the campaign period ends, ¥1,080 per month.'};

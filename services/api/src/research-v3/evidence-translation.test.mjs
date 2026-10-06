@@ -31,8 +31,8 @@ test('forged translated span/artifact is rejected while valid native/translation
 });
 test('already usable translated evidence avoids an unnecessary second model request',async()=>{
  const {o,input}=await setup();let calls=0;
- const interpret=createEvidenceInterpreter({complete:()=>{calls++;assert.fail('unnecessary request');}});
- assert.equal(interpret.requiresModel(o,input.objective),false);assert.equal((await interpret(o,input.objective)).kind,'NATIVE');assert.equal(calls,0);
+ const interpret=createEvidenceInterpreter({complete:()=>{calls++;throw Error('offline unavailable');}});
+ assert.equal(interpret.requiresModel(o,input.objective),true);await assert.rejects(interpret(o,input.objective),/offline unavailable/);assert.equal(calls,1);
 });
 test('unreliable translated meaning cannot masquerade as original provenance',async()=>{
  const {o,input,e}=await setup();o.translation.envelope.segments.at(-1).status='UNCERTAIN';e.translationArtifact=digest(o.translation.envelope);

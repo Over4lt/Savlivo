@@ -40,12 +40,12 @@ export function projectObservation(o,objective) {
         }
         parts[0]={...original,source:{...original.source,offers},bindings};
     }
-    const source={offers:[],populations:[],accountStatements:[],accountGraphs:[],links:parts[0].source.links??[]},bindings={};
+    const source={offers:[],subscriptionChoices:[],populations:[],accountStatements:[],accountGraphs:[],links:parts[0].source.links??[]},bindings={};
     for(const p of parts) {
         if(p.source.accountGraph)source.accountGraphs.push(p.source.accountGraph);
         for(const field of ['serviceId','population','account'])if(source[field]===undefined&&p.source[field]!==undefined)source[field]=p.source[field];
-        for(const [pointer,b] of Object.entries(p.bindings))if(!['offers','populations','accountStatements'].some(k=>pointer.startsWith('/'+k+'/'))&&bindings[pointer]===undefined)bindings[pointer]=b;
-        for(const key of ['offers','populations','accountStatements'])for(const [i,value] of (p.source[key]??[]).entries()) {
+        for(const [pointer,b] of Object.entries(p.bindings))if(!['offers','populations','accountStatements','subscriptionChoices'].some(k=>pointer.startsWith('/'+k+'/'))&&bindings[pointer]===undefined)bindings[pointer]=b;
+        for(const key of ['offers','populations','accountStatements','subscriptionChoices'])for(const [i,value] of (p.source[key]??[]).entries()) {
             const pointer='/'+key+'/'+source[key].length;source[key].push(value);bindings[pointer]=p.bindings['/'+key+'/'+i];
         }
     }

@@ -1,3 +1,4 @@
+import {interpretBillingFixture} from './billing-fixtures.test-support.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createKnowledge,addDestination,checkpoint,restore,digest,context,actionIdentity,pricePropositions} from './model.mjs';
@@ -11,7 +12,7 @@ import {interpretWeb} from './source.mjs';
 import {parseAcquisitionRobots,evaluateAcquisitionRobots} from './acquisition-robots.mjs';
 const host='provider.example',home='https://'+host+'/',price=home+'plans';
 const objective=(extra={})=>({kind:'PRICE',serviceId:'orchard',serviceName:'Orchard Club',providerHosts:[host],markets:['JP'],seeds:[home],...extra});
-const html=(text='',links='')=>`<html><head><title>Orchard Club</title></head><body><h1>Orchard Club</h1><p>${text}</p>${links}</body></html>`;
+const html=(text='',links='')=>`<html><head><title>Orchard Club</title></head><body><h1>Orchard Club</h1><p>${text}${text.includes("per month")?" Billed monthly.":""}</p>${links}</body></html>`;
 const sufficient=(currency='JPY',market='JP')=>html(`Personal consumer subscription price ${currency} 1400 per month. Available in ${market}.`);
 const observation=(body,extra={})=>({id:'observation-1',url:home,body,sha256:digest(body),outcome:'OK',completeness:'COMPLETE',format:'WEB',contentType:'text/html',truncated:false,context:context('DIRECT'),...extra});
 function fixtureInput(pages,extra={}) {
@@ -26,7 +27,7 @@ function fixtureInput(pages,extra={}) {
 }
 async function site(pages,extra={},hooks={}) {
     const input=fixtureInput(pages,extra);
-    return runTarget({input,capabilities:offlineCapabilities(input),...hooks});
+    return runTarget({input,interpret:interpretBillingFixture,capabilities:offlineCapabilities(input),...hooks});
 }
 const amounts=r=>r.result.truth.prices[r.result.objective.markets[0]].propositions;
 const extract=body=>extractNavigation(observation(body),objective(),pricePropositions);
@@ -50,7 +51,7 @@ test('explicit locale hints rank target but do not veto other language destinati
     assert.equal(r.result.truth.established,true);assert.equal(r.knowledge.observations[1].transport.verification,'BRACKET_VERIFIED');assert.equal(amounts(r).TARGET_MARKET.evidence[0].reference.marketContext.basis,'VERIFIED_COUNTRY_OBSERVATION');
 });
 test('same URL country presentations remain separate after navigation',async()=>{
-    const o=objective({markets:['JP','AU'],seeds:[price]}),k=await runResearch({objective:o,permissions:{DIRECT:true,DECODO:true},reasoner:createReasoner(),capabilities:{DIRECT:a=>({url:a.url,context:a.context,body:JSON.stringify({serviceId:'orchard',offers:[]}),outcome:'OK'}),DECODO:a=>({url:a.url,context:a.context,body:JSON.stringify({serviceId:'orchard',offers:[{id:'ordinary',amount:a.context.networkGeography==='JP'?100:200,currency:'USD',cadence:'MONTHLY',consumer:true,relationship:'SUBSCRIPTION',role:'ORDINARY',market:a.context.networkGeography}]}),outcome:'OK'})}});
+    const o=objective({markets:['JP','AU'],seeds:[price]}),k=await runResearch({objective:o,permissions:{DIRECT:true,DECODO:true},reasoner:createReasoner(),capabilities:{DIRECT:a=>({url:a.url,context:a.context,body:JSON.stringify({serviceId:'orchard',offers:[]}),outcome:'OK'}),DECODO:a=>({url:a.url,context:a.context,body:JSON.stringify({serviceId:'orchard',offers:[{id:'ordinary',amount:a.context.networkGeography==='JP'?100:200,currency:'USD',cadence:'MONTHLY',billingCadence:'MONTHLY',consumer:true,relationship:'SUBSCRIPTION',role:'ORDINARY',market:a.context.networkGeography}]}),outcome:'OK'})}});
     assert.equal(evaluate(k).established,true);assert.equal(k.usage.countryAcquisitions,2);assert.equal(new Set(k.observations.map(o=>o.id)).size,2);
 });
 test('search needed: finite family discovers provider material, snippet is not evidence',async()=>{
@@ -127,15 +128,15 @@ for(const change of [{reviewed:false},{scope:'SUFFIX_GUESS'},{reference:''},{dom
 test('reviewed subdomain acquired normally, exact authority materialized and restored',async()=>{
     const target='https://support.provider.example/plans',o=objective({providerNamespaces:[namespace]});let saved;
     const input=fixtureInput({[home]:html('','<nav><a href="'+target+'">Plans</a></nav>'),[target]:sufficient()},{objective:o});
-    const r=await runTarget({input,capabilities:offlineCapabilities(input),save:s=>{saved=s;}});assert.equal(r.result.truth.established,true);assert.ok(r.knowledge.objective.providerHosts.includes('support.provider.example'));assert.equal(r.knowledge.authorityBindings[0].reference,namespace.reference);
-    const resumed=await runTarget({input,snapshot:saved,capabilities:offlineCapabilities(input)});assert.deepEqual(resumed.result.truth,r.result.truth);
+    const r=await runTarget({input,interpret:interpretBillingFixture,capabilities:offlineCapabilities(input),save:s=>{saved=s;}});assert.equal(r.result.truth.established,true);assert.ok(r.knowledge.objective.providerHosts.includes('support.provider.example'));assert.equal(r.knowledge.authorityBindings[0].reference,namespace.reference);
+    const resumed=await runTarget({input,interpret:interpretBillingFixture,snapshot:saved,capabilities:offlineCapabilities(input)});assert.deepEqual(resumed.result.truth,r.result.truth);
     const wrong={...input,objective:{...o,providerNamespaces:[]}};await assert.rejects(()=>runTarget({input:wrong,snapshot:saved,capabilities:offlineCapabilities(input)}),/RESUME_OBJECTIVE_MISMATCH/);
 });
 test('different grounded destination recovers failed acquisition without retrying failed URL/context',async()=>{
     const pages={ [home]:html('','<nav><a href="/plans-failed">Plans</a><a href="/plans-ok">Plans</a></nav>'),[home+'plans-ok']:sufficient() },input=fixtureInput(pages),caps=offlineCapabilities(input),real=caps.DIRECT;
     caps.DIRECT=async (a,limits)=>a.url.endsWith('plans-failed')?{failure:{kind:'ACQUISITION',code:'PROVIDER_HEADERS_TIMEOUT'},accounting:{requests:1,bytes:0,decodedBytes:0,retainedBytes:0}}:real(a,limits);
     // Stable explicit advisory priority for the first failure, then the surviving destination.
-    const r=await runTarget({input,capabilities:caps,navigate:rows=>rows.filter(c=>c.url.endsWith('plans-failed')).map(c=>({candidateId:c.id,needs:pricePropositions}))});
+    const r=await runTarget({input,interpret:interpretBillingFixture,capabilities:caps,navigate:rows=>rows.filter(c=>c.url.endsWith('plans-failed')).map(c=>({candidateId:c.id,needs:pricePropositions}))});
     assert.equal(r.result.truth.established,true);assert.equal(r.knowledge.attempts.filter(a=>a.action.url?.endsWith('plans-failed')).length,1);assert.ok(r.knowledge.trace.some(t=>t.event==='GROUNDED_FAILURE_RECOVERY'));
 });
 test('advisory selection cannot invent href, assert truth or mutate permissions',async()=>{
@@ -221,7 +222,7 @@ for(const key of ['access_token','api_key','password','authorization','secret','
 
 test('country transport failure does not erase useful distinct DIRECT action or retry COUNTRY',async()=>{
     const input=fixtureInput({[home]:sufficient()},{permissions:{DIRECT:true,DECODO:true}}),caps=offlineCapabilities(input);caps.DECODO=async()=>({failure:{kind:'ACQUISITION',code:'PROVIDER_HEADERS_TIMEOUT'},accounting:{requests:1,bytes:0,decodedBytes:0,retainedBytes:0}});
-    const r=await runTarget({input,capabilities:caps});assert.equal(r.result.truth.established,true);assert.deepEqual(r.knowledge.attempts.map(a=>a.action.context.transport),['DECODO','DIRECT']);assert.equal(r.knowledge.observations[0].context.networkGeography,'UNBOUND');assert.equal(amounts(r).TARGET_MARKET.evidence[0].reference.marketContext,undefined);assert.equal(amounts(r).TARGET_MARKET.value,'JP');
+    const r=await runTarget({input,interpret:interpretBillingFixture,capabilities:caps});assert.equal(r.result.truth.established,true);assert.deepEqual(r.knowledge.attempts.map(a=>a.action.context.transport),['DECODO','DIRECT']);assert.equal(r.knowledge.observations[0].context.networkGeography,'UNBOUND');assert.equal(amounts(r).TARGET_MARKET.evidence[0].reference.marketContext,undefined);assert.equal(amounts(r).TARGET_MARKET.value,'JP');
 });
 
 test('explicit inert navigation collection exposes opaque script labels without arbitrary endpoint mining',async()=>{
@@ -241,7 +242,7 @@ test('structured navigation pointer expansion has a finite bound',()=>{
 for(const code of ['WIRE_BYTE_BOUND','DECOMPRESSION_BOUND','HEADERS_TOO_LARGE','REDIRECT_LIMIT'])test('per-resource capacity '+code+' leaves a different grounded provider candidate usable',async()=>{
     const input=fixtureInput({[home]:html('','<nav><a href="/plans-failed">Plans</a><a href="/plans-ok">Plans</a></nav>'),[home+'plans-ok']:sufficient()}),caps=offlineCapabilities(input),real=caps.DIRECT;
     caps.DIRECT=async(a,limits)=>a.url.endsWith('plans-failed')?{failure:{kind:'CAPACITY',code},accounting:{requests:1,bytes:64,decodedBytes:64,retainedBytes:0}}:real(a,limits);
-    const r=await runTarget({input,capabilities:caps,navigate:rows=>rows.filter(c=>c.url.endsWith('plans-failed')).map(c=>({candidateId:c.id,needs:pricePropositions}))});assert.equal(r.result.truth.established,true);assert.equal(r.knowledge.attempts.filter(a=>a.status==='FAILED').length,1);assert.ok(r.result.usage.bytes>=64);assert.ok(r.knowledge.limitsHit.includes('acquisitionResourceCapacity'));assert.equal(r.knowledge.observations.some(o=>o.url.endsWith('plans-failed')),false);
+    const r=await runTarget({input,interpret:interpretBillingFixture,capabilities:caps,navigate:rows=>rows.filter(c=>c.url.endsWith('plans-failed')).map(c=>({candidateId:c.id,needs:pricePropositions}))});assert.equal(r.result.truth.established,true);assert.equal(r.knowledge.attempts.filter(a=>a.status==='FAILED').length,1);assert.ok(r.result.usage.bytes>=64);assert.ok(r.knowledge.limitsHit.includes('acquisitionResourceCapacity'));assert.equal(r.knowledge.observations.some(o=>o.url.endsWith('plans-failed')),false);
 });
 test('global transport budget stays terminal despite another grounded destination',async()=>{
     const k=await runResearch({objective:objective({seeds:[home,price]}),permissions:{DIRECT:true},bounds:{bytes:64},capabilities:{DIRECT:()=>({failure:{kind:'CAPACITY',code:'WIRE_BYTE_BOUND'},accounting:{requests:1,bytes:65,decodedBytes:0,retainedBytes:0}})}});assert.equal(k.stop.reason,'CAPACITY_BOUND_REACHED');assert.equal(k.usage.actions,1);assert.equal(k.observations.length,0);
@@ -259,5 +260,5 @@ test('quoted greater-than in URL attributes and fake base in raw text retain cor
 
 test('unsupported sitemap is scoped navigation failure, a different acquired provider page can complete',async()=>{
     const map=home+'map.xml',input=fixtureInput({[home]:html('','<link rel="sitemap" href="/map.xml"><a href="/surface">続きを読む</a>'),[map]:{body:'<html>Wrong sitemap body</html>',contentType:'text/html'},[home+'surface']:sufficient()});
-    const r=await runTarget({input,capabilities:offlineCapabilities(input),navigate:rows=>rows.filter(c=>c.url===map).map(c=>({candidateId:c.id,needs:pricePropositions}))});assert.equal(r.result.truth.established,true);assert.ok(r.knowledge.attempts.some(a=>a.failure?.kind==='NAVIGATION'));assert.equal(r.knowledge.observations.length,2);
+    const r=await runTarget({input,interpret:interpretBillingFixture,capabilities:offlineCapabilities(input),navigate:rows=>rows.filter(c=>c.url===map).map(c=>({candidateId:c.id,needs:pricePropositions}))});assert.equal(r.result.truth.established,true);assert.ok(r.knowledge.attempts.some(a=>a.failure?.kind==='NAVIGATION'));assert.equal(r.knowledge.observations.length,2);
 });

@@ -1,4 +1,5 @@
 import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound, materializeAuthority } from './model.mjs';
+import {buildWorkingModel,rankResearchActions,workingDecision} from './working-model.mjs';
 import { evaluate, interpretStructured, readSource } from './truth.mjs';
 import {projectTranslation,translationError} from './translation.mjs';
 import {projectEvidence,understandingError} from './evidence.mjs';
@@ -146,8 +147,9 @@ async function accept(k, a, response, interpret, navigate, save) {
     for(const doc of (response.navigationDocuments??[]).slice(0,9)) {
         if(doc.kind!=='ROBOTS'||doc.completeness!=='COMPLETE'||typeof doc.body!=='string'||Buffer.byteLength(doc.body)>acquisition.robotsBytes||doc.sha256!==digest(doc.body))continue;
         k.policyArtifacts??=[];
-        const resource={...doc,id:'robots-'+digest([a.id,doc.url,doc.sha256]),context:structuredClone(a.context),action:a.id};
-        if((response.failure||!(doc.declarations??[]).length)&&!k.policyArtifacts.some(r=>r.id===resource.id))k.policyArtifacts.push(resource);
+        const resource={...doc,id:'robots-'+digest([a.context,doc.url,doc.sha256]),context:structuredClone(a.context),action:a.id};
+        const prior=k.policyArtifacts.find(r=>r.id===resource.id);
+        if(!prior)k.policyArtifacts.push({...resource,actions:[a.id]});else if(!prior.actions?.includes(a.id))prior.actions=[...(prior.actions??[prior.action]),a.id].slice(-8);
     }
     if(response.failure) {
         k.attempts.at(-1).failure??={kind:response.failure.kind,code:response.failure.code};
@@ -253,7 +255,7 @@ async function accept(k, a, response, interpret, navigate, save) {
     const current=evaluate(k).needs.map(n=>n.proposition);
     if(current.length&&o.outcome==='OK'&&!o.truncated)for(const doc of (response.navigationDocuments??[]).slice(0,9)) {
         if(doc.kind!=='ROBOTS'||!(doc.declarations??[]).length||doc.completeness!=='COMPLETE'||typeof doc.body!=='string'||Buffer.byteLength(doc.body)>acquisition.robotsBytes||doc.sha256!==digest(doc.body))continue;
-        const resource={...doc,id:'robots-'+digest([a.id,doc.url,doc.sha256]),context:o.context};
+        const resource={...doc,id:'robots-'+digest([a.context,doc.url,doc.sha256]),context:o.context};
         // Auxiliary policy/navigation source is retained separately and never evaluated as price evidence.
         if(!k.navigationResources.some(r=>r.id===resource.id))k.navigationResources.push(resource);
         for(const ref of (doc.declarations??[]).slice(0,16)) {
@@ -269,11 +271,14 @@ async function accept(k, a, response, interpret, navigate, save) {
         if(web) {
             const plan=extractNavigation(o,k.objective,current);
             o.navigation=plan.candidates.map((c,index)=>({...c,index}));
-            if(navigate&&o.navigation.length) {
+            const automaticAdvice=!navigate&&interpret.researchAdvisor&&!k.semanticUnavailable&&(o.navigation.length>=8||o.navigation.filter(c=>c.kind==='PROVIDER_STATE').length>=2);
+            const advisor=navigate??(automaticAdvice?interpret.researchAdvisor:null);
+            if(advisor&&o.navigation.length&&(navigate||k.usage.modelCalls<k.bounds.modelCalls&&(k.researchAdvisoryCalls??0)<4)) {
                 // Advisory bounded source-owned references. No new hrefs or truth fields are honored.
                 try {
-                    const rows=o.navigation.slice(0,discoveryCapacity.advisoryCandidates);
-                    const advice=await boundedNavigationAdvice(navigate,rows,evaluate(k).needs);
+                    const rows=diverseCandidates(o.navigation,discoveryCapacity.advisoryCandidates);
+                    if(!navigate){k.usage.modelCalls++;k.researchAdvisoryCalls=(k.researchAdvisoryCalls??0)+1;await persist(k,save);}
+                    const advice=await boundedNavigationAdvice(advisor,rows,evaluate(k).needs,automaticAdvice?advisor.deadlineMs:discoveryCapacity.advisoryMs);
                     if(!Array.isArray(advice))throw Error('INVALID_NAVIGATION_RESULT');
                     const promoted=[];
                     for(const p of advice.slice(0,discoveryCapacity.advisoryCandidates)) {
@@ -281,11 +286,16 @@ async function accept(k, a, response, interpret, navigate, save) {
                         const c=rows.find(c=>p.candidateId?c.id===p.candidateId:c.index===p.index);
                         if(!c||!Array.isArray(p.needs)||!p.needs.some(n=>current.includes(n)))continue;
                         // The index resolves into the complete candidate plan, never an invented URL.
-                        const target=plan.candidates[c.index];target.score=Math.min(20,target.score+4);promoted.push(target.id);
+                        const target=plan.candidates[c.index];
+                        if(['PRICING','PRODUCT','SUPPORT','ACCOUNT','CONTENT','LOCALE','STATE','UNKNOWN'].includes(p.role))target.research={role:p.role,origin:'BOUNDED_SOURCE_ID_ADVICE',source:c.source,stateIntent:['MONTHLY_PAYMENT','NON_MONTHLY_PAYMENT','UNKNOWN'].includes(p.stateIntent)?p.stateIntent:'UNKNOWN',uncertain:true,truthAuthority:'NONE'};
+                        target.score=Math.min(20,target.score+4);promoted.push(target.id);
                     }
                     plan.candidates.sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));
-                    k.trace.push({event:'NAVIGATION_ADVICE',observation:o.id,exposedIds:rows.map(c=>c.id),promoted,accepted:'SOURCE_IDS_ONLY'});
-                } catch {k.trace.push({event:'NAVIGATION_ADVICE_UNAVAILABLE',observation:o.id,code:'ADVISORY_FAILED_NATIVE_FRONTIER_PRESERVED'});}
+                    k.trace.push({event:'NAVIGATION_ADVICE',observation:o.id,exposedIds:rows.map(c=>c.id),promoted,advice:plan.candidates.filter(c=>c.research).map(c=>({id:c.id,...c.research})),modelCalls:k.usage.modelCalls,request:advice.diagnostics??null,accepted:'SOURCE_IDS_ONLY',truthAuthority:'NONE'});
+                } catch(error) {const status=Number.isInteger(error?.status)?error.status:null;
+                    k.trace.push({event:'NAVIGATION_ADVICE_UNAVAILABLE',observation:o.id,code:/^RESEARCH_[A-Z_]+$/.test(error?.message??'')?error.message:'ADVISORY_FAILED_NATIVE_FRONTIER_PRESERVED',status,purpose:'RESEARCH_ONLY',modelCalls:k.usage.modelCalls,requestBytes:error?.v3Diagnostics?.requestBytes??null});
+                    if(!navigate&&status===429)k.semanticUnavailable={status:429,until:Date.now()+30000,bodySha256:o.sha256,purpose:'RESEARCH_ADVICE'};
+                }
             }
             navigation.push(...admitNavigation(k,o,a,plan,'PROVIDER_LINK'));
         } else {
@@ -317,6 +327,8 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
     }
     for (;;) {
         const initial = evaluate(k);
+        k.workingModel=buildWorkingModel(k,initial);
+        if(initial.ineligibleMarkets.length>0&&initial.ineligibleMarkets.length===k.objective.markets.length){stop(k,'MONTHLY_SUBSCRIPTION_NOT_OFFERED',{markets:initial.ineligibleMarkets});await persist(k,save);return k;}
         if (initial.established) {
             stop(k, 'OBJECTIVE_ESTABLISHED');
             await persist(k, save);
@@ -333,7 +345,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             // A reasoning component receives a copy, and can propose/rank only. It cannot
             // mutate evidence, counters, permissions, or established propositions.
             try {
-                decision = await reasoner(structuredClone({ objective: k.objective, truth: initial, destinations: k.destinations, observations: k.observations.map(({ body, candidates, ...o }) => o), actions: offered.actions, attempts: k.attempts, permissions:k.permissions, bounds:k.bounds, usage:k.usage }));
+                decision = await reasoner(structuredClone({ workingModel:k.workingModel,objective: k.objective, truth: initial, destinations: k.destinations, observations: k.observations.map(({ body, candidates, ...o }) => o), actions: offered.actions, attempts: k.attempts, permissions:k.permissions, bounds:k.bounds, usage:k.usage }));
             }
             catch {
                 stop(k, 'REASONER_FAILED');
@@ -346,9 +358,11 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
                 markLimit(k, 'candidateDestinations');
             offered = availableActions(k, capabilities, Array.isArray(decision.proposals) ? decision.proposals.slice(0, k.bounds.candidateDestinations) : []);
         }
-        const selected = offered.actions.find(a => a.id === decision.actionId) ?? offered.actions[0];
+        const ranked=rankResearchActions({objective:k.objective,truth:initial,workingModel:k.workingModel,destinations:k.destinations,observations:k.observations,actions:offered.actions});
+        const selected = offered.actions.find(a => a.id === decision.actionId) ?? offered.actions.find(a=>a.id===ranked[0]?.actionId);
         const audit = { needs: initial.needs.map(n => n.id), evaluated: offered.evaluated.map(r => ({ id: r.action.id ?? null, kind: r.action.kind, url: r.action.url ?? null, context: r.action.context ?? null, value:r.action.value, family:r.action.family??null, needs: r.action.needs, reason: r.reason, bounds: r.bounds ?? [] })), selected: selected?.id ?? null, reason: selected ? (decision.actionId === selected.id && typeof decision.reason === 'string' ? decision.reason : selected.reason) : 'No admissible useful action in the current grounded knowledge' };
         k.decisions.push(audit);
+        k.trace.push({event:'RESEARCH_DECISION',...workingDecision(k.workingModel,ranked,selected?.id??null,{usage:k.usage,bounds:k.bounds})});
         if (!selected) {
             const hit = [...new Set([...k.limitsHit, ...offered.evaluated.flatMap(r => r.bounds ?? [])])];
             stop(k, hit.length ? 'CAPACITY_BOUND_REACHED' : 'SEMANTIC_EXHAUSTION', { bounds: hit, decision: k.decisions.length - 1, scope: 'CURRENT_GROUNDED_KNOWLEDGE_AND_PERMISSIONS' });
@@ -384,7 +398,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             k.trace.push({event:'ACTION_FAILED',action:a.id,code});
             if(/^SITEMAP_(?:UNSUPPORTED|INCOMPLETE)$/.test(code))k.attempts.at(-1).failure={kind:'NAVIGATION',code};
             const failure=k.attempts.at(-1).failure;
-            const recoverable=(['ACQUISITION','DISCOVERY','NAVIGATION'].includes(failure?.kind)||resourceCapacityFailure(failure))&&!/^GEO/.test(failure.code??'')&&!/^GEO/.test(failure.stage??'');
+            const recoverable=(['ACQUISITION','DISCOVERY','NAVIGATION'].includes(failure?.kind)||resourceCapacityFailure(failure));
             const alternates=availableActions(k,capabilities).actions.filter(x=>x.kind==='DISCOVER'?a.kind!=='DISCOVER':x.id!==a.id);
             // No redispatch of the consumed observation identity. Another context is a distinct observation.
             if(recoverable&&!k.limitsHit.includes('transportCapacity')&&alternates.length) {
@@ -395,6 +409,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             await persist(k, save);
             return k;
         }
+        k.workingModel=buildWorkingModel(k,evaluate(k));
         await persist(k, save);
     }
 }
@@ -453,12 +468,12 @@ function admitNavigation(k,o,a,plan,kind) {
     return rows;
 }
 
-async function boundedNavigationAdvice(navigate,rows,needs) {
+async function boundedNavigationAdvice(navigate,rows,needs,deadlineMs=discoveryCapacity.advisoryMs) {
     let timer;
     try {
         return await Promise.race([
             Promise.resolve().then(()=>navigate(structuredClone(rows),structuredClone(needs))),
-            new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('NAVIGATION_ADVICE_DEADLINE')),discoveryCapacity.advisoryMs);})
+            new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('NAVIGATION_ADVICE_DEADLINE')),deadlineMs);})
         ]);
     } finally {clearTimeout(timer);}
 }

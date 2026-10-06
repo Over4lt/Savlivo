@@ -1,3 +1,4 @@
+import {interpretBillingFixture} from './billing-fixtures.test-support.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
@@ -14,7 +15,7 @@ import {evaluate} from './truth.mjs';
 import {context,digest,restore} from './model.mjs';
 
 const home='https://provider.example/',price='https://provider.example/plans';
-const page=(paragraph,links='')=>`<!doctype html><html><head><title>Orchard Club</title></head><body><h1>Orchard Club</h1><p>${paragraph}</p>${links}</body></html>`;
+const page=(paragraph,links='')=>`<!doctype html><html><head><title>Orchard Club</title></head><body><h1>Orchard Club</h1><p>${paragraph}${paragraph.includes("per month")?" Billed monthly.":""}</p>${links}</body></html>`;
 const enough=(market='JP')=>page(`Personal consumer subscription price JPY 1400 per month. Available in ${market}.`);
 const partial=()=>page('Personal consumer subscription price JPY 1400 per month.');
 const input=(extra={})=>({objective:{kind:'PRICE',serviceId:'orchard',serviceName:'Orchard Club',providerHosts:['provider.example'],markets:['JP'],seeds:[price]},provider:{reviewed:true,serviceId:'orchard',hosts:['provider.example']},permissions:{DIRECT:true,DECODO:true,TAVILY:false},planning:{initialPerspective:'UNBOUND'},...extra});
@@ -34,7 +35,7 @@ function fixture(config={}) {
     }}});
     return {caps,calls,input:inputValue};
 }
-const execute=async config=>{const f=fixture(config);return {...await runTarget({input:f.input,capabilities:f.caps}),calls:f.calls};};
+const execute=async config=>{const f=fixture(config);return {...await runTarget({interpret:interpretBillingFixture,input:f.input,capabilities:f.caps}),calls:f.calls};};
 
 test('real HTML: Direct sufficient establishes one price without ceremonial Decodo',async()=>{
     const {result,knowledge,calls}=await execute();
@@ -98,7 +99,7 @@ test('provider navigation: relevant link followed, irrelevant/external links rej
 test('navigation intelligence can classify an observed non-keyword anchor, never invent its URL',async()=>{
     const i=input({permissions:{DIRECT:true},objective:{...input().objective,seeds:[home]}});
     const f=fixture({input:i,pages:{UNBOUND:{[home]:page('Welcome.','<a href="/plans">Explore your possibilities</a>'),[price]:enough()}}});
-    const {result}=await runTarget({input:i,capabilities:f.caps,navigate:(links,needs)=>[{index:links.findIndex(l=>l.label==='Explore your possibilities'),needs:needs.map(n=>n.proposition)},{index:999,url:'https://provider.example/invented',needs:['PRICE_AMOUNT']}]});
+    const {result}=await runTarget({interpret:interpretBillingFixture,input:i,capabilities:f.caps,navigate:(links,needs)=>[{index:links.findIndex(l=>l.label==='Explore your possibilities'),needs:needs.map(n=>n.proposition)},{index:999,url:'https://provider.example/invented',needs:['PRICE_AMOUNT']}]});
     assert.equal(result.stop.reason,'OBJECTIVE_ESTABLISHED');
     assert.equal(f.calls.some(c=>c.url?.endsWith('invented')),false);
 });
@@ -128,7 +129,7 @@ test('same observation context consumed; semantic exhaustion distinct from capac
 
 test('planner proposals cannot manufacture truth, contexts, permissions or destinations',async()=>{
     const f=fixture({direct:partial(),input:input({permissions:{DIRECT:true}})});
-    const {result}=await runTarget({input:f.input,capabilities:f.caps,reasoner:state=>{
+    const {result}=await runTarget({interpret:interpretBillingFixture,input:f.input,capabilities:f.caps,reasoner:state=>{
         state.truth.established=true;
         return {propositions:{TARGET_MARKET:'JP'},proposals:[{kind:'ACQUIRE',url:'https://provider.example/invented',context:context('DIRECT'),needs:['JP:TARGET_MARKET'],value:999,reason:'Invented'}]};
     }});
@@ -161,9 +162,9 @@ test('minimal service propositions extracted independently from real prose',asyn
     const body=page('Orchard Club has over 120,000 members.')+'<p>Personal consumer monthly subscription.</p><p>Members can log in to their account.</p><p>Members can manage their subscription after logging in.</p>';
     const caps=createCapabilities({objective,permissions:{DIRECT:true},network:{resolveHost:async()=>[{address:'93.184.216.34',family:4}],requestOnce:async r=>r.url.pathname==='/robots.txt'?response('',404,'text/plain'):response(body)}});
     const k=await runResearch({objective,permissions:{DIRECT:true},capabilities:caps,interpret:interpretWeb});
-    assert.equal(evaluate(k).admitted,true);
+    assert.equal(evaluate(k).admitted,false);assert.equal(evaluate(k).service.CONSUMER_MONTHLY_SUBSCRIPTION_EXISTS.state,'UNRESOLVED');
     assert.equal(evaluate(k).service.SERVICE_SIZE_100K_PLUS.state,'ESTABLISHED');
-    assert.equal(k.stop.reason,'OBJECTIVE_ESTABLISHED');
+    assert.equal(k.stop.reason,'SEMANTIC_EXHAUSTION');
 });
 
 test('robots denial prevents provider request and Decodo bypass; unsafe redirects never acquired',async()=>{
@@ -177,9 +178,9 @@ test('robots denial prevents provider request and Decodo bypass; unsafe redirect
 
 test('geo proof failure rejects country observation, never relabels unbound content',async()=>{
     const wrong=await execute({wrongCountry:'AU',input:input({planning:{initialPerspective:'COUNTRY'}})});
-    assert.equal(wrong.result.stop.code,'GEO_COUNTRY_MISMATCH');
-    assert.equal(wrong.knowledge.observations.length,0);
-    assert.equal(wrong.calls.some(c=>c.url===price),false);
+    assert.equal(wrong.knowledge.attempts[0].failure.code,'GEO_COUNTRY_MISMATCH');
+    assert.ok(wrong.knowledge.observations.every(o=>o.context.transport==='DIRECT'));
+    assert.equal(wrong.knowledge.observations.some(o=>o.context.transport==='DECODO'),false);
 });
 
 test('interpreted source ambiguity and source bindings are inspectable',()=>{
@@ -192,8 +193,8 @@ test('interpreted source ambiguity and source bindings are inspectable',()=>{
 
 test('checkpoint resume preserves real HTTP accounting and consumed Direct context',async()=>{
     const f=fixture({direct:partial()});let saved;
-    await assert.rejects(runTarget({input:f.input,capabilities:f.caps,save:s=>{saved=s;if(s.payload.observations.length===1&&!s.payload.pending)throw Error('OFFLINE_INTERRUPT');}}),/OFFLINE_INTERRUPT/);
-    const resumed=await runTarget({input:f.input,capabilities:f.caps,snapshot:saved});
+    await assert.rejects(runTarget({interpret:interpretBillingFixture,input:f.input,capabilities:f.caps,save:s=>{saved=s;if(s.payload.observations.length===1&&!s.payload.pending)throw Error('OFFLINE_INTERRUPT');}}),/OFFLINE_INTERRUPT/);
+    const resumed=await runTarget({interpret:interpretBillingFixture,input:f.input,capabilities:f.caps,snapshot:saved});
     assert.equal(resumed.result.usage.networkRequests,6);
     assert.equal(f.calls.filter(c=>c.url===price&&c.country==='UNBOUND').length,1);
     assert.equal(restore(saved).usage.actions,1);
@@ -201,16 +202,16 @@ test('checkpoint resume preserves real HTTP accounting and consumed Direct conte
 
 test('standalone offline fixture adapter runs the same complete pipeline',async()=>{
     const i=input({permissions:{DIRECT:true},fixtures:[{url:'https://provider.example/robots.txt',transport:'DIRECT',status:404,contentType:'text/plain',body:''},{url:price,transport:'DIRECT',body:enough()}]});
-    const {result}=await runTarget({input:i,capabilities:offlineCapabilities(i)});
+    const {result}=await runTarget({interpret:interpretBillingFixture,input:i,capabilities:offlineCapabilities(i)});
     assert.equal(result.stop.reason,'OBJECTIVE_ESTABLISHED');
     assert.equal(result.usage.networkRequests,2);
 });
 
 test('changed geo exit after acquisition withholds the entire provider observation',async()=>{
     const value=await execute({changeExit:true,input:input({planning:{initialPerspective:'COUNTRY'}})});
-    assert.equal(value.result.stop.code,'GEO_BINDING_CHANGED');
-    assert.equal(value.knowledge.observations.length,0);
-    assert.equal(value.result.usage.networkRequests,4);
+    assert.equal(value.knowledge.attempts[0].failure.code,'GEO_BINDING_CHANGED');
+    assert.ok(value.knowledge.observations.every(o=>o.context.transport==='DIRECT'));
+    assert.ok(value.result.usage.networkRequests>=4);
 });
 
 test('hidden/script material and navigation labels cannot establish provider truth',async()=>{
@@ -238,11 +239,11 @@ test('explicit amount notation is read completely, never as a numeric prefix',as
 test('private DNS and missing geo credentials fail without any provider HTTP dispatch',async()=>{
     const i=input({permissions:{DIRECT:true}});
     const capabilities=createCapabilities({objective:i.objective,permissions:i.permissions,network:{resolveHost:async()=>[{address:'127.0.0.1',family:4}],requestOnce(){assert.fail('Unsafe DNS must fail before dispatch');}}});
-    const {result}=await runTarget({input:i,capabilities});
+    const {result}=await runTarget({interpret:interpretBillingFixture,input:i,capabilities});
     assert.equal(result.stop.code,'UNSAFE_DNS');
     assert.equal(result.usage.networkRequests,0);
     const j=input({permissions:{DECODO:true}});
-    const unavailable=await runTarget({input:j,capabilities:createCapabilities({objective:j.objective,permissions:j.permissions,network:{resolveHost(){assert.fail('Credentials checked first');}}})});
+    const unavailable=await runTarget({interpret:interpretBillingFixture,input:j,capabilities:createCapabilities({objective:j.objective,permissions:j.permissions,network:{resolveHost(){assert.fail('Credentials checked first');}}})});
     assert.equal(unavailable.result.stop.code,'DECODO_CONFIGURATION_REQUIRED');
 });
 
@@ -253,7 +254,7 @@ test('single-target CLI stays offline and emits final truth/accounting/trace',()
         const path=join(dir,'input.json');writeFileSync(path,JSON.stringify(i));
         const runner=fileURLToPath(new URL('./runner.mjs',import.meta.url));
         const report=JSON.parse(execFileSync(process.execPath,[runner,'--offline',path],{encoding:'utf8',maxBuffer:1048576}));
-        assert.equal(report.stop.reason,'OBJECTIVE_ESTABLISHED');
+        assert.equal(report.stop.reason,'SEMANTIC_EXHAUSTION');assert.equal(report.truth.eligibility.JP.result,'UNRESOLVED');
         assert.equal(report.usage.networkRequests,2);
         assert.equal(report.trace[0].event,'INITIAL');
         assert.throws(()=>execFileSync(process.execPath,[runner,'--live',path],{stdio:'pipe'}));

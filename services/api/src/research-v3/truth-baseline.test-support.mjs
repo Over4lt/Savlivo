@@ -1,4 +1,6 @@
-import { canonical, digest, providerBound, servicePropositions, pricePropositions } from './model.mjs';
+// Snapshot of a198a15 evaluator; original six price slots frozen below.
+const pricePropositions=['SERVICE_IDENTITY','PRICE_AMOUNT','CURRENCY','MONTHLY_CADENCE','CONSUMER_SUBSCRIPTION','TARGET_MARKET'];
+import { canonical, digest, providerBound, servicePropositions } from './model.mjs';
 import {projectObservation} from './projection.mjs';
 import {verifiedCountryContext} from './truth-contract.mjs';
 export {truthContract} from './truth-contract.mjs';

@@ -1,0 +1,10 @@
+{
+  "method": "Exact retained paragraph excerpt, wrapped in synthetic markup for portable semantic regression. Not the complete historical provider observation.",
+  "originalObservation": "c7e912cfbe1827766f0b555f849202ab3f92e26286fc57790642f3a30e14a892",
+  "originalBodySha256": "bf62c92b7797ae7c8f04b1bf22b9d5d0d9bf943e115f328fcde87f002a402b69",
+  "start": 259972,
+  "end": 260939,
+  "excerpt": "<p class=\"wp-block-paragraph\">The Proton Unlimited plan is a replacement for our previous bundles that combined Proton Mail Plus and Proton VPN Plus. It gives you access to all the paid features on <a rel=\"noreferrer noopener\" target=\"_blank\" href=\"/mail\">Proton Mail<span class=\"sr-only\">(new window)</span></a>, <a rel=\"noreferrer noopener\" target=\"_blank\" href=\"https://protonvpn.com/\">Proton VPN<span class=\"sr-only\">(new window)</span></a>, <a rel=\"noreferrer noopener\" target=\"_blank\" href=\"/calendar\">Proton Calendar<span class=\"sr-only\">(new window)</span></a>, <a rel=\"noreferrer noopener\" target=\"_blank\" href=\"/drive\">Proton Drive<span class=\"sr-only\">(new window)</span></a>, <a href=\"/pass\">Proton Pass</a>, and <a href=\"/wallet\">Proton Wallet</a> without requiring a separate subscription for each service. At <strong>9.99€ per month</strong> with a one-year subscription, it is similarly priced as our previous bundle plan but offers more features.</p>",
+  "excerptSha256": "16f5a27424c93893ab647e8ad326d10f2b2b6e686820b66bf0e493ddb655ec39",
+  "duration": "one-year subscription"
+}

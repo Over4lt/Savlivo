@@ -7,7 +7,7 @@ import {createKnowledge, checkpoint, restore, context, actionIdentity, normalize
 
 const url = 'https://provider.example/pricing';
 const objective = (extra = {}) => ({kind: 'PRICE', serviceId: 'fixture', serviceName: 'Example service', providerHosts: ['provider.example'], markets: ['JP'], seeds: [url], ...extra});
-const offer = (extra = {}) => ({id: 'standard', amount: 1400, currency: 'JPY', cadence: 'MONTHLY', consumer: true, relationship: 'SUBSCRIPTION', role: 'ORDINARY', market: 'JP', ...extra});
+const offer = (extra = {}) => ({id: 'standard', amount: 1400, currency: 'JPY', cadence: 'MONTHLY', billingCadence: 'MONTHLY', consumer: true, relationship: 'SUBSCRIPTION', role: 'ORDINARY', market: 'JP', ...extra});
 const source = (extra = {}) => ({serviceId: 'fixture', offers: [offer()], ...extra});
 const response = (action, body = source(), extra = {}) => ({url: action.url, context: action.context, outcome: 'OK', httpStatus: 200, body: JSON.stringify(body), ...extra});
 const directFirst = state => ({actionId: state.actions.find(a => a.context?.transport === 'DIRECT')?.id, reason: 'Compare the unbound provider presentation first'});
@@ -35,7 +35,7 @@ test('B: ambiguous cadence remains unknown, then grounded navigation resolves it
   assert.deepEqual(seen, [url, 'https://provider.example/terms']);
   assert.equal(k.decisions[1].needs.join(), 'JP:MONTHLY_CADENCE');
   assert.equal(k.stop.reason, 'OBJECTIVE_ESTABLISHED');
-  assert.ok(k.trace[2].remainingNeeds.includes('JP:MONTHLY_CADENCE'));
+  assert.ok(k.trace.find(t=>t.event==='OBSERVATION').remainingNeeds.includes('JP:MONTHLY_CADENCE'));
 });
 
 test('C/F: Direct HTTP 200 leaves market unknown; same destination Decodo JP resolves only remaining need', async () => {
@@ -107,7 +107,7 @@ test('I: action and planner bounds are capacity, not semantic exhaustion', async
 test('J: invalid price semantics never establish an ordinary monthly target price', async t => {
   const cases = {
     annualDivided: {cadence: 'MONTHLY', amountDerivation: 'ANNUAL_DIVIDED_BY_12'},
-    annual: {cadence: 'YEARLY'}, benefit: {role: 'BENEFIT'}, credit: {role: 'CREDIT'}, discount: {role: 'DISCOUNT'},
+    annual: {cadence: 'YEARLY', billingCadence: 'YEARLY'}, benefit: {role: 'BENEFIT'}, credit: {role: 'CREDIT'}, discount: {role: 'DISCOUNT'},
     installment: {amountDerivation: 'INSTALLMENT_ARITHMETIC'}, installmentRelationship: {relationship: 'INSTALLMENT'},
     trial: {role: 'TRIAL'}, zero: {amount: 0}, cadenceAmbiguous: {cadence: null},
     wrongMarket: {market: 'AU'}, currencyAmbiguous: {currency: '$'}, nonConsumer: {consumer: false}
@@ -133,7 +133,7 @@ test('K: minimal independent service admission; missing evidence is not contradi
     assert.equal(evaluate(k).admitted, false);
     assert.ok(evaluate(k).needs.every(n => n.state === 'UNRESOLVED'));
   }
-  for (const fields of [{cadence: 'YEARLY'}, {cadence: null}, {amountDerivation: 'ANNUAL_DIVIDED_BY_12'}, {role: 'TRIAL'}]) {
+  for (const fields of [{cadence: 'YEARLY', billingCadence: 'YEARLY'}, {cadence: null,billingCadence:'UNKNOWN'}, {billingCadence:'UNKNOWN',amountDerivation: 'ANNUAL_DIVIDED_BY_12'}, {role: 'TRIAL',billingCadence:'UNKNOWN'}]) {
     const k = await runResearch({...settings, capabilities: {DIRECT: a => response(a, {...full, offers: [offer(fields)]})}});
     assert.equal(evaluate(k).service.CONSUMER_MONTHLY_SUBSCRIPTION_EXISTS.state, 'UNRESOLVED');
   }
@@ -236,7 +236,7 @@ test('navigation/destination/bytes bounds stay explicit; context receipt must ma
 test('V3 production modules import no V2, network, filesystem or Operations modules', () => {
   for (const file of ['model.mjs', 'truth.mjs', 'engine.mjs', 'source.mjs', 'semantic.mjs', 'translation.mjs', 'evidence.mjs', 'projection.mjs', 'truth-contract.mjs', 'semantic-units.mjs', 'semantic-wire.mjs', 'service-association.mjs', 'currency-sources.mjs', 'market-currencies.mjs', 'discovery.mjs', 'discovery-authority.mjs', 'provider-states.mjs']) {
     const contents = readFileSync(new URL(file, import.meta.url), 'utf8');
-    for (const match of contents.matchAll(/from ['"]([^'"]+)['"]/g)) assert.ok(['node:crypto', './acquisition-contract.mjs', './model.mjs', './truth.mjs', './source.mjs', './semantic.mjs', './translation.mjs', './evidence.mjs', './projection.mjs', './truth-contract.mjs', './semantic-units.mjs', './semantic-wire.mjs', './service-association.mjs', './currency-sources.mjs', './market-currencies.mjs', './discovery.mjs', './discovery-authority.mjs', './provider-states.mjs'].includes(match[1]), match[1]);
+    for (const match of contents.matchAll(/from ['"]([^'"]+)['"]/g)) assert.ok(['node:crypto', './working-model.mjs', './numeric-source.mjs', './acquisition-contract.mjs', './model.mjs', './truth.mjs', './source.mjs', './semantic.mjs', './translation.mjs', './evidence.mjs', './projection.mjs', './truth-contract.mjs', './semantic-units.mjs', './semantic-wire.mjs', './service-association.mjs', './currency-sources.mjs', './market-currencies.mjs', './discovery.mjs', './discovery-authority.mjs', './provider-states.mjs'].includes(match[1]), match[1]);
     assert.doesNotMatch(contents, /\b(?:fetch|eval)\s*\(|import\s*\(/);
   }
   assert.ok(readdirSync(new URL('.', import.meta.url)).includes('engine.mjs'));

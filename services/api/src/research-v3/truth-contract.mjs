@@ -1,6 +1,7 @@
 // Truth is deterministic; source understanding is not a truth decision.
 export const truthContract=Object.freeze({
-    version:1,
+    version:2,
+    monthlyEligibility:"Actual source-supported monthly billing is required; display cadence and commitment are independent. Explicit complete non-monthly choices establish ineligibility; absence remains unresolved.",
     ESTABLISHED:'A sufficient explicit fact in authoritative, source-bound provider evidence, including its required semantic relationships/context; one observation may suffice.',
     UNRESOLVED:'No sufficient explicit supporting or incompatible authoritative fact. Missing, ambiguous, failed or unsupported understanding is not contradiction.',
     CONTRADICTED:'Actual incompatible authoritative facts for the same proposition/offer/context, or an explicit fact incompatible with the proposition semantics.',

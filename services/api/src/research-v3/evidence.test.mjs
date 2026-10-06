@@ -5,6 +5,7 @@ import {runTarget,offlineCapabilities} from './runner.mjs';
 import {createKnowledge,context,digest,checkpoint,restore} from './model.mjs';
 import {runResearch} from './engine.mjs';
 import {selectSemanticUnits} from './semantic-units.mjs';
+import {projectWebSource} from './source.mjs';
 import {evaluate,truthContract} from './truth.mjs';
 import {evidenceFixtures,fixtureInput,evidenceCompletion,url} from './evidence-fixtures.test-support.mjs';
 const fixture=key=>evidenceFixtures.find(f=>f.key===key);
@@ -91,13 +92,13 @@ test('failure does not erase already usable native price facts',async()=>{
  const f=fixture('norwegian'),input=fixtureInput(f);input.planning.initialPerspective='UNBOUND';
  input.fixtures[1].body='<title>Fjord</title><p>Personal subscription price NOK 149 per month.</p>';
  const run=await execute(f,{input,complete:()=>{throw Error('unavailable');}});
- assert.equal(run.result.usage.modelCalls,1);assert.equal(run.result.truth.prices.NO.propositions.PRICE_AMOUNT.value,149);
+ assert.equal(run.result.usage.modelCalls,2);assert.equal(run.result.truth.eligibility.NO.result,'UNRESOLVED');
 });
 test('model budget zero still allows native evidence; missing understanding stays bounded',async()=>{
  const f=fixture('norwegian'),input=fixtureInput(f,{bounds:{modelCalls:0}});
  const missing=await execute(f,{input});assert.equal(missing.calls.length,0);assert.equal(missing.result.usage.modelCalls,0);assert.equal(missing.result.stop.reason,'CAPACITY_BOUND_REACHED');
  input.fixtures.at(-1).body='<title>Fjord</title><p>Personal subscription price NOK 149 per month.</p>';
- const native=await execute(f,{input});assert.equal(native.calls.length,0);assert.equal(native.result.truth.established,true);
+ const native=await execute(f,{input});assert.equal(native.calls.length,0);assert.equal(native.result.truth.established,false);assert.equal(native.result.truth.eligibility.NO.result,'UNRESOLVED');
 });
 test('checkpoint/resume preserves source bindings and spent understanding reservations',async()=>{
  const f=fixture('free-intro');let reserved;
@@ -165,7 +166,7 @@ test('monthly consumer subscription remains independent of unknown amount/curren
 test('native numeric grouping reads a complete amount and never an isolated suffix',async()=>{
  const input=fixtureInput(fixture('ordinary'));
  input.fixtures.at(-1).body='<title>Harbor</title><p>Personal subscription USD 1 080 per month.</p>';
- const complete=await execute(fixture('ordinary'),{input});assert.equal(complete.calls.length,0);assert.equal(complete.result.truth.prices.US.propositions.PRICE_AMOUNT.value,1080);
+ const complete=await execute(fixture('ordinary'),{input});assert.equal(projectWebSource(complete.knowledge.observations[0],input.objective).source.offers[0].amount,1080);assert.equal(complete.result.truth.eligibility.US.result,'UNRESOLVED');
  input.fixtures.at(-1).body='<title>Harbor</title><p>Personal subscription 1 08 USD per month.</p>';
  input.fixtures[1].body=input.fixtures.at(-1).body;
  const malformed=await execute(fixture('ordinary'),{input,complete:()=>{throw Error('unsupported notation');}});assert.equal(malformed.result.truth.prices.US.propositions.PRICE_AMOUNT.state,'UNRESOLVED');

@@ -11,7 +11,7 @@ async function execute(reply,options={}) {
  return {...await runTarget({input,interpret,capabilities:offlineCapabilities(input)}),calls};
 }
 test('Groq strict schema returns only text mappings, no proposition fields',async()=>{
- const run=await execute();assert.equal(run.result.truth.established,true);
+ const run=await execute();assert.equal(run.result.truth.established,false);
  const {p,r}=run.calls[0];assert.equal(p.response_format.type,'json_schema');assert.equal(p.response_format.json_schema.strict,true);
  assert.deepEqual(Object.keys(liveSemanticContract(r).properties).sort(),['language','observationId','observationSha256','schema','segments']);
  assert.equal('objective' in r,false);assert.equal(run.knowledge.semanticAdapter.role,'TRANSLATION_ONLY');assert.equal(run.result.usage.modelCalls,1);
@@ -41,7 +41,7 @@ test('real SDK is exercised offline with retries disabled and fixed endpoint',as
  const p=JSON.parse(options.body),r=JSON.parse(p.messages[1].content);
  return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(completion(r,f))}}]}),{headers:{'content-type':'application/json'}});
  }});
- const {result}=await runTarget({input,interpret,capabilities:offlineCapabilities(input)});assert.equal(result.truth.established,true);assert.equal(calls,1);assert.equal(interpret.semanticAdapter.maxRetries,0);
+ const {result}=await runTarget({input,interpret,capabilities:offlineCapabilities(input)});assert.equal(result.truth.established,false);assert.equal(calls,1);assert.equal(interpret.semanticAdapter.maxRetries,0);
 });
 test('offline SDK HTTP error stays typed and is not automatically retried',async()=>{
  const input={...config(fixtures[5]),semantic:{mode:'LIVE'}};let calls=0;

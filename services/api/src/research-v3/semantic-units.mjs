@@ -3,7 +3,7 @@ import {digest} from './model.mjs';
 import {selectedStateContext} from './provider-states.mjs';
 import {semanticMaterial,semanticDestinations,projectWebSource} from './source.mjs';
 export const semanticUnitLimits=Object.freeze({units:4,presentations:16,segments:64,sourceBytes:4096,sourceCharacters:4096,requestBytes:8192,modelCallsPerAction:4,destinations:16});
-const money=s=>/\p{Sc}\s*\p{N}|\p{N}[\p{N}.,\s]*\p{Sc}|\b[A-Z]{3}\s*\d|\d[\d.,\s]*\s*[A-Z]{3}\b/u.test(s);
+const money=s=>/\p{Sc}\s*\p{N}|\p{N}[\p{N}.,\s]*\p{Sc}|\b[A-Z]{3}\s*\p{N}|\p{N}[\p{N}.,\s]*\s*[A-Z]{3}\b/u.test(s);
 const inside=(s,p)=>s.start>=p.start&&s.end<=p.end;
 export function materialForUnit(o,unit) {
     const all=semanticMaterial(o);
@@ -24,16 +24,18 @@ export function selectSemanticPlan(o,objective,needs) {
     const all=semanticMaterial(o);if(all.limited)return {units:[],capacityHit:true,reason:'MATERIAL_BOUND'};
     const native=projectWebSource(o,objective),identity=native.bindings['/serviceId'];
     const identitySpans=all.segments.filter(s=>identity&&inside(s,identity)).map(({start,end})=>({start,end}));
-    const wanted=needs??(objective.kind==='PRICE'?['PRICE_AMOUNT','CURRENCY','MONTHLY_CADENCE','CONSUMER_SUBSCRIPTION','TARGET_MARKET','SERVICE_IDENTITY']:['SERVICE_IDENTITY','SERVICE_SIZE_100K_PLUS','ACCOUNT_LOGIN_EXISTS','MEMBERSHIP_MANAGEMENT_EXISTS']);
+    const wanted=needs??(objective.kind==='PRICE'?['PRICE_AMOUNT','CURRENCY','MONTHLY_CADENCE','MONTHLY_SUBSCRIPTION','CONSUMER_SUBSCRIPTION','TARGET_MARKET','SERVICE_IDENTITY']:['SERVICE_IDENTITY','SERVICE_SIZE_100K_PLUS','ACCOUNT_LOGIN_EXISTS','MEMBERSHIP_MANAGEMENT_EXISTS']);
     const pricing=wanted.some(n=>/PRICE|CURRENCY|CADENCE|SUBSCRIPTION|MARKET/.test(n));
     const account=wanted.some(n=>/ACCOUNT|MANAGEMENT|CANCELLATION/.test(n));
     const destinations=semanticDestinations(o);
-    const anchors=all.segments.filter(s=>(pricing&&money(s.text))||(account&&destinations.some(d=>inside(s,d)))||(wanted.includes('SERVICE_SIZE_100K_PLUS')&&/\p{N}/u.test(s.text)));
+    const stateContexts=wanted.some(n=>n.includes('MONTHLY_SUBSCRIPTION'))?selectedStateContext(o,{start:0,end:o.body.length}):[];
+    const stateSegment=s=>stateContexts.some(c=>c.spans.some(b=>s.start<=b.start&&s.end>=b.end));
+    const anchors=all.segments.filter(s=>(pricing&&money(s.text))||stateSegment(s)||(account&&destinations.some(d=>inside(s,d)))||(wanted.includes('SERVICE_SIZE_100K_PLUS')&&/\p{N}/u.test(s.text)));
     const make=(presentations,complete=false,segmentSpans=null)=>{
         const rows=all.segments.filter(s=>segmentSpans?segmentSpans.some(b=>s.start===b.start&&s.end===b.end):presentations.some(p=>inside(s,p)));
-        const hasMoney=rows.some(s=>money(s.text)),hasDestinations=destinations.some(d=>presentations.some(p=>inside(d,p)));
-        const routed=objective.kind==='PRICE'&&hasMoney?[...new Set([...wanted,'SERVICE_IDENTITY','PRICE_AMOUNT','CURRENCY','MONTHLY_CADENCE','CONSUMER_SUBSCRIPTION','TARGET_MARKET'])]:wanted;
-        const relevant=routed.filter(n=>complete||n==='SERVICE_IDENTITY'||/ACCOUNT|MANAGEMENT|CANCELLATION/.test(n)&&hasDestinations||/SIZE/.test(n)&&rows.some(s=>/\p{N}/u.test(s.text))||/PRICE|CURRENCY|CADENCE|SUBSCRIPTION|MARKET/.test(n)&&hasMoney);
+        const hasMoney=rows.some(s=>money(s.text)),hasState=rows.some(stateSegment),hasDestinations=destinations.some(d=>presentations.some(p=>inside(d,p)));
+        const routed=objective.kind==='PRICE'&&hasMoney?[...new Set([...wanted,'SERVICE_IDENTITY','PRICE_AMOUNT','CURRENCY','MONTHLY_CADENCE','MONTHLY_SUBSCRIPTION','CONSUMER_SUBSCRIPTION','TARGET_MARKET'])]:wanted;
+        const relevant=routed.filter(n=>complete||n==='SERVICE_IDENTITY'||n==='MONTHLY_SUBSCRIPTION'&&hasState||/ACCOUNT|MANAGEMENT|CANCELLATION/.test(n)&&hasDestinations||/SIZE/.test(n)&&rows.some(s=>/\p{N}/u.test(s.text))||/PRICE|CURRENCY|CADENCE|SUBSCRIPTION|MARKET/.test(n)&&hasMoney);
         if(!relevant.length)return null;
         const presentationIds=presentations.map(p=>p.id),unit={presentationIds,identitySpans,needs:relevant,...(segmentSpans?{segmentSpans}: {})};
         unit.id=digest({observation:o.id,sha256:o.sha256,...unit});

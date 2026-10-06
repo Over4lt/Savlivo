@@ -36,7 +36,7 @@ export function parseAcquisitionRobots(body) {
   }else if(key==='allow'||key==='disallow') {
    if(!group)throw fault('ROBOTS_PARSE_FAILED','ACQUISITION',{reason:'RULE_WITHOUT_GROUP',line:i+1});
    hasRules=true;
-   if(value&&!value.startsWith('/')||/\s|%(?![\da-f]{2})/i.test(value)){group.invalid??={reason:'INVALID_PATH',line:i+1};note(i+1,'MALFORMED_RULE');continue;}
+   if(value&&!value.startsWith('/')&&!value.startsWith('*')||/\s|%(?![\da-f]{2})/i.test(value)){group.invalid??={reason:'INVALID_PATH',line:i+1};note(i+1,'MALFORMED_RULE');continue;}
    if(value)group.rules.push({directive:key,path:value,line:i+1});
   }else if(key==='crawl-delay'||key==='request-rate') {
    if(!group)throw fault('ROBOTS_PARSE_FAILED','ACQUISITION',{reason:'PACING_WITHOUT_GROUP',line:i+1});

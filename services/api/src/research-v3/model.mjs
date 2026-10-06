@@ -11,7 +11,7 @@ function sort(v) {
 export const digest = value => createHash('sha256').update(typeof value === 'string' ? value : canonical(value)).digest('hex');
 export const states = Object.freeze({ ESTABLISHED: 'ESTABLISHED', UNRESOLVED: 'UNRESOLVED', CONTRADICTED: 'CONTRADICTED' });
 export const servicePropositions = Object.freeze(['SERVICE_IDENTITY', 'SERVICE_SIZE_100K_PLUS', 'CONSUMER_MONTHLY_SUBSCRIPTION_EXISTS', 'ACCOUNT_LOGIN_EXISTS', 'MEMBERSHIP_MANAGEMENT_EXISTS']);
-export const pricePropositions = Object.freeze(['SERVICE_IDENTITY', 'PRICE_AMOUNT', 'CURRENCY', 'MONTHLY_CADENCE', 'CONSUMER_SUBSCRIPTION', 'TARGET_MARKET']);
+export const pricePropositions = Object.freeze(['SERVICE_IDENTITY', 'PRICE_AMOUNT', 'CURRENCY', 'MONTHLY_CADENCE', 'MONTHLY_SUBSCRIPTION', 'CONSUMER_SUBSCRIPTION', 'TARGET_MARKET']);
 export const defaultBounds = Object.freeze({ actions: 20, searches: 4, acquisitions: 12, countryAcquisitions: 8, navigationDepth: 4, candidateDestinations: 128, sitemapAcquisitions: 4, discoveryProvenance: 8, bytes: acquisitionCapacity.objectiveWireBytes, decodedBytes: acquisitionCapacity.objectiveDecodedBytes, acquisitionMs: acquisitionCapacity.objectiveAcquisitionMs, observationsPerContext: 1, observationsPerDestination: 3, plannerCalls: 24, networkRequests: 96, modelCalls: 12 });
 export function normalizeUrl(value, base) {
     try {
