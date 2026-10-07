@@ -69,8 +69,9 @@ export function extractNavigation(o,objective,needs) {
                         if(!v||typeof v!=='object')return;
                         const types=Array.isArray(v['@type'])?v['@type']:[v['@type']];
                         const local=navigation||types.includes('SiteNavigationElement');
+                        const stateCollection=/\/(?:states|variants|options|choices)\/\d+$/.test(pointer);
                         const destination=v.url??v.href;
-                        if(local&&typeof destination==='string')add(destination,'STRUCTURED_NAVIGATION',m.index,close?end.lastIndex:stop,{pointer,label:label(String(v.name??v.label??''))});
+                        if((local||stateCollection)&&typeof destination==='string')add(destination,stateCollection?'PROVIDER_STATE':'STRUCTURED_NAVIGATION',m.index,close?end.lastIndex:stop,{pointer,label:label(String(v.name??v.label??'')),...(stateCollection?{state:{group:'metadata-'+digest([o.id,pointer.replace(/\/\d+$/,'')]).slice(0,24),variant:pointer,selected:v.selected===true,observation:o.id,bodySha256:o.sha256}}:{})});
                         for(const [k,x]of Object.entries(v)){if(count>=discoveryCapacity.jsonNodes)break;walk(x,pointer+'/'+k.replaceAll('~','~0').replaceAll('/','~1'),depth+1,local||['navigation','menu','links'].includes(k));}
                     };walk(data,'',0);
                 }catch{/* Malformed inert metadata is not navigation evidence. */}

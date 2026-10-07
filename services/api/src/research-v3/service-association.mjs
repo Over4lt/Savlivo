@@ -12,7 +12,9 @@ export function observationService(o,objective) {
 export function associateService(o,objective,p,semantic) {
  const known=observationService(o,objective),all=semanticMaterial(o),original=all.presentations.find(x=>x.id===p?.id),ancestry=original?[...original.ancestry,original]:[];
  const blocked=ancestry.some(a=>['nav','footer','aside','header'].includes(a.tag)||['navigation','contentinfo','complementary','banner'].includes(a.role)||['isRelatedTo','isAccessoryOrSparePartFor','isSimilarTo','hasPart'].includes(a.itemProp));
- const primary=ancestry.some(a=>a.tag==='main'||a.role==='main');
+ const headingIdentity=all.presentations.filter(h=>['h1','h2'].includes(h.tag)&&normalize(all.segments.filter(s=>s.start>=h.start&&s.end<=h.end).map(s=>s.text).join(' '))===normalize(objective.serviceName)&&!h.ancestry.some(a=>['nav','header','footer','aside'].includes(a.tag)));
+ const identityScope=ancestry.some(a=>!['html','body','head'].includes(a.tag)&&headingIdentity.some(h=>h.start>=a.start&&h.end<=a.end));
+ const primary=identityScope||ancestry.some(a=>a.tag==='main'||a.role==='main');
  const identities=all.presentations.filter(x=>x.itemProp==='name'&&x.ancestry.some(a=>/(?:^|\/)(?:Product|Service|SoftwareApplication)$/.test(a.itemType??''))).map(x=>({presentation:x.id,start:x.start,end:x.end,name:all.segments.filter(s=>s.start>=x.start&&s.end<=x.end).map(s=>s.text).join(' ').trim()}));
  const typed=ancestry.filter(a=>/(?:^|\/)(?:Product|Service|SoftwareApplication)$/.test(a.itemType??''));
  const scoped=typed.length?identities.filter(n=>{const node=all.presentations.find(x=>x.id===n.presentation);return node.ancestry.some(a=>a.start===typed.at(-1).start);}):identities;

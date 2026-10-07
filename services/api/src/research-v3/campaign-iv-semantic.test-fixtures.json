@@ -1,0 +1,206 @@
+[
+  {
+    "case": 2,
+    "observation": "0529c7ba62e4a5ea39791a024394bd79b23919965ece05d3ff5414fd6cdcabba",
+    "sha256": "4015b5c838c062c18ddb5e11afd99469685942ea7db179690cd9ff36773e157d",
+    "quotes": [
+      {
+        "start": 260337,
+        "end": 260505,
+        "quote": "The Proton Unlimited plan is a replacement for our previous bundles that combined Proton Mail Plus and Proton VPN Plus. It gives you access to all the paid features on "
+      },
+      {
+        "start": 260563,
+        "end": 260574,
+        "quote": "Proton Mail"
+      },
+      {
+        "start": 260596,
+        "end": 260608,
+        "quote": "(new window)"
+      },
+      {
+        "start": 260619,
+        "end": 260621,
+        "quote": ", "
+      },
+      {
+        "start": 260696,
+        "end": 260706,
+        "quote": "Proton VPN"
+      },
+      {
+        "start": 260728,
+        "end": 260740,
+        "quote": "(new window)"
+      },
+      {
+        "start": 260751,
+        "end": 260753,
+        "quote": ", "
+      },
+      {
+        "start": 260815,
+        "end": 260830,
+        "quote": "Proton Calendar"
+      },
+      {
+        "start": 260852,
+        "end": 260864,
+        "quote": "(new window)"
+      },
+      {
+        "start": 260875,
+        "end": 260877,
+        "quote": ", "
+      },
+      {
+        "start": 260936,
+        "end": 260948,
+        "quote": "Proton Drive"
+      },
+      {
+        "start": 260970,
+        "end": 260982,
+        "quote": "(new window)"
+      },
+      {
+        "start": 260993,
+        "end": 260995,
+        "quote": ", "
+      },
+      {
+        "start": 261011,
+        "end": 261022,
+        "quote": "Proton Pass"
+      },
+      {
+        "start": 261026,
+        "end": 261032,
+        "quote": ", and "
+      },
+      {
+        "start": 261050,
+        "end": 261063,
+        "quote": "Proton Wallet"
+      },
+      {
+        "start": 261067,
+        "end": 261131,
+        "quote": " without requiring a separate subscription for each service. At "
+      },
+      {
+        "start": 261139,
+        "end": 261154,
+        "quote": "9.99€ per month"
+      },
+      {
+        "start": 261163,
+        "end": 261270,
+        "quote": " with a one-year subscription, it is similarly priced as our previous bundle plan but offers more features."
+      }
+    ],
+    "note": "Exact retained supporting quotations, compacted markup fixture; not a full HTTP replay."
+  },
+  {
+    "case": 4,
+    "observation": "00564cafd0c2bcae8d3f5bfe8737376933f885b143340d81a17703a30293232d",
+    "sha256": "1ebc11fccb6e0e2ea9dff51b1e962d7e2840a936d55f614261825393b3beabc3",
+    "quotes": [
+      {
+        "start": 73,
+        "end": 122,
+        "quote": "Pakiety AI od Google z Cloud Storage – Google One"
+      },
+      {
+        "start": 39908,
+        "end": 39999,
+        "quote": "10 USD USD miesięcznie w postaci środków Google Cloud w programie Google Developer Program."
+      }
+    ],
+    "note": "Exact retained supporting quotations, compacted markup fixture; not a full HTTP replay."
+  },
+  {
+    "case": 10,
+    "observation": "1051e3fe3e7936cb6e87a8cd283f1c426f91b2a0f7680dc4493d7d0c7d76892b",
+    "sha256": "8cef00f629788c058885387edcb7b79d24c1c9c7f6927cd0899a2ee812b2feef",
+    "quotes": [
+      {
+        "start": 162915,
+        "end": 162925,
+        "quote": "Today Only"
+      },
+      {
+        "start": 162987,
+        "end": 163007,
+        "quote": "Start your extended "
+      },
+      {
+        "start": 163012,
+        "end": 163047,
+        "quote": " 30-day free trial of Calm Premium."
+      },
+      {
+        "start": 163153,
+        "end": 163183,
+        "quote": "No commitment. Cancel anytime."
+      },
+      {
+        "start": 163349,
+        "end": 163363,
+        "quote": "Cost per Month"
+      },
+      {
+        "start": 163371,
+        "end": 163372,
+        "quote": "*"
+      },
+      {
+        "start": 163383,
+        "end": 163389,
+        "quote": "₩4,917"
+      },
+      {
+        "start": 163514,
+        "end": 163525,
+        "quote": "7-day Trial"
+      },
+      {
+        "start": 163530,
+        "end": 163534,
+        "quote": "FREE"
+      },
+      {
+        "start": 163666,
+        "end": 163681,
+        "quote": "Total due today"
+      },
+      {
+        "start": 163692,
+        "end": 163694,
+        "quote": "₩0"
+      },
+      {
+        "start": 163867,
+        "end": 163868,
+        "quote": "*"
+      },
+      {
+        "start": 163875,
+        "end": 163976,
+        "quote": "After your offer ends, you will be automatically billed for Calm Premium at ₩59,000 + applicable tax."
+      },
+      {
+        "start": 164160,
+        "end": 164175,
+        "quote": "Payment details"
+      },
+      {
+        "start": 164327,
+        "end": 164335,
+        "quote": "Why now?"
+      }
+    ],
+    "note": "Exact retained supporting quotations, compacted markup fixture; not a full HTTP replay."
+  }
+]

@@ -24,7 +24,7 @@ for(const f of evidenceFixtures)test('compact wire '+f.key+' '+f.language+' reta
 test('real SDK offline oracle reconstructs provenance locally; model emits no hashes or offsets',async()=>{
  const run=await liveMock(oracle,x=>x,{sdk:true}),{r,p}=run.calls[0];assert.equal(run.calls.length,1);assert.equal(run.result.truth.established,true);
  const text=p.messages[1].content;for(const field of ['sha256','observationId','observationSha256','start','end','quote','amountSpan'])assert.equal(text.includes('"'+field+'"'),false);
- assert.equal(p.response_format.json_schema.name,'v3_semantic_unit_v5');assert.ok(Buffer.byteLength(JSON.stringify(p))<24576);
+ assert.equal(p.response_format.json_schema.name,'v3_semantic_unit_v6');assert.ok(Buffer.byteLength(JSON.stringify(p))<24576);
  const o=run.knowledge.observations[0],e=o.evidence.envelope;assert.equal(e.observationId,o.id);assert.equal(e.observationSha256,o.sha256);
  assert.equal(e.offers[0].charges[0].money.amount,0);assert.equal(e.offers[0].charges[0].role,'INTRODUCTORY');assert.equal(e.offers[0].charges[1].money.amount,1080);assert.equal(e.offers[0].charges[1].role,'ORDINARY');assert.equal(e.offers[0].transitions[0].kind,'RECURS_AFTER_INTRO');
  assert.ok(e.offers[0].charges[1].support.every(s=>o.body.slice(s.start,s.end)===s.quote));assert.equal(evaluate(restore(checkpoint(run.knowledge))).prices.JP.propositions.PRICE_AMOUNT.value,1080);

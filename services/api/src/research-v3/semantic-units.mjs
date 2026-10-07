@@ -1,8 +1,8 @@
 // Deterministic routing only. Signals do not establish source semantics or truth.
 import {digest} from './model.mjs';
-import {selectedStateContext} from './provider-states.mjs';
+import {selectedStateContext,providerStates} from './provider-states.mjs';
 import {semanticMaterial,semanticDestinations,projectWebSource} from './source.mjs';
-export const semanticUnitLimits=Object.freeze({units:4,presentations:16,segments:64,sourceBytes:4096,sourceCharacters:4096,requestBytes:8192,modelCallsPerAction:4,destinations:16});
+export const semanticUnitLimits=Object.freeze({units:4,preparedCandidates:16,presentations:16,segments:64,sourceBytes:4096,sourceCharacters:4096,requestBytes:8192,modelCallsPerAction:4,destinations:16});
 const money=s=>/\p{Sc}\s*\p{N}|\p{N}[\p{N}.,\s]*\p{Sc}|\b[A-Z]{3}\s*\p{N}|\p{N}[\p{N}.,\s]*\s*[A-Z]{3}\b/u.test(s);
 const inside=(s,p)=>s.start>=p.start&&s.end<=p.end;
 export function materialForUnit(o,unit) {
@@ -17,7 +17,7 @@ export function materialForUnit(o,unit) {
     const identity={observation:o.id,sha256:o.sha256,presentationIds:unit.presentationIds,identitySpans:unit.identitySpans,needs:unit.needs,...(unit.segmentSpans?{segmentSpans:unit.segmentSpans}:{} )};
     if(unit.id!==digest(identity))throw Error('EVIDENCE_UNIT_INVALID');
     const destinations=semanticDestinations(o).filter(d=>presentations.some(p=>inside(d,p))).slice(0,semanticUnitLimits.destinations);
-    const contexts=[...new Map(presentations.flatMap(p=>selectedStateContext(o,p)).map(c=>[c.variant,c])).values()].filter(c=>c.spans.some(b=>segments.some(s=>s.start<=b.start&&s.end>=b.end)));
+    const contexts=providerStates(o).groups.filter(g=>g.scope&&presentations.some(p=>p.start<=g.scope.end&&p.end>=g.scope.start)).flatMap(g=>g.variants.filter(v=>v.selected&&v.submission!=='OMIT').map(v=>({group:g.id,variant:v.id,scope:g.scope,source:v.source,spans:v.labelSpans}))).slice(0,16).filter(c=>c.spans.some(b=>segments.some(s=>s.start<=b.start&&s.end>=b.end)));
     return {segments,presentations,limited:false,destinations,...(contexts.length?{contexts}: {})};
 }
 export function selectSemanticPlan(o,objective,needs) {
@@ -29,11 +29,12 @@ export function selectSemanticPlan(o,objective,needs) {
     const account=wanted.some(n=>/ACCOUNT|MANAGEMENT|CANCELLATION/.test(n));
     const destinations=semanticDestinations(o);
     const stateContexts=wanted.some(n=>n.includes('MONTHLY_SUBSCRIPTION'))?selectedStateContext(o,{start:0,end:o.body.length}):[];
+    const structuredPrice=s=>all.presentations.some(p=>p.tag==='script-data'&&inside(s,p)&&['Offer','AggregateOffer','UnitPriceSpecification','Product','Service'].includes(p.itemType));
     const stateSegment=s=>stateContexts.some(c=>c.spans.some(b=>s.start<=b.start&&s.end>=b.end));
-    const anchors=all.segments.filter(s=>(pricing&&money(s.text))||stateSegment(s)||(account&&destinations.some(d=>inside(s,d)))||(wanted.includes('SERVICE_SIZE_100K_PLUS')&&/\p{N}/u.test(s.text)));
+    const anchors=all.segments.filter(s=>(pricing&&(money(s.text)||structuredPrice(s)))||stateSegment(s)||(account&&destinations.some(d=>inside(s,d)))||(wanted.includes('SERVICE_SIZE_100K_PLUS')&&/\p{N}/u.test(s.text)));
     const make=(presentations,complete=false,segmentSpans=null)=>{
         const rows=all.segments.filter(s=>segmentSpans?segmentSpans.some(b=>s.start===b.start&&s.end===b.end):presentations.some(p=>inside(s,p)));
-        const hasMoney=rows.some(s=>money(s.text)),hasState=rows.some(stateSegment),hasDestinations=destinations.some(d=>presentations.some(p=>inside(d,p)));
+        const hasMoney=rows.some(s=>money(s.text)||structuredPrice(s)),hasState=rows.some(stateSegment),hasDestinations=destinations.some(d=>presentations.some(p=>inside(d,p)));
         const routed=objective.kind==='PRICE'&&hasMoney?[...new Set([...wanted,'SERVICE_IDENTITY','PRICE_AMOUNT','CURRENCY','MONTHLY_CADENCE','MONTHLY_SUBSCRIPTION','CONSUMER_SUBSCRIPTION','TARGET_MARKET'])]:wanted;
         const relevant=routed.filter(n=>complete||n==='SERVICE_IDENTITY'||n==='MONTHLY_SUBSCRIPTION'&&hasState||/ACCOUNT|MANAGEMENT|CANCELLATION/.test(n)&&hasDestinations||/SIZE/.test(n)&&rows.some(s=>/\p{N}/u.test(s.text))||/PRICE|CURRENCY|CADENCE|SUBSCRIPTION|MARKET/.test(n)&&hasMoney);
         if(!relevant.length)return null;
@@ -51,7 +52,7 @@ export function selectSemanticPlan(o,objective,needs) {
         let found=false;
         for(const parent of enclosing) {
             const members=all.presentations.filter(p=>inside(p,parent));
-            let unit=make(members);
+            let unit=make(members.length>semanticUnitLimits.presentations?[parent]:members);
             const context=selectedStateContext(o,parent);
             if(context.length){
                 const scopes=context.map(c=>c.scope),container=all.presentations.filter(p=>scopes.every(b=>p.start<=b.start&&p.end>=b.end)).sort((a,b)=>(a.end-a.start)-(b.end-b.start))[0];
@@ -63,10 +64,10 @@ export function selectSemanticPlan(o,objective,needs) {
         }
         if(!found)oversized++;
     }
-    const unique=[...new Map(candidates.map(c=>[c.unit.id,c])).values()].sort((a,b)=>a.parent.start-b.parent.start);
+    const unique=[...new Map(candidates.map(c=>[c.unit.id,c])).values()].sort((a,b)=>Number(a.parent.tag==='script-data')-Number(b.parent.tag==='script-data')||a.parent.start-b.parent.start);
     const chosen=[];
     for(const c of unique)if(!chosen.some(old=>inside(c.parent,old.parent)))chosen.push(c);
-    return {units:chosen.slice(0,semanticUnitLimits.units).map(c=>c.unit),capacityHit:oversized>0||chosen.length>semanticUnitLimits.units,reason:oversized?'INDIVISIBLE_PRESENTATION_BOUND':chosen.length>semanticUnitLimits.units?'UNIT_COUNT_BOUND':'LOCAL_STRUCTURAL_CANDIDATES'};
+    return {candidates:chosen.slice(0,semanticUnitLimits.preparedCandidates).map(c=>c.unit),units:chosen.slice(0,semanticUnitLimits.units).map(c=>c.unit),capacityHit:oversized>0||chosen.length>semanticUnitLimits.units,reason:oversized?'INDIVISIBLE_PRESENTATION_BOUND':chosen.length>semanticUnitLimits.units?'UNIT_COUNT_BOUND':'LOCAL_STRUCTURAL_CANDIDATES'};
 }
 
 export const selectSemanticUnits=(o,objective,needs)=>selectSemanticPlan(o,objective,needs).units;

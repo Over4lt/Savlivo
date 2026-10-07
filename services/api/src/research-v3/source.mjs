@@ -1,4 +1,5 @@
 // Bounded deterministic HTML/text interpretation. No network, model calls or V2 policy.
+import {structuredMaterial} from './structured-material.mjs';
 import {selectedStateContext,providerStates} from './provider-states.mjs';
 import {digest, pricePropositions, servicePropositions} from './model.mjs';
 import {presentationCapacity as capacity} from './acquisition-contract.mjs';
@@ -124,7 +125,12 @@ export function nativeStateContext(s) {
     const facts=nativePresentationFacts(s);
     if(/\b(?:no|not|without)\b/i.test(s))return {purpose:'UNKNOWN',cadence:null};
     if(['BENEFIT','CREDIT'].includes(facts.role))return {purpose:'FEATURE',cadence:null};
-    if(facts.cadence&&/\b(?:billed|billing|charged|pay|payments?)\b/i.test(s))return {purpose:'BILLING',cadence:facts.cadence};
+    // Native fallback understands a payment predicate, not co-occurrence of
+    // a cost display somewhere and an unrelated billed amount elsewhere.
+    // This small optional grammar is not the multilingual semantic interpreter.
+    const linked=s.match(/\b(?:billed|billing|charged|paid|pay|payments?)\s+(?:[^.;!?\n]{0,48}?)(monthly|yearly|annually|every month|each month|per month|once per year|every year|per year)\b|\b(monthly|yearly|annual)\s+(?:billing|payments?)\b/gi)??[];
+    const cadences=[...new Set(linked.map(t=>/\b(?:monthly|every month|each month|per month)\b/i.test(t)?'MONTHLY':'YEARLY'))];
+    if(cadences.length===1)return {purpose:'BILLING',cadence:cadences[0]};
     return {purpose:'UNKNOWN',cadence:null};
 }
 function relevance(s) {
@@ -228,8 +234,14 @@ export function semanticMaterial(observation) {
     for(const g of providerStates(observation).groups)for(const v of g.variants.filter(v=>v.selected&&v.submission!=='OMIT'))for(const b of v.labelSpans)
         if(b.start>=v.source.start&&b.end<=v.source.end&&!segments.some(s=>s.start<=b.start&&s.end>=b.end))add(b.start,b.end);
     segments.sort((a,b)=>a.start-b.start||a.end-b.end);
+    const inert=observation.contentType==='text/plain'?{regions:[],limited:false}:structuredMaterial(body);
+    for(const r of inert.regions)add(r.start,r.end);
+    // Optional metadata scan exhaustion does not invalidate complete visible text.
+
+    segments.sort((a,b)=>a.start-b.start||a.end-b.end);
     const presentations=parsed.nodes.filter(n=>n.tag!=='a').slice(0,capacity.presentations).map((n,i)=>({id:'presentation-'+i,start:n.start,end:n.end,tag:n.tag,role:n.attrs.role??null,itemType:n.attrs.itemtype??null,itemProp:n.attrs.itemprop??null,ancestry:n.ancestry??[]}));
-    return {segments:segments.slice(0,capacity.segments),presentations,limited:limited||parsed.nodes.length>capacity.presentations||segments.length>capacity.segments};
+    for(const [i,r]of inert.regions.entries())presentations.push({id:'structured-'+i,start:r.start,end:r.end,tag:'script-data',role:null,itemType:r.type,itemProp:null,ancestry:[]});
+    return {segments:segments.slice(0,capacity.segments),presentations,structuredLimited:inert.limited,limited:limited||parsed.nodes.length>capacity.presentations||segments.length>capacity.segments};
 }
 
 // Structural destination provenance. Labels are routing hints, never truth.

@@ -20,7 +20,7 @@ Positive availability is supported by a source-bound ordinary consumer subscript
 
 Public price completion and eligibility do not require account/login, management or cancellation. Their existing independent proposition rules remain intact.
 
-## Source representation and admission
+## Source representation and admission (historical V5 milestone)
 
 Wire V5 adds source-reference-bound `temporal` facets to each charge:
 
@@ -128,3 +128,66 @@ The offline Spotify/Japan semantic oracle still establishes 1080 JPY/MONTHLY/JP 
 Remaining limitations: semantic interpretation can still fail or misunderstand an unfamiliar source; partial/legacy responses intentionally leave payment UNKNOWN when native structure cannot recover it. Exhausted research does not prove absence. Cross-domain provider authority needs explicit reviewed ownership. JavaScript-only pricing states cannot be invented from non-actionable controls. No browser or live provider validation was performed. A future frozen campaign should test payment/commitment distinctions, complete availability statements, unfamiliar scripts, state navigation, resource-role advice, dependency reliability and continued false-positive resistance.
 
 Pre-commit validation: **993/993**, compared with the starting **875/875**. The net 118 additional cases are offline. Preservation passes 725 historical status entries and 745 protected file hashes with explicit authorized task-file exclusions before staging.
+
+
+## Campaign IV remediation: V6 payment and monetary firewall
+
+This section supersedes V5 admission and request preparation above. The starting implementation is `cb2560111dbeccd492c1d43fd3fb1ada7da86d98` (993 tests). The approved product contract is unchanged. This milestone repairs implementation paths that did not obey actual monthly-payment eligibility; it adds no new source, account, corroboration, same-card or model-confirmation requirement.
+
+### Canonical proposition and every producer
+
+`payment-semantics.mjs` separates actual payment from a quantity's display period. WEB evidence admission uses `admitPayment` for both offer charges and positive availability. It requires an exact, valid source-bound payment relationship, or an applicable native actual-payment predicate. Bare display/commitment support and source-bound noncharge quantities cannot become payment support. A typed semantic proposal is not a confidence threshold. Linguistic interpretation remains fallible; grounding and types are safeguards, not a proof of arbitrary natural-language meaning.
+
+| Eligibility producer | Previous weakness | Current requirement |
+|---|---|---|
+| WEB positive availability | Monthly display could become availability independently of charge validation | Same `admitPayment` validator as charges; explicit ACTUAL_PAYMENT relationship or native payment support |
+| WEB ordinary offer | Temporal guard independent of availability | Canonical payment admission plus source-supported subscription-charge role |
+| Structured authoritative choice | `monthlyOffered` asserts payment availability | Explicit structured actual-payment assertion; typed payment, when present, must agree; live HTML cannot enter this path |
+| Market offer eligibility | Ordinary consumer + monthly billing | Shared `monthlyPayment`, including actual charge type |
+| Global monthly service proposition | Separate inline offer predicate | Shared `monthlyPayment` plus existing explicit derivation |
+| Monthly price proposition | Separate inline offer predicate | Shared `monthlyPayment`; amount additionally requires ordinary explicit charge |
+| Annual-only exclusion | Complete/excluding service choice | Unchanged: source-supported complete choices or explicit exclusion, never one annual card or absent evidence |
+
+Wire V6 adds `payment` (ACTUAL_PAYMENT, DISPLAY, BENEFIT, UNKNOWN, exact predicate text and sources) and `monetary` (kind, sources, related charge and relationship). Missing older fields default UNKNOWN. No URL, query, title, snippet, research state or confidence becomes a payment proposition. Structured observations are a typed authoritative adapter contract, not permission to trust discovered arbitrary JSON.
+
+Monetary kinds distinguish SUBSCRIPTION_CHARGE, INTRODUCTORY_SUBSCRIPTION_CHARGE, TRIAL_CHARGE, BENEFIT, CREDIT, ALLOWANCE, SAVINGS, DISCOUNT, EFFECTIVE_COST, NORMALIZED_COST, REFERENCE_PRICE, TAX, INSTALLMENT and UNKNOWN_MONETARY_ROLE. EQUIVALENT_OF/BENEFIT_OF/DISCOUNT_OF/REFERENCE_FOR preserve quantity relationships and prevent an equivalent/benefit from being relabeled as an ordinary charge. Monetary support must cover its own amount; unknown amounts may preserve meaning without establishing price. Exact occurrence namespaces and references remain validated. Unrelated credits do not veto a legitimate charge in the same sentence.
+
+Display cadence, payment cadence and commitment remain independent. Native selected-state recovery requires a payment predicate linked to its cadence, not an unrelated billed word somewhere on a page. Commitment never determines billing. Simple ordinary monthly charges remain sufficient without an additional selector, checkout or second source.
+
+### Material context and source roles
+
+Source-local selected-control context travels with relevant units, and admission scopes it to the charge's actual source interval. Bounded ancestor presentations may supply distributed heading, plan and billing relationships without serializing every descendant presentation. Original qualified headings can establish structural primary identity without requiring a particular `main` tag. Exact provider/service identity can compose from original title/headings and a matching offer heading; a different plan card cannot borrow that identity.
+
+Inert source-visible schema records can become bounded semantic material, including escaped JSON records in transport scripts. Original escaped bytes remain citations. No script is executed and metadata keys do not become native truth. Bounded parent records preserve related quantities; visible contextual units precede metadata. Optional metadata exhaustion does not erase the complete visible source. Non-actionable JavaScript controls still cannot invent HTTP destinations.
+
+### Deterministic research without advice
+
+Action value uses objective deficits, source-visible state relationships, information already gained, acquisition-context novelty and learned family yield. Repeated completed attempts with no objective progress reduce equivalent family value, while productive families remain usable. A payment deficit gives explicit source state transitions and related observed pricing material higher information value. Help/legal families are never globally banned. COUNTRY/DIRECT attempts remain distinct; a failed Direct request cannot eliminate Country novelty or establish market.
+
+Advisory 400 or malformed output disables optional advice for that objective; other unavailable advice receives a bounded research-only cooldown. An advisory 429 without Retry-After no longer suppresses evidence understanding. Explicit bounded provider Retry-After still applies across calls. Advisory enum schemas now include explicit string types. Historical 400 cause is not conclusively retained; no live claim of remote acceptance is made. Safe diagnostics retain category, permitted API type and sanitized request ID, never raw provider errors or credentials. All deterministic fallback tests run with advice unavailable or failing.
+
+### Request preparation and capacities
+
+Semantic preparation tests candidate units locally before reserving calls. It can skip an oversized unit and choose another bounded source unit. The SDK preparation function is shared with dispatch, so the exact final payload limit is checked before spending a model call. Fixed instructions are excluded from the inner material budget and included once in the final SDK budget.
+
+| Bound | Before | Now | Protected resource / behavior |
+|---|---:|---:|---|
+| Prepared semantic candidate units per observation | 4 | 16 | Local bounded alternatives; still at most 4 dispatchable units |
+| Dispatched units / source text / segments / presentations | 4 / 4 KiB / 64 / 16 | unchanged | No whole-page model request; ancestors may represent bounded distributed context |
+| Inner semantic request | 8 KiB including duplicated instructions/host metadata | 8 KiB material envelope | Preparation skips above-bound units; no call reservation |
+| Complete SDK request / output | 24 KiB / 32 KiB | unchanged | Finite final model resources |
+| Eligible inert scripts / bytes per script | not exposed | 32 / 256 KiB | Ignore excess optional metadata, retain visible source |
+| Metadata records / bytes per record / scanner tokens | not exposed | 256 / 4 KiB / 131,072 | Finite source-local extraction, no execution |
+| Working resources/families; hypotheses/variants; history; decisions; provenance | 128; 256; 64; 128; 8 | unchanged | Finite checkpoint-safe research |
+| Provider encoded/decoded; objective encoded/decoded | 8/16 MiB; 64/128 MiB | unchanged | Acquisition headroom preserved |
+| Actions/searches/acquisitions/country/network/model calls | 20/4/12/8/96/12 | unchanged | Better selection and preparation, not larger external budgets |
+
+### Forensic outcomes and acceptance
+
+All fourteen retained Campaign IV checkpoints were audited before source edits. Exact original bodies and original campaign results remain untouched. Re-evaluation changes Proton display-only availability, Google One credit-as-price and Calm normalized-cost-as-payment from unsound eligibility to UNRESOLVED. It does not establish annual-only. Other eleven remain unresolved. These are corrected offline evaluations, not new autonomous provider runs.
+
+The two exact Campaign IV robots denial bodies remain denials. No robots permission policy changed. Retained integrity checks cover 192 bodies, 124 quotations and 19,131 source-span hashes. Full semantic provider replays are not claimed: the portable semantic fixtures are source-exact slices wrapped in synthetic markup; original whole checkpoints are independently restored and re-evaluated.
+
+New ecosystems exercise roots, provider surfaces, GET states, crowded alternative families, multiple scripts, actual monthly charges, annual-only choices, annual commitment with monthly payment, credit/effective amounts, introductory charges, client shells and permanent advisory failure. Twenty-four identical correct evidence graphs compare against the protected approved evaluator; defective evidence paths intentionally change. All 993 baseline tests remain, with V6 mock annotations/protocol assertions updated, and the complete suite is 1,088/1,088. Spotify/Japan remains 1080 JPY/MONTHLY/JP, introductory zero excluded. Account, acquisition, geography, robots and checkpoint regressions pass.
+
+Limits remain: semantic interpretation can misclassify unfamiliar meaning despite exact citations; remote model contracts/availability need future frozen validation; JavaScript-only states lack a browser; unreviewed ownership stays rejected; incomplete research never proves no monthly offer. No live provider, network or model validation, browser capability, production wiring, push or deployment is part of this milestone.

@@ -1,3 +1,4 @@
+import {monthlyPayment,paymentChoice,ordinaryCharge} from './payment-semantics.mjs';
 import { canonical, digest, providerBound, servicePropositions, pricePropositions } from './model.mjs';
 import {projectObservation} from './projection.mjs';
 import {verifiedCountryContext} from './truth-contract.mjs';
@@ -59,7 +60,7 @@ export function evaluate(k) {
             const market=!choice.marketAmbiguous?(choice.market??verifiedCountryContext(o)):null;
             if(choice.monthlyOffered===false&&choice.scope==='SERVICE'&&['COMPLETE','EXPLICIT_NO_MONTHLY'].includes(choice.basis)&&availability[market]&&!choice.excludedMarkets?.includes(market))availability[market].push({value:false,reference:reference('/subscriptionChoices/'+i)});
         }
-        for(const [i,choice] of (source.subscriptionChoices??[]).entries()){const market=!choice.marketAmbiguous?(choice.market??verifiedCountryContext(o)):null;if(choice.monthlyOffered===true&&['SERVICE','PLAN'].includes(choice.scope)&&['COMPLETE','PARTIAL'].includes(choice.basis)&&availability[market]&&!choice.excludedMarkets?.includes(market))availability[market].push({value:true,reference:reference('/subscriptionChoices/'+i)});}
+        for(const [i,choice] of (source.subscriptionChoices??[]).entries()){const market=!choice.marketAmbiguous?(choice.market??verifiedCountryContext(o)):null;if(paymentChoice(choice)&&availability[market]&&!choice.excludedMarkets?.includes(market))availability[market].push({value:true,reference:reference('/subscriptionChoices/'+i)});}
         for (const c of o.candidates ?? []) {
             if (c.kind === 'SERVICE' && c.pointer === '') {
                 claim(service.SERVICE_IDENTITY, true, reference('/serviceId'));
@@ -82,12 +83,12 @@ export function evaluate(k) {
                 continue;
             const consumer = offer.consumer === true && ['SUBSCRIPTION', 'MEMBERSHIP'].includes(offer.relationship);
             const explicitCadence = !offer.amountDerivation || offer.amountDerivation === 'EXPLICIT';
-            if (consumer && offer.billingCadence === 'MONTHLY' && explicitCadence && offer.role === 'ORDINARY')
+            if (monthlyPayment(offer) && explicitCadence)
                 claim(service.CONSUMER_MONTHLY_SUBSCRIPTION_EXISTS, true, reference(c.pointer));
             const explicitMarket = typeof offer.market === 'string' && /^[A-Z]{2}$/.test(offer.market) ? offer.market : null;
             const country = !offer.marketAmbiguous ? verifiedCountryContext(o) : null;
             const market = explicitMarket ?? country;
-            if(consumer&&offer.role==='ORDINARY'&&offer.billingCadence==='MONTHLY'&&availability[market]&&!offer.excludedMarkets?.includes(market))availability[market].push({value:true,reference:refForAvailability(o,c.pointer,web)});
+            if(monthlyPayment(offer)&&availability[market]&&!offer.excludedMarkets?.includes(market))availability[market].push({value:true,reference:refForAvailability(o,c.pointer,web)});
             // Never assemble a price from unrelated plans, qualifiers, or geographically
             // different unlocalized presentations. A source without an offer ID stands alone.
             const id = typeof offer.id === 'string' && offer.id ? offer.id : o.id + c.pointer;
@@ -97,10 +98,10 @@ export function evaluate(k) {
             const g = groups.get(key), p = g.propositions, ref = reference(c.pointer);
             for(const excluded of offer.excludedMarkets??[])if(/^[A-Z]{2}$/.test(excluded)) {g.exclusions??=[];g.exclusions.push({country:excluded,reference:ref});}
             claim(p.SERVICE_IDENTITY, true, reference('/serviceId'));
-            const ordinary = offer.role === 'ORDINARY' && (!offer.amountDerivation || offer.amountDerivation === 'EXPLICIT');
+            const ordinary = ordinaryCharge(offer) && (!offer.amountDerivation || offer.amountDerivation === 'EXPLICIT');
             claim(p.PRICE_AMOUNT, offer.amount, ref, ordinary && offer.billingCadence==='MONTHLY' && ['MONTHLY','UNKNOWN',null].includes(offer.cadence??null) && typeof offer.amount === 'number' && Number.isFinite(offer.amount) && offer.amount > 0);
             claim(p.CURRENCY, offer.currency, ref, typeof offer.currency === 'string' && currencies.has(offer.currency));
-            if(offer.billingCadence==='MONTHLY'&&consumer&&offer.role==='ORDINARY')claim(p.MONTHLY_SUBSCRIPTION,true,ref);
+            if(monthlyPayment(offer))claim(p.MONTHLY_SUBSCRIPTION,true,ref);
             if (['MONTHLY', 'YEARLY', 'WEEKLY', 'DAILY'].includes(offer.cadence))
                 claim(p.MONTHLY_CADENCE, offer.cadence === 'MONTHLY', ref);
             if (typeof offer.consumer === 'boolean' && ['SUBSCRIPTION', 'MEMBERSHIP', 'INSTALLMENT', 'ONE_TIME'].includes(offer.relationship))

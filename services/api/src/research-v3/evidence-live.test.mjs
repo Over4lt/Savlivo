@@ -21,7 +21,7 @@ test('live contract: source understanding from original material, no translation
  assert.equal(run.result.truth.established,true);assert.equal(run.calls.length,1);assert.equal(run.knowledge.semanticAdapter.role,'EVIDENCE_UNDERSTANDING');
  assert.equal('objective' in r,false);assert.equal('observation' in r,false);assert.equal('translation' in r,false);assert.equal('sha256' in r,false);
  assert.equal(p.response_format.type,'json_schema');assert.equal(p.response_format.json_schema.strict,true);
- assert.equal(p.response_format.json_schema.name,'v3_semantic_unit_v5');assert.equal(p.max_completion_tokens,8192);
+ assert.equal(p.response_format.json_schema.name,'v3_semantic_unit_v6');assert.equal(p.max_completion_tokens,8192);
  const contract=liveSemanticContract(r);assert.deepEqual(Object.keys(contract.properties).sort(),['accountStatements','accounts','charges','language','offers','populations','relations','serviceAmbiguous','serviceSources']);
  assert.equal(JSON.stringify(contract).includes('ESTABLISHED'),false);assert.equal(JSON.stringify(contract).includes('verified'),false);
 });
@@ -45,7 +45,7 @@ test('real SDK exercised through offline fetch: strict evidence mode and no retr
  let calls=0;const i=input();
  const interpret=await createLiveSemanticInterpreter({env:{...env,GROQ_API_KEY:'offline-not-a-secret'},fetchImpl:async(url,options)=>{
   calls++;assert.equal(String(url),'https://api.groq.com/openai/v1/chat/completions');assert.equal(options.redirect,'error');
-  const p=JSON.parse(options.body),r=JSON.parse(p.messages[1].content);assert.equal(p.response_format.json_schema.name,'v3_semantic_unit_v5');
+  const p=JSON.parse(options.body),r=JSON.parse(p.messages[1].content);assert.equal(p.response_format.json_schema.name,'v3_semantic_unit_v6');
   return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(wireCompletion(r,f))}}]}),{headers:{'content-type':'application/json'}});
  }});
  const {result}=await runTarget({input:i,interpret,capabilities:offlineCapabilities(i)});assert.equal(result.truth.established,true);assert.equal(calls,1);assert.equal(interpret.semanticAdapter.maxRetries,0);

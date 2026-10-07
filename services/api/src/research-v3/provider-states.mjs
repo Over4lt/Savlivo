@@ -18,7 +18,7 @@ export function providerStates(o) {
   const tag=m[1].toLowerCase();if(m[0][1]==='/'){const i=stack.findLastIndex(n=>n.tag===tag);if(i>=0){for(const n of stack.slice(i))n.end=token.lastIndex;stack.length=i;}continue;}
   if(['script','style','template','textarea'].includes(tag)){const end=new RegExp('</'+tag+'\\s*>','gi');end.lastIndex=token.lastIndex;const close=end.exec(o.body);token.lastIndex=close?end.lastIndex:o.body.length;continue;}
   const attrs=attributes(m[0].slice(tag.length+1,-1)),n={tag,attrs,start:m.index,openEnd:token.lastIndex,end:token.lastIndex,parent:stack.at(-1)??null};nodes.push(n);
-  if(tag==='input'&&['radio','checkbox'].includes((attrs.type??'').toLowerCase())||tag==='option'||tag==='button'&&attrs.name&&attrs.value!==undefined||['tab','radio','checkbox'].includes(attrs.role)||attrs['aria-current']!==undefined||attrs['aria-pressed']!==undefined){
+  if(tag==='input'&&['radio','checkbox'].includes((attrs.type??'').toLowerCase())||tag==='option'||tag==='button'&&(attrs.name&&attrs.value!==undefined||attrs['data-href']||attrs['data-url']||attrs.formaction)||['tab','radio','checkbox'].includes(attrs.role)||attrs['aria-current']!==undefined||attrs['aria-pressed']!==undefined){
    if(controls.length<stateCapacity.controls)controls.push(n);else limited=true;
   }
   if(!voids.has(tag)&&!m[0].endsWith('/>')){if(stack.length>=stateCapacity.depth){limited=true;break;}stack.push(n);}
@@ -41,7 +41,7 @@ export function providerStates(o) {
  const groups=new Map();
  for(const n of controls){
   const type=(n.attrs.type??'').toLowerCase(),parents=ancestors(n),form=parents.find(x=>x.tag==='form'),select=parents.find(x=>x.tag==='select'),roleGroup=parents.find(x=>['tablist','radiogroup','group'].includes(x.attrs.role));
-  const eligible=['radio','checkbox'].includes(type)||n.tag==='option'||['tab','radio','checkbox'].includes(n.attrs.role)||n.attrs['aria-pressed']!==undefined||n.tag==='button'&&n.attrs.name&&n.attrs.value!==undefined||n.tag==='a'&&(n.attrs['aria-current']!==undefined||roleGroup);
+  const eligible=['radio','checkbox'].includes(type)||n.tag==='option'||['tab','radio','checkbox'].includes(n.attrs.role)||n.attrs['aria-pressed']!==undefined||n.tag==='button'&&(n.attrs.name&&n.attrs.value!==undefined||n.attrs['data-href']||n.attrs['data-url']||n.attrs.formaction)||n.tag==='a'&&(n.attrs['aria-current']!==undefined||roleGroup);
   if(!eligible)continue;
   const identity=n.attrs.name??select?.attrs.name??null;
   if(parents.some(p=>Object.hasOwn(p.attrs,'hidden')||p.attrs['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attrs.style??'')))continue;
@@ -64,13 +64,13 @@ export function providerStates(o) {
   const form=group.form,method=(form?.attrs.method??'get').toLowerCase();
   const variants=group.variants.map(v=>{
    let destination=null;
-   if(v.node.attrs.href)destination=normalizeUrl(v.node.attrs.href,o.url);
+   if(v.node.attrs.href||v.node.attrs['data-href']||v.node.attrs['data-url'])destination=normalizeUrl(v.node.attrs.href??v.node.attrs['data-href']??v.node.attrs['data-url'],o.url);
    else if(v.node.tag==='option'&&/^(?:https:\/\/|\/)/.test(v.value??''))destination=normalizeUrl(v.value,o.url);
-   else if(form&&method==='get'&&v.name&&v.value!==null&&!Object.hasOwn(v.node.attrs,'disabled')){
+   else if(form&&method==='get'&&(v.name&&v.value!==null||v.node.attrs.formaction)&&!Object.hasOwn(v.node.attrs,'disabled')){
     if(!formFields.has(form.start))formFields.set(form.start,nodes.filter(n=>n.tag==='input'&&n.start>=form.start&&n.end<=form.end&&!Object.hasOwn(n.attrs,'disabled')&&n.attrs.name&&['hidden','radio','checkbox'].includes((n.attrs.type??'').toLowerCase())));
     const fields=formFields.get(form.start),successful=fields.filter(n=>n.attrs.name!==v.name&&((n.attrs.type??'').toLowerCase()==='hidden'||Object.hasOwn(n.attrs,'checked')));if(successful.length+1>stateCapacity.fields)limited=true;
     if(successful.length+1<=stateCapacity.fields&&!fields.some(n=>/^(?:password|authorization|access_token|api[_-]?key|secret|session_token|csrf.*|nonce)$/i.test(n.attrs.name))){
-     const raw=normalizeUrl(form.attrs.action||o.url,o.url);if(raw){const u=new URL(raw);for(const n of fields)if(n.attrs.name!==v.name&&((n.attrs.type??'').toLowerCase()==='hidden'||Object.hasOwn(n.attrs,'checked')))u.searchParams.append(n.attrs.name,n.attrs.value??'');for(const c of controls.filter(c=>c.tag==='option'&&Object.hasOwn(c.attrs,'selected')&&c.start>=form.start&&c.end<=form.end)){const s=ancestors(c).find(n=>n.tag==='select');if(s?.attrs.name&&s.attrs.name!==v.name&&!Object.hasOwn(s.attrs,'disabled'))u.searchParams.append(s.attrs.name,c.attrs.value??'');}u.searchParams.set(v.name,v.value);destination=normalizeUrl(u.href);}
+     const raw=normalizeUrl(v.node.attrs.formaction||form.attrs.action||o.url,o.url);if(raw){const u=new URL(raw);for(const n of fields)if(n.attrs.name!==v.name&&((n.attrs.type??'').toLowerCase()==='hidden'||Object.hasOwn(n.attrs,'checked')))u.searchParams.append(n.attrs.name,n.attrs.value??'');for(const c of controls.filter(c=>c.tag==='option'&&Object.hasOwn(c.attrs,'selected')&&c.start>=form.start&&c.end<=form.end)){const s=ancestors(c).find(n=>n.tag==='select');if(s?.attrs.name&&s.attrs.name!==v.name&&!Object.hasOwn(s.attrs,'disabled'))u.searchParams.append(s.attrs.name,c.attrs.value??'');}if(v.name&&v.value!==null)u.searchParams.set(v.name,v.value);destination=normalizeUrl(u.href);}
     }
    }
    return {id:v.id,name:v.name,value:v.value,selected:v.selected,label:v.label,labelSpans:v.labelSpans,destination,source:{start:v.node.start,end:v.node.openEnd,sha256:digest(o.body.slice(v.node.start,v.node.openEnd))}};

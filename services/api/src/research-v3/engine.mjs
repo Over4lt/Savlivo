@@ -271,7 +271,7 @@ async function accept(k, a, response, interpret, navigate, save) {
         if(web) {
             const plan=extractNavigation(o,k.objective,current);
             o.navigation=plan.candidates.map((c,index)=>({...c,index}));
-            const automaticAdvice=!navigate&&interpret.researchAdvisor&&!k.semanticUnavailable&&(o.navigation.length>=8||o.navigation.filter(c=>c.kind==='PROVIDER_STATE').length>=2);
+            const automaticAdvice=!navigate&&interpret.researchAdvisor&&!k.semanticUnavailable&&(!k.researchAdviceUnavailable||!k.researchAdviceUnavailable.disabled&&k.researchAdviceUnavailable.until<=Date.now())&&(o.navigation.length>=8||o.navigation.filter(c=>c.kind==='PROVIDER_STATE').length>=2);
             const advisor=navigate??(automaticAdvice?interpret.researchAdvisor:null);
             if(advisor&&o.navigation.length&&(navigate||k.usage.modelCalls<k.bounds.modelCalls&&(k.researchAdvisoryCalls??0)<4)) {
                 // Advisory bounded source-owned references. No new hrefs or truth fields are honored.
@@ -293,8 +293,11 @@ async function accept(k, a, response, interpret, navigate, save) {
                     plan.candidates.sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));
                     k.trace.push({event:'NAVIGATION_ADVICE',observation:o.id,exposedIds:rows.map(c=>c.id),promoted,advice:plan.candidates.filter(c=>c.research).map(c=>({id:c.id,...c.research})),modelCalls:k.usage.modelCalls,request:advice.diagnostics??null,accepted:'SOURCE_IDS_ONLY',truthAuthority:'NONE'});
                 } catch(error) {const status=Number.isInteger(error?.status)?error.status:null;
-                    k.trace.push({event:'NAVIGATION_ADVICE_UNAVAILABLE',observation:o.id,code:/^RESEARCH_[A-Z_]+$/.test(error?.message??'')?error.message:'ADVISORY_FAILED_NATIVE_FRONTIER_PRESERVED',status,purpose:'RESEARCH_ONLY',modelCalls:k.usage.modelCalls,requestBytes:error?.v3Diagnostics?.requestBytes??null});
-                    if(!navigate&&status===429)k.semanticUnavailable={status:429,until:Date.now()+30000,bodySha256:o.sha256,purpose:'RESEARCH_ADVICE'};
+                    k.trace.push({event:'NAVIGATION_ADVICE_UNAVAILABLE',observation:o.id,code:/^RESEARCH_[A-Z_]+$/.test(error?.message??'')?error.message:'ADVISORY_FAILED_NATIVE_FRONTIER_PRESERVED',status,purpose:'RESEARCH_ONLY',modelCalls:k.usage.modelCalls,requestBytes:error?.v3Diagnostics?.requestBytes??null,diagnostics:error?.v3Diagnostics??null});
+                    if(!navigate){
+                        k.researchAdviceUnavailable={status,disabled:status===400||/^RESEARCH_RESPONSE_/.test(error.message),until:Date.now()+30000,bodySha256:o.sha256,purpose:'RESEARCH_ADVICE'};
+                        if(status===429&&error?.v3Diagnostics?.retryAfterMs!=null)k.semanticUnavailable={status:429,until:Date.now()+error.v3Diagnostics.retryAfterMs,bodySha256:o.sha256,purpose:'PROVIDER_RETRY_AFTER'};
+                    }
                 }
             }
             navigation.push(...admitNavigation(k,o,a,plan,'PROVIDER_LINK'));
@@ -418,7 +421,7 @@ async function understandUnits(k,o,interpret,save) {
     const needs=evaluate(k).needs.map(n=>n.proposition),plan=interpret.semanticPlan(o,k.objective,needs),units=plan.units;
     if(plan.capacityHit)markLimit(k,'semanticUnits');
     o.semanticUnits=units;o.evidenceFragments??=[];o.semanticAttempts??=[];
-    k.trace.push({event:'SEMANTIC_UNITS_SELECTED',observation:o.id,units,capacityHit:plan.capacityHit,reason:plan.reason});
+    k.trace.push({event:'SEMANTIC_UNITS_SELECTED',observation:o.id,units,capacityHit:plan.capacityHit,reason:plan.reason,requestCapacitySkipped:plan.requestCapacitySkipped??[],preparedRequests:plan.preparedRequests??[]});
     for(const unit of units.slice(0,semanticUnitLimits.modelCallsPerAction)) {
         if(k.semanticUnavailable){
             const unavailable=k.semanticUnavailable;

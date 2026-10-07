@@ -70,7 +70,7 @@ test('faithful pricing crosses actual mocked SDK with system service and null cu
  const {createLiveSemanticInterpreter}=await import('./live-semantic.mjs'),{runTarget,offlineCapabilities}=await import('./runner.mjs'),{checkpoint,restore}=await import('./model.mjs'),{evaluate}=await import('./truth.mjs');
  const f={...fixture,html:'<main>'+fixture.html+'</main>'},input={...fixtureInput(f,{bounds:{actions:1,modelCalls:1}}),semantic:{mode:'LIVE'}};let count=0;
  const interpret=await createLiveSemanticInterpreter({env:{GROQ_API_KEY:'offline-placeholder',SAVLIVO_V3_SEMANTIC_MODEL:'offline-model'},fetchImpl:async(url,options)=>{
-  count++;const payload=JSON.parse(options.body);assert.equal(payload.response_format.json_schema.name,'v3_semantic_unit_v5');
+  count++;const payload=JSON.parse(options.body);assert.equal(payload.response_format.json_schema.name,'v3_semantic_unit_v6');
   const request=JSON.parse(payload.messages[1].content),wire=wireCompletion(request,f);wire.serviceSources=[];for(const o of wire.offers){o.serviceRef=request.knownObservationService.reference;o.association='PRIMARY_SERVICE';}for(const c of wire.charges)c.currency=null;
   return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(wire)}}]}),{headers:{'content-type':'application/json'}});
  }});
