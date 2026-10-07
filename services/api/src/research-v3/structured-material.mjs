@@ -28,3 +28,39 @@ export function structuredMaterial(body){
  const selected=regions.sort((a,b)=>(b.end-b.start)-(a.end-a.start)).filter((r,i,all)=>!all.slice(0,i).some(p=>r.start>=p.start&&r.end<=p.end));
  return {regions:selected.sort((a,b)=>a.start-b.start),limited};
 }
+
+// Parse complete inert JSON, recording original lexical spans and JSON pointers.
+// Numeric/key relevance is a routing signal, never an evidence proposition.
+export function structuredSources(body,contentType='text/html') {
+ const islands=[],records=[],endpoints=[];let limited=false;
+ if(['application/json','application/ld+json'].includes(contentType))islands.push({raw:body,start:0});
+ else for(const m of body.matchAll(/<script\b([^>]*)>([^]*?)<\/script\s*>/gi)) {
+  if(!/\btype\s*=\s*["']application\/(?:ld\+)?json["']|\bid\s*=\s*["'](?:__NEXT_DATA__|__NUXT_DATA__)["']/i.test(m[1]))continue;
+  if(islands.length>=structuredMaterialCapacity.scripts){limited=true;break;}
+  islands.push({raw:m[2],start:m.index+m[0].indexOf('>')+1});
+ }
+ for(const island of islands) {
+  if(Buffer.byteLength(island.raw)>structuredMaterialCapacity.scriptBytes){limited=true;continue;}
+  try{JSON.parse(island.raw);}catch{continue;}
+  let i=0,nodes=0;
+  const ws=()=>{while(/\s/.test(island.raw[i]??'')&&i<island.raw.length)i++;};
+  const string=()=>{const start=i++;while(i<island.raw.length){if(island.raw[i++]==='"')break;if(island.raw[i-1]==='\\')i++;}return JSON.parse(island.raw.slice(start,i));};
+  const read=(pointer,depth)=>{
+   ws();const start=i;if(++nodes>4096||depth>32||pointer.length>2048)throw Error('BOUND');const ch=island.raw[i];
+   if(ch==='{'||ch==='['){
+    i++;ws();let count=0;
+    while(island.raw[i]!== (ch==='{'?'}':']')) {
+     let key;if(ch==='{'){key=string();ws();i++;}else key=String(count);
+     read(pointer+'/'+key.replaceAll('~','~0').replaceAll('/','~1'),depth+1);count++;ws();if(island.raw[i]===','){i++;ws();}else break;
+    }
+    i++;const raw=island.raw.slice(start,i);
+    if(ch==='{'&&Buffer.byteLength(raw)<=structuredMaterialCapacity.recordBytes&&/\p{N}/u.test(raw)&&(/(?:price|amount|currency|billing|payment|renewal|cost|credit|benefit|offer|plan|subscription)/i.test(raw)||/\p{Sc}|"[A-Z]{3}"/u.test(raw))){const record={start:island.start+start,end:island.start+i,type:'StructuredObject',pointer,parent:pointer.slice(0,pointer.lastIndexOf('/')),routingOnly:true,priority:(raw.match(/currency|payment|billing|renewal|effectiveCost|price/gi)??[]).length};if(records.length<structuredMaterialCapacity.records)records.push(record);else{limited=true;const lowest=records.reduce((n,r,j)=>r.priority<records[n].priority?j:n,0);if(record.priority>records[lowest].priority)records.splice(lowest,1,record);}}
+   }else if(ch==='"'){
+    const value=string();if(/\/(?:url|href|endpoint|apiUrl|configUrl|pricingUrl|subscriptionUrl|contentUrl)$/i.test(pointer)&&/^(?:https:\/\/|\/)/.test(value)&&endpoints.length<256)endpoints.push({url:value,start:island.start+start,end:island.start+i,pointer});
+   }else{while(i<island.raw.length&&!/[\s,}\]]/.test(island.raw[i]))i++;}
+  };
+  try{read('',0);}catch{limited=true;}
+ }
+ const regions=records.sort((a,b)=>(b.end-b.start)-(a.end-a.start)).filter((r,i,all)=>!all.slice(0,i).some(p=>r.start>=p.start&&r.end<=p.end)).slice(0,structuredMaterialCapacity.records).sort((a,b)=>a.start-b.start);
+ return {regions,endpoints,limited:limited||records.length>structuredMaterialCapacity.records};
+}

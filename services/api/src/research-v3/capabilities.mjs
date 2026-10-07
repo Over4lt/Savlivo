@@ -28,6 +28,7 @@ function budget(limits) {
 export function createCapabilities({objective,permissions={},network={},tavily={},decodo={},clock=()=>new Date().toISOString(),timeoutMs,acquisitionTimeoutMs=timeoutMs===undefined?cap.acquisitionMs:Math.min(180000,timeoutMs*6),timing=systemTiming}={}) {
  if(!Number.isSafeInteger(acquisitionTimeoutMs)||acquisitionTimeoutMs<1||acquisitionTimeoutMs>600000||timeoutMs!==undefined&&(!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>90000))throw fault('INVALID_TIMEOUT');
  validateNamespaces(objective);
+ const journeys=new Map();
  const check=url=>{if(!normalizeUrl(url)||!navigationOwned(objective,url))throw fault('PROVIDER_BOUNDARY');};
  async function acquire(action,limits,geo) {
   const account=budget(limits),access=[],controller=new AbortController(),ledger=[],redirects=[],navigationDocuments=[],operations=[],secretTokens=[],attemptId=randomBytes(12).toString('hex'),started=timing.now();let lastFailure=null,stage='SETUP',status=null,finalUrl=action.url;
@@ -90,7 +91,12 @@ export function createCapabilities({objective,permissions={},network={},tavily={
     if(typeof username!=='string'||!username||typeof password!=='string'||!password||/[:\r\n]|^user-|-country-|-session-/i.test(username)||/[\r\n]/.test(password))throw fault('DECODO_CONFIGURATION_REQUIRED');
     const proxyHost='gate.decodo.com',proxyPort=7000,addresses=await resolveHost(proxyHost);
     if(!addresses?.length||addresses.some(a=>!publicAddress(a.address)||isIP(a.address)!==a.family))throw fault('UNSAFE_DNS');
-    const binding=randomBytes(16).toString('hex'),authUsername='user-'+username+'-country-'+action.context.networkGeography.toLowerCase()+'-session-'+binding,requestHop=decodo.requestHop??createProxyHop();
+    const journeyKey=typeof action.journey==='string'&&/^state-[a-f0-9]{24}$/.test(action.journey)?digest([action.journey,action.context.networkGeography]):null;
+    let journey=journeyKey?journeys.get(journeyKey):null;
+    if(journey&&(journey.steps>=8||timing.now()-journey.started>900000)){journeys.delete(journeyKey);journey=null;}
+    const binding=journey?.binding??randomBytes(16).toString('hex');
+    if(journeyKey){if(!journey){if(journeys.size>=64)journeys.delete(journeys.keys().next().value);journey={binding,steps:0,started:timing.now()};journeys.set(journeyKey,journey);}journey.steps++;}
+    const authUsername='user-'+username+'-country-'+action.context.networkGeography.toLowerCase()+'-session-'+binding,requestHop=decodo.requestHop??createProxyHop();
     secretTokens.push(username,password,authUsername,Buffer.from(authUsername+':'+password).toString('base64'));
     requestOnce=async r=>{let counted=0;
      const result=await requestHop({...r,proxyHost,proxyPort,proxyAddress:addresses[0].address,username:authUsername,password,timeoutMs:hopDeadline(stage),onConnect:()=>r.onPhase('CONNECT_TLS'),onTarget:()=>r.onPhase('HEADERS'),headers:{'user-agent':researchUserAgent,accept:'text/html,text/plain,application/xhtml+xml',...(r.locale?{'accept-language':r.locale}:{})},onBytes:n=>{counted+=n;r.onBodyBytes(n);}});
@@ -98,7 +104,7 @@ export function createCapabilities({objective,permissions={},network={},tavily={
      const material=JSON.stringify(result.headers)+'\n'+result.body?.toString('utf8');
      if([username,password,authUsername,Buffer.from(authUsername+':'+password).toString('base64')].some(s=>material.includes(s)))throw fault('SECRET_IN_RESPONSE');return result;
     };
-    transport={kind:'DECODO',requestedCountry:action.context.networkGeography,binding:digest(binding),gateway:proxyHost,verification:'PENDING'};
+    transport={kind:'DECODO',sessionMode:journeyKey?'SOURCE_STATE_JOURNEY':'INDEPENDENT_FETCH',...(journeyKey?{journey:journeyKey,journeyStep:journey.steps}:{}),requestedCountry:action.context.networkGeography,binding:digest(binding),gateway:proxyHost,verification:'PENDING'};
    }
    const probe=async purpose=>{
     stage=purpose;const r=await makeReader({maxWireBytes:Math.min(cap.geographyBytes,account.remaining()),maxDecodedBytes:cap.geographyBytes,maxObservationBytes:cap.geographyBytes,jsonUrls:[verifier.url],maxRedirects:0,validateDestination:u=>{if(u!==verifier.url)throw fault('GEO_VERIFIER_REDIRECT');}},purpose)(verifier.url,{signal:controller.signal});
@@ -163,7 +169,7 @@ export function createCapabilities({objective,permissions={},network={},tavily={
             const material=Buffer.concat(chunks);account.decoded(material.length);
             const data=JSON.parse(material.toString('utf8'));
             if(!Array.isArray(data.results))throw fault('TAVILY_INVALID_RESPONSE');
-            const results=data.results.slice(0,Math.min(8,limits.maxResults)).filter(r=>typeof r.url==='string'&&!r.url.includes(tavily.apiKey)&&navigationOwned(objective,r.url)).map(r=>({url:normalizeUrl(r.url)}));
+            const results=data.results.slice(0,Math.min(8,limits.maxResults)).filter(r=>typeof r.url==='string'&&!r.url.includes(tavily.apiKey)&&navigationOwned(objective,r.url)).map(r=>({url:normalizeUrl(r.url),title:typeof r.title==='string'?r.title.slice(0,240):'',content:typeof r.content==='string'?r.content.slice(0,512):'',language:typeof r.language==='string'?r.language.slice(0,32):null,truthAuthority:'NONE'}));
             return {results,accounting:account.result()};
         }catch(error){return {results:[],accounting:account.result(),failure:{kind:error.kind==='CAPACITY'?'CAPACITY':'DISCOVERY',code:'TAVILY_REQUEST_UNAVAILABLE'}};}
     };

@@ -1,4 +1,6 @@
 // Source-owned research candidates. All signals below are advisory, never truth.
+import {structuredSources} from './structured-material.mjs';
+import {adaptiveQueries} from './research-strategist.mjs';
 import {providerStates} from './provider-states.mjs';
 import {digest,normalizeUrl} from './model.mjs';
 import {navigationOwned,authorityBinding,navigationParametersSafe} from './discovery-authority.mjs';
@@ -25,6 +27,7 @@ export function rankCandidate(c,objective) {
     if(c.kind==='SITEMAP')score+=1;
     if(c.kind==='STRUCTURED_NAVIGATION')score+=3;
     if(c.kind==='PROVIDER_STATE')score+=5;
+    if(c.kind==='PROVIDER_ENDPOINT')score-=8;
     const target=objective.serviceName.normalize('NFKC').toLocaleLowerCase('en').split(/[^\p{L}\p{N}]+/u).filter(w=>w.length>2);
     const candidate=(c.label+' '+new URL(c.url).hostname+' '+new URL(c.url).pathname).normalize('NFKC').toLocaleLowerCase('en');
     if(target.length)score+=Math.round(12*target.filter(w=>candidate.includes(w)).length/target.length);
@@ -51,8 +54,9 @@ export function extractNavigation(o,objective,needs) {
         const c={id:'nav-'+digest([o.id,o.sha256,kind,start,end,url,extra.pointer??null]).slice(0,24),url,kind,label:label(extra.label??''),locale:extra.locale??null,context:extra.context??stack.at(-1)??'CONTENT',resource:kind==='SITEMAP'?'SITEMAP':'PAGE',needs:[...new Set(needs)],authority:authorityBinding(objective,url),source:{observation:o.id,bodySha256:o.sha256,start,end,...(base.source?{base:base.source}:{}),sha256:sourceHashes.get(spanKey),...(extra.pointer!==undefined?{pointer:extra.pointer}:{})},...(extra.state?{state:extra.state}:{})};
         c.score=rankCandidate(c,objective);c.family=c.state?.group??(c.kind==='ALTERNATE'?'alternate-'+o.id:new URL(c.url).origin+new URL(c.url).pathname.replace(/\/[^/]*$/, '/'));c.signals={structure:c.context,kind:c.kind,service:objective.serviceName,state:c.state??null,locale:c.locale,discoveryOnly:true};candidates.push(c);
     };
+    const structuredJson=/^application\/(?:ld\+)?json$/i.test(o.contentType??'');
     const token=/<!--[^]*?-->|<\/?([a-z][\w:-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
-    for(let m;(m=token.exec(body));) {
+    for(let m;!structuredJson&&(m=token.exec(body));) {
         if(++tokens>discoveryCapacity.tokens){limited=true;break;}
         if(!m[1])continue;
         const tag=m[1].toLowerCase(),closing=m[0][1]==='/';
@@ -93,6 +97,7 @@ export function extractNavigation(o,objective,needs) {
         if(tag==='option'&&a.value&&/^(?:https:\/\/|\/)/.test(a.value))add(a.value,'LOCALE_OPTION',m.index,token.lastIndex,{locale:a.lang??null,label:a.label??''});
         if(tag==='form'&&a.action&&(a.method??'get').toLowerCase()==='get')add(a.action,'GET_FORM',m.index,token.lastIndex,{label:label(a['aria-label']??'' )});
     }
+    for(const endpoint of structuredSources(body,o.contentType).endpoints.filter(e=>!candidates.some(c=>c.url===safeCandidate(e.url,base.url??o.url,objective))))add(endpoint.url,'PROVIDER_ENDPOINT',endpoint.start,endpoint.end,{pointer:endpoint.pointer,label:endpoint.pointer});
     const states=providerStates(o);limited||=states.limited;
     for(const group of states.groups)for(const variant of group.variants)if(variant.destination)add(variant.destination,'PROVIDER_STATE',variant.source.start,variant.source.end,{label:variant.label,state:{group:group.id,variant:variant.id,selected:variant.selected,scope:group.scope,observation:o.id,bodySha256:o.sha256,context:o.context,source:variant.source}});
     return {candidates:candidates.sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id)),limited};
@@ -109,10 +114,10 @@ export function extractSitemap(o,objective,needs) {
     }
     return {candidates:candidates.sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id)),limited,inspected};
 }
-export function queryFamilies(objective,market,needs) {
+export function queryFamilies(objective,market,needs,knowledge) {
     const scope=[...new Set([...objective.providerHosts,...(objective.providerNamespaces??[]).map(s=>s.domain)])].map(h=>'site:'+h).join(' OR '),service=objective.serviceName;
     const intents=objective.kind==='PRICE'?['subscription pricing plans','subscription billing renewal terms','subscription availability official']:['official service subscription','account membership support','official service information'];
-    return intents.map((intent,index)=>({kind:'DISCOVER',market,needs,family:'objective-'+index,query:[service,market,intent,'('+scope+')'].filter(Boolean).join(' ').slice(0,1000),reason:'Bounded provider discovery family '+index+' for unresolved objective',value:2-index/10}));
+    return [...adaptiveQueries(objective,market,needs,knowledge),...intents.map((intent,index)=>({kind:'DISCOVER',market,needs,family:'objective-'+index,query:[service,market,intent,'('+scope+')'].filter(Boolean).join(' ').slice(0,1000),reason:'Bounded provider discovery family '+index+' for unresolved objective',value:2-index/10}))];
 }
 
 function documentBase(o) {

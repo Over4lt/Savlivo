@@ -1,9 +1,9 @@
 // Bounded deterministic HTML/text interpretation. No network, model calls or V2 policy.
-import {structuredMaterial} from './structured-material.mjs';
+import {structuredMaterial,structuredSources} from './structured-material.mjs';
 import {selectedStateContext,providerStates} from './provider-states.mjs';
 import {digest, pricePropositions, servicePropositions} from './model.mjs';
 import {presentationCapacity as capacity} from './acquisition-contract.mjs';
-const documents=new WeakMap();
+const documents=new WeakMap(),semanticMaterials=new WeakMap();
 function observationDocument(o){const old=documents.get(o),cached=old?.parsed.deref();if(cached&&old.body===o.body&&old.contentType===o.contentType)return cached;const parsed=document(o.body,o.contentType);documents.set(o,{body:o.body,contentType:o.contentType,parsed:new WeakRef(parsed)});return parsed;}
 
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -203,13 +203,17 @@ export function interpretWeb(observation, objective) {
 /** Original-language material, with UTF-16 offsets into the immutable body.
  * Structural extraction only: no linguistic normalization or market inference. */
 export function semanticMaterial(observation) {
+    const previous=semanticMaterials.get(observation),cached=previous?.material.deref();
+    if(cached&&previous.body===observation.body&&previous.contentType===observation.contentType&&previous.sha256===observation.sha256&&previous.id===observation.id&&previous.truncated===observation.truncated&&previous.completeness===observation.completeness)return structuredClone(cached);
     const body=observation.body, segments=[];
-    if(!['text/plain','text/html','application/xhtml+xml'].includes(observation.contentType)) return {segments,presentations:[],limited:false};
-    const parsed=observationDocument(observation);
-    let limited=parsed.limited||providerStates(observation).limited;
+    if(!['text/plain','text/html','application/xhtml+xml','application/json','application/ld+json'].includes(observation.contentType)) return {segments,presentations:[],limited:false};
+    const isJson=['application/json','application/ld+json'].includes(observation.contentType);
+    const parsed=isJson?{nodes:[],limited:false}:observationDocument(observation);
+    let limited=parsed.limited;
+    const stateLimited=providerStates(observation).limited;
     const add=(start,end)=>{if(body.slice(start,end).trim()) segments.push({start,end,text:body.slice(start,end)});};
     if(observation.contentType==='text/plain') parsed.nodes.forEach(n=>add(n.start,n.end));
-    else {
+    else if(!isJson) {
         const re=/<!--[^]*?-->|<\/?([a-z][\w:-]*)\b[^>]*>/gi, stack=[];
         let cursor=0,tokens=0;
         for(let m;(m=re.exec(body));) {
@@ -234,17 +238,20 @@ export function semanticMaterial(observation) {
     for(const g of providerStates(observation).groups)for(const v of g.variants.filter(v=>v.selected&&v.submission!=='OMIT'))for(const b of v.labelSpans)
         if(b.start>=v.source.start&&b.end<=v.source.end&&!segments.some(s=>s.start<=b.start&&s.end>=b.end))add(b.start,b.end);
     segments.sort((a,b)=>a.start-b.start||a.end-b.end);
-    const inert=observation.contentType==='text/plain'?{regions:[],limited:false}:structuredMaterial(body);
+    const schema=observation.contentType==='text/plain'?{regions:[],limited:false}:structuredMaterial(body),structured=structuredSources(body,observation.contentType);
+    const inert={regions:[...schema.regions,...structured.regions.filter(r=>!schema.regions.some(p=>r.start>=p.start&&r.end<=p.end))],limited:schema.limited||structured.limited};
     for(const r of inert.regions)add(r.start,r.end);
     // Optional metadata scan exhaustion does not invalidate complete visible text.
 
     segments.sort((a,b)=>a.start-b.start||a.end-b.end);
     const presentations=parsed.nodes.filter(n=>n.tag!=='a').slice(0,capacity.presentations).map((n,i)=>({id:'presentation-'+i,start:n.start,end:n.end,tag:n.tag,role:n.attrs.role??null,itemType:n.attrs.itemtype??null,itemProp:n.attrs.itemprop??null,ancestry:n.ancestry??[]}));
-    for(const [i,r]of inert.regions.entries())presentations.push({id:'structured-'+i,start:r.start,end:r.end,tag:'script-data',role:null,itemType:r.type,itemProp:null,ancestry:[]});
-    return {segments:segments.slice(0,capacity.segments),presentations,structuredLimited:inert.limited,limited:limited||parsed.nodes.length>capacity.presentations||segments.length>capacity.segments};
+    for(const [i,r]of inert.regions.entries())presentations.push({id:'structured-'+i,start:r.start,end:r.end,tag:'script-data',role:null,itemType:r.type,itemProp:null,ancestry:[],...(r.pointer!==undefined?{structuredPath:r.pointer,parentPath:r.parent}: {})});
+    const material={segments:segments.slice(0,capacity.segments),presentations,structuredLimited:inert.limited,stateLimited,limited:limited||parsed.nodes.length>capacity.presentations||segments.length>capacity.segments};
+    semanticMaterials.set(observation,{body,contentType:observation.contentType,sha256:observation.sha256,id:observation.id,truncated:observation.truncated,completeness:observation.completeness,material:new WeakRef(material)});return structuredClone(material);
 }
 
 // Structural destination provenance. Labels are routing hints, never truth.
 export function semanticDestinations(o) {
+    if(['application/json','application/ld+json'].includes(o.contentType))return [];
     return observationDocument(o).nodes.filter(n=>(n.tag==='a'&&n.attrs.href)||(n.tag==='form'&&n.attrs.action)).slice(0,512).map((n,i)=>({id:'destination-'+i,kind:n.tag==='form'?'FORM':'LINK',url:n.attrs.href??n.attrs.action,start:n.start,end:n.end,label:n.text.slice(0,256)}));
 }

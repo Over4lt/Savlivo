@@ -8,10 +8,12 @@ const inside=(s,p)=>s.start>=p.start&&s.end<=p.end;
 export function materialForUnit(o,unit) {
     const all=semanticMaterial(o);
     if(all.limited)throw Error('EVIDENCE_MATERIAL_BOUND');
+    const state=providerStates(o);if(state.scanLimited)throw Error('EVIDENCE_MATERIAL_BOUND');
     const presentations=all.presentations.filter(p=>unit.presentationIds.includes(p.id));
     if(presentations.length!==unit.presentationIds.length||!presentations.length||presentations.length>semanticUnitLimits.presentations)throw Error('EVIDENCE_UNIT_INVALID');
     const segments=all.segments.filter(s=>unit.segmentSpans?unit.segmentSpans.some(b=>s.start===b.start&&s.end===b.end):presentations.some(p=>inside(s,p))||unit.identitySpans.some(b=>s.start===b.start&&s.end===b.end));
     if(unit.segmentSpans&&segments.length!==unit.segmentSpans.length)throw Error('EVIDENCE_UNIT_INVALID');
+    if(segments.some(s=>(state.incompleteScopes??[]).some(p=>s.start<p.end&&s.end>p.start)))throw Error('EVIDENCE_MATERIAL_BOUND');
     const source=segments.map(s=>s.text).join('');
     if(segments.length>semanticUnitLimits.segments||source.length>semanticUnitLimits.sourceCharacters||Buffer.byteLength(source)>semanticUnitLimits.sourceBytes)throw Error('EVIDENCE_UNIT_BOUND');
     const identity={observation:o.id,sha256:o.sha256,presentationIds:unit.presentationIds,identitySpans:unit.identitySpans,needs:unit.needs,...(unit.segmentSpans?{segmentSpans:unit.segmentSpans}:{} )};
@@ -29,7 +31,7 @@ export function selectSemanticPlan(o,objective,needs) {
     const account=wanted.some(n=>/ACCOUNT|MANAGEMENT|CANCELLATION/.test(n));
     const destinations=semanticDestinations(o);
     const stateContexts=wanted.some(n=>n.includes('MONTHLY_SUBSCRIPTION'))?selectedStateContext(o,{start:0,end:o.body.length}):[];
-    const structuredPrice=s=>all.presentations.some(p=>p.tag==='script-data'&&inside(s,p)&&['Offer','AggregateOffer','UnitPriceSpecification','Product','Service'].includes(p.itemType));
+    const structuredPrice=s=>all.presentations.some(p=>p.tag==='script-data'&&inside(s,p)&&['Offer','AggregateOffer','UnitPriceSpecification','Product','Service','StructuredObject'].includes(p.itemType));
     const stateSegment=s=>stateContexts.some(c=>c.spans.some(b=>s.start<=b.start&&s.end>=b.end));
     const anchors=all.segments.filter(s=>(pricing&&(money(s.text)||structuredPrice(s)))||stateSegment(s)||(account&&destinations.some(d=>inside(s,d)))||(wanted.includes('SERVICE_SIZE_100K_PLUS')&&/\p{N}/u.test(s.text)));
     const make=(presentations,complete=false,segmentSpans=null)=>{

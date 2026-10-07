@@ -80,7 +80,8 @@ test('Tavily destination enters provider acquisition; snippet price never enters
     assert.deepEqual(knowledge.attempts.map(a=>a.action.kind),['DISCOVER','ACQUIRE']);
     assert.equal(result.truth.prices.JP.propositions.PRICE_AMOUNT.value,1400);
     assert.deepEqual(calls[0].search.include_domains,['provider.example']);
-    assert.equal(JSON.stringify(knowledge).includes('JPY 1 monthly'),false);
+    assert.ok(knowledge.researchResults.some(r=>r.snippet.includes('JPY 1 monthly')&&r.truthAuthority==='NONE'));
+    assert.equal(result.truth.prices.JP.propositions.PRICE_AMOUNT.value,1400);
     const limited=await execute({input:{...i,bounds:{actions:1}}});
     assert.equal(limited.result.stop.reason,'CAPACITY_BOUND_REACHED');
     assert.equal(limited.result.truth.prices.JP.propositions.PRICE_AMOUNT.state,'UNRESOLVED');
