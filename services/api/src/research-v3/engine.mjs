@@ -12,8 +12,10 @@ import {semanticUnitLimits} from './semantic-units.mjs';
 import { projectWebSource } from './source.mjs';
 import {researchTruth,refreshCatalog} from './subscription-catalog.mjs';
 import {extractNavigation,extractSitemap,queryFamilies,discoveryCapacity,diverseCandidates,rankCandidate} from './discovery.mjs';
+import {renderedResearchActions,browserPageObservation,retainRenderedObservation,retainControlSourceEvidence,admitRenderedInterpretation,visualFingerprint} from './rendered-research.mjs';
+import {createTargetedVisualRegion} from './rendered-overview.mjs';
 const resourceCapacityFailure=f=>f?.kind==='CAPACITY'&&['BODY_CAPACITY','DECOMPRESSION_CAPACITY','DECODED_CAPACITY','OBSERVATION_CAPACITY','HEADER_CAPACITY','REDIRECT_CAPACITY'].includes(failureClass(f.code));
-const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.kind==='INSPECT'?'LOCAL':a.context?.transport;
+const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.kind==='INSPECT'?'LOCAL':a.kind==='RENDER'?'RENDERED':a.context?.transport;
 function searches(k, truth) {
     const markets = k.objective.kind === 'PRICE' ? k.objective.markets : [null];
     return markets.flatMap(m => {
@@ -40,11 +42,12 @@ function proposals(k, truth) {
         const units=(o.semanticUnits??[]).filter(u=>!(o.semanticAttempts??[]).some(a=>a.unit===u.id)).slice(0,semanticUnitLimits.units).map(u=>u.id);
         if(units.length&&!k.semanticUnavailable)actions.push({kind:'INSPECT',observation:o.id,url:o.url,units,needs:truth.needs.map(n=>n.id),reason:'Process unattempted source-bound regions; catalog work remains',value:units.some(id=>o.semanticUnits.find(u=>u.id===id)?.researchValue>=6)?40:2});
     }
-    return [...gapInspectionActions(k,truth.needs.map(n=>n.id)), ...actions, ...searches(k, truth)];
+    return [...gapInspectionActions(k,truth.needs.map(n=>n.id)), ...actions, ...renderedResearchActions(k,truth), ...searches(k, truth)];
 }
 function capacity(k, a) {
     const u = k.usage, b = k.bounds, checks = [['actions', u.actions, b.actions], ['bytes', u.bytes, b.bytes], ['decodedBytes', u.decodedBytes??0, b.decodedBytes??acquisition.objectiveDecodedBytes], ['acquisitionMs', u.acquisitionMs??0, b.acquisitionMs??acquisition.objectiveAcquisitionMs], ['networkRequests', u.networkRequests ?? 0, b.networkRequests ?? 96]];
     if(a.kind==='INSPECT'){if(a.inspection!=='GAP_SOURCE')checks.push(['modelCalls',u.modelCalls,b.modelCalls]);}
+    else if(a.kind==='RENDER')checks.push(['renderedActions',u.renderedActions??0,b.renderedActions??12],['modelCalls',u.modelCalls,b.modelCalls]);
     else if (a.kind === 'DISCOVER')
         checks.push(['searches', u.searches, b.searches]);
     else {
@@ -61,13 +64,19 @@ function validate(k, truth, input, adapters) {
     if (!input || typeof input !== 'object' || Array.isArray(input))
         return { action: {}, reason: 'INVALID_ACTION' };
     const a = structuredClone(input);
-    if (!['ACQUIRE', 'DISCOVER','INSPECT'].includes(a.kind) || !Array.isArray(a.needs) || !a.needs.length || a.needs.some(id => !truth.needs.some(n => n.id === id)))
+    if (!['ACQUIRE', 'DISCOVER','INSPECT','RENDER'].includes(a.kind) || !Array.isArray(a.needs) || !a.needs.length || a.needs.some(id => !truth.needs.some(n => n.id === id)))
         return { action: a, reason: 'NO_CURRENT_NEED' };
     a.needs = [...new Set(a.needs)].sort();
     a.value = Number.isFinite(a.value) && a.value > 0 ? a.value : 0;
     if (!a.value || typeof a.reason !== 'string' || !a.reason.trim() || a.reason.length > 1000)
         return { action: a, reason: 'NO_EXPLAINED_INFORMATION_VALUE' };
-    if(a.kind==='INSPECT'){
+    if(a.kind==='RENDER'){
+        const expected=renderedResearchActions(k,truth).find(row=>row.observation===a.observation&&row.overviewWidth===a.overviewWidth&&row.mode===a.mode&&row.interaction?.controlId===a.interaction?.controlId&&row.focus?.regionId===a.focus?.regionId);
+        if(!expected||a.url!==expected.url||!Array.isArray(a.targetIds)||!a.targetIds.length||a.targetIds.some(id=>!expected.targetIds.includes(id)))return {action:a,reason:'UNGROUNDED_RENDER'};
+        a.needs=expected.needs;a.targetIds=expected.targetIds;a.gapIds=expected.gapIds;a.reason=expected.reason;a.value=expected.value;a.mode=expected.mode;a.interaction=expected.interaction??null;a.focus=expected.focus??null;
+        delete a.context;
+    }
+    else if(a.kind==='INSPECT'){
         const retained=k.observations.find(o=>o.id===a.observation&&o.outcome==='OK'&&!o.truncated&&o.sha256===digest(o.body));
         const gapSource=a.inspection==='GAP_SOURCE'&&retained&&a.bodySha256===retained.sha256&&gapInspectionActions(k,truth.needs.map(n=>n.id)).some(x=>x.observation===a.observation);
         const queued=retained&&Array.isArray(a.units)&&a.units.length>0&&a.units.length<=semanticUnitLimits.units&&a.units.every(id=>retained.semanticUnits?.some(u=>u.id===id)&&!retained.semanticAttempts?.some(x=>x.unit===id));
@@ -340,7 +349,7 @@ async function accept(k, a, response, interpret, navigate, save) {
     }
     return { kind: 'PROVIDER', id: o.id, url, context: o.context, outcome: o.outcome, sha256: o.sha256, bytes, navigation };
 }
-export async function runResearch({ knowledge, objective, permissions, bounds, capabilities = {}, reasoner, interpret = interpretStructured, navigate, save } = {}) {
+export async function runResearch({ knowledge, objective, permissions, bounds, capabilities = {}, reasoner, interpret = interpretStructured, interpretVisual, navigate, save } = {}) {
     const k = knowledge ? structuredClone(knowledge) : createKnowledge({ objective, permissions, bounds });
     capabilities={...capabilities,LOCAL:async()=>({})};
     if (k.version !== 1)
@@ -348,6 +357,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
     k.usage.sitemapAcquisitions??=0;
     k.navigationResources??=[];
     k.usage.modelCalls??=0;
+    k.usage.renderedActions??=0;
     k.bounds.modelCalls??=12;
     if (k.stop)
         return k;
@@ -388,7 +398,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             // A reasoning component receives a copy, and can propose/rank only. It cannot
             // mutate evidence, counters, permissions, or established propositions.
             try {
-                decision = await reasoner(structuredClone({ workingModel:k.workingModel,objective: k.objective, truth: initial, destinations: k.destinations, observations: k.observations.map(({ body, candidates, ...o }) => o), actions: offered.actions, attempts: k.attempts, permissions:k.permissions, bounds:k.bounds, usage:k.usage }));
+                decision = await reasoner(structuredClone({ workingModel:k.workingModel,objective: k.objective, truth: initial, destinations: k.destinations, observations: k.observations.map(({ body, candidates, renderedArtifacts, renderedOverviews, visualEvidence, domSnapshot, ...o }) => o), actions: offered.actions, attempts: k.attempts, permissions:k.permissions, bounds:k.bounds, usage:k.usage }));
             }
             catch {
                 stop(k, 'REASONER_FAILED');
@@ -422,6 +432,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         if (a.kind === 'DISCOVER')
             k.usage.searches++;
         else if(a.kind==='INSPECT'){k.usage.inspections=(k.usage.inspections??0)+1;}
+        else if(a.kind==='RENDER'){k.usage.renderedActions++;}
         else {
             k.usage.acquisitions++;
             if(k.destinations.find(d=>d.url===a.url)?.discovery?.resource==='SITEMAP')k.usage.sitemapAcquisitions++;
@@ -436,6 +447,56 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             let observation;
             if(a.kind==='INSPECT'&&a.inspection==='GAP_SOURCE'){const retained=k.observations.find(o=>o.id===a.observation);const review=inspectGapSource(retained);k.gapReviews??=[];k.gapReviews.push({action:a.id,...review});k.trace.push({event:'GAP_SOURCE_INSPECTION',action:a.id,gapIds:a.gapIds,...review});observation={kind:'GAP_SOURCE_INSPECTION',id:retained.id,url:retained.url,sha256:retained.sha256};}
             else if(a.kind==='INSPECT'){const retained=k.observations.find(o=>o.id===a.observation);if(!a.units){retained.reinspectionCount=(retained.reinspectionCount??0)+1;k.semanticUnavailable=null;}await understandUnits(k,retained,interpret,save,!a.units,a.units??null);observation={kind:'RETAINED_INSPECTION',id:retained.id,url:retained.url,sha256:retained.sha256};}
+            else if(a.kind==='RENDER'){
+                const parent=k.observations.find(o=>o.id===a.observation);
+                observation={kind:'RENDERED_INSPECTION',parentObservation:parent.id,url:parent.url,status:'UNAVAILABLE'};
+                try {
+                    let retained,produced,focus=null;
+                    if(a.mode==='CLARIFY'){
+                        retained=parent;
+                        const artifact=retained.renderedArtifacts?.find(row=>row.id===a.focus.sourceRenderId),evidence=retained.visualEvidence?.findLast(row=>row.renderId===artifact?.id),region=evidence?.regions?.find(row=>row.id===a.focus.regionId),overview=retained.renderedOverviews?.find(row=>row.renderId===artifact?.id);
+                        if(!artifact||!region||!overview)throw Error('RENDERED_TARGET_REGION_INVALID');
+                        focus=createTargetedVisualRegion(artifact,region.bboxPx);
+                        produced={artifact,overview,dom:retained.domSnapshot??[]};
+                        observation={...observation,id:retained.id,sha256:retained.sha256,status:'CLARIFICATION',renderId:artifact.id,focusSha256:focus.sha256,focusRegionId:region.id};
+                        k.trace.push({event:'TARGETED_VISUAL_CLARIFICATION',action:a.id,observation:retained.id,renderId:artifact.id,regionId:region.id,reason:a.focus.reason,focusSha256:focus.sha256,bboxPx:focus.bboxPx,truthAuthority:'NONE'});
+                    } else {
+                        const response=await capabilities.RENDERED(structuredClone(a),{parent:structuredClone(parent),objective:structuredClone(k.objective),maxRenderMs:60000});
+                        if(response?.failure)throw Error('RENDERED_ACQUISITION_UNAVAILABLE');
+                        retained=a.mode==='STATE'?parent:browserPageObservation(a,parent,k.objective,response.page);
+                        if(a.mode==='STATE'&&(response.page?.body!==parent.body||response.page?.url!==parent.url||response.page?.transport?.verification!==parent.transport?.verification))throw Error('RENDERED_STATE_PARENT_MISMATCH');
+                        produced=retainRenderedObservation(retained,response,{overviewWidth:a.overviewWidth});
+                        retained.renderedArtifacts??=[];retained.renderedArtifacts.push(produced.artifact);
+                        retained.renderedOverviews??=[];retained.renderedOverviews.push({renderId:produced.artifact.id,...produced.overview});
+                        retained.renderedControlRegions??=[];retained.renderedControlRegions.push(produced.controlRegions);
+                        retained.domSnapshot=produced.dom;
+                        retained.candidates=projectObservation(retained,k.objective).candidates;
+                        if(a.mode!=='STATE')k.observations.push(retained);
+                        observation={...observation,id:retained.id,url:retained.url,sha256:retained.sha256,status:'RENDERED',renderId:produced.artifact.id,overviewSha256:produced.overview.sha256,domElements:produced.dom.length};
+                        k.trace.push({event:'RENDERED_ARTIFACT_RETAINED',action:a.id,observation:retained.id,renderId:produced.artifact.id,imageSha256:produced.artifact.image.sha256,widthPx:produced.artifact.image.widthPx,heightPx:produced.artifact.image.heightPx,overviewSha256:produced.overview.sha256,overviewWidth:produced.overview.widthPx,overviewHeight:produced.overview.heightPx,domElements:produced.dom.length,truthAuthority:'NONE'});
+                    }
+                    await persist(k,save);
+                    if(typeof interpretVisual==='function'){
+                        const contract=interpretVisual.contract??{model:'UNKNOWN',promptHash:'UNKNOWN',schemaRevision:'UNKNOWN'},fingerprint=digest([visualFingerprint(produced.artifact,produced.overview,contract,produced.dom),focus?.sha256??null]);
+                        k.visualFingerprints??=[];
+                        if(k.visualFingerprints.includes(fingerprint))k.trace.push({event:'VISUAL_REUSE',action:a.id,fingerprint,reason:'IDENTICAL_RENDERED_ARTIFACT_ALREADY_ANALYZED',truthAuthority:'NONE'});
+                        else if(k.visualAttemptFingerprints?.includes(fingerprint))k.trace.push({event:'VISUAL_DUPLICATE_ATTEMPT_SKIPPED',action:a.id,fingerprint,reason:'IDENTICAL_RENDERED_ARTIFACT_ALREADY_ATTEMPTED',truthAuthority:'NONE'});
+                        else {
+                            k.visualAttemptFingerprints??=[];k.visualAttemptFingerprints.push(fingerprint);k.usage.modelCalls++;
+                            k.trace.push({event:'VISUAL_MODEL_CALL_RESERVED',action:a.id,modelCalls:k.usage.modelCalls,fingerprint,truthAuthority:'NONE'});
+                            await persist(k,save);
+                            try {
+                                const visual=await interpretVisual({observation:structuredClone(retained),artifact:structuredClone(produced.artifact),overview:structuredClone(produced.overview),dom:structuredClone(produced.dom),objective:structuredClone(k.objective),targets:structuredClone(a.targetIds),focus:focus?structuredClone(focus):null});
+                                k.visualUsage??=[];k.visualUsage.push({action:a.id,renderId:produced.artifact.id,model:visual?.model??contract.model,latencyMs:visual?.latencyMs??null,usage:visual?.usage??null,status:visual?.status??'UNKNOWN',modelOfferingCount:Array.isArray(visual?.observations?.offerings)?visual.observations.offerings.length:null,compiledOfferingCount:Array.isArray(visual?.envelope?.offers)?visual.envelope.offers.length:null,unresolvedCount:Array.isArray(visual?.envelope?.unresolved)?visual.envelope.unresolved.length:null});
+                                if(visual?.envelope){const admission=admitRenderedInterpretation(retained,k.objective,visual.envelope);k.visualFingerprints.push(fingerprint);observation={...observation,visualStatus:admission.reason,accepted:admission.accepted.length,rejected:admission.rejected.length,errors:admission.errors};}
+                                else observation={...observation,visualStatus:'UNAVAILABLE'};
+                                k.trace.push({event:'VISUAL_INTERPRETATION',action:a.id,status:observation.visualStatus,usage:k.visualUsage.at(-1),accepted:observation.accepted??0,rejected:observation.rejected??0,truthAuthority:'NONE'});
+                            } catch(error) {observation={...observation,visualStatus:'UNAVAILABLE'};if(error?.visualUsage){k.visualUsage??=[];k.visualUsage.push({action:a.id,renderId:produced.artifact.id,...error.visualUsage});}k.trace.push({event:'VISUAL_INTERPRETATION_UNAVAILABLE',action:a.id,code:/^[A-Z][A-Z0-9_]{0,80}$/.test(error?.message??'')?error.message:'VISUAL_MODEL_UNAVAILABLE',usage:k.visualUsage?.at(-1)??null,truthAuthority:'NONE'});}
+                        }
+                    }
+                    if(a.mode!=='CLARIFY'&&retainControlSourceEvidence(retained,k.objective,produced.artifact))k.trace.push({event:'RENDERED_CONTROL_SOURCE_RETAINED',action:a.id,observation:retained.id,renderId:produced.artifact.id,controlCount:produced.controlRegions.regions.length,truthAuthority:'NONE'});
+                } catch(error) {observation={...observation,status:'UNAVAILABLE'};k.trace.push({event:'RENDERED_ACQUISITION_UNAVAILABLE',action:a.id,code:/^[A-Z][A-Z0-9_]{0,80}$/.test(error?.message??'')?error.message:'RENDERED_CAPABILITY_UNAVAILABLE',truthAuthority:'NONE'});}
+            }
             else {const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxDecodedBytes:(k.bounds.decodedBytes??acquisition.objectiveDecodedBytes)-(k.usage.decodedBytes??0), maxAcquisitionMs:(k.bounds.acquisitionMs??acquisition.objectiveAcquisitionMs)-(k.usage.acquisitionMs??0), maxResults: k.bounds.candidateDestinations, maxRequests:(k.bounds.networkRequests??96)-(k.usage.networkRequests??0) });
             observation = await accept(k, a, response, interpret, navigate, save);}
             const after = evaluate(k);

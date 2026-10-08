@@ -12,7 +12,7 @@ export const digest = value => createHash('sha256').update(typeof value === 'str
 export const states = Object.freeze({ ESTABLISHED: 'ESTABLISHED', UNRESOLVED: 'UNRESOLVED', CONTRADICTED: 'CONTRADICTED' });
 export const servicePropositions = Object.freeze(['SERVICE_IDENTITY', 'SERVICE_SIZE_100K_PLUS', 'CONSUMER_MONTHLY_SUBSCRIPTION_EXISTS', 'ACCOUNT_LOGIN_EXISTS', 'MEMBERSHIP_MANAGEMENT_EXISTS']);
 export const pricePropositions = Object.freeze(['SERVICE_IDENTITY', 'PRICE_AMOUNT', 'CURRENCY', 'MONTHLY_CADENCE', 'MONTHLY_SUBSCRIPTION', 'CONSUMER_SUBSCRIPTION', 'TARGET_MARKET']);
-export const defaultBounds = Object.freeze({ actions: 20, searches: 4, acquisitions: 12, countryAcquisitions: 8, navigationDepth: 4, candidateDestinations: 128, sitemapAcquisitions: 4, discoveryProvenance: 8, bytes: acquisitionCapacity.objectiveWireBytes, decodedBytes: acquisitionCapacity.objectiveDecodedBytes, acquisitionMs: acquisitionCapacity.objectiveAcquisitionMs, observationsPerContext: 1, observationsPerDestination: 3, plannerCalls: 24, networkRequests: 96, modelCalls: 12 });
+export const defaultBounds = Object.freeze({ actions: 20, searches: 4, acquisitions: 12, countryAcquisitions: 8, navigationDepth: 4, candidateDestinations: 128, sitemapAcquisitions: 4, discoveryProvenance: 8, bytes: acquisitionCapacity.objectiveWireBytes, decodedBytes: acquisitionCapacity.objectiveDecodedBytes, acquisitionMs: acquisitionCapacity.objectiveAcquisitionMs, observationsPerContext: 1, observationsPerDestination: 3, plannerCalls: 24, networkRequests: 96, modelCalls: 12, renderedActions: 12 });
 export function normalizeUrl(value, base) {
     try {
         const u = new URL(value, base);
@@ -35,6 +35,7 @@ export const providerBound = (objective, url) => !!normalizeUrl(url) && objectiv
 export const context = (transport, networkGeography = 'UNBOUND') => ({ transport, networkGeography, representation: 'PROVIDER_PAGE' });
 export function actionIdentity(action) {
     if(action.kind==='INSPECT')return digest(['INSPECT',action.observation,...(action.inspection?[action.inspection]:[]),...(action.units?[action.units]:[])]);
+    if(action.kind==='RENDER')return digest(['RENDER',action.observation,action.mode??'OVERVIEW',action.interaction?.controlId??null,action.focus?.regionId??null,action.overviewWidth]);
     return digest(action.kind === 'DISCOVER' ? ['DISCOVER', action.market ?? null, action.family??[...action.needs].sort()] : ['ACQUIRE', action.url, action.context]);
 }
 export function createKnowledge({ objective, permissions = {}, bounds = {} }) {
@@ -54,7 +55,7 @@ export function createKnowledge({ objective, permissions = {}, bounds = {} }) {
     if (o.providerHosts.some(h => typeof h !== 'string' || !normalizeUrl('https://' + h + '/') || new URL('https://' + h + '/').hostname !== h))
         throw Error('INVALID_PROVIDER_HOST');
     validateNamespaces(o);
-    const k = { version: 1, objective: o, permissions: Object.fromEntries(['DIRECT', 'TAVILY', 'DECODO'].map(p => [p, permissions[p] === true])), bounds: b, destinations: [], navigationResources: [], authorityBindings: [], observations: [], attempts: [], decisions: [], trace: [], policyBlocks: [], limitsHit: [], usage: { actions: 0, searches: 0, acquisitions: 0, countryAcquisitions: 0, bytes: 0, decodedBytes: 0, retainedBytes: 0, acquisitionMs: 0, sitemapAcquisitions: 0, plannerCalls: 0, networkRequests: 0, modelCalls: 0 }, pending: null, stop: null };
+    const k = { version: 1, objective: o, permissions: Object.fromEntries(['DIRECT', 'TAVILY', 'DECODO', 'RENDERED'].map(p => [p, permissions[p] === true])), bounds: b, destinations: [], navigationResources: [], authorityBindings: [], observations: [], attempts: [], decisions: [], trace: [], policyBlocks: [], limitsHit: [], usage: { actions: 0, searches: 0, acquisitions: 0, countryAcquisitions: 0, renderedActions: 0, bytes: 0, decodedBytes: 0, retainedBytes: 0, acquisitionMs: 0, sitemapAcquisitions: 0, plannerCalls: 0, networkRequests: 0, modelCalls: 0 }, pending: null, stop: null };
     for (const url of o.seeds)
         addDestination(k, { url, depth: 0, needs: o.kind === 'PRICE' ? pricePropositions : servicePropositions, grounding: { kind: 'OPERATOR_SEED' } });
     return k;

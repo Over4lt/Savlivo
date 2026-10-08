@@ -1,5 +1,6 @@
 // A separate single-objective host. Never imported by V2/Operations.
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
+import {randomBytes} from 'node:crypto';
 import {resolve,join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {runResearch} from './engine.mjs';
@@ -10,11 +11,14 @@ import {createReasoner} from './reasoner.mjs';
 import {navigationOwned} from './discovery-authority.mjs';
 import {restore,checkpoint,createKnowledge,addDestination,pricePropositions,servicePropositions} from './model.mjs';
 import {createLiveSemanticInterpreter,isLiveSemanticInterpreter} from './live-semantic.mjs';
+import {createLiveVisualInterpreter} from './live-visual.mjs';
+import {createPlaywrightRenderedCapability} from './browser-render.mjs';
 
-export async function runTarget({input,capabilities,reasoner,navigate,interpret,save,snapshot,env=process.env}={}) {
+export async function runTarget({input,capabilities,reasoner,navigate,interpret,interpretVisual,save,snapshot,env=process.env}={}) {
     const {objective,provider,permissions={},bounds={}}=input??{};
     if(!objective||objective.markets?.length!==1||!provider?.reviewed||provider.serviceId!==objective.serviceId||JSON.stringify([...provider.hosts].sort())!==JSON.stringify([...objective.providerHosts].sort()))throw Error('REVIEWED_SINGLE_TARGET_REQUIRED');
     interpret=await configuredInterpreter(input,interpret,env);
+    if(input.rendered?.mode==='LIVE'&&input.permissions?.RENDERED)interpretVisual??=createLiveVisualInterpreter({env,timeoutMs:input.rendered.timeoutMs??90000,maxOutputTokens:input.rendered.maxOutputTokens??12000});
     const knowledge=snapshot?restore(snapshot):undefined;
     if(knowledge) {
         const restoredObjective=structuredClone(knowledge.objective);
@@ -29,7 +33,9 @@ export async function runTarget({input,capabilities,reasoner,navigate,interpret,
         for(const host of objective.providerHosts)addDestination(initial,{url:'https://'+host+'/',depth:0,needs:objective.kind==='PRICE'?pricePropositions:servicePropositions,grounding:{kind:'PROVIDER_ROOT',host}});
     }
     initial.semanticAdapter=interpret.semanticAdapter??{mode:'LEGACY_STATIC'};
-    const k=await runResearch({knowledge:initial,objective,permissions,bounds,capabilities,reasoner:reasoner??createReasoner(input.planning),interpret,navigate,save});
+    let k;
+    try{k=await runResearch({knowledge:initial,objective,permissions,bounds,capabilities,reasoner:reasoner??createReasoner(input.planning),interpret,interpretVisual,navigate,save});}
+    finally{await capabilities?.RENDERED?.close?.();}
     return {knowledge:k,result:{objective:k.objective,truth:evaluate(k),catalog:k.catalog??null,stop:k.stop,usage:k.usage,trace:k.trace,decisions:k.decisions}};
 }
 
@@ -60,19 +66,29 @@ export async function configuredInterpreter(input,interpret,env=process.env) {
 }
 
 export async function prepareLive(input,{env=process.env,client,fetchImpl}={}) {
-    if(input?.semantic?.mode!=='LIVE')throw Error('V3_LIVE_SEMANTIC_MODE_REQUIRED');
+    if(input?.semantic?.mode!=='LIVE'&&!(input?.rendered?.mode==='LIVE'&&input?.semantic?.mode==='LEGACY_STATIC'))throw Error('V3_LIVE_SEMANTIC_MODE_REQUIRED');
     if(input.permissions?.TAVILY&&!env.TAVILY_API_KEY?.trim())throw Error('V3_TAVILY_CONFIGURATION_REQUIRED');
     if(input.permissions?.DECODO&&(!env.DECODO_USERNAME?.trim()||!env.DECODO_PASSWORD?.trim()||/[:\r\n]|^user-|-country-|-session-/i.test(env.DECODO_USERNAME)||/[\r\n]/.test(env.DECODO_PASSWORD)))throw Error('V3_DECODO_CONFIGURATION_REQUIRED');
     if(!input.provider?.reviewed||input.provider.serviceId!==input.objective?.serviceId||input.objective?.markets?.length!==1||JSON.stringify([...input.provider.hosts].sort())!==JSON.stringify([...input.objective.providerHosts].sort()))throw Error('REVIEWED_SINGLE_TARGET_REQUIRED');
     createKnowledge({objective:input.objective,permissions:input.permissions,bounds:input.bounds});
-    const interpret=await createLiveSemanticInterpreter({env,client,fetchImpl,timeoutMs:input.semantic.timeoutMs??30000,maxOutputTokens:input.semantic.maxOutputTokens??8192});
-    return {interpret,capabilities:createCapabilities({objective:input.objective,permissions:input.permissions,tavily:{apiKey:env.TAVILY_API_KEY},decodo:{username:env.DECODO_USERNAME,password:env.DECODO_PASSWORD}})};
+    const interpret=input.semantic.mode==='LIVE'?await createLiveSemanticInterpreter({env,client,fetchImpl,timeoutMs:input.semantic.timeoutMs??30000,maxOutputTokens:input.semantic.maxOutputTokens??8192}):interpretWeb;
+    const capabilities=createCapabilities({objective:input.objective,permissions:input.permissions,tavily:{apiKey:env.TAVILY_API_KEY},decodo:{username:env.DECODO_USERNAME,password:env.DECODO_PASSWORD}});
+    let interpretVisual;
+    if(input.rendered?.mode==='LIVE'&&input.permissions?.RENDERED){
+        if(!env.V3_PLAYWRIGHT_MODULE?.trim())throw Error('V3_RENDERED_BROWSER_CONFIGURATION_REQUIRED');
+        let browserModule;try{browserModule=await import(env.V3_PLAYWRIGHT_MODULE);}catch{throw Error('V3_RENDERED_BROWSER_CONFIGURATION_REQUIRED');}
+        const chromium=browserModule.chromium??browserModule.default?.chromium;
+        if(!chromium)throw Error('V3_RENDERED_BROWSER_CONFIGURATION_REQUIRED');
+        capabilities.RENDERED=createPlaywrightRenderedCapability({chromium,proxyFor:context=>({server:'http://gate.decodo.com:7000',username:'user-'+env.DECODO_USERNAME+'-country-'+context.networkGeography.toLowerCase()+'-session-'+randomBytes(16).toString('hex'),password:env.DECODO_PASSWORD})});
+        interpretVisual=createLiveVisualInterpreter({env,timeoutMs:input.rendered.timeoutMs??90000,maxOutputTokens:input.rendered.maxOutputTokens??12000});
+    }
+    return {interpret,interpretVisual,capabilities};
 }
 async function main() {
     const [mode,file,...flags]=process.argv.slice(2);
     if(!['--offline','--live','--preflight'].includes(mode)||!file)throw Error('V3_RUNNER_USAGE');
     const input=JSON.parse(await readFile(file,'utf8'));
-    if(mode==='--offline'&&input.semantic?.mode==='LIVE')throw Error('V3_OFFLINE_LIVE_SEMANTIC_FORBIDDEN');
+    if(mode==='--offline'&&(input.semantic?.mode==='LIVE'||input.rendered?.mode==='LIVE'))throw Error('V3_OFFLINE_LIVE_SEMANTIC_FORBIDDEN');
     if(mode==='--live'&&(!flags.includes('--allow-network')||!flags.includes('--allow-model')))throw Error('V3_LIVE_AUTHORIZATION_REQUIRED');
     const dependencies=mode==='--offline'?{capabilities:offlineCapabilities(input)}:await prepareLive(input);
     if(mode==='--preflight') {
@@ -91,5 +107,5 @@ async function main() {
     if(output){await save(checkpoint(knowledge));await writeFile(join(output,'result.json'),JSON.stringify(result,null,2)+'\n');}
     process.stdout.write(JSON.stringify(result,null,2)+'\n');
 }
-const safeErrors=new Set(['V3_LIVE_SEMANTIC_CONFIGURATION_REQUIRED','V3_LIVE_SEMANTIC_CREDENTIAL_REQUIRED','V3_LIVE_SEMANTIC_MODE_REQUIRED','V3_LIVE_SEMANTIC_ADAPTER_REQUIRED','V3_SEMANTIC_MODE_INVALID','V3_TAVILY_CONFIGURATION_REQUIRED','V3_DECODO_CONFIGURATION_REQUIRED','REVIEWED_SINGLE_TARGET_REQUIRED','V3_OFFLINE_LIVE_SEMANTIC_FORBIDDEN','V3_LIVE_AUTHORIZATION_REQUIRED','V3_LIVE_TRACE_DIRECTORY_REQUIRED','RESUME_SEMANTIC_ADAPTER_MISMATCH']);
+const safeErrors=new Set(['V3_LIVE_SEMANTIC_CONFIGURATION_REQUIRED','V3_LIVE_SEMANTIC_CREDENTIAL_REQUIRED','V3_LIVE_SEMANTIC_MODE_REQUIRED','V3_LIVE_SEMANTIC_ADAPTER_REQUIRED','V3_VISUAL_CREDENTIAL_REQUIRED','V3_RENDERED_BROWSER_CONFIGURATION_REQUIRED','V3_SEMANTIC_MODE_INVALID','V3_TAVILY_CONFIGURATION_REQUIRED','V3_DECODO_CONFIGURATION_REQUIRED','REVIEWED_SINGLE_TARGET_REQUIRED','V3_OFFLINE_LIVE_SEMANTIC_FORBIDDEN','V3_LIVE_AUTHORIZATION_REQUIRED','V3_LIVE_TRACE_DIRECTORY_REQUIRED','RESUME_SEMANTIC_ADAPTER_MISMATCH']);
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)main().catch(error=>{process.stderr.write((safeErrors.has(error?.message)?error.message:'V3_RUNNER_FAILED: inspect input/capability configuration; no credentials printed')+'\n');process.exitCode=1;});

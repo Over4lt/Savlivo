@@ -58,7 +58,8 @@ export function rankResearchActions(state,{initialPerspective='AUTO'}={}) {
  }
  return state.actions.map(action=>{
   const r=wm.resources.find(r=>r.destination===action.url),family=wm.families.find(f=>f.id===r?.family);
-  const factors={base:action.kind==='INSPECT'?120:action.kind==='ACQUIRE'?30:10,unresolved:Math.min(14,(action.needs??state.truth.needs).length*2),discovery:Math.min(30,(state.destinations.find(d=>d.url===action.url)?.discovery?.score??0)*1.5),novelty:r&&!r.history.some(h=>canonical(h.context)===canonical(action.context))?30:0,familySaturation:-(family?.attempted??0)*18,role:0,state:0,sourceRelation:0,objectiveDeficit:0,informationYield:0,geography:0,cost:action.kind==='ACQUIRE'?-3:-6};
+  const renderedFamilyAttempts=action.kind==='RENDER'&&r?(state.attempts??[]).filter(attempt=>attempt.action.kind==='RENDER'&&wm.resources.find(resource=>resource.destination===attempt.action.url)?.family===r.family).length:0;
+  const factors={base:action.kind==='INSPECT'?120:action.kind==='RENDER'?75:action.kind==='ACQUIRE'?30:10,unresolved:Math.min(14,(action.needs??state.truth.needs).length*2),discovery:Math.min(30,(state.destinations.find(d=>d.url===action.url)?.discovery?.score??0)*1.5),novelty:r&&!r.history.some(h=>canonical(h.context)===canonical(action.context))?30:0,familySaturation:action.kind==='RENDER'?-renderedFamilyAttempts*18:-(family?.attempted??0)*18,role:0,state:0,sourceRelation:0,objectiveDeficit:0,informationYield:0,geography:0,cost:action.kind==='RENDER'?-18:action.kind==='ACQUIRE'?-3:-6,visualTargetCoverage:action.kind==='RENDER'?Math.min(50,(action.targetIds?.length??0)*2):0,visualPresentationState:action.kind==='RENDER'&&action.mode==='STATE'?(action.interaction?.kind==='PRESENTATION_SELECT'?50:20):0};
   if(r?.role==='PRICING')factors.role=45;
   if(r?.role==='PRODUCT')factors.role=15;
   if(['SUPPORT','ACCOUNT'].includes(r?.role)&&state.objective?.kind==='PRICE')factors.role=-30;
