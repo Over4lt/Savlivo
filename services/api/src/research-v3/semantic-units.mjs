@@ -1,4 +1,5 @@
 // Deterministic routing only. Signals do not establish source semantics or truth.
+import {targetTextSignals,targetMaterialValue} from './evidence-targets.mjs';
 import {digest} from './model.mjs';
 import {selectedStateContext,providerStates} from './provider-states.mjs';
 import {semanticMaterial,semanticDestinations,projectWebSource} from './source.mjs';
@@ -35,10 +36,10 @@ export function selectSemanticPlan(o,objective,needs) {
     const stateContexts=wanted.some(n=>n.includes('MONTHLY_SUBSCRIPTION'))?selectedStateContext(o,{start:0,end:o.body.length}):[];
     const structuredPrice=s=>all.presentations.some(p=>p.tag==='script-data'&&inside(s,p)&&['Offer','AggregateOffer','UnitPriceSpecification','Product','Service','StructuredObject'].includes(p.itemType));
     const stateSegment=s=>stateContexts.some(c=>c.spans.some(b=>s.start<=b.start&&s.end>=b.end));
-    const anchors=all.segments.filter(s=>(pricing&&(money(s.text)||structuredPrice(s)))||stateSegment(s)||(account&&destinations.some(d=>inside(s,d)))||(wanted.includes('SERVICE_SIZE_100K_PLUS')&&/\p{N}/u.test(s.text)));
+    const anchors=all.segments.filter(s=>(pricing&&(money(s.text)||structuredPrice(s)||targetTextSignals(s.text).relevant))||stateSegment(s)||(account&&destinations.some(d=>inside(s,d)))||(wanted.includes('SERVICE_SIZE_100K_PLUS')&&/\p{N}/u.test(s.text)));
     const make=(presentations,complete=false,segmentSpans=null)=>{
         const rows=all.segments.filter(s=>segmentSpans?segmentSpans.some(b=>s.start===b.start&&s.end===b.end):presentations.some(p=>inside(s,p)));
-        const hasMoney=rows.some(s=>money(s.text)||structuredPrice(s)),hasState=rows.some(stateSegment),hasDestinations=destinations.some(d=>presentations.some(p=>inside(d,p)));
+        const hasMoney=rows.some(s=>money(s.text)||structuredPrice(s)||targetTextSignals(s.text).relevant),hasState=rows.some(stateSegment),hasDestinations=destinations.some(d=>presentations.some(p=>inside(d,p)));
         const routed=objective.kind==='PRICE'&&hasMoney?[...new Set([...wanted,'SERVICE_IDENTITY','PRICE_AMOUNT','CURRENCY','MONTHLY_CADENCE','MONTHLY_SUBSCRIPTION','CONSUMER_SUBSCRIPTION','TARGET_MARKET'])]:wanted;
         const relevant=routed.filter(n=>complete||n==='SERVICE_IDENTITY'||n==='MONTHLY_SUBSCRIPTION'&&hasState||/ACCOUNT|MANAGEMENT|CANCELLATION/.test(n)&&hasDestinations||/SIZE/.test(n)&&rows.some(s=>/\p{N}/u.test(s.text))||/PRICE|CURRENCY|CADENCE|SUBSCRIPTION|MARKET/.test(n)&&hasMoney);
         if(!relevant.length)return null;
@@ -69,11 +70,12 @@ export function selectSemanticPlan(o,objective,needs) {
         }
         if(!found)oversized++;
     }
-    const value=c=>offeringRoutingValue(o.body.slice(c.parent.start,c.parent.end));
+    const signals=c=>({structural:offeringRoutingValue(o.body.slice(c.parent.start,c.parent.end)),text:targetMaterialValue(all.segments.filter(s=>inside(s,c.parent)).map(s=>s.text).join(' ').slice(0,semanticUnitLimits.sourceCharacters))});
+    const value=c=>Math.max(...Object.values(signals(c)));
     const unique=[...new Map(candidates.map(c=>[c.unit.id,c])).values()].sort((a,b)=>value(b)-value(a)||Number(a.parent.tag==='script-data')-Number(b.parent.tag==='script-data')||a.parent.start-b.parent.start);
     const chosen=[];
     for(const c of unique)if(!chosen.some(old=>inside(c.parent,old.parent)))chosen.push(c);
-    return {candidates:chosen.slice(0,semanticUnitLimits.preparedCandidates).map(c=>({...c.unit,researchValue:value(c)})),units:chosen.slice(0,semanticUnitLimits.units).map(c=>({...c.unit,researchValue:value(c)})),capacityHit:all.structuredLimited===true||oversized>0||chosen.length>semanticUnitLimits.preparedCandidates,reason:oversized?'INDIVISIBLE_PRESENTATION_BOUND':chosen.length>semanticUnitLimits.preparedCandidates?'PREPARED_CANDIDATE_BOUND':'LOCAL_STRUCTURAL_CANDIDATES'};
+    return {candidates:chosen.slice(0,semanticUnitLimits.preparedCandidates).map(c=>({...c.unit,researchValue:value(c),researchRouting:{...signals(c),meaning:'SOURCE_RELEVANCE_NOT_TRUTH'}})),units:chosen.slice(0,semanticUnitLimits.units).map(c=>({...c.unit,researchValue:value(c),researchRouting:{...signals(c),meaning:'SOURCE_RELEVANCE_NOT_TRUTH'}})),capacityHit:all.structuredLimited===true||oversized>0||chosen.length>semanticUnitLimits.preparedCandidates,reason:oversized?'INDIVISIBLE_PRESENTATION_BOUND':chosen.length>semanticUnitLimits.preparedCandidates?'PREPARED_CANDIDATE_BOUND':'LOCAL_STRUCTURAL_CANDIDATES'};
 }
 
 export const selectSemanticUnits=(o,objective,needs)=>selectSemanticPlan(o,objective,needs).units;

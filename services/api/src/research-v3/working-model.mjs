@@ -1,4 +1,5 @@
 // Research-only state. Never imported by truth, projection, or evidence admission.
+import {retainedTargetMaterial} from './evidence-targets.mjs';
 import {gapActionValue} from './research-gaps.mjs';
 import {researchState} from './research-strategist.mjs';
 import {digest,canonical} from './model.mjs';
@@ -24,14 +25,16 @@ export function researchRole(d) {
 export function buildWorkingModel(k,truth,previous=k.workingModel) {
  const strategy=researchState(k);
  const resources=[...k.destinations].sort((a,b)=>(b.discovery?.score??0)-(a.discovery?.score??0)).slice(0,workingCapacity.resources).map(d=>{
-  const history=(k.attempts??[]).filter(a=>a.action.url===d.url),observations=k.observations.filter(o=>o.url===d.url);
+  const history=(k.attempts??[]).filter(a=>a.action.url===d.url),observations=k.observations.filter(o=>o.url===d.url||o.requestedUrl===d.url);
   const progress=k.trace.filter(t=>t.event==='OBSERVATION'&&t.observation?.url===d.url).flatMap(t=>t.changes??[]).filter(p=>p.to?.state==='ESTABLISHED');
   const objectiveProgress=k.objective.kind==='PRICE'?progress.filter(p=>!/(?:SERVICE_IDENTITY|TARGET_MARKET)$/.test(p.id)):progress;
   const role=researchRole(d),family=d.discovery?.state?.group??d.discovery?.family??new URL(d.url).origin+new URL(d.url).pathname;
   const information=observations.some(o=>(o.candidates??[]).some(c=>c.kind==='OFFER')||o.evidence?.envelope?.offers?.length)?'PRICING_SURFACE_OBSERVED':observations.some(o=>o.outcome==='OK')?'SOURCE_OBSERVED':'UNOBSERVED';
   const newInformation=k.objective.kind==='PRICE'?information==='PRICING_SURFACE_OBSERVED'||objectiveProgress.length>0:observations.some(o=>strategy.clues.some(c=>c.observation===o.id&&(c.structured||c.clientShell)))||progress.length>0;
   const duplicates=observations.filter(o=>k.observations.some(other=>other.id!==o.id&&other.sha256===o.sha256&&other.outcome==='OK')).length;
-  return {affinity:catalogAffinity(d),newInformation,duplicates,id:digest(d.url),destination:d.url,family,role,authority:'REVIEWED_NAVIGATION_BOUNDARY',needs:truth.needs.filter(n=>(d.needs??[]).includes(n.proposition)).map(n=>n.id),provenance:(d.provenance??[d.grounding]).slice(0,workingCapacity.provenance).map(provenance),history:history.slice(-8).map(a=>({id:a.id,context:a.action.context,status:a.status,failure:a.failure?{code:a.failure.code,stage:a.failure.stage,kind:a.failure.kind}:null})),observations:observations.map(o=>({id:o.id,sha256:o.sha256,context:o.context,outcome:o.outcome})).slice(-8),learned:information,progress:objectiveProgress.map(p=>p.id),state:d.discovery?.state??null};
+  const relevant=observations.map(retainedTargetMaterial),representations=relevant.map(m=>m.fingerprint).filter(Boolean);
+  const repeated=observations.filter(o=>{const m=retainedTargetMaterial(o);return m.fingerprint&&k.observations.some(x=>x.id!==o.id&&canonical(x.context)===canonical(o.context)&&retainedTargetMaterial(x).fingerprint===m.fingerprint);}).length;
+  return {sourceContext:d.discovery?.signals?.structure??d.discovery?.context??null,discoveryKind:d.discovery?.kind??null,label:d.discovery?.label??'',representations,repeated,affinity:catalogAffinity(d),newInformation,duplicates,id:digest(d.url),destination:d.url,family,role,authority:'REVIEWED_NAVIGATION_BOUNDARY',needs:truth.needs.filter(n=>(d.needs??[]).includes(n.proposition)).map(n=>n.id),provenance:(d.provenance??[d.grounding]).slice(0,workingCapacity.provenance).map(provenance),history:history.slice(-8).map(a=>({id:a.id,context:a.action.context,status:a.status,failure:a.failure?{code:a.failure.code,stage:a.failure.stage,kind:a.failure.kind}:null})),observations:observations.map(o=>({id:o.id,sha256:o.sha256,context:o.context,outcome:o.outcome})).slice(-8),learned:information,progress:objectiveProgress.map(p=>p.id),state:d.discovery?.state??null};
  });
  const families=[...new Set(resources.map(r=>r.family))].slice(0,workingCapacity.families).map(id=>({id,members:resources.filter(r=>r.family===id).map(r=>r.id),attempted:resources.filter(r=>r.family===id&&(r.history.length||r.observations.length)).length,alternatives:resources.filter(r=>r.family===id&&!r.history.length).map(r=>r.id),yield:resources.filter(r=>r.family===id).flatMap(r=>r.progress).filter(p=>p.includes(':')||p==='SERVICE_IDENTITY').length,unproductive:resources.filter(r=>r.family===id&&(r.history.length||r.observations.length)&&!r.progress.length&&!r.newInformation).length}));
  const hypotheses=resources.map(r=>({id:'hypothesis-'+r.id,resource:r.id,kind:r.state?'ALTERNATIVE_PROVIDER_STATE':r.role==='UNKNOWN'?'UNCLASSIFIED_RESOURCE':'LIKELY_'+r.role,status:r.history.some(h=>h.status==='FAILED')?'ATTEMPT_FAILED':r.learned==='UNOBSERVED'?'UNTESTED':r.progress.length?'INFORMATION_GAINED':'UNCERTAINTY_REMAINS',provenance:r.provenance,truthAuthority:'NONE'})).slice(0,workingCapacity.hypotheses);
@@ -83,7 +86,11 @@ export function rankResearchActions(state,{initialPerspective='AUTO'}={}) {
   // Learned information yield, rather than a blanket legal/help ban. A family
   // with useful evidence keeps value; repeated zero-yield siblings lose it.
   const noYield=family?.unproductive??0;
-  factors.duplicate=-(r?.duplicates??0)*12;
+  factors.duplicate=-Math.min(90,(r?.duplicates??0)*12+(r?.repeated??0)*30);
+  // A new transport/country remains an independent observation. A known final
+  // resource alias in the same context has lower expected novelty, not new trust.
+  const equivalents=state.observations.filter(o=>(o.url===action.url||o.requestedUrl===action.url)&&canonical(o.context)===canonical(action.context));
+  factors.observedRepresentation=action.kind==='ACQUIRE'&&equivalents.length?-80:0;
   if(discovery?.kind==='PROVIDER_ENDPOINT')factors.sourceRelation+=sourceResources.some(x=>wm.research?.clues.some(c=>x.observations.some(o=>o.id===c.observation)&&c.clientShell))?45:-15;
   factors.informationYield=-Math.min(90,noYield*22)+(family?.yield?Math.min(20,family.yield*4):0);
   if(r?.state&&sourceResources.some(x=>x.learned==='PRICING_SURFACE_OBSERVED'))factors.sourceRelation+=25;
@@ -99,10 +106,14 @@ export function rankResearchActions(state,{initialPerspective='AUTO'}={}) {
   const roleFailures=r?.history.filter(h=>h.status==='FAILED'&&canonical(h.context)===canonical(action.context)).length??0;factors.failure=roleFailures?-20*roleFailures:0;
   const gapValue=gapActionValue(action,wm.gaps,r);factors.gapInformation=gapValue.information;factors.gapSourceFamily=gapValue.sourceFamily;factors.gapRedundancy=gapValue.redundancy;
   const value=Object.values(factors).reduce((a,b)=>a+b,0);
-  return {actionId:action.id,value,factors,gapCoverage:gapValue.covers,resource:r?.id??null,family:r?.family??null,needs:action.needs,expectedInformation:action.strategist?.question??(action.kind==='INSPECT'?'Source-bound interpretation of retained monetary material':action.kind==='DISCOVER'?'New authoritative destinations':r?.state?'Discriminate source-exposed provider state':'Resolve '+(action.needs??state.truth.needs.map(n=>n.proposition)).join(', ')),support:action.strategist?.provenance?[action.strategist.provenance]:r?.provenance??[],reason:'Objective deficits, source-local transitions, observed family information yield, novelty and verified acquisition context'};
+  return {targetCoverage:gapValue.targets,targetExpectations:gapValue.expectations,actionId:action.id,value,factors,gapCoverage:gapValue.covers,resource:r?.id??null,family:r?.family??null,needs:action.needs,expectedInformation:action.strategist?.question??(action.kind==='INSPECT'?'Source-bound interpretation of retained monetary material':action.kind==='DISCOVER'?'New authoritative destinations':r?.state?'Discriminate source-exposed provider state':'Resolve '+(action.needs??state.truth.needs.map(n=>n.proposition)).join(', ')),support:action.strategist?.provenance?[action.strategist.provenance]:r?.provenance??[],reason:'Objective deficits, source-local transitions, observed family information yield, novelty and verified acquisition context'};
  }).sort((a,b)=>b.value-a.value||a.actionId.localeCompare(b.actionId));
 }
-export function workingDecision(wm,ranked,selected,budgets) {
- const record={selected,considered:ranked.slice(0,64),deferred:ranked.slice(64).map(r=>r.actionId).slice(0,64),budgets:structuredClone(budgets),unresolved:wm.objective.unresolved,gaps:wm.gaps};
+export function workingDecision(wm,ranked,selected,budgets,snapshot=null) {
+ // Complete ranking without duplicating identical contracts for every resource.
+ // Set references are content-addressed and reconstructible from this receipt.
+ const sets={};const retain=value=>{const key=digest(value);sets[key]=value;return key;};
+ const considered=ranked.map(({targetCoverage=[],targetExpectations=[],gapCoverage=[],...r})=>({...r,targetCoverageSet:retain(targetCoverage),targetExpectationsSet:retain(targetExpectations),gapCoverageSet:retain(gapCoverage)}));
+ const record={snapshot,selected,selectedRanking:ranked.find(r=>r.actionId===selected)??null,considered,sets,rankingComplete:true,budgets:structuredClone(budgets),unresolved:wm.objective.unresolved,gaps:wm.gaps};
  wm.decisions.push(record);wm.decisions=wm.decisions.slice(-workingCapacity.decisions);return record;
 }

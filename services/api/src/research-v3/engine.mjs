@@ -1,4 +1,5 @@
 import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound, materializeAuthority } from './model.mjs';
+import {targetOutcome} from './evidence-targets.mjs';
 import {diagnoseGaps,gapInspectionActions,inspectGapSource,gapTermination} from './research-gaps.mjs';
 import {exhaustionDiagnosis} from './research-strategist.mjs';
 import {buildWorkingModel,rankResearchActions,workingDecision} from './working-model.mjs';
@@ -381,6 +382,8 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         }
         k.usage.plannerCalls++;
         let offered = availableActions(k, capabilities), decision = {};
+        const selectorSnapshot={cooldownEligible:k.semanticUnavailable?.status===429?Date.now()>=k.semanticUnavailable.until:null,attempts:k.attempts.map(a=>({id:a.id,status:a.status})),usage:structuredClone(k.usage),semanticUnavailable:structuredClone(k.semanticUnavailable??null),actions:structuredClone(offered.actions)};
+        selectorSnapshot.sha256=digest(selectorSnapshot);
         if (reasoner) {
             // A reasoning component receives a copy, and can propose/rank only. It cannot
             // mutate evidence, counters, permissions, or established propositions.
@@ -396,14 +399,16 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
                 decision = {};
             if ((decision.proposals?.length ?? 0) > k.bounds.candidateDestinations)
                 markLimit(k, 'candidateDestinations');
-            offered = availableActions(k, capabilities, Array.isArray(decision.proposals) ? decision.proposals.slice(0, k.bounds.candidateDestinations) : []);
+            if(decision.proposals?.length)offered = availableActions(k, capabilities, decision.proposals.slice(0, k.bounds.candidateDestinations));
         }
-        const ranked=rankResearchActions({objective:k.objective,truth:initial,workingModel:k.workingModel,destinations:k.destinations,observations:k.observations,actions:offered.actions});
+        const returnedRanking=Array.isArray(decision.researchRanking)&&decision.researchRanking.length===offered.actions.length&&decision.researchRanking.every(r=>offered.actions.some(a=>a.id===r.actionId))?decision.researchRanking:null;
+        const ranked=returnedRanking??rankResearchActions({objective:k.objective,truth:initial,workingModel:k.workingModel,destinations:k.destinations,observations:k.observations,attempts:k.attempts,actions:offered.actions});
+        selectorSnapshot.executedActions=structuredClone(offered.actions);selectorSnapshot.rankingOrigin=returnedRanking?'REASONER_RETURNED':'ENGINE_FALLBACK';
         const selected = offered.actions.find(a => a.id === decision.actionId) ?? offered.actions.find(a=>a.id===ranked[0]?.actionId);
-        const audit = { needs: initial.needs.map(n => n.id), evaluated: offered.evaluated.map(r => ({ id: r.action.id ?? null, kind: r.action.kind, url: r.action.url ?? null, context: r.action.context ?? null, value:r.action.value, family:r.action.family??null, needs: r.action.needs, reason: r.reason, bounds: r.bounds ?? [] })), selected: selected?.id ?? null, reason: selected ? (decision.actionId === selected.id && typeof decision.reason === 'string' ? decision.reason : selected.reason) : 'No admissible useful action in the current grounded knowledge' };
+        const audit = { needs: initial.needs.map(n => n.id), evaluated: offered.evaluated.map(r => ({ id: r.action.id ?? null, kind: r.action.kind, url: r.action.url ?? null, context: r.action.context ?? null, value:r.action.value, query:r.action.query??null,targetIds:r.action.targetIds??[],gapIds:r.action.gapIds??[],units:r.action.units??null, family:r.action.family??null, needs: r.action.needs, reason: r.reason, bounds: r.bounds ?? [] })), selected: selected?.id ?? null, reason: selected ? (decision.actionId === selected.id && typeof decision.reason === 'string' ? decision.reason : selected.reason) : 'No admissible useful action in the current grounded knowledge' };
         k.decisions.push(audit);
         k.trace.push({event:'GAP_DIAGNOSIS',...structuredClone(k.gapState)});
-        k.trace.push({event:'RESEARCH_DECISION',...workingDecision(k.workingModel,ranked,selected?.id??null,{usage:k.usage,bounds:k.bounds})});
+        k.trace.push({event:'RESEARCH_DECISION',...workingDecision(k.workingModel,ranked,selected?.id??null,{usage:k.usage,bounds:k.bounds},selectorSnapshot)});
         if (!selected) {
             k.gapStop=gapTermination(k,offered.evaluated);
             const hit = [...new Set([...k.limitsHit, ...offered.evaluated.flatMap(r => r.bounds ?? [])])];
@@ -412,6 +417,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             return k;
         }
         const a = selected;
+        const targetBefore=structuredClone(k.gapState),priorObservations=new Set(k.observations.map(o=>o.id)),priorTruth=finalTruth;
         k.usage.actions++;
         if (a.kind === 'DISCOVER')
             k.usage.searches++;
@@ -433,8 +439,10 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             else {const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxDecodedBytes:(k.bounds.decodedBytes??acquisition.objectiveDecodedBytes)-(k.usage.decodedBytes??0), maxAcquisitionMs:(k.bounds.acquisitionMs??acquisition.objectiveAcquisitionMs)-(k.usage.acquisitionMs??0), maxResults: k.bounds.candidateDestinations, maxRequests:(k.bounds.networkRequests??96)-(k.usage.networkRequests??0) });
             observation = await accept(k, a, response, interpret, navigate, save);}
             const after = evaluate(k);
+            refreshCatalog(k,after);
             const nextGaps=diagnoseGaps(k,after),priorIds=new Set(k.gapState.gaps.map(g=>g.id)),nextIds=new Set(nextGaps.gaps.map(g=>g.id));
             k.trace.push({event:'GAP_PROGRESS',action:a.id,noLongerDiagnosed:[...priorIds].filter(id=>!nextIds.has(id)),newlyDiagnosed:[...nextIds].filter(id=>!priorIds.has(id)),remaining:nextGaps.gaps.map(g=>g.id),meaning:'DIAGNOSIS_CHANGE_NOT_TRUTH',truthAuthority:'NONE'});k.gapState=nextGaps;
+            k.trace.push({event:'EVIDENCE_TARGET_OUTCOME',...targetOutcome(targetBefore,nextGaps,k.observations,priorObservations,priorTruth,after,a,ranked.find(r=>r.actionId===a.id))});
             k.attempts.at(-1).status = 'COMPLETED';
             k.pending = null;
             k.trace.push({ event: 'OBSERVATION', observation, changes: changes(initial, after),evaluations:after,usage:structuredClone(k.usage),bounds:k.bounds,remainingNeeds: after.needs.map(n => n.id) });
@@ -445,6 +453,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             k.pending = null;
             if(interpret.semanticAdapter)k.trace.push({event:'SEMANTIC_OR_ACQUISITION_FAILED',adapter:interpret.semanticAdapter,modelCalls:k.usage.modelCalls});
             k.trace.push({event:'ACTION_FAILED',action:a.id,code});
+            k.trace.push({event:'EVIDENCE_TARGET_OUTCOME',action:a.id,targetIds:ranked.find(r=>r.actionId===a.id)?.targetCoverage??[],informationGain:'FAILED_ACTION',failure:code,propositionChanges:[],truthAuthority:'NONE'});
             if(/^SITEMAP_(?:UNSUPPORTED|INCOMPLETE)$/.test(code))k.attempts.at(-1).failure={kind:'NAVIGATION',code};
             const failure=k.attempts.at(-1).failure;
             const recoverable=(['ACQUISITION','DISCOVERY','NAVIGATION'].includes(failure?.kind)||resourceCapacityFailure(failure));

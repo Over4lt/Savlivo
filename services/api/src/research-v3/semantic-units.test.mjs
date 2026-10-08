@@ -48,13 +48,13 @@ test('oversized indivisible presentation is not clipped into a stronger assertio
 });
 test('multiple bounded units: first API failure preserves native identity; second succeeds without retry',async()=>{
  const other=evidenceFixtures.find(f=>f.key==='norwegian');const input=bigInput(other);
- for(const row of input.fixtures)if(!row.url.endsWith('robots.txt'))row.body=row.body.replace('<section>', '<section><p>USD 77 '+ 'x'.repeat(2800)+'</p></section><section>');
+ for(const row of input.fixtures)if(!row.url.endsWith('robots.txt'))row.body=row.body.replace('<section>', '<section><p>Subscription USD 77 billed monthly '+ 'x'.repeat(2800)+'</p></section><section>');
  let count=0;const result=await run(input,r=>{if(++count===1)throw Object.assign(Error('PRIVATE'),{status:413,error:{code:'rate_limit_exceeded'}});return evidenceCompletion(r,other);});
  assert.equal(count,2);assert.equal(result.result.truth.established,true);assert.equal(result.result.truth.service.SERVICE_IDENTITY.state,'ESTABLISHED');assert.ok(result.result.trace.some(t=>t.status===413&&t.apiCode==='rate_limit_exceeded'));assert.equal(JSON.stringify(result.result).includes('PRIVATE'),false);
  assert.deepEqual(result.knowledge.observations[0].semanticAttempts.map(a=>a.status),['FAILED','COMPLETED']);
 });
 test('unit attempts are reserved in checkpoints; exhausted model budget cannot dispatch another unit',async()=>{
- const other=evidenceFixtures.find(f=>f.key==='norwegian'),input=bigInput(other);input.bounds={modelCalls:1};for(const row of input.fixtures)if(!row.url.endsWith('robots.txt'))row.body=row.body.replace('<section>', '<section><p>USD 77 '+ 'x'.repeat(2800)+'</p></section><section>');
+ const other=evidenceFixtures.find(f=>f.key==='norwegian'),input=bigInput(other);input.bounds={modelCalls:1};for(const row of input.fixtures)if(!row.url.endsWith('robots.txt'))row.body=row.body.replace('<section>', '<section><p>Subscription USD 77 billed monthly '+ 'x'.repeat(2800)+'</p></section><section>');
  const saved=[];const result=await run(input,()=>{throw Error('unavailable');},{save:s=>saved.push(s)});
  assert.equal(result.calls.length,1);assert.equal(result.result.usage.modelCalls,1);assert.equal(result.result.truth.established,false);assert.ok(saved.some(s=>s.payload.observations[0]?.semanticAttempts[0]?.status==='RESERVED'&&s.payload.usage.modelCalls===1));
  assert.equal(restore(checkpoint(result.knowledge)).usage.modelCalls,1);
