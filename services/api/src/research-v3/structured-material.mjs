@@ -1,5 +1,6 @@
 // Inert, source-visible schema records only. Never execute script or infer
 // semantic propositions from keys. Original escaped bytes remain the citations.
+import {embeddedState,parseDataLiteral} from './embedded-state.mjs';
 export const structuredMaterialCapacity=Object.freeze({scripts:32,scriptBytes:262144,records:256,recordBytes:4096,tokens:131072});
 export function structuredMaterial(body){
  const regions=[];let limited=false,scripts=0,tokens=0;
@@ -61,6 +62,18 @@ export function structuredSources(body,contentType='text/html') {
   };
   try{read('',0);}catch{limited=true;}
  }
+ if(!['application/json','application/ld+json','text/plain'].includes(contentType)) {
+  const embedded=embeddedState(body);limited ||= embedded.limited;
+  for(const root of embedded.roots)for(const node of root.nodes) {
+   const raw=body.slice(node.start,node.end);
+   if(Array.isArray(node.value)||Buffer.byteLength(raw)>structuredMaterialCapacity.recordBytes||offeringRoutingValue(raw)<4)continue;
+   const pointer='/embedded-'+root.root.start+node.path;
+   const record={start:node.start,end:node.end,type:'StructuredObject',pointer,parent:pointer.slice(0,pointer.lastIndexOf('/')),routingOnly:true,priority:offeringRoutingValue(raw),embedded:{representation:'STATIC_DATA_LITERAL',binding:root.binding,script:root.script,declaration:root.declaration,root:root.root,rootComplete:root.complete,unsupported:root.unsupported,numericSpans:root.numericSpans.filter(s=>s.start>=node.start&&s.end<=node.end)}};
+   if(records.some(r=>r.start===record.start&&r.end===record.end))continue;
+   if(records.length<structuredMaterialCapacity.records)records.push(record);
+   else{limited=true;const lowest=records.reduce((n,r,j)=>r.priority<records[n].priority?j:n,0);if(record.priority>records[lowest].priority)records.splice(lowest,1,record);}
+  }
+ }
  const scored=records.map(r=>({...r,routingValue:offeringRoutingValue(body.slice(r.start,r.end))}));
  const independent=scored.filter(r=>!scored.some(c=>c!==r&&c.start>=r.start&&c.end<=r.end&&c.routingValue>r.routingValue));
  const regions=independent.sort((a,b)=>(b.end-b.start)-(a.end-a.start)).filter((r,i,all)=>!all.slice(0,i).some(p=>r.start>=p.start&&r.end<=p.end)).slice(0,structuredMaterialCapacity.records).sort((a,b)=>a.start-b.start);
@@ -70,7 +83,7 @@ export function structuredSources(body,contentType='text/html') {
 // Routing signals, never semantic assertions. Inspect one source-local object,
 // not its neighbours: repeated page metadata must not outrank an offer region.
 export function offeringRoutingValue(text) {
-    let value;try{value=JSON.parse(text);}catch{return 0;}
+    let value;try{value=JSON.parse(text);}catch{value=parseDataLiteral(text);}
     if(!value||Array.isArray(value)||typeof value!=='object')return 0;
     const entries=Object.entries(value),keys=entries.map(([k])=>k.replace(/([a-z])([A-Z])/g,'$1 $2').toLowerCase());
     const recurring=entries.some(([k,v])=>v===true&&/recurr|subscription|membership/i.test(k));
@@ -78,5 +91,10 @@ export function offeringRoutingValue(text) {
     const identity=keys.some(k=>/name|title|header|identifier/.test(k));
     const action=keys.some(k=>/action|button|purchase|checkout/.test(k));
     const peripheral=keys.some(k=>/credit|benefit|saving|tax|analytics/.test(k));
-    return (recurring?8:0)+(monetary?4:0)+(identity?2:0)+(action?1:0)-(peripheral&&!monetary?4:0);
+    // A coherent wrapper may bind one product-like child to distinct monetary
+    // role objects. Prefer it over stripping the child from taxes/incentives.
+    const productChildren=entries.filter(([,v])=>v&&!Array.isArray(v)&&typeof v==='object'&&Object.keys(v).some(k=>/name|title|identifier/i.test(k))&&Object.entries(v).some(([k,x])=>x!==null&&(/price|cost|charge|amount/i.test(k)&&['string','number','object'].includes(typeof x)||/subscription|billing|payment|cadence|term|recurr/i.test(k)&&typeof x==='object')));
+    const relatedMoney=keys.filter(k=>/amount|subtotal|total|tax|price|payment|billing/i.test(k)).length;
+    const wrapper=productChildren.length===1&&relatedMoney>=2?12:0;
+    return Math.max(wrapper,(recurring?8:0)+(monetary?4:0)+(identity?2:0)+(action?1:0)-(peripheral&&!monetary?4:0));
 }

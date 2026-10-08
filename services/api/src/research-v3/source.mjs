@@ -261,7 +261,7 @@ export function semanticMaterial(observation) {
 
     segments.sort((a,b)=>a.start-b.start||a.end-b.end);
     const presentations=parsed.nodes.filter(n=>n.tag!=='a').slice(0,capacity.presentations).map((n,i)=>({id:'presentation-'+i,start:n.start,end:n.end,tag:n.tag,role:n.attrs.role??null,itemType:n.attrs.itemtype??null,itemProp:n.attrs.itemprop??null,ancestry:n.ancestry??[]}));
-    for(const [i,r]of inert.regions.entries())presentations.push({id:'structured-'+i,start:r.start,end:r.end,tag:'script-data',role:null,itemType:r.type,itemProp:null,ancestry:[],...(r.pointer!==undefined?{structuredPath:r.pointer,parentPath:r.parent}: {})});
+    for(const [i,r]of inert.regions.entries())presentations.push({id:'structured-'+i,start:r.start,end:r.end,tag:'script-data',role:null,itemType:r.type,itemProp:null,ancestry:[],...(r.pointer!==undefined?{structuredPath:r.pointer,parentPath:r.parent}: {}),...(r.embedded?{embedded:structuredClone(r.embedded)}:{})});
     const material={segments:segments.slice(0,capacity.segments),presentations,structuredLimited:inert.limited,stateLimited,limited:limited||parsed.nodes.length>capacity.presentations||segments.length>capacity.segments};
     semanticMaterials.set(observation,{body,contentType:observation.contentType,sha256:observation.sha256,id:observation.id,truncated:observation.truncated,completeness:observation.completeness,material:new WeakRef(material)});return structuredClone(material);
 }

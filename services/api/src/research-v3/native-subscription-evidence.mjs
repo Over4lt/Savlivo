@@ -19,6 +19,11 @@ export function nativeSubscriptionEvidence(o,objective,unit) {
   // This class handles one independently retained structured record. HTML
   // still uses the existing native/semantic channels, never a pooled page.
   if(original?.tag!=='script-data')continue;
+  // A recovered application-state declaration preserves data, but does not
+  // itself establish that a configuration/demo record is a current offering.
+  // Semantic assistance or independent explicit source evidence may resolve
+  // that applicability; do not promote new literal syntax through field names.
+  if(original.embedded)continue;
   const raw=o.body.slice(p.start,p.end),record=directStructuredStrings(raw,p.start);
   if(!record||record.limited)continue;
   const context=structuredSubscriptionContext(record.value);

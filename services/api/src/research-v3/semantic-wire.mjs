@@ -42,7 +42,7 @@ export const semanticWireInstructions=temporalInstructions+'Read the bounded pro
 export function wireInput(request) {
     const segments=request.material.segments.map((s,i)=>({id:'s'+i,text:s.text}));
     const within=(s,p)=>s.start>=p.start&&s.end<=p.end;
-    const presentations=request.material.presentations.map((p,i)=>({id:'p'+i,segments:request.material.segments.flatMap((s,j)=>within(s,p)?['s'+j]:[])}));
+    const presentations=request.material.presentations.map((p,i)=>({id:'p'+i,segments:request.material.segments.flatMap((s,j)=>within(s,p)?['s'+j]:[]),...(p.embedded?{sourceState:{representation:p.embedded.representation,binding:p.embedded.binding,rootComplete:p.embedded.rootComplete,unsupportedPaths:p.embedded.unsupported.map(x=>x.path),applicability:'UNRESOLVED',interpretationBoundary:'Declaration and keys preserve relationships only. Do not infer current offering, monetary scale, consumer tax-inclusive price, billing or catalog completeness from keys alone.'}}:{})}));
     const destinations=(request.material.destinations??[]).map((d,i)=>({id:'d'+i,url:d.url,label:d.label,segments:request.material.segments.flatMap((s,j)=>within(s,d)?['s'+j]:[])}));
     if(request.translation)for(const [i,s] of request.material.segments.entries()) {
         const t=request.translation.segments.find(t=>t.start===s.start&&t.end===s.end);
@@ -58,6 +58,12 @@ export function numericOccurrences(request) {
     for(const [i,s] of request.material.segments.entries()) {
         const pattern=/[-−]?\p{Decimal_Number}+(?:[,.．，٫٬]\p{Decimal_Number}+|[ \u00a0\u202f]\p{Decimal_Number}{3}(?!\p{Decimal_Number}))*/gu;
         for(const m of s.text.matchAll(pattern)) {
+            const embedded=(request.material.presentations??[]).find(p=>p.embedded&&s.start>=p.start&&s.end<=p.end);
+            const start=s.start+m.index,end=start+m[0].length;
+            // Keep opaque IDs/dates in the quoted source, not as spurious
+            // numeric references. Literal numeric/text leaves remain candidates,
+            // never price assertions; the same source value rules still apply.
+            if(embedded&&!embedded.embedded.numericSpans.some(b=>start>=b.start&&end<=b.end))continue;
             const raw=m[0],values=sourceNumberCandidates(raw);
             rows.push({id:'n-'+prefix+'-'+rows.length,segment:'s'+i,raw,values,start:s.start+m.index,end:s.start+m.index+raw.length});
             if(rows.length>128)throw Error('WIRE_NUMBER_BOUND');

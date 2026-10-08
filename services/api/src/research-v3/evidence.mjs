@@ -24,7 +24,7 @@ export function evidenceRequest(o,objective,unit) {
     request.knownObservationService=observationService(o,objective);
     request.verifiedMarket=request.knownObservationService?verifiedCountryContext(o):null;
     request.primaryServicePresentations=request.knownObservationService?request.material.presentations.filter(p=>associateService(o,objective,p,{reference:request.knownObservationService.reference,relationship:'PRIMARY_SERVICE'}).eligible).map(p=>p.id):[];
-    request.material.presentations=request.material.presentations.map(({id,start,end})=>({id,start,end}));
+    request.material.presentations=request.material.presentations.map(({id,start,end,embedded})=>({id,start,end,...(embedded?{embedded}: {})}));
     if(o.translation) {
         validateTranslation(o,o.translation.envelope);
         request.translation={artifact:digest(o.translation.envelope),segments:o.translation.envelope.segments};
