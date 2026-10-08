@@ -7,7 +7,8 @@ import {observationService,associateService} from './service-association.mjs';
 import {verifiedCountryContext} from './truth-contract.mjs';
 import {currencyOccurrences,resolveSourceCurrency} from './currency-sources.mjs';
 import {validateTranslation,projectTranslation} from './translation.mjs';
-import {selectSemanticUnits,selectSemanticPlan,materialForUnit,semanticUnitLimits} from './semantic-units.mjs';
+import {selectSemanticUnits,selectSemanticPlan,materialForUnit,semanticUnitLimits,offeringRoutingValue} from './semantic-units.mjs';
+import {nativeSubscriptionEvidence} from './native-subscription-evidence.mjs';
 export const evidenceSchema='V3_EVIDENCE_V2';
 export const evidenceLimits=Object.freeze({responseBytes:32768,offers:8,charges:8,supports:64});
 const exact=(o,keys)=>o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).sort().join(',')===[...keys].sort().join(',');
@@ -70,7 +71,7 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
             if(!Array.isArray(rows)||rows.length<1||rows.length>evidenceLimits.supports)return false;
             if(!rows.every(s=>exact(s,['start','end','quote','translated'])&&material.segments.some(t=>t.start===s.start&&t.end===s.end&&t.text===s.quote)&&(!presentation||s.start>=presentation.start&&s.end<=presentation.end)&&
                 (s.translated===null||translation&&exact(s.translated,['segment','text'])&&Number.isSafeInteger(s.translated.segment)&&translation.segments[s.translated.segment]?.status==='FAITHFUL'&&translation.segments[s.translated.segment]?.start===s.start&&translation.segments[s.translated.segment]?.end===s.end&&translation.segments[s.translated.segment]?.text===s.translated.text)))return false;
-            return !full||material.segments.filter(s=>s.start>=presentation.start&&s.end<=presentation.end).every(t=>rows.some(s=>s.start===t.start&&s.end===t.end));
+            return !full||material.segments.filter(s=>s.start>=presentation.start&&s.end<=presentation.end).every(t=>rows.some(s=>s.start<=t.start&&s.end>=t.end));
         };
         const contains=(rows,text)=>typeof text==='string'&&text.length>0&&rows.some(s=>s.quote.includes(text)||s.translated?.text.includes(text));
         const binding=rows=>({observation:o.id,sha256:o.sha256,artifact:digest(envelope),support:structuredClone(rows),...(translation?{translationArtifact:envelope.translationArtifact}:{})});
@@ -302,15 +303,17 @@ export function understandingError(error) {
     if(error?.constructor?.name==='APIConnectionError')return {code:'UNDERSTANDING_NETWORK_ERROR'};
     return {code:'UNDERSTANDING_ADAPTER_FAILED'};
 }
-export function createEvidenceInterpreter({complete,prepare,adapter={mode:'INJECTED_EVIDENCE'},timeoutMs=30000}={}) {
+export function createEvidenceInterpreter({complete,prepare,adapter={mode:'INJECTED_EVIDENCE'},timeoutMs=30000,native=true}={}) {
     if(typeof complete!=='function'||!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>30000)throw Error('UNDERSTANDING_CONFIGURATION_REQUIRED');
     const interpret=async(o,objective,unit)=>{
         if(o.format!=='WEB') {
             try {const source=JSON.parse(o.body);return [{kind:'SERVICE',pointer:''},...(source.offers??[]).map((_,i)=>({kind:'OFFER',pointer:'/offers/'+i}))];}catch{return [];}
         }
-        if(!needsUnderstanding(o,objective))return {kind:'NATIVE'};
+        if(!unit&&!needsUnderstanding(o,objective))return {kind:'NATIVE'};
         unit??=selectSemanticUnits(o,objective)[0];
         if(!unit)throw Error('EVIDENCE_UNIT_BOUND');
+        const deterministic=interpret.nativeEvidence(o,objective,unit);
+        if(deterministic?.complete)return deterministic;
         const controller=new AbortController();let timer;
         try {
             const raw=await Promise.race([complete(evidenceRequest(o,objective,unit),{signal:controller.signal}),new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(Error('UNDERSTANDING_TIMEOUT'));},timeoutMs);})]);
@@ -324,15 +327,36 @@ export function createEvidenceInterpreter({complete,prepare,adapter={mode:'INJEC
         } finally {clearTimeout(timer);controller.abort();}
     };
     interpret.semanticAdapter=Object.freeze({...adapter,role:'EVIDENCE_UNDERSTANDING'});
+    interpret.nativeEvidence=(o,objective,unit)=>{
+        if(!native)return null;
+        const envelope=nativeSubscriptionEvidence(o,objective,unit);
+        if(!envelope)return null;
+        const projection=projectEvidence(o,objective,envelope,unit);
+        if(projection.error||!projection.accepted.length)return null;
+        const represented=new Set(envelope.offers.map(v=>v.presentation));
+        const uncovered=semanticMaterial(o).presentations.some(p=>unit.presentationIds.includes(p.id)&&p.tag==='script-data'&&!represented.has(p.id));
+        const complete=!uncovered&&envelope.offers.every(v=>v.charges.every(c=>c.role==='INTRODUCTORY'||c.monetary.kind==='EFFECTIVE_COST'||c.temporal.billingCadence!=='UNKNOWN'));
+        return {kind:'EVIDENCE',envelope,unit,complete,adapter:{mode:'NATIVE',revision:'V3_PAYMENT_LANGUAGE_V1'}};
+    };
     interpret.semanticPlan=(o,objective,needs)=>{
-        if(!needsUnderstanding(o,objective))return {units:[],capacityHit:false,reason:'NATIVE_SUFFICIENT'};
+        if(!needsUnderstanding(o,objective)&&!semanticMaterial(o).presentations.some(p=>p.tag==='script-data'&&offeringRoutingValue(o.body.slice(p.start,p.end))>=6))return {units:[],capacityHit:false,reason:'NATIVE_SUFFICIENT'};
         const plan=selectSemanticPlan(o,objective,needs);if(!prepare)return plan;
         const units=[],requestCapacitySkipped=[],preparedRequests=[];
         for(const u of plan.candidates??plan.units){
-            try{const prepared=prepare(evidenceRequest(o,objective,u));preparedRequests.push({unit:u.id,requestBytes:prepared?.requestBytes??null});units.push(u);}catch(error){requestCapacitySkipped.push({unit:u.id,reason:/^(?:EVIDENCE|WIRE)_[A-Z_]+$/.test(error.message)?error.message:'REQUEST_PREPARATION_FAILED'});}
-            if(units.length===semanticUnitLimits.units)break;
+            let deterministic;
+            try{
+                deterministic=interpret.nativeEvidence(o,objective,u);
+                if(deterministic?.complete){units.push(u);preparedRequests.push({unit:u.id,requestBytes:0,mode:'NATIVE'});continue;}
+                const prepared=prepare(evidenceRequest(o,objective,u));preparedRequests.push({unit:u.id,requestBytes:prepared?.requestBytes??null});units.push(u);
+            }catch(error){
+                const reason=/^(?:EVIDENCE|WIRE)_[A-Z_]+$/.test(error.message)?error.message:'REQUEST_PREPARATION_FAILED';
+                requestCapacitySkipped.push({unit:u.id,reason});
+                // Optional model request capacity cannot discard source-bound
+                // native facts in a mixed/partly understood unit.
+                if(deterministic)units.push({...u,modelRequestBlocked:reason});
+            }
         }
-        return {...plan,units,requestCapacitySkipped,preparedRequests,capacityHit:plan.capacityHit||requestCapacitySkipped.length>0};
+        return {...plan,candidates:units,units:units.slice(0,semanticUnitLimits.units),requestCapacitySkipped,preparedRequests,capacityHit:plan.capacityHit||requestCapacitySkipped.length>0};
     };
     interpret.semanticUnits=(o,objective,needs)=>interpret.semanticPlan(o,objective,needs).units;
     interpret.requiresModel=needsUnderstanding;

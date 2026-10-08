@@ -30,7 +30,7 @@ export async function runTarget({input,capabilities,reasoner,navigate,interpret,
     }
     initial.semanticAdapter=interpret.semanticAdapter??{mode:'LEGACY_STATIC'};
     const k=await runResearch({knowledge:initial,objective,permissions,bounds,capabilities,reasoner:reasoner??createReasoner(input.planning),interpret,navigate,save});
-    return {knowledge:k,result:{objective:k.objective,truth:evaluate(k),stop:k.stop,usage:k.usage,trace:k.trace,decisions:k.decisions}};
+    return {knowledge:k,result:{objective:k.objective,truth:evaluate(k),catalog:k.catalog??null,stop:k.stop,usage:k.usage,trace:k.trace,decisions:k.decisions}};
 }
 
 /** Offline fixture transport goes through the same robots, DNS validation, geo

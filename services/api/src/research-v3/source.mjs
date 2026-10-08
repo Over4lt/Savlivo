@@ -1,4 +1,5 @@
 // Bounded deterministic HTML/text interpretation. No network, model calls or V2 policy.
+import {directStructuredStrings,interpretPaymentText,structuredSubscriptionContext} from './subscription-language.mjs';
 import {structuredMaterial,structuredSources} from './structured-material.mjs';
 import {selectedStateContext,providerStates} from './provider-states.mjs';
 import {digest, pricePropositions, servicePropositions} from './model.mjs';
@@ -240,7 +241,22 @@ export function semanticMaterial(observation) {
     segments.sort((a,b)=>a.start-b.start||a.end-b.end);
     const schema=observation.contentType==='text/plain'?{regions:[],limited:false}:structuredMaterial(body),structured=structuredSources(body,observation.contentType);
     const inert={regions:[...schema.regions,...structured.regions.filter(r=>!schema.regions.some(p=>r.start>=p.start&&r.end<=p.end))],limited:schema.limited||structured.limited};
-    for(const r of inert.regions)add(r.start,r.end);
+    for(const r of inert.regions){
+        add(r.start,r.end);
+        const record=directStructuredStrings(body.slice(r.start,r.end),r.start);
+        if(!record||record.limited)continue;
+        const context=structuredSubscriptionContext(record.value);
+        for(const row of record.rows){
+            add(row.start,row.end);
+            for(const c of interpretPaymentText(row.raw,context)){
+                const phrase=c.paymentText??(row.raw.slice(c.left,c.right)+(c.duration?row.raw.slice(c.right,c.right+row.raw.slice(c.right).indexOf(c.duration)+c.duration.length):''));
+                const at=row.raw.indexOf(phrase,c.left);
+                if(at>=0&&phrase.length)add(row.start+at,row.start+at+phrase.length);
+            }
+        }
+    }
+    // Identical nested lexical witnesses occur only once.
+    const unique=new Map(segments.map(s=>[s.start+':'+s.end,s]));segments.splice(0,segments.length,...unique.values());
     // Optional metadata scan exhaustion does not invalidate complete visible text.
 
     segments.sort((a,b)=>a.start-b.start||a.end-b.end);

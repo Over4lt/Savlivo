@@ -8,6 +8,7 @@ import {projectObservation} from './projection.mjs';
 import {acquisitionCapacity as acquisition,failureClass} from './acquisition-contract.mjs';
 import {semanticUnitLimits} from './semantic-units.mjs';
 import { projectWebSource } from './source.mjs';
+import {researchTruth,refreshCatalog} from './subscription-catalog.mjs';
 import {extractNavigation,extractSitemap,queryFamilies,discoveryCapacity,diverseCandidates,rankCandidate} from './discovery.mjs';
 const resourceCapacityFailure=f=>f?.kind==='CAPACITY'&&['BODY_CAPACITY','DECOMPRESSION_CAPACITY','DECODED_CAPACITY','OBSERVATION_CAPACITY','HEADER_CAPACITY','REDIRECT_CAPACITY'].includes(failureClass(f.code));
 const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.kind==='INSPECT'?'LOCAL':a.context?.transport;
@@ -24,6 +25,7 @@ function searches(k, truth) {
 function proposals(k, truth) {
     const actions = [];
     for (const d of k.destinations) {
+        if(evaluate(k).established&&k.observations.some(o=>o.url===d.url&&o.outcome==='OK'&&!(o.semanticUnits??[]).some(u=>!o.semanticAttempts?.some(a=>a.unit===u.id))))continue;
         const needs = truth.needs.filter(n => d.needs.includes(n.proposition));
         if (!needs.length)
             continue;
@@ -32,6 +34,10 @@ function proposals(k, truth) {
             actions.push({ kind: 'ACQUIRE', url: d.url, context: context('DECODO', market), needs: needs.filter(n => n.market === market).map(n => n.id), reason: 'Target-country perspective may reveal the missing market-specific presentation', value: 10+(d.discovery?.score??0) });
     }
     if(k.semanticUnavailable?.status===429&&Date.now()>=k.semanticUnavailable.until)for(const o of k.observations.filter(o=>(o.semanticUnits?.length??0)>0&&/\p{Sc}\s*\p{N}|\b[A-Z]{3}\s*\p{N}/u.test(o.body)&&/UNAVAILABLE|FAILED/.test(o.interpretation?.kind??'')&&!(o.reinspectionCount>0)).slice(-8))actions.push({kind:'INSPECT',observation:o.id,url:o.url,needs:truth.needs.map(n=>n.id),reason:'Reinterpret intact retained source after understanding cooldown; no provider request',value:30});
+    for(const o of k.observations) {
+        const units=(o.semanticUnits??[]).filter(u=>!(o.semanticAttempts??[]).some(a=>a.unit===u.id)).slice(0,semanticUnitLimits.units).map(u=>u.id);
+        if(units.length&&!k.semanticUnavailable)actions.push({kind:'INSPECT',observation:o.id,url:o.url,units,needs:truth.needs.map(n=>n.id),reason:'Process unattempted source-bound regions; catalog work remains',value:units.some(id=>o.semanticUnits.find(u=>u.id===id)?.researchValue>=6)?40:2});
+    }
     return [...actions, ...searches(k, truth)];
 }
 function capacity(k, a) {
@@ -61,7 +67,8 @@ function validate(k, truth, input, adapters) {
         return { action: a, reason: 'NO_EXPLAINED_INFORMATION_VALUE' };
     if(a.kind==='INSPECT'){
         const retained=k.observations.find(o=>o.id===a.observation&&o.outcome==='OK'&&!o.truncated&&o.sha256===digest(o.body));
-        if(!retained||retained.reinspectionCount>0||k.semanticUnavailable?.status!==429||Date.now()<k.semanticUnavailable.until)return {action:a,reason:'UNGROUNDED_INSPECTION'};
+        const queued=retained&&Array.isArray(a.units)&&a.units.length>0&&a.units.length<=semanticUnitLimits.units&&a.units.every(id=>retained.semanticUnits?.some(u=>u.id===id)&&!retained.semanticAttempts?.some(x=>x.unit===id));
+        if(!queued&&(!retained||retained.reinspectionCount>0||k.semanticUnavailable?.status!==429||Date.now()<k.semanticUnavailable.until))return {action:a,reason:'UNGROUNDED_INSPECTION'};
         a.url=retained.url;delete a.context;
     }
     else if (a.kind === 'ACQUIRE') {
@@ -98,7 +105,7 @@ function validate(k, truth, input, adapters) {
     return { action: a, reason: 'ADMISSIBLE' };
 }
 export function availableActions(k, adapters = {}, extra = []) {
-    const truth = evaluate(k), seen = new Set(), evaluated = [];
+    const truth = researchTruth(k,evaluate(k)), seen = new Set(), evaluated = [];
     for (const p of [...extra, ...proposals(k, truth)]) {
         const row = validate(k, truth, p, adapters), key = row.action.id ?? digest(row.action);
         if (seen.has(key))
@@ -118,7 +125,13 @@ async function persist(k, save) {
 }
 function stop(k, reason, details = {}) {
     const researchStop=details.researchStop??(['OBJECTIVE_ESTABLISHED','MONTHLY_SUBSCRIPTION_NOT_OFFERED'].includes(reason)?{kind:'OBJECTIVE_RESOLVED'}:reason==='CAPACITY_BOUND_REACHED'?{kind:'CAPACITY_EXHAUSTED',bounds:details.bounds??[]}:['CAPABILITY_OR_INTERPRETATION_FAILED','REASONER_FAILED','RECOVERY_REQUIRED'].includes(reason)?{kind:'TOOL_UNAVAILABLE',scope:'PERMITTED_EXECUTION'}:exhaustionDiagnosis(k));
-    k.stop = { reason, ...details,researchStop, remainingNeeds: evaluate(k).needs.map(n => n.id) };
+    k.stop = { reason, ...details,researchStop, remainingNeeds: researchTruth(k,evaluate(k)).needs.map(n => n.id) };
+    refreshCatalog(k,evaluate(k));
+    if(k.catalog){
+        k.stop.catalogState=k.catalog.state;
+        if(reason==='OBJECTIVE_ESTABLISHED')k.stop.reason=k.catalog.state;
+        k.stop.researchStop={...researchStop,kind:k.catalog.state,offeringTruthResolved:evaluate(k).established};
+    }
     k.trace.push({ event: 'STOP', ...k.stop,usage:structuredClone(k.usage),bounds:k.bounds });
     return k;
 }
@@ -201,7 +214,7 @@ async function accept(k, a, response, interpret, navigate, save) {
         ...(response.format==='WEB'?{format:'WEB',contentType:response.contentType,requestedUrl:a.url,httpStatus:response.httpStatus,acquiredAt:response.acquiredAt,transport:response.transport,access:response.access,completeness:response.completeness??(response.truncated?'INCOMPLETE':'COMPLETE'),responseMetadata:response.responseMetadata,redirects:response.redirects,acquisitionTiming:response.acquisitionTiming}: {}) };
     if(k.destinations.find(d=>d.url===a.url)?.discovery?.resource==='SITEMAP') {
         k.navigationResources??=[];k.navigationResources.push(o);
-        const plan=extractSitemap(o,k.objective,evaluate(k).needs.map(n=>n.proposition));
+        const plan=extractSitemap(o,k.objective,researchTruth(k,evaluate(k)).needs.map(n=>n.proposition));
         const navigation=admitNavigation(k,o,a,plan,'SITEMAP_ENTRY');
         return {kind:'NAVIGATION_RESOURCE',id:o.id,url,sha256:o.sha256,bytes,navigation};
     }
@@ -264,7 +277,7 @@ async function accept(k, a, response, interpret, navigate, save) {
     const web=o.format==='WEB'?projectWebSource(o,k.objective):null;
     if(web?.limited&&!o.translation) markLimit(k,'interpretationCapacity');
     if(web&&!o.interpretation) o.interpretation={ambiguities:web.ambiguities,limited:web.limited};
-    const current=evaluate(k).needs.map(n=>n.proposition);
+    const current=researchTruth(k,evaluate(k)).needs.map(n=>n.proposition);
     if(current.length&&o.outcome==='OK'&&!o.truncated)for(const doc of (response.navigationDocuments??[]).slice(0,9)) {
         if(doc.kind!=='ROBOTS'||!(doc.declarations??[]).length||doc.completeness!=='COMPLETE'||typeof doc.body!=='string'||Buffer.byteLength(doc.body)>acquisition.robotsBytes||doc.sha256!==digest(doc.body))continue;
         const resource={...doc,id:'robots-'+digest([a.context,doc.url,doc.sha256]),context:o.context};
@@ -341,15 +354,17 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         return k;
     }
     for (;;) {
-        const initial = evaluate(k);
+        const finalTruth=evaluate(k);
+        refreshCatalog(k,finalTruth);
+        const initial = researchTruth(k,finalTruth);
         // Empty search conversion is not exhaustion while reviewed roots remain uninspected.
         if(!k.destinations.length&&k.attempts.some(a=>a.action.kind==='DISCOVER'&&a.status==='COMPLETED')&&(k.permissions.DIRECT||k.permissions.DECODO))for(const host of k.objective.providerHosts){
             const result=addDestination(k,{url:'https://'+host+'/',depth:0,needs:initial.needs.map(n=>n.proposition),grounding:{kind:'PROVIDER_ROOT',host}});
             k.trace.push({event:'RESEARCH_BOOTSTRAP',host,result,reason:'SEARCH_CONVERSION_EMPTY_REVIEWED_ROOT_UNINSPECTED'});
         }
         k.workingModel=buildWorkingModel(k,initial);
-        if(initial.ineligibleMarkets.length>0&&initial.ineligibleMarkets.length===k.objective.markets.length){stop(k,'MONTHLY_SUBSCRIPTION_NOT_OFFERED',{markets:initial.ineligibleMarkets});await persist(k,save);return k;}
-        if (initial.established) {
+        if(k.objective.kind!=='PRICE'&&initial.ineligibleMarkets.length>0&&initial.ineligibleMarkets.length===k.objective.markets.length){stop(k,'MONTHLY_SUBSCRIPTION_NOT_OFFERED',{markets:initial.ineligibleMarkets});await persist(k,save);return k;}
+        if (initial.established||k.catalog?.state==='CATALOG_EXHAUSTED'&&!k.catalog.pending) {
             stop(k, 'OBJECTIVE_ESTABLISHED');
             await persist(k, save);
             return k;
@@ -385,7 +400,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         k.trace.push({event:'RESEARCH_DECISION',...workingDecision(k.workingModel,ranked,selected?.id??null,{usage:k.usage,bounds:k.bounds})});
         if (!selected) {
             const hit = [...new Set([...k.limitsHit, ...offered.evaluated.flatMap(r => r.bounds ?? [])])];
-            stop(k, hit.length ? 'CAPACITY_BOUND_REACHED' : 'SEMANTIC_EXHAUSTION', { bounds: hit, decision: k.decisions.length - 1, scope: 'CURRENT_GROUNDED_KNOWLEDGE_AND_PERMISSIONS', researchStop:hit.length?{kind:'CAPACITY_EXHAUSTED',bounds:hit}:exhaustionDiagnosis(k) });
+            stop(k, hit.length ? 'CAPACITY_BOUND_REACHED' : finalTruth.established?'OBJECTIVE_ESTABLISHED':finalTruth.ineligibleMarkets.length===k.objective.markets.length&&k.objective.kind==='PRICE'?'MONTHLY_SUBSCRIPTION_NOT_OFFERED':'SEMANTIC_EXHAUSTION', { bounds: hit, decision: k.decisions.length - 1, scope: 'CURRENT_GROUNDED_KNOWLEDGE_AND_PERMISSIONS', researchStop:hit.length?{kind:'CAPACITY_EXHAUSTED',bounds:hit}:exhaustionDiagnosis(k) });
             await persist(k, save);
             return k;
         }
@@ -406,7 +421,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         await persist(k, save);
         try {
             let observation;
-            if(a.kind==='INSPECT'){const retained=k.observations.find(o=>o.id===a.observation);retained.reinspectionCount=(retained.reinspectionCount??0)+1;k.semanticUnavailable=null;await understandUnits(k,retained,interpret,save);observation={kind:'RETAINED_INSPECTION',id:retained.id,url:retained.url,sha256:retained.sha256};}
+            if(a.kind==='INSPECT'){const retained=k.observations.find(o=>o.id===a.observation);if(!a.units){retained.reinspectionCount=(retained.reinspectionCount??0)+1;k.semanticUnavailable=null;}await understandUnits(k,retained,interpret,save,!a.units,a.units??null);observation={kind:'RETAINED_INSPECTION',id:retained.id,url:retained.url,sha256:retained.sha256};}
             else {const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxDecodedBytes:(k.bounds.decodedBytes??acquisition.objectiveDecodedBytes)-(k.usage.decodedBytes??0), maxAcquisitionMs:(k.bounds.acquisitionMs??acquisition.objectiveAcquisitionMs)-(k.usage.acquisitionMs??0), maxResults: k.bounds.candidateDestinations, maxRequests:(k.bounds.networkRequests??96)-(k.usage.networkRequests??0) });
             observation = await accept(k, a, response, interpret, navigate, save);}
             const after = evaluate(k);
@@ -438,12 +453,35 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
     }
 }
 
-async function understandUnits(k,o,interpret,save) {
-    const needs=evaluate(k).needs.map(n=>n.proposition),plan=interpret.semanticPlan(o,k.objective,needs),units=plan.units;
+async function understandUnits(k,o,interpret,save,reinspection=false,selectedUnitIds=null) {
+    const needs=researchTruth(k,evaluate(k)).needs.map(n=>n.proposition),plan=o.semanticUnits?{candidates:o.semanticUnits,capacityHit:o.semanticPlanCapacity??false,reason:'RETAINED_UNATTEMPTED_UNITS'}:interpret.semanticPlan(o,k.objective,needs),units=plan.candidates??plan.units;
+    o.semanticPlanCapacity=plan.capacityHit;
     if(plan.capacityHit)markLimit(k,'semanticUnits');
     o.semanticUnits=units;o.evidenceFragments??=[];o.semanticAttempts??=[];
     k.trace.push({event:'SEMANTIC_UNITS_SELECTED',observation:o.id,units,capacityHit:plan.capacityHit,reason:plan.reason,requestCapacitySkipped:plan.requestCapacitySkipped??[],preparedRequests:plan.preparedRequests??[]});
-    for(const unit of units.slice(0,semanticUnitLimits.modelCallsPerAction)) {
+    // Native bounded source interpretation is independent of model budget and
+    // availability. It still enters the same source-bound payment admission.
+    for(const unit of units.filter(u=>(!selectedUnitIds||selectedUnitIds.includes(u.id))&&!o.semanticAttempts.some(a=>a.unit===u.id)&&!(o.nativeProcessedUnits??[]).includes(u.id))) {
+        const value=interpret.nativeEvidence?.(o,k.objective,unit);
+        if(!value)continue;
+        const projection=projectEvidence(o,k.objective,value.envelope,unit);
+        if(projection.error)continue;
+        const fragment={envelope:value.envelope,unit,adapter:value.adapter};
+        if(o.evidence)o.evidenceFragments.push(fragment);else o.evidence=fragment;
+        o.nativeProcessedUnits??=[];o.nativeProcessedUnits.push(unit.id);
+        if(value.complete)o.semanticAttempts.push({unit:unit.id,status:'COMPLETED',mode:'NATIVE',modelCalls:0});
+        o.candidates=projectObservation(o,k.objective).candidates;
+        o.interpretation={kind:'EVIDENCE',unit:unit.id,mode:'NATIVE',accepted:projection.accepted,rejected:projection.rejected};
+        k.trace.push({event:'NATIVE_PAYMENT_INTERPRETATION',observation:o.id,sha256:o.sha256,unit:unit.id,evidence:fragment,interpretation:o.interpretation,sourceSupport:projection.bindings});
+        await persist(k,save);
+    }
+    for(const unit of units.filter(u=>(!selectedUnitIds||selectedUnitIds.includes(u.id))&&(!o.semanticAttempts.some(a=>a.unit===u.id)||(reinspection&&o.semanticAttempts.findLast(a=>a.unit===u.id)?.status==='FAILED'))).slice(0,semanticUnitLimits.modelCallsPerAction)) {
+        if(unit.modelRequestBlocked){
+            markLimit(k,'interpretationCapacity');
+            o.semanticAttempts.push({unit:unit.id,status:'FAILED',mode:'MODEL_REQUEST_BLOCKED',modelCalls:0});
+            k.trace.push({event:'UNDERSTANDING_REQUEST_BLOCKED',observation:o.id,unit:unit.id,reason:unit.modelRequestBlocked,nativePreserved:(o.nativeProcessedUnits??[]).includes(unit.id)});
+            await persist(k,save);continue;
+        }
         if(k.semanticUnavailable){
             const unavailable=k.semanticUnavailable;
             // No retry of the failed unit. A temporary rate limit can permit one
@@ -454,7 +492,8 @@ async function understandUnits(k,o,interpret,save) {
             else{o.interpretation={kind:'UNDERSTANDING_UNAVAILABLE',code:'UNDERSTANDING_PROVIDER_UNAVAILABLE',cause:unavailable};break;}
         }
         const truth=evaluate(k);
-        if(truth.established||!truth.needs.some(n=>unit.needs.includes(n.proposition)))break;
+        if(!reinspection&&(o.semanticAttempts??[]).some(a=>a.unit===unit.id))continue;
+        if(k.objective.kind!=='PRICE'&&(truth.established||!truth.needs.some(n=>unit.needs.includes(n.proposition))))break;
         if(k.usage.modelCalls>=k.bounds.modelCalls) {markLimit(k,'modelCalls');o.interpretation={kind:'UNDERSTANDING_UNAVAILABLE',code:'UNDERSTANDING_MODEL_CALL_BOUND'};break;}
         k.usage.modelCalls++;
         const attempt={unit:unit.id,status:'RESERVED',modelCalls:k.usage.modelCalls};o.semanticAttempts.push(attempt);

@@ -1,3 +1,4 @@
+import {firstEstablishedUsage,firstEstablishedAttempts} from './catalog-progress.test-support.mjs';
 import {interpretBillingFixture} from './billing-fixtures.test-support.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,7 +35,7 @@ const extract=body=>extractNavigation(observation(body),objective(),priceProposi
 
 test('simple provider completes without discovery despite many source links',async()=>{
     const r=await site({[home]:sufficient()+Array.from({length:300},(_,i)=>`<a href="/plans/${i}">Plans</a>`).join('')});
-    assert.equal(r.result.stop.reason,'OBJECTIVE_ESTABLISHED');assert.equal(r.result.usage.actions,1);assert.equal(r.result.usage.searches,0);assert.equal(r.knowledge.destinations.length,1);assert.equal(r.knowledge.observations[0].navigation,undefined);
+    assert.ok(r.result.trace.some(t=>t.event==='OBSERVATION'&&t.evaluations?.established));assert.equal(firstEstablishedUsage(r.result).actions,1);assert.equal(firstEstablishedUsage(r.result).searches,0);assert.ok(r.knowledge.destinations.length>1);assert.ok(r.knowledge.observations[0].navigation.length);assert.notEqual(r.result.catalog.state,'CATALOG_EXHAUSTED');
 });
 test('internal pricing page crosses acquisition and unchanged native truth',async()=>{
     const r=await site({[home]:html('Welcome','<nav><a href="/news">News</a><a href="/plans">Subscription plans</a></nav>'),[price]:sufficient()});
@@ -42,7 +43,7 @@ test('internal pricing page crosses acquisition and unchanged native truth',asyn
 });
 for(const label of ['料金を見る','요금 안내','الاشتراك','Планы','Abonnements','Μελών'])test('structural navigation survives unseen label '+label,async()=>{
     const path=home+'surface-7',r=await site({[home]:html('Welcome',`<nav><a href="/surface-7">${label}</a></nav>`),[path]:sufficient()});
-    assert.equal(r.result.truth.established,true);assert.equal(r.result.usage.acquisitions,2);assert.equal(r.knowledge.destinations.find(d=>d.url===path).discovery.label,label);
+    assert.equal(r.result.truth.established,true);assert.equal(firstEstablishedUsage(r.result).acquisitions,2);assert.equal(r.knowledge.destinations.find(d=>d.url===path).discovery.label,label);
 });
 test('explicit locale hints rank target but do not veto other language destinations',async()=>{
     const b=html('','<link rel="alternate" hreflang="de-DE" href="/de"><link rel="alternate" hreflang="ja-JP" href="/jp-surface">');
@@ -56,11 +57,11 @@ test('same URL country presentations remain separate after navigation',async()=>
 });
 test('search needed: finite family discovers provider material, snippet is not evidence',async()=>{
     const r=await site({[home]:html('Welcome'),[price]:sufficient()},{permissions:{DIRECT:true,TAVILY:true},discoveries:[{url:price,content:'JPY 9 per month in JP'}]});
-    assert.equal(r.result.truth.established,true);assert.equal(amounts(r).PRICE_AMOUNT.value,1400);assert.deepEqual(r.knowledge.attempts.map(a=>a.action.kind),['ACQUIRE','DISCOVER','ACQUIRE']);
+    assert.equal(r.result.truth.established,true);assert.equal(amounts(r).PRICE_AMOUNT.value,1400);assert.deepEqual(firstEstablishedAttempts(r.knowledge).map(a=>a.action.kind),['ACQUIRE','DISCOVER','ACQUIRE']);
 });
 test('finite query family identities cannot be expanded by paraphrases or need changes',async()=>{
     const k=await runResearch({objective:objective({seeds:[]}),permissions:{TAVILY:true},capabilities:{TAVILY:()=>({results:[]})}});
-    assert.equal(k.usage.searches,3);assert.equal(k.stop.reason,'SEMANTIC_EXHAUSTION');
+    assert.equal(firstEstablishedUsage(k).searches,3);assert.equal(k.stop.reason,'SEMANTIC_EXHAUSTION');
     const f=queryFamilies(objective(),'JP',['JP:PRICE_AMOUNT']);assert.equal(new Set(f.map(actionIdentity)).size,3);assert.equal(actionIdentity(f[0]),actionIdentity({...f[0],query:'paraphrase',needs:['JP:CURRENCY']}));
     const offered=availableActions(createKnowledge({objective:objective({seeds:[]}),permissions:{TAVILY:true}}),{TAVILY:()=>{}},[{...f[0],family:'infinite-new-family'}]);assert.ok(offered.evaluated.some(r=>r.reason==='INVALID_DISCOVERY_FAMILY'));
 });
@@ -71,11 +72,11 @@ test('misleading search snippet and URL cannot establish price',async()=>{
     const r=await site({[home]:html('Welcome'),[price]:html('A client shell')},{permissions:{DIRECT:true,TAVILY:true},discoveries:[{url:price,content:'JPY 1080 per month, available in JP'}]});assert.equal(r.result.truth.established,false);assert.equal(amounts(r).PRICE_AMOUNT.state,'UNRESOLVED');
 });
 test('multiple pages rank current objective but do not borrow plan evidence',async()=>{
-    const r=await site({[home]:html('','<nav><a href="/account">Account</a><a href="/plans">Subscription plans</a><a href="/news">News</a></nav>'),[price]:sufficient()});assert.equal(r.result.usage.acquisitions,2);assert.equal(r.knowledge.observations[1].url,price);assert.equal(amounts(r).PRICE_AMOUNT.evidence[0].reference.observation,r.knowledge.observations[1].id);
+    const r=await site({[home]:html('','<nav><a href="/account">Account</a><a href="/plans">Subscription plans</a><a href="/news">News</a></nav>'),[price]:sufficient()});assert.equal(firstEstablishedUsage(r.result).acquisitions,2);assert.equal(r.knowledge.observations[1].url,price);assert.equal(amounts(r).PRICE_AMOUNT.evidence[0].reference.observation,r.knowledge.observations[1].id);
 });
 test('duplicate normalization retains distinct provenance and meaningful query selectors',async()=>{
     const r=await site({[home]:html('','<a href="/plans#buy">Plans</a><a href="/plans?utm_source=nav">Plans</a><link rel="canonical" href="/plans">'),[price]:sufficient()});
-    const d=r.knowledge.destinations.find(d=>d.url===price);assert.equal(r.result.usage.acquisitions,2);assert.equal(d.provenance.length,3);
+    const d=r.knowledge.destinations.find(d=>d.url===price);assert.equal(firstEstablishedUsage(r.result).acquisitions,2);assert.equal(d.provenance.length,3);
     const p=extract('<a href="/p?plan=A">A</a><a href="/p?plan=B">B</a>');assert.equal(new Set(p.candidates.map(c=>c.url)).size,2);
 });
 test('discovered legitimate redirect uses normal bounded acquisition and ancestry',async()=>{
@@ -87,7 +88,7 @@ test('multi-megabyte discovered page retains late price, model capacity remains 
 test('sitemap index -> sitemap -> provider price uses bounded ordinary acquisition',async()=>{
     const index=home+'map-index.xml',map=home+'map.xml';
     const r=await site({[home]:html('','<link rel="sitemap" href="/map-index.xml">'),[index]:{body:`<sitemapindex><sitemap><loc>${map}</loc></sitemap></sitemapindex>`,contentType:'application/xml'},[map]:{body:`<urlset><url><loc>${price}</loc></url></urlset>`,contentType:'application/xml'},[price]:sufficient()});
-    assert.equal(r.result.truth.established,true);assert.equal(r.result.usage.sitemapAcquisitions,2);assert.equal(r.result.usage.acquisitions,4);assert.deepEqual(r.knowledge.observations.map(o=>o.url),[home,price]);assert.equal(r.knowledge.navigationResources.length,2);
+    assert.equal(r.result.truth.established,true);assert.equal(firstEstablishedUsage(r.result).sitemapAcquisitions,2);assert.equal(firstEstablishedUsage(r.result).acquisitions,4);assert.deepEqual(r.knowledge.observations.map(o=>o.url),[home,price]);assert.equal(r.knowledge.navigationResources.length,2);
 });
 test('robots sitemap declaration retains independently acquired source, policy unchanged',async()=>{
     const robots=home+'robots.txt',map=home+'map.xml';
@@ -180,17 +181,17 @@ test('faithful semantic SDK price path remains unchanged after provider navigati
         return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(w)}}]}),{headers:{'content-type':'application/json'}});
     }});
     const result=await runTarget({input,interpret,capabilities:offlineCapabilities(input)});
-    assert.equal(result.result.truth.established,true);assert.equal(result.result.stop.reason,'OBJECTIVE_ESTABLISHED');assert.equal(calls,2);assert.equal(exposed.filter(r=>r.segments.some(s=>s.text.includes('1,080'))).length,1);assert.equal(result.result.usage.acquisitions,2);
+    assert.equal(result.result.truth.established,true);assert.notEqual(result.result.catalog.state,'CATALOG_EXHAUSTED');assert.equal(calls,2);assert.equal(exposed.filter(r=>r.segments.some(s=>s.text.includes('1,080'))).length,1);assert.equal(firstEstablishedUsage(result.result).acquisitions,2);
     const p=result.result.truth.prices.JP.propositions;assert.equal(p.PRICE_AMOUNT.value,1080);assert.equal(p.CURRENCY.value,'JPY');assert.equal(p.MONTHLY_CADENCE.state,'ESTABLISHED');assert.equal(p.TARGET_MARKET.value,'JP');
     const o=result.knowledge.observations.find(o=>o.evidence?.envelope.offers.length),offer=o.evidence.envelope.offers[0];assert.equal(offer.charges[0].role,'INTRODUCTORY');assert.equal(offer.charges[0].money.amount,0);assert.equal(offer.charges[1].role,'ORDINARY');assert.equal(o.transport.verification,'BRACKET_VERIFIED');
-    assert.deepEqual(evaluate(restore(checkpoint(result.knowledge))),result.result.truth);assert.equal(result.result.usage.searches,0);
+    assert.deepEqual(evaluate(restore(checkpoint(result.knowledge))),result.result.truth);assert.equal(firstEstablishedUsage(result.result).searches,0);
 });
 test('advisory hook deadline falls back to a bounded native frontier',async()=>{
     const r=await site({[home]:html('','<nav><a href="/surface">契約</a></nav>'),[home+'surface']:sufficient()},{},{navigate:()=>new Promise(()=>{})});
     assert.equal(r.result.truth.established,true);assert.ok(r.knowledge.trace.some(t=>t.event==='NAVIGATION_ADVICE_UNAVAILABLE'));
 });
 test('malformed capability interpretation does not trigger discovery failover or expose exception text',async()=>{
-    const k=await runResearch({objective:objective({seeds:[home,price]}),permissions:{DIRECT:true},capabilities:{DIRECT:()=>{throw Error('secret arbitrary generation');}}});assert.equal(k.stop.code,'CAPABILITY_INTERNAL_ERROR');assert.equal(k.usage.actions,1);assert.equal(JSON.stringify(k).includes('secret arbitrary generation'),false);
+    const k=await runResearch({objective:objective({seeds:[home,price]}),permissions:{DIRECT:true},capabilities:{DIRECT:()=>{throw Error('secret arbitrary generation');}}});assert.equal(k.stop.code,'CAPABILITY_INTERNAL_ERROR');assert.equal(firstEstablishedUsage(k).actions,1);assert.equal(JSON.stringify(k).includes('secret arbitrary generation'),false);
 });
 for(const extra of [{candidateDestinations:0},{candidateDestinations:1},{navigationDepth:0},{sitemapAcquisitions:0}])test('finite discovery bounds '+JSON.stringify(extra),()=>{
     if(extra.candidateDestinations===0){assert.throws(()=>createKnowledge({objective:objective(),bounds:extra}),/INVALID_MARKETS/);return;}
@@ -217,7 +218,7 @@ test('country observation context is never synthesized by a locale candidate or 
     const r=await site({[home]:html('','<link rel="alternate" hreflang="ja-JP" href="/jp/pricing">'),[home+'jp/pricing']:html('Personal consumer subscription price JPY 1400 per month.')});assert.equal(amounts(r).TARGET_MARKET.state,'UNRESOLVED');assert.ok(r.knowledge.observations.every(o=>o.context.transport==='DIRECT'&&o.context.networkGeography==='UNBOUND'));
 });
 
-test('unseeded reviewed provider starts at homepage without search capability or guessed routes',async()=>{const r=await site({[home]:sufficient()},{objective:objective({seeds:[]})});assert.equal(r.result.truth.established,true);assert.equal(r.result.usage.acquisitions,1);assert.equal(r.knowledge.destinations[0].grounding.kind,'PROVIDER_ROOT');});
+test('unseeded reviewed provider starts at homepage without search capability or guessed routes',async()=>{const r=await site({[home]:sufficient()},{objective:objective({seeds:[]})});assert.equal(r.result.truth.established,true);assert.equal(firstEstablishedUsage(r.result).acquisitions,1);assert.equal(r.knowledge.destinations[0].grounding.kind,'PROVIDER_ROOT');});
 for(const key of ['access_token','api_key','password','authorization','secret','session_token'])test('sensitive URL navigation parameter not retained '+key,()=>assert.equal(extract(`<a href="/plans?${key}=sensitive-value">Plans</a>`).candidates.length,0));
 
 test('country transport failure does not erase useful distinct DIRECT action or retry COUNTRY',async()=>{
@@ -226,7 +227,7 @@ test('country transport failure does not erase useful distinct DIRECT action or 
 });
 
 test('explicit inert navigation remains preferred over newly discovered endpoint hypotheses',async()=>{
-    const body=html('','<script type="application/json">{"navigation":{"items":[{"label":"الاشتراك","href":"/selection"}]},"apiUrl":"/api/pricing"}</script>'),r=await site({[home]:body,[home+'selection']:sufficient()});assert.equal(r.result.truth.established,true);assert.equal(r.result.usage.acquisitions,2);assert.ok(r.knowledge.destinations.some(d=>d.url===home+'api/pricing'&&d.grounding.kind==='PROVIDER_LINK'));
+    const body=html('','<script type="application/json">{"navigation":{"items":[{"label":"الاشتراك","href":"/selection"}]},"apiUrl":"/api/pricing"}</script>'),r=await site({[home]:body,[home+'selection']:sufficient()});assert.equal(r.result.truth.established,true);assert.equal(firstEstablishedUsage(r.result).acquisitions,2);assert.ok(r.knowledge.destinations.some(d=>d.url===home+'api/pricing'&&d.grounding.kind==='PROVIDER_LINK'));
 });
 test('language-only alternate tag is not treated as an explicit region subtag',()=>{
     const c={url:price,label:'',kind:'ALTERNATE',context:'CONTENT',locale:'ja'},score=rankCandidate(c,objective());assert.equal(score,rankCandidate({...c,locale:null},objective()));
@@ -245,7 +246,7 @@ for(const code of ['WIRE_BYTE_BOUND','DECOMPRESSION_BOUND','HEADERS_TOO_LARGE','
     const r=await runTarget({input,interpret:interpretBillingFixture,capabilities:caps,navigate:rows=>rows.filter(c=>c.url.endsWith('plans-failed')).map(c=>({candidateId:c.id,needs:pricePropositions}))});assert.equal(r.result.truth.established,true);assert.equal(r.knowledge.attempts.filter(a=>a.status==='FAILED').length,1);assert.ok(r.result.usage.bytes>=64);assert.ok(r.knowledge.limitsHit.includes('acquisitionResourceCapacity'));assert.equal(r.knowledge.observations.some(o=>o.url.endsWith('plans-failed')),false);
 });
 test('global transport budget stays terminal despite another grounded destination',async()=>{
-    const k=await runResearch({objective:objective({seeds:[home,price]}),permissions:{DIRECT:true},bounds:{bytes:64},capabilities:{DIRECT:()=>({failure:{kind:'CAPACITY',code:'WIRE_BYTE_BOUND'},accounting:{requests:1,bytes:65,decodedBytes:0,retainedBytes:0}})}});assert.equal(k.stop.reason,'CAPACITY_BOUND_REACHED');assert.equal(k.usage.actions,1);assert.equal(k.observations.length,0);
+    const k=await runResearch({objective:objective({seeds:[home,price]}),permissions:{DIRECT:true},bounds:{bytes:64},capabilities:{DIRECT:()=>({failure:{kind:'CAPACITY',code:'WIRE_BYTE_BOUND'},accounting:{requests:1,bytes:65,decodedBytes:0,retainedBytes:0}})}});assert.equal(k.stop.reason,'CAPACITY_BOUND_REACHED');assert.equal(firstEstablishedUsage(k).actions,1);assert.equal(k.observations.length,0);
 });
 
 for(const placement of ['before','after'])test('source-owned base URL resolves relative navigation '+placement+' anchor',async()=>{

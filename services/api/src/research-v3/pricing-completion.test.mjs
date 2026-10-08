@@ -19,7 +19,7 @@ async function execute(f=oracle,change=()=>{},country=true) {
 }
 test('faithful complete pricing path: UNKNOWN cannot veto native service; one acquisition and one SDK call suffice',async()=>{
  const run=await execute(oracle,(w,r)=>{w.serviceSources=[];for(const c of w.charges){c.currency=null;c.cadenceText=null;}w.charges[1].cadenceSources=[r.numbers.find(n=>n.id===w.charges[1].amountRef).segment];});
- assert.equal(run.result.truth.established,true);assert.equal(run.result.stop.reason,'OBJECTIVE_ESTABLISHED');assert.equal(run.result.usage.acquisitions,1);assert.equal(run.result.usage.modelCalls,1);assert.equal(run.calls.length,1);
+ assert.equal(run.result.truth.established,true);assert.notEqual(run.result.catalog.state,'CATALOG_EXHAUSTED');assert.equal(run.result.usage.acquisitions,1);assert.equal(run.result.usage.modelCalls,1);assert.equal(run.calls.length,1);
  const p=run.result.truth.prices.JP.propositions;assert.equal(p.PRICE_AMOUNT.value,1080);assert.equal(p.CURRENCY.value,'JPY');assert.equal(p.MONTHLY_CADENCE.state,'ESTABLISHED');assert.equal(p.TARGET_MARKET.value,'JP');
  const e=run.knowledge.observations[0].evidence.envelope;assert.equal(e.offers[0].charges[0].role,'INTRODUCTORY');assert.equal(e.offers[0].charges[0].money.amount,0);assert.equal(e.offers[0].transitions[0].kind,'RECURS_AFTER_INTRO');assert.ok(e.offers[0].charges[1].support.every(s=>run.knowledge.observations[0].body.slice(s.start,s.end)===s.quote));assert.equal(evaluate(restore(checkpoint(run.knowledge))).established,true);
 });
@@ -71,7 +71,7 @@ test('a subsequent-only classification still requires validated introductory rel
 
 test('live-shaped redundant monetary cadence support does not erase sufficient recurrence',async()=>{
  const r=await execute(oracle,(w,i)=>{const c=w.charges[1],own=i.numbers.find(n=>n.id===c.amountRef).segment,other=i.segments.find(s=>s.id!==own&&s.text.includes('1,080'));assert.ok(other);c.sources=[own,other.id];c.cadenceSources=[own,other.id];c.cadenceText=null;});
- assert.equal(r.result.truth.established,true);assert.equal(r.result.stop.reason,'OBJECTIVE_ESTABLISHED');assert.equal(r.result.usage.acquisitions,1);assert.equal(r.result.usage.modelCalls,1);
+ assert.equal(r.result.truth.established,true);assert.notEqual(r.result.catalog.state,'CATALOG_EXHAUSTED');assert.equal(r.result.usage.acquisitions,1);assert.equal(r.result.usage.modelCalls,1);
 });
 test('non-applicable redundant cadence support does not erase applicable support',async()=>{
  const r=await execute(oracle,(w,i)=>{const c=w.charges[1],own=i.numbers.find(n=>n.id===c.amountRef).segment,other=i.numbers.find(n=>n.id===w.charges[0].amountRef).segment;c.sources=[own];c.cadenceSources=[other,own];c.cadenceText=null;});assert.equal(r.result.truth.established,true);

@@ -78,6 +78,6 @@ test('source value alternatives are explicitly selected rather than guessed from
 test('faithful retained hero presentation crosses the compact SDK boundary with original qualifiers',async()=>{
  const fixture={...oracle,html:'<section><h1>好きなだけ聴ける。Premium Standardを1ヶ月間￥0で体験しよう。</h1><p>キャンペーン終了後も、月額はわずか￥1,080。いつでもキャンセル可能です。</p><p>1ヶ月間￥0、その後は月額￥1,080。 特典は、これまでにPremiumを利用したことがないお客様のみが対象です。</p></section>',plans:oracle.plans.map(p=>({...p,anchor:'好きなだけ聴ける。'}))};
  const run=await liveMock(fixture,e=>{e.offers[0].qualifiers=['これまでにPremiumを利用したことがないお客様のみが対象です。'];return e;},{sdk:true});
- const p=run.result.truth.prices.JP.propositions;assert.equal(run.calls.length,1);assert.equal(p.PRICE_AMOUNT.value,1080);assert.equal(p.CURRENCY.value,'JPY');assert.equal(p.MONTHLY_CADENCE.value,true);assert.equal(p.TARGET_MARKET.value,'JP');assert.equal(run.result.stop.reason,'OBJECTIVE_ESTABLISHED');
+ const p=run.result.truth.prices.JP.propositions;assert.equal(run.calls.length,1);assert.equal(p.PRICE_AMOUNT.value,1080);assert.equal(p.CURRENCY.value,'JPY');assert.equal(p.MONTHLY_CADENCE.value,true);assert.equal(p.TARGET_MARKET.value,'JP');assert.notEqual(run.result.catalog.state,'CATALOG_EXHAUSTED');
  const charge=run.knowledge.observations[0].evidence.envelope.offers[0].charges[0];assert.equal(charge.duration,'1ヶ月');assert.equal(charge.money.amount,0);assert.equal(charge.role,'INTRODUCTORY');assert.ok(p.PRICE_AMOUNT.evidence[0].reference.source.qualifiers.includes('これまでにPremiumを利用したことがないお客様のみが対象です。'));
 });

@@ -1,0 +1,549 @@
+{
+  "schema": "V3_EVIDENCE_V2",
+  "observationId": "371c805d9d481664655c2cf0415596370a517888b77e1706ebb5aa196e29a140",
+  "observationSha256": "371c805d9d481664655c2cf0415596370a517888b77e1706ebb5aa196e29a140",
+  "language": "nb",
+  "translationArtifact": null,
+  "service": {
+    "name": "Spotify",
+    "ambiguity": false,
+    "support": [
+      {
+        "start": 530,
+        "end": 563,
+        "quote": "Spotify Premium - Spotify (Norge)",
+        "translated": null
+      }
+    ],
+    "populations": [],
+    "account": []
+  },
+  "offers": [
+    {
+      "presentation": "structured-5",
+      "name": "Premium Individuell",
+      "service": "Spotify",
+      "audience": "CONSUMER",
+      "relationship": "SUBSCRIPTION",
+      "qualifiers": [],
+      "ambiguity": false,
+      "support": [
+        {
+          "start": 132488,
+          "end": 133788,
+          "quote": "{\"planId\":\"PREMIUM_INDIVIDUAL\",\"header\":\"Premium Individuell\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-intro?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#1ed760\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 139 kr per måned. Tilbudet er kun tilgjengelig hvis du ikke har prøvd Premium tidligere. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-promotional-offer-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#1ed760\",\"planIdentifier\":\"premium-individual\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Én Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 139 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"intro\",\"shortPlanName\":\"Individual\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+          "translated": null
+        }
+      ],
+      "market": {
+        "country": null,
+        "basis": "UNKNOWN",
+        "ambiguity": false,
+        "support": []
+      },
+      "charges": [
+        {
+          "id": "intro",
+          "monetary": {
+            "kind": "INTRODUCTORY_SUBSCRIPTION_CHARGE",
+            "support": [
+              {
+                "start": 132488,
+                "end": 133788,
+                "quote": "{\"planId\":\"PREMIUM_INDIVIDUAL\",\"header\":\"Premium Individuell\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-intro?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#1ed760\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 139 kr per måned. Tilbudet er kun tilgjengelig hvis du ikke har prøvd Premium tidligere. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-promotional-offer-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#1ed760\",\"planIdentifier\":\"premium-individual\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Én Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 139 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"intro\",\"shortPlanName\":\"Individual\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ],
+            "relatedCharge": null,
+            "relation": "NONE"
+          },
+          "money": {
+            "amount": 0,
+            "amountText": "0",
+            "amountSpan": {
+              "start": 132647,
+              "end": 132648,
+              "quote": "0"
+            },
+            "currency": "NOK",
+            "currencyText": "kr"
+          },
+          "cadence": {
+            "unit": "MONTHLY",
+            "expression": "0 kr for 1 måned"
+          },
+          "temporal": {
+            "billingCadence": "UNKNOWN",
+            "billingSupport": [],
+            "commitmentText": null,
+            "commitmentSupport": [],
+            "priceKind": "CHARGE"
+          },
+          "payment": {
+            "kind": "UNKNOWN",
+            "text": null,
+            "support": []
+          },
+          "role": "INTRODUCTORY",
+          "derivation": "EXPLICIT",
+          "duration": null,
+          "qualifiers": [],
+          "ambiguity": false,
+          "support": [
+            {
+              "start": 132488,
+              "end": 133788,
+              "quote": "{\"planId\":\"PREMIUM_INDIVIDUAL\",\"header\":\"Premium Individuell\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-intro?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#1ed760\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 139 kr per måned. Tilbudet er kun tilgjengelig hvis du ikke har prøvd Premium tidligere. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-promotional-offer-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#1ed760\",\"planIdentifier\":\"premium-individual\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Én Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 139 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"intro\",\"shortPlanName\":\"Individual\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+              "translated": null
+            }
+          ]
+        },
+        {
+          "id": "ordinary",
+          "monetary": {
+            "kind": "SUBSCRIPTION_CHARGE",
+            "support": [
+              {
+                "start": 132488,
+                "end": 133788,
+                "quote": "{\"planId\":\"PREMIUM_INDIVIDUAL\",\"header\":\"Premium Individuell\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-intro?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#1ed760\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 139 kr per måned. Tilbudet er kun tilgjengelig hvis du ikke har prøvd Premium tidligere. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-promotional-offer-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#1ed760\",\"planIdentifier\":\"premium-individual\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Én Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 139 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"intro\",\"shortPlanName\":\"Individual\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ],
+            "relatedCharge": null,
+            "relation": "NONE"
+          },
+          "money": {
+            "amount": 139,
+            "amountText": "139",
+            "amountSpan": {
+              "start": 132856,
+              "end": 132859,
+              "quote": "139"
+            },
+            "currency": "NOK",
+            "currencyText": "kr"
+          },
+          "cadence": {
+            "unit": "MONTHLY",
+            "expression": "Deretter 139 kr i måneden"
+          },
+          "temporal": {
+            "billingCadence": "MONTHLY",
+            "billingSupport": [
+              {
+                "start": 132488,
+                "end": 133788,
+                "quote": "{\"planId\":\"PREMIUM_INDIVIDUAL\",\"header\":\"Premium Individuell\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-intro?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#1ed760\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 139 kr per måned. Tilbudet er kun tilgjengelig hvis du ikke har prøvd Premium tidligere. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-promotional-offer-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#1ed760\",\"planIdentifier\":\"premium-individual\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Én Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 139 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"intro\",\"shortPlanName\":\"Individual\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ],
+            "commitmentText": null,
+            "commitmentSupport": [],
+            "priceKind": "CHARGE"
+          },
+          "payment": {
+            "kind": "ACTUAL_PAYMENT",
+            "text": "Deretter 139 kr i måneden",
+            "support": [
+              {
+                "start": 132488,
+                "end": 133788,
+                "quote": "{\"planId\":\"PREMIUM_INDIVIDUAL\",\"header\":\"Premium Individuell\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-intro?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#1ed760\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 139 kr per måned. Tilbudet er kun tilgjengelig hvis du ikke har prøvd Premium tidligere. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-promotional-offer-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#1ed760\",\"planIdentifier\":\"premium-individual\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Én Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 139 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"intro\",\"shortPlanName\":\"Individual\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ]
+          },
+          "role": "SUBSEQUENT",
+          "derivation": "EXPLICIT",
+          "duration": null,
+          "qualifiers": [],
+          "ambiguity": false,
+          "support": [
+            {
+              "start": 132488,
+              "end": 133788,
+              "quote": "{\"planId\":\"PREMIUM_INDIVIDUAL\",\"header\":\"Premium Individuell\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-intro?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#1ed760\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 139 kr per måned. Tilbudet er kun tilgjengelig hvis du ikke har prøvd Premium tidligere. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-promotional-offer-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#1ed760\",\"planIdentifier\":\"premium-individual\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Én Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 139 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"intro\",\"shortPlanName\":\"Individual\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+              "translated": null
+            }
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "from": "intro",
+          "to": "ordinary",
+          "kind": "RECURS_AFTER_INTRO",
+          "ambiguity": false,
+          "support": [
+            {
+              "start": 132488,
+              "end": 133788,
+              "quote": "{\"planId\":\"PREMIUM_INDIVIDUAL\",\"header\":\"Premium Individuell\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-intro?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#1ed760\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 139 kr per måned. Tilbudet er kun tilgjengelig hvis du ikke har prøvd Premium tidligere. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-promotional-offer-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#1ed760\",\"planIdentifier\":\"premium-individual\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Én Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 139 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"intro\",\"shortPlanName\":\"Individual\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+              "translated": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "presentation": "structured-6",
+      "name": "Premium Student",
+      "service": "Spotify",
+      "audience": "CONSUMER",
+      "relationship": "SUBSCRIPTION",
+      "qualifiers": [],
+      "ambiguity": false,
+      "support": [
+        {
+          "start": 133789,
+          "end": 135309,
+          "quote": "{\"planId\":\"PREMIUM_STUDENT\",\"header\":\"Premium Student\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/student/verification?country=NO\\u0026offerId=default-student-trial-1m\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#91eeda\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 75 kr per måned. Tilbudet er reservert for studenter som er registrert ved en akkreditert institusjon for høyere utdanning. Gjelder ikke for brukere som allerede har prøvd Premium. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/paid-subscription-terms/\\\"\\u003eVilkårene\\u003c/a\\u003e for Spotify med studentrabatt gjelder.\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#91eeda\",\"planIdentifier\":\"premium-student\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"1 verifisert Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Rabatt for kvalifiserte studenter\",\"benefitType\":\"STUDENT_SAVINGS\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 75 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"student-trial-1m\",\"shortPlanName\":\"Student\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+          "translated": null
+        }
+      ],
+      "market": {
+        "country": null,
+        "basis": "UNKNOWN",
+        "ambiguity": false,
+        "support": []
+      },
+      "charges": [
+        {
+          "id": "intro",
+          "monetary": {
+            "kind": "INTRODUCTORY_SUBSCRIPTION_CHARGE",
+            "support": [
+              {
+                "start": 133789,
+                "end": 135309,
+                "quote": "{\"planId\":\"PREMIUM_STUDENT\",\"header\":\"Premium Student\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/student/verification?country=NO\\u0026offerId=default-student-trial-1m\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#91eeda\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 75 kr per måned. Tilbudet er reservert for studenter som er registrert ved en akkreditert institusjon for høyere utdanning. Gjelder ikke for brukere som allerede har prøvd Premium. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/paid-subscription-terms/\\\"\\u003eVilkårene\\u003c/a\\u003e for Spotify med studentrabatt gjelder.\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#91eeda\",\"planIdentifier\":\"premium-student\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"1 verifisert Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Rabatt for kvalifiserte studenter\",\"benefitType\":\"STUDENT_SAVINGS\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 75 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"student-trial-1m\",\"shortPlanName\":\"Student\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ],
+            "relatedCharge": null,
+            "relation": "NONE"
+          },
+          "money": {
+            "amount": 0,
+            "amountText": "0",
+            "amountSpan": {
+              "start": 133941,
+              "end": 133942,
+              "quote": "0"
+            },
+            "currency": "NOK",
+            "currencyText": "kr"
+          },
+          "cadence": {
+            "unit": "MONTHLY",
+            "expression": "0 kr for 1 måned"
+          },
+          "temporal": {
+            "billingCadence": "UNKNOWN",
+            "billingSupport": [],
+            "commitmentText": null,
+            "commitmentSupport": [],
+            "priceKind": "CHARGE"
+          },
+          "payment": {
+            "kind": "UNKNOWN",
+            "text": null,
+            "support": []
+          },
+          "role": "INTRODUCTORY",
+          "derivation": "EXPLICIT",
+          "duration": null,
+          "qualifiers": [],
+          "ambiguity": false,
+          "support": [
+            {
+              "start": 133789,
+              "end": 135309,
+              "quote": "{\"planId\":\"PREMIUM_STUDENT\",\"header\":\"Premium Student\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/student/verification?country=NO\\u0026offerId=default-student-trial-1m\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#91eeda\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 75 kr per måned. Tilbudet er reservert for studenter som er registrert ved en akkreditert institusjon for høyere utdanning. Gjelder ikke for brukere som allerede har prøvd Premium. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/paid-subscription-terms/\\\"\\u003eVilkårene\\u003c/a\\u003e for Spotify med studentrabatt gjelder.\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#91eeda\",\"planIdentifier\":\"premium-student\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"1 verifisert Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Rabatt for kvalifiserte studenter\",\"benefitType\":\"STUDENT_SAVINGS\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 75 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"student-trial-1m\",\"shortPlanName\":\"Student\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+              "translated": null
+            }
+          ]
+        },
+        {
+          "id": "ordinary",
+          "monetary": {
+            "kind": "SUBSCRIPTION_CHARGE",
+            "support": [
+              {
+                "start": 133789,
+                "end": 135309,
+                "quote": "{\"planId\":\"PREMIUM_STUDENT\",\"header\":\"Premium Student\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/student/verification?country=NO\\u0026offerId=default-student-trial-1m\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#91eeda\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 75 kr per måned. Tilbudet er reservert for studenter som er registrert ved en akkreditert institusjon for høyere utdanning. Gjelder ikke for brukere som allerede har prøvd Premium. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/paid-subscription-terms/\\\"\\u003eVilkårene\\u003c/a\\u003e for Spotify med studentrabatt gjelder.\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#91eeda\",\"planIdentifier\":\"premium-student\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"1 verifisert Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Rabatt for kvalifiserte studenter\",\"benefitType\":\"STUDENT_SAVINGS\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 75 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"student-trial-1m\",\"shortPlanName\":\"Student\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ],
+            "relatedCharge": null,
+            "relation": "NONE"
+          },
+          "money": {
+            "amount": 75,
+            "amountText": "75",
+            "amountSpan": {
+              "start": 134180,
+              "end": 134182,
+              "quote": "75"
+            },
+            "currency": "NOK",
+            "currencyText": "kr"
+          },
+          "cadence": {
+            "unit": "MONTHLY",
+            "expression": "Deretter 75 kr i måneden"
+          },
+          "temporal": {
+            "billingCadence": "MONTHLY",
+            "billingSupport": [
+              {
+                "start": 133789,
+                "end": 135309,
+                "quote": "{\"planId\":\"PREMIUM_STUDENT\",\"header\":\"Premium Student\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/student/verification?country=NO\\u0026offerId=default-student-trial-1m\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#91eeda\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 75 kr per måned. Tilbudet er reservert for studenter som er registrert ved en akkreditert institusjon for høyere utdanning. Gjelder ikke for brukere som allerede har prøvd Premium. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/paid-subscription-terms/\\\"\\u003eVilkårene\\u003c/a\\u003e for Spotify med studentrabatt gjelder.\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#91eeda\",\"planIdentifier\":\"premium-student\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"1 verifisert Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Rabatt for kvalifiserte studenter\",\"benefitType\":\"STUDENT_SAVINGS\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 75 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"student-trial-1m\",\"shortPlanName\":\"Student\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ],
+            "commitmentText": null,
+            "commitmentSupport": [],
+            "priceKind": "CHARGE"
+          },
+          "payment": {
+            "kind": "ACTUAL_PAYMENT",
+            "text": "Deretter 75 kr i måneden",
+            "support": [
+              {
+                "start": 133789,
+                "end": 135309,
+                "quote": "{\"planId\":\"PREMIUM_STUDENT\",\"header\":\"Premium Student\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/student/verification?country=NO\\u0026offerId=default-student-trial-1m\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#91eeda\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 75 kr per måned. Tilbudet er reservert for studenter som er registrert ved en akkreditert institusjon for høyere utdanning. Gjelder ikke for brukere som allerede har prøvd Premium. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/paid-subscription-terms/\\\"\\u003eVilkårene\\u003c/a\\u003e for Spotify med studentrabatt gjelder.\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#91eeda\",\"planIdentifier\":\"premium-student\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"1 verifisert Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Rabatt for kvalifiserte studenter\",\"benefitType\":\"STUDENT_SAVINGS\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 75 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"student-trial-1m\",\"shortPlanName\":\"Student\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ]
+          },
+          "role": "SUBSEQUENT",
+          "derivation": "EXPLICIT",
+          "duration": null,
+          "qualifiers": [],
+          "ambiguity": false,
+          "support": [
+            {
+              "start": 133789,
+              "end": 135309,
+              "quote": "{\"planId\":\"PREMIUM_STUDENT\",\"header\":\"Premium Student\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/student/verification?country=NO\\u0026offerId=default-student-trial-1m\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#91eeda\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 75 kr per måned. Tilbudet er reservert for studenter som er registrert ved en akkreditert institusjon for høyere utdanning. Gjelder ikke for brukere som allerede har prøvd Premium. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/paid-subscription-terms/\\\"\\u003eVilkårene\\u003c/a\\u003e for Spotify med studentrabatt gjelder.\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#91eeda\",\"planIdentifier\":\"premium-student\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"1 verifisert Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Rabatt for kvalifiserte studenter\",\"benefitType\":\"STUDENT_SAVINGS\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 75 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"student-trial-1m\",\"shortPlanName\":\"Student\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+              "translated": null
+            }
+          ]
+        }
+      ],
+      "transitions": [
+        {
+          "from": "intro",
+          "to": "ordinary",
+          "kind": "RECURS_AFTER_INTRO",
+          "ambiguity": false,
+          "support": [
+            {
+              "start": 133789,
+              "end": 135309,
+              "quote": "{\"planId\":\"PREMIUM_STUDENT\",\"header\":\"Premium Student\",\"subheaderPrice\":\"GRATIS\",\"subheaderDuration\":\"I 1 MÅNED\",\"button\":{\"children\":\"Prøv 1 måned for 0 kr\",\"href\":\"https://www.spotify.com/no-nb/student/verification?country=NO\\u0026offerId=default-student-trial-1m\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#91eeda\",\"color\":\"#fff\"},\"legalDisclaimer\":\"0 kr for 1 måned, deretter 75 kr per måned. Tilbudet er reservert for studenter som er registrert ved en akkreditert institusjon for høyere utdanning. Gjelder ikke for brukere som allerede har prøvd Premium. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/paid-subscription-terms/\\\"\\u003eVilkårene\\u003c/a\\u003e for Spotify med studentrabatt gjelder.\",\"lozenges\":[{\"text\":\"0 kr for 1 måned\"}],\"$planColor\":\"#91eeda\",\"planIdentifier\":\"premium-student\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"1 verifisert Premium-konto\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Rabatt for kvalifiserte studenter\",\"benefitType\":\"STUDENT_SAVINGS\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"0 kr for 1 måned\",\"secondaryPriceDescription\":\"Deretter 75 kr i måneden\",\"additionalPriceDescription\":null,\"offerTypeId\":\"student-trial-1m\",\"shortPlanName\":\"Student\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+              "translated": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "presentation": "structured-7",
+      "name": "Premium Duo",
+      "service": "Spotify",
+      "audience": "CONSUMER",
+      "relationship": "SUBSCRIPTION",
+      "qualifiers": [],
+      "ambiguity": false,
+      "support": [
+        {
+          "start": 135310,
+          "end": 136433,
+          "quote": "{\"planId\":\"PREMIUM_DUO\",\"header\":\"Premium Duo\",\"subheaderPrice\":\"189 KR\",\"subheaderDuration\":\"PER MÅNED\",\"button\":{\"children\":\"Skaff deg Premium Duo\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-duo-master?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#ffa178\",\"color\":\"#fff\"},\"legalDisclaimer\":\"For par som bor på samme adresse. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/duo/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[],\"$planColor\":\"#ffa178\",\"planIdentifier\":\"premium-duo\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"To Premium-kontoer\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"189 kr per måned\",\"secondaryPriceDescription\":null,\"additionalPriceDescription\":null,\"offerTypeId\":\"duo-master\",\"shortPlanName\":\"Duo\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+          "translated": null
+        }
+      ],
+      "market": {
+        "country": null,
+        "basis": "UNKNOWN",
+        "ambiguity": false,
+        "support": []
+      },
+      "charges": [
+        {
+          "id": "ordinary",
+          "monetary": {
+            "kind": "SUBSCRIPTION_CHARGE",
+            "support": [
+              {
+                "start": 135310,
+                "end": 136433,
+                "quote": "{\"planId\":\"PREMIUM_DUO\",\"header\":\"Premium Duo\",\"subheaderPrice\":\"189 KR\",\"subheaderDuration\":\"PER MÅNED\",\"button\":{\"children\":\"Skaff deg Premium Duo\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-duo-master?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#ffa178\",\"color\":\"#fff\"},\"legalDisclaimer\":\"For par som bor på samme adresse. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/duo/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[],\"$planColor\":\"#ffa178\",\"planIdentifier\":\"premium-duo\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"To Premium-kontoer\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"189 kr per måned\",\"secondaryPriceDescription\":null,\"additionalPriceDescription\":null,\"offerTypeId\":\"duo-master\",\"shortPlanName\":\"Duo\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ],
+            "relatedCharge": null,
+            "relation": "NONE"
+          },
+          "money": {
+            "amount": 189,
+            "amountText": "189",
+            "amountSpan": {
+              "start": 136204,
+              "end": 136207,
+              "quote": "189"
+            },
+            "currency": "NOK",
+            "currencyText": "kr"
+          },
+          "cadence": {
+            "unit": "MONTHLY",
+            "expression": "189 kr per måned"
+          },
+          "temporal": {
+            "billingCadence": "MONTHLY",
+            "billingSupport": [
+              {
+                "start": 135310,
+                "end": 136433,
+                "quote": "{\"planId\":\"PREMIUM_DUO\",\"header\":\"Premium Duo\",\"subheaderPrice\":\"189 KR\",\"subheaderDuration\":\"PER MÅNED\",\"button\":{\"children\":\"Skaff deg Premium Duo\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-duo-master?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#ffa178\",\"color\":\"#fff\"},\"legalDisclaimer\":\"For par som bor på samme adresse. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/duo/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[],\"$planColor\":\"#ffa178\",\"planIdentifier\":\"premium-duo\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"To Premium-kontoer\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"189 kr per måned\",\"secondaryPriceDescription\":null,\"additionalPriceDescription\":null,\"offerTypeId\":\"duo-master\",\"shortPlanName\":\"Duo\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ],
+            "commitmentText": null,
+            "commitmentSupport": [],
+            "priceKind": "CHARGE"
+          },
+          "payment": {
+            "kind": "ACTUAL_PAYMENT",
+            "text": "189 kr per måned",
+            "support": [
+              {
+                "start": 135310,
+                "end": 136433,
+                "quote": "{\"planId\":\"PREMIUM_DUO\",\"header\":\"Premium Duo\",\"subheaderPrice\":\"189 KR\",\"subheaderDuration\":\"PER MÅNED\",\"button\":{\"children\":\"Skaff deg Premium Duo\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-duo-master?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#ffa178\",\"color\":\"#fff\"},\"legalDisclaimer\":\"For par som bor på samme adresse. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/duo/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[],\"$planColor\":\"#ffa178\",\"planIdentifier\":\"premium-duo\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"To Premium-kontoer\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"189 kr per måned\",\"secondaryPriceDescription\":null,\"additionalPriceDescription\":null,\"offerTypeId\":\"duo-master\",\"shortPlanName\":\"Duo\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ]
+          },
+          "role": "ORDINARY",
+          "derivation": "EXPLICIT",
+          "duration": null,
+          "qualifiers": [],
+          "ambiguity": false,
+          "support": [
+            {
+              "start": 135310,
+              "end": 136433,
+              "quote": "{\"planId\":\"PREMIUM_DUO\",\"header\":\"Premium Duo\",\"subheaderPrice\":\"189 KR\",\"subheaderDuration\":\"PER MÅNED\",\"button\":{\"children\":\"Skaff deg Premium Duo\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-duo-master?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#ffa178\",\"color\":\"#fff\"},\"legalDisclaimer\":\"For par som bor på samme adresse. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/duo/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[],\"$planColor\":\"#ffa178\",\"planIdentifier\":\"premium-duo\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"To Premium-kontoer\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"189 kr per måned\",\"secondaryPriceDescription\":null,\"additionalPriceDescription\":null,\"offerTypeId\":\"duo-master\",\"shortPlanName\":\"Duo\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+              "translated": null
+            }
+          ]
+        }
+      ],
+      "transitions": []
+    },
+    {
+      "presentation": "structured-8",
+      "name": "Premium Family",
+      "service": "Spotify",
+      "audience": "CONSUMER",
+      "relationship": "SUBSCRIPTION",
+      "qualifiers": [],
+      "ambiguity": false,
+      "support": [
+        {
+          "start": 136434,
+          "end": 137716,
+          "quote": "{\"planId\":\"PREMIUM_FAMILY\",\"header\":\"Premium Family\",\"subheaderPrice\":\"219 KR\",\"subheaderDuration\":\"PER MÅNED\",\"button\":{\"children\":\"Skaff deg Premium Family\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-new-family-master?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#d8a3ff\",\"color\":\"#fff\"},\"legalDisclaimer\":\"For opptil 6 familiemedlemmer som bor på samme adresse. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-family-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[],\"$planColor\":\"#d8a3ff\",\"planIdentifier\":\"premium-family\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Opptil 6 Premium-kontoer\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Foreldrekontroll for abonnementseieren\",\"benefitType\":\"BLOCK_EXPLICIT\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"219 kr per måned\",\"secondaryPriceDescription\":null,\"additionalPriceDescription\":null,\"offerTypeId\":\"new-family-master\",\"shortPlanName\":\"Family\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+          "translated": null
+        }
+      ],
+      "market": {
+        "country": null,
+        "basis": "UNKNOWN",
+        "ambiguity": false,
+        "support": []
+      },
+      "charges": [
+        {
+          "id": "ordinary",
+          "monetary": {
+            "kind": "SUBSCRIPTION_CHARGE",
+            "support": [
+              {
+                "start": 136434,
+                "end": 137716,
+                "quote": "{\"planId\":\"PREMIUM_FAMILY\",\"header\":\"Premium Family\",\"subheaderPrice\":\"219 KR\",\"subheaderDuration\":\"PER MÅNED\",\"button\":{\"children\":\"Skaff deg Premium Family\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-new-family-master?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#d8a3ff\",\"color\":\"#fff\"},\"legalDisclaimer\":\"For opptil 6 familiemedlemmer som bor på samme adresse. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-family-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[],\"$planColor\":\"#d8a3ff\",\"planIdentifier\":\"premium-family\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Opptil 6 Premium-kontoer\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Foreldrekontroll for abonnementseieren\",\"benefitType\":\"BLOCK_EXPLICIT\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"219 kr per måned\",\"secondaryPriceDescription\":null,\"additionalPriceDescription\":null,\"offerTypeId\":\"new-family-master\",\"shortPlanName\":\"Family\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ],
+            "relatedCharge": null,
+            "relation": "NONE"
+          },
+          "money": {
+            "amount": 219,
+            "amountText": "219",
+            "amountSpan": {
+              "start": 137477,
+              "end": 137480,
+              "quote": "219"
+            },
+            "currency": "NOK",
+            "currencyText": "kr"
+          },
+          "cadence": {
+            "unit": "MONTHLY",
+            "expression": "219 kr per måned"
+          },
+          "temporal": {
+            "billingCadence": "MONTHLY",
+            "billingSupport": [
+              {
+                "start": 136434,
+                "end": 137716,
+                "quote": "{\"planId\":\"PREMIUM_FAMILY\",\"header\":\"Premium Family\",\"subheaderPrice\":\"219 KR\",\"subheaderDuration\":\"PER MÅNED\",\"button\":{\"children\":\"Skaff deg Premium Family\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-new-family-master?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#d8a3ff\",\"color\":\"#fff\"},\"legalDisclaimer\":\"For opptil 6 familiemedlemmer som bor på samme adresse. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-family-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[],\"$planColor\":\"#d8a3ff\",\"planIdentifier\":\"premium-family\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Opptil 6 Premium-kontoer\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Foreldrekontroll for abonnementseieren\",\"benefitType\":\"BLOCK_EXPLICIT\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"219 kr per måned\",\"secondaryPriceDescription\":null,\"additionalPriceDescription\":null,\"offerTypeId\":\"new-family-master\",\"shortPlanName\":\"Family\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ],
+            "commitmentText": null,
+            "commitmentSupport": [],
+            "priceKind": "CHARGE"
+          },
+          "payment": {
+            "kind": "ACTUAL_PAYMENT",
+            "text": "219 kr per måned",
+            "support": [
+              {
+                "start": 136434,
+                "end": 137716,
+                "quote": "{\"planId\":\"PREMIUM_FAMILY\",\"header\":\"Premium Family\",\"subheaderPrice\":\"219 KR\",\"subheaderDuration\":\"PER MÅNED\",\"button\":{\"children\":\"Skaff deg Premium Family\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-new-family-master?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#d8a3ff\",\"color\":\"#fff\"},\"legalDisclaimer\":\"For opptil 6 familiemedlemmer som bor på samme adresse. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-family-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[],\"$planColor\":\"#d8a3ff\",\"planIdentifier\":\"premium-family\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Opptil 6 Premium-kontoer\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Foreldrekontroll for abonnementseieren\",\"benefitType\":\"BLOCK_EXPLICIT\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"219 kr per måned\",\"secondaryPriceDescription\":null,\"additionalPriceDescription\":null,\"offerTypeId\":\"new-family-master\",\"shortPlanName\":\"Family\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+                "translated": null
+              }
+            ]
+          },
+          "role": "ORDINARY",
+          "derivation": "EXPLICIT",
+          "duration": null,
+          "qualifiers": [],
+          "ambiguity": false,
+          "support": [
+            {
+              "start": 136434,
+              "end": 137716,
+              "quote": "{\"planId\":\"PREMIUM_FAMILY\",\"header\":\"Premium Family\",\"subheaderPrice\":\"219 KR\",\"subheaderDuration\":\"PER MÅNED\",\"button\":{\"children\":\"Skaff deg Premium Family\",\"href\":\"https://www.spotify.com/no-nb/purchase/offer/default-new-family-master?country=NO\\u0026ref=spotifycom_premium_plans\",\"backgroundColor\":\"#d8a3ff\",\"color\":\"#fff\"},\"legalDisclaimer\":\"For opptil 6 familiemedlemmer som bor på samme adresse. \\u003ca href=\\\"https://www.spotify.com/no-nb/legal/premium-family-terms/\\\"\\u003eVilkår gjelder\\u003c/a\\u003e.\\u003cbr/\\u003e\",\"lozenges\":[],\"$planColor\":\"#d8a3ff\",\"planIdentifier\":\"premium-family\",\"showPremiumLogo\":true,\"benefits\":[{\"children\":\"Opptil 6 Premium-kontoer\",\"benefitType\":\"ACCOUNTS_DESCRIPTION\"},{\"children\":\"Foreldrekontroll for abonnementseieren\",\"benefitType\":\"BLOCK_EXPLICIT\"},{\"children\":\"Avslutt når som helst\",\"benefitType\":\"CANCEL_ANYTIME\"}],\"offerEnds\":\"Offer ends: %DAYSREMAINING%\",\"offerDateEnds\":null,\"hasNonRecurringProduct\":false,\"isRecurringProduct\":true,\"isUsersCurrentProduct\":false,\"primaryPriceDescription\":\"219 kr per måned\",\"secondaryPriceDescription\":null,\"additionalPriceDescription\":null,\"offerTypeId\":\"new-family-master\",\"shortPlanName\":\"Family\",\"campaignType\":\"EVERGREEN\",\"recommendation\":null,\"prepaidSection\":null,\"recurringSection\":null}",
+              "translated": null
+            }
+          ]
+        }
+      ],
+      "transitions": []
+    }
+  ]
+}

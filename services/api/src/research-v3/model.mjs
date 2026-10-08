@@ -34,7 +34,7 @@ export function normalizeUrl(value, base) {
 export const providerBound = (objective, url) => !!normalizeUrl(url) && objective.providerHosts.includes(new URL(url).hostname);
 export const context = (transport, networkGeography = 'UNBOUND') => ({ transport, networkGeography, representation: 'PROVIDER_PAGE' });
 export function actionIdentity(action) {
-    if(action.kind==='INSPECT')return digest(['INSPECT',action.observation]);
+    if(action.kind==='INSPECT')return digest(['INSPECT',action.observation,...(action.units?[action.units]:[])]);
     return digest(action.kind === 'DISCOVER' ? ['DISCOVER', action.market ?? null, action.family??[...action.needs].sort()] : ['ACQUIRE', action.url, action.context]);
 }
 export function createKnowledge({ objective, permissions = {}, bounds = {} }) {

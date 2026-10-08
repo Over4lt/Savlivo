@@ -54,13 +54,29 @@ export function structuredSources(body,contentType='text/html') {
      read(pointer+'/'+key.replaceAll('~','~0').replaceAll('/','~1'),depth+1);count++;ws();if(island.raw[i]===','){i++;ws();}else break;
     }
     i++;const raw=island.raw.slice(start,i);
-    if(ch==='{'&&Buffer.byteLength(raw)<=structuredMaterialCapacity.recordBytes&&/\p{N}/u.test(raw)&&(/(?:price|amount|currency|billing|payment|renewal|cost|credit|benefit|offer|plan|subscription)/i.test(raw)||/\p{Sc}|"[A-Z]{3}"/u.test(raw))){const record={start:island.start+start,end:island.start+i,type:'StructuredObject',pointer,parent:pointer.slice(0,pointer.lastIndexOf('/')),routingOnly:true,priority:(raw.match(/currency|payment|billing|renewal|effectiveCost|price/gi)??[]).length};if(records.length<structuredMaterialCapacity.records)records.push(record);else{limited=true;const lowest=records.reduce((n,r,j)=>r.priority<records[n].priority?j:n,0);if(record.priority>records[lowest].priority)records.splice(lowest,1,record);}}
+    if(ch==='{'&&Buffer.byteLength(raw)<=structuredMaterialCapacity.recordBytes&&/\p{N}/u.test(raw)&&(/(?:price|amount|currency|billing|payment|renewal|cost|credit|benefit|offer|plan|subscription|recurr|membership)/i.test(raw)||/\p{Sc}|"[A-Z]{3}"/u.test(raw))){const record={start:island.start+start,end:island.start+i,type:'StructuredObject',pointer,parent:pointer.slice(0,pointer.lastIndexOf('/')),routingOnly:true,priority:(raw.match(/currency|payment|billing|renewal|effectiveCost|price/gi)??[]).length};if(records.length<structuredMaterialCapacity.records)records.push(record);else{limited=true;const lowest=records.reduce((n,r,j)=>r.priority<records[n].priority?j:n,0);if(record.priority>records[lowest].priority)records.splice(lowest,1,record);}}
    }else if(ch==='"'){
     const value=string();if(/\/(?:url|href|endpoint|apiUrl|configUrl|pricingUrl|subscriptionUrl|contentUrl)$/i.test(pointer)&&/^(?:https:\/\/|\/)/.test(value)&&endpoints.length<256)endpoints.push({url:value,start:island.start+start,end:island.start+i,pointer});
    }else{while(i<island.raw.length&&!/[\s,}\]]/.test(island.raw[i]))i++;}
   };
   try{read('',0);}catch{limited=true;}
  }
- const regions=records.sort((a,b)=>(b.end-b.start)-(a.end-a.start)).filter((r,i,all)=>!all.slice(0,i).some(p=>r.start>=p.start&&r.end<=p.end)).slice(0,structuredMaterialCapacity.records).sort((a,b)=>a.start-b.start);
+ const scored=records.map(r=>({...r,routingValue:offeringRoutingValue(body.slice(r.start,r.end))}));
+ const independent=scored.filter(r=>!scored.some(c=>c!==r&&c.start>=r.start&&c.end<=r.end&&c.routingValue>r.routingValue));
+ const regions=independent.sort((a,b)=>(b.end-b.start)-(a.end-a.start)).filter((r,i,all)=>!all.slice(0,i).some(p=>r.start>=p.start&&r.end<=p.end)).slice(0,structuredMaterialCapacity.records).sort((a,b)=>a.start-b.start);
  return {regions,endpoints,limited:limited||records.length>structuredMaterialCapacity.records};
+}
+
+// Routing signals, never semantic assertions. Inspect one source-local object,
+// not its neighbours: repeated page metadata must not outrank an offer region.
+export function offeringRoutingValue(text) {
+    let value;try{value=JSON.parse(text);}catch{return 0;}
+    if(!value||Array.isArray(value)||typeof value!=='object')return 0;
+    const entries=Object.entries(value),keys=entries.map(([k])=>k.replace(/([a-z])([A-Z])/g,'$1 $2').toLowerCase());
+    const recurring=entries.some(([k,v])=>v===true&&/recurr|subscription|membership/i.test(k));
+    const monetary=keys.some(k=>/price|payment|billing|cost/.test(k));
+    const identity=keys.some(k=>/name|title|header|identifier/.test(k));
+    const action=keys.some(k=>/action|button|purchase|checkout/.test(k));
+    const peripheral=keys.some(k=>/credit|benefit|saving|tax|analytics/.test(k));
+    return (recurring?8:0)+(monetary?4:0)+(identity?2:0)+(action?1:0)-(peripheral&&!monetary?4:0);
 }

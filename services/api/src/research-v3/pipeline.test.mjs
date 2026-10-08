@@ -1,3 +1,4 @@
+import {firstEstablishedUsage,firstEstablishedAttempts} from './catalog-progress.test-support.mjs';
 import {interpretBillingFixture} from './billing-fixtures.test-support.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,8 +40,8 @@ const execute=async config=>{const f=fixture(config);return {...await runTarget(
 
 test('real HTML: Direct sufficient establishes one price without ceremonial Decodo',async()=>{
     const {result,knowledge,calls}=await execute();
-    assert.equal(result.stop.reason,'OBJECTIVE_ESTABLISHED');
-    assert.equal(result.usage.acquisitions,1);
+    assert.ok(result.trace.some(t=>t.event==='OBSERVATION'&&t.evaluations?.established));
+    assert.equal(firstEstablishedUsage(result).acquisitions,1);
     assert.equal(result.usage.networkRequests,2); // robots + provider
     assert.equal(calls.some(c=>c.country==='JP'),false);
     const ref=result.truth.prices.JP.propositions.PRICE_AMOUNT.evidence[0].reference;
@@ -54,7 +55,7 @@ test('real HTML: Direct sufficient establishes one price without ceremonial Deco
 
 test('Direct HTTP 200 -> only market unknown -> same URL country-bound Decodo -> established',async()=>{
     const {result,knowledge,calls}=await execute({direct:partial()});
-    assert.equal(result.stop.reason,'OBJECTIVE_ESTABLISHED');
+    assert.ok(result.trace.some(t=>t.event==='OBSERVATION'&&t.evaluations?.established));
     assert.deepEqual(knowledge.attempts[1].action.needs,['JP:TARGET_MARKET']);
     assert.deepEqual(knowledge.observations.map(o=>o.context),[context('DIRECT'),context('DECODO','JP')]);
     assert.equal(knowledge.observations[1].transport.verification,'BRACKET_VERIFIED');
@@ -69,7 +70,7 @@ test('Direct HTTP 200 -> only market unknown -> same URL country-bound Decodo ->
 
 test('Decodo first is a normal information-value choice, with no Direct request',async()=>{
     const {result,knowledge,calls}=await execute({input:input({planning:{initialPerspective:'AUTO'}})});
-    assert.equal(result.stop.reason,'OBJECTIVE_ESTABLISHED');
+    assert.ok(result.trace.some(t=>t.event==='OBSERVATION'&&t.evaluations?.established));
     assert.equal(knowledge.attempts[0].action.context.transport,'DECODO');
     assert.equal(calls.some(c=>c.country==='UNBOUND'),false);
 });
@@ -77,7 +78,7 @@ test('Decodo first is a normal information-value choice, with no Direct request'
 test('Tavily destination enters provider acquisition; snippet price never enters truth',async()=>{
     const i=input({permissions:{DIRECT:true,TAVILY:true},objective:{...input().objective,seeds:[]}});
     const {result,knowledge,calls}=await execute({input:i});
-    assert.deepEqual(knowledge.attempts.map(a=>a.action.kind),['DISCOVER','ACQUIRE']);
+    assert.deepEqual(firstEstablishedAttempts(knowledge).map(a=>a.action.kind),['DISCOVER','ACQUIRE']);
     assert.equal(result.truth.prices.JP.propositions.PRICE_AMOUNT.value,1400);
     assert.deepEqual(calls[0].search.include_domains,['provider.example']);
     assert.ok(knowledge.researchResults.some(r=>r.snippet.includes('JPY 1 monthly')&&r.truthAuthority==='NONE'));
@@ -91,8 +92,8 @@ test('provider navigation: relevant link followed, irrelevant/external links rej
     const i=input({permissions:{DIRECT:true},objective:{...input().objective,seeds:[home]}});
     const intro=page('Welcome to Orchard Club.',`<a href="/news">News</a><a href="/plans">Membership plans</a><a href="https://elsewhere.example/">Subscribe elsewhere</a>`);
     const {result,knowledge}=await execute({input:i,pages:{UNBOUND:{[home]:intro,[price]:enough()}}});
-    assert.equal(result.stop.reason,'OBJECTIVE_ESTABLISHED');
-    assert.deepEqual(knowledge.observations.map(o=>o.url),[home,price]);
+    assert.ok(result.trace.some(t=>t.event==='OBSERVATION'&&t.evaluations?.established));
+    assert.deepEqual(knowledge.observations.slice(0,firstEstablishedUsage(result).acquisitions).map(o=>o.url),[home,price]);
     assert.equal(knowledge.destinations.length,3); // Broad advisory frontier retains news without acquiring it.
     assert.equal(knowledge.destinations[1].grounding.kind,'PROVIDER_LINK');
 });
@@ -101,7 +102,7 @@ test('navigation intelligence can classify an observed non-keyword anchor, never
     const i=input({permissions:{DIRECT:true},objective:{...input().objective,seeds:[home]}});
     const f=fixture({input:i,pages:{UNBOUND:{[home]:page('Welcome.','<a href="/plans">Explore your possibilities</a>'),[price]:enough()}}});
     const {result}=await runTarget({interpret:interpretBillingFixture,input:i,capabilities:f.caps,navigate:(links,needs)=>[{index:links.findIndex(l=>l.label==='Explore your possibilities'),needs:needs.map(n=>n.proposition)},{index:999,url:'https://provider.example/invented',needs:['PRICE_AMOUNT']}]});
-    assert.equal(result.stop.reason,'OBJECTIVE_ESTABLISHED');
+    assert.ok(result.trace.some(t=>t.event==='OBSERVATION'&&t.evaluations?.established));
     assert.equal(f.calls.some(c=>c.url?.endsWith('invented')),false);
 });
 
@@ -118,7 +119,7 @@ test('explicit wrong-market evidence overrides verified country; country otherwi
 test('same observation context consumed; semantic exhaustion distinct from capacity',async()=>{
     const incomplete=page('Personal subscription price JPY 1400.');
     const exhausted=await execute({direct:incomplete,geo:incomplete});
-    assert.equal(exhausted.result.usage.actions,2);
+    assert.equal(firstEstablishedUsage(exhausted.result).actions,2);
     assert.equal(exhausted.result.stop.reason,'SEMANTIC_EXHAUSTION');
     assert.ok(exhausted.knowledge.decisions.at(-1).evaluated.some(r=>r.reason==='SEMANTIC_DUPLICATE'));
     const bounded=await execute({direct:partial(),input:input({bounds:{actions:1}})});
@@ -204,7 +205,7 @@ test('checkpoint resume preserves real HTTP accounting and consumed Direct conte
 test('standalone offline fixture adapter runs the same complete pipeline',async()=>{
     const i=input({permissions:{DIRECT:true},fixtures:[{url:'https://provider.example/robots.txt',transport:'DIRECT',status:404,contentType:'text/plain',body:''},{url:price,transport:'DIRECT',body:enough()}]});
     const {result}=await runTarget({interpret:interpretBillingFixture,input:i,capabilities:offlineCapabilities(i)});
-    assert.equal(result.stop.reason,'OBJECTIVE_ESTABLISHED');
+    assert.ok(result.trace.some(t=>t.event==='OBSERVATION'&&t.evaluations?.established));
     assert.equal(result.usage.networkRequests,2);
 });
 
@@ -233,7 +234,7 @@ test('explicit amount notation is read completely, never as a numeric prefix',as
     for(const [notation,wanted] of [['JPY1,400/month',1400],['EUR 14,99 per month',14.99],['EUR 1.400,99 per month',1400.99]]) {
         const {result}=await execute({direct:page('Personal consumer subscription price '+notation+'. Available in JP.')});
         assert.equal(result.truth.prices.JP.propositions.PRICE_AMOUNT.value,wanted);
-        assert.equal(result.stop.reason,'OBJECTIVE_ESTABLISHED');
+        assert.ok(result.trace.some(t=>t.event==='OBSERVATION'&&t.evaluations?.established));
     }
 });
 

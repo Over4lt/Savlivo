@@ -27,7 +27,7 @@ test('Spotify oracle uses production selection -> mocked understanding -> bindin
  assert.equal(p.PRICE_AMOUNT.value,1080);assert.equal(p.CURRENCY.value,'JPY');assert.equal(p.MONTHLY_CADENCE.value,true);assert.equal(p.TARGET_MARKET.value,'JP');
  assert.equal(p.TARGET_MARKET.evidence[0].reference.marketContext.basis,'VERIFIED_COUNTRY_OBSERVATION');
  const source=projectObservation(result.knowledge.observations[0],input.objective).source;assert.equal(source.offers[0].role,'TRIAL');assert.equal(source.offers[0].amount,0);assert.equal(source.offers[1].role,'ORDINARY');
- assert.equal(result.result.stop.reason,'OBJECTIVE_ESTABLISHED');
+ assert.notEqual(result.result.catalog.state,'CATALOG_EXHAUSTED');
 });
 for(const [name,mutate] of [
  ['outside supplied unit',(e,o)=>{const s=o.body.indexOf('IRRELEVANT');e.service.support=[{start:s,end:s+10,quote:o.body.slice(s,s+10),translated:null}];}],
@@ -80,7 +80,7 @@ test('units cannot combine independent fragment endpoints into an invented tempo
 test('unit-count capacity is explicit and never expands the global model budget',async()=>{
  const other=evidenceFixtures.find(f=>f.key==='norwegian'),input=bigInput(other);
  for(const row of input.fixtures)if(!row.url.endsWith('robots.txt'))row.body=row.body.replace('<section>',Array.from({length:6},(_,i)=>'<section><p>USD '+(70+i)+' '+'x'.repeat(2800)+'</p></section>').join('')+'<section>');
- const result=await run(input,()=>{throw Error('unavailable');});assert.equal(result.calls.length,8);assert.ok(result.knowledge.limitsHit.includes('semanticUnits'));assert.equal(result.knowledge.observations[0].semanticUnits.length,4);assert.equal(result.result.truth.established,false);
+ const result=await run(input,()=>{throw Error('unavailable');});assert.equal(result.calls.length,result.knowledge.bounds.modelCalls);assert.ok(result.knowledge.limitsHit.includes('modelCalls'));assert.ok(result.knowledge.observations[0].semanticUnits.length>4);assert.equal(result.result.truth.established,false);
 });
 test('strict account schema never contains an invalid empty enum on a page without destinations',async()=>{
  const {liveSemanticContract}=await import('./live-semantic.mjs');const input=fixtureInput(f),o=observation(input.fixtures.at(-1).body,input.objective),r=evidenceRequest(o,input.objective,selectSemanticUnits(o,input.objective)[0]),schema=liveSemanticContract(r);

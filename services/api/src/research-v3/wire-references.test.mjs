@@ -74,7 +74,7 @@ test('faithful pricing crosses actual mocked SDK with system service and null cu
   const request=JSON.parse(payload.messages[1].content),wire=wireCompletion(request,f);wire.serviceSources=[];for(const o of wire.offers){o.serviceRef=request.knownObservationService.reference;o.association='PRIMARY_SERVICE';}for(const c of wire.charges)c.currency=null;
   return new Response(JSON.stringify({choices:[{finish_reason:'stop',message:{content:JSON.stringify(wire)}}]}),{headers:{'content-type':'application/json'}});
  }});
- const run=await runTarget({input,interpret,capabilities:offlineCapabilities(input)});assert.equal(count,1);assert.equal(run.result.stop.reason,'OBJECTIVE_ESTABLISHED');assert.equal(run.result.truth.established,true);const p=run.result.truth.prices.JP.propositions;assert.equal(p.PRICE_AMOUNT.value,1080);assert.equal(p.CURRENCY.value,'JPY');assert.equal(p.TARGET_MARKET.value,'JP');assert.equal(evaluate(restore(checkpoint(run.knowledge))).established,true);
+ const run=await runTarget({input,interpret,capabilities:offlineCapabilities(input)});assert.equal(count,1);assert.notEqual(run.result.catalog.state,'CATALOG_EXHAUSTED');assert.equal(run.result.truth.established,true);const p=run.result.truth.prices.JP.propositions;assert.equal(p.PRICE_AMOUNT.value,1080);assert.equal(p.CURRENCY.value,'JPY');assert.equal(p.TARGET_MARKET.value,'JP');assert.equal(evaluate(restore(checkpoint(run.knowledge))).established,true);
 });
 test('malformed reference text is classified without retaining arbitrary generation content',()=>{
  const {r,w}=setup();w.serviceSources=['arbitrary free text'];assert.throws(()=>reconstructWire(r,w),e=>e.message==='WIRE_REFERENCE_INVALID'&&e.v3Diagnostics.reference===null&&e.v3Diagnostics.reason==='MALFORMED_REFERENCE');

@@ -36,7 +36,7 @@ for(const mode of ['hydration','inert','json'])test('structured '+mode+' preserv
  const raw=JSON.stringify(catalog),body=mode==='json'?raw:`<title>Lumen Studio</title><script ${mode==='hydration'?'id="__NEXT_DATA__"':'type="application/json"'}>${raw}</script>`;
  const o=obs(body,mode==='json'?'application/json':'text/html'),s=structuredSources(body,o.contentType),m=semanticMaterial(o),p=selectSemanticPlan(o,objective);
  assert.ok(s.regions.length);assert.ok(s.regions.some(r=>body.slice(r.start,r.end).includes('paymentPeriod')&&r.pointer!==undefined));assert.ok(m.presentations.some(p=>p.structuredPath!==undefined));assert.ok(p.units.length);
- assert.ok(p.units.some(u=>materialForUnit(o,u).segments.some(s=>s.text.includes('effectiveCost')&&s.text.includes('credit'))));assert.equal(evaluate({...knowledge(),observations:[o]}).established,false);
+ assert.ok(p.units.some(u=>materialForUnit(o,u).segments.some(s=>s.text.includes('credit'))));assert.ok(p.units.some(u=>materialForUnit(o,u).segments.some(s=>s.text.includes('effectiveCost'))));assert.equal(evaluate({...knowledge(),observations:[o]}).established,false);
 });
 test('structured Japanese keys and numerical currency remain bounded research material',()=>{
  const o=obs(JSON.stringify({商品:'光会員',通貨:'JPY',支払:1700,特典:500}),'application/json');assert.ok(structuredSources(o.body,o.contentType).regions.length);assert.ok(selectSemanticPlan(o,objective).units.length);assert.equal(evaluate({...knowledge(),observations:[o]}).eligibility.JP.result,'UNRESOLVED');

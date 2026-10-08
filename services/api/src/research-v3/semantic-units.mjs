@@ -5,6 +5,8 @@ import {semanticMaterial,semanticDestinations,projectWebSource} from './source.m
 export const semanticUnitLimits=Object.freeze({units:4,preparedCandidates:16,presentations:16,segments:64,sourceBytes:4096,sourceCharacters:4096,requestBytes:8192,modelCallsPerAction:4,destinations:16});
 const money=s=>/\p{Sc}\s*\p{N}|\p{N}[\p{N}.,\s]*\p{Sc}|\b[A-Z]{3}\s*\p{N}|\p{N}[\p{N}.,\s]*\s*[A-Z]{3}\b/u.test(s);
 const inside=(s,p)=>s.start>=p.start&&s.end<=p.end;
+import {offeringRoutingValue} from './structured-material.mjs';
+export {offeringRoutingValue} from './structured-material.mjs';
 export function materialForUnit(o,unit) {
     const all=semanticMaterial(o);
     if(all.limited)throw Error('EVIDENCE_MATERIAL_BOUND');
@@ -46,7 +48,8 @@ export function selectSemanticPlan(o,objective,needs) {
     };
     // A genuinely small complete presentation needs no arbitrary slicing.
     const whole=make(all.presentations,true);
-    if(whole&&wanted.length)return {units:[whole],capacityHit:false,reason:'SMALL_COMPLETE_PRESENTATION'};
+    const independentOfferings=all.presentations.filter(p=>p.tag==='script-data'&&offeringRoutingValue(o.body.slice(p.start,p.end))>=6).length;
+    if(whole&&wanted.length&&independentOfferings<=1)return {units:[whole],capacityHit:all.structuredLimited===true,reason:'SMALL_COMPLETE_PRESENTATION'};
     const candidates=[];let oversized=0;
     for(const anchor of anchors) {
         // Largest fitting ancestor preserves headings, temporal context and qualifiers.
@@ -66,10 +69,11 @@ export function selectSemanticPlan(o,objective,needs) {
         }
         if(!found)oversized++;
     }
-    const unique=[...new Map(candidates.map(c=>[c.unit.id,c])).values()].sort((a,b)=>Number(a.parent.tag==='script-data')-Number(b.parent.tag==='script-data')||a.parent.start-b.parent.start);
+    const value=c=>offeringRoutingValue(o.body.slice(c.parent.start,c.parent.end));
+    const unique=[...new Map(candidates.map(c=>[c.unit.id,c])).values()].sort((a,b)=>value(b)-value(a)||Number(a.parent.tag==='script-data')-Number(b.parent.tag==='script-data')||a.parent.start-b.parent.start);
     const chosen=[];
     for(const c of unique)if(!chosen.some(old=>inside(c.parent,old.parent)))chosen.push(c);
-    return {candidates:chosen.slice(0,semanticUnitLimits.preparedCandidates).map(c=>c.unit),units:chosen.slice(0,semanticUnitLimits.units).map(c=>c.unit),capacityHit:oversized>0||chosen.length>semanticUnitLimits.units,reason:oversized?'INDIVISIBLE_PRESENTATION_BOUND':chosen.length>semanticUnitLimits.units?'UNIT_COUNT_BOUND':'LOCAL_STRUCTURAL_CANDIDATES'};
+    return {candidates:chosen.slice(0,semanticUnitLimits.preparedCandidates).map(c=>({...c.unit,researchValue:value(c)})),units:chosen.slice(0,semanticUnitLimits.units).map(c=>({...c.unit,researchValue:value(c)})),capacityHit:all.structuredLimited===true||oversized>0||chosen.length>semanticUnitLimits.preparedCandidates,reason:oversized?'INDIVISIBLE_PRESENTATION_BOUND':chosen.length>semanticUnitLimits.preparedCandidates?'PREPARED_CANDIDATE_BOUND':'LOCAL_STRUCTURAL_CANDIDATES'};
 }
 
 export const selectSemanticUnits=(o,objective,needs)=>selectSemanticPlan(o,objective,needs).units;
