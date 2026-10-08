@@ -176,11 +176,11 @@ export function projectEvidence(o,objective,envelope=o.evidence?.envelope,unit=o
                     if(!exact(temporal,['billingCadence','billingSupport','commitmentText','commitmentSupport','priceKind'])||!known(temporal.billingCadence,['MONTHLY','YEARLY','WEEKLY','DAILY','UNKNOWN'])||!known(temporal.priceKind,['CHARGE','EQUIVALENT','UNKNOWN'])||!(temporal.commitmentText===null||label(temporal.commitmentText)))throw Error('EVIDENCE_TEMPORAL_INVALID');
                     if(!Array.isArray(temporal.billingSupport)||!Array.isArray(temporal.commitmentSupport))throw Error('EVIDENCE_TEMPORAL_INVALID');
                     const associated=chargeContexts.get(charge.id)??[];
-                    const applies=b=>support([b])&&(charge.support.some(s=>s.start<=b.start&&s.end>=b.end)||associated.some(s=>s.start<=b.start&&s.end>=b.end));
+                    const applies=b=>support([b])&&(charge.support.some(s=>s.start<=b.start&&s.end>=b.end)||associated.some(s=>s.start<=b.start&&s.end>=b.end)||p.tag==='script-data'&&b.start===p.start&&b.end===p.end&&charge.money.amountSpan&&b.start<=charge.money.amountSpan.start&&b.end>=charge.money.amountSpan.end&&charge.payment?.text?.includes(charge.money.amountText));
                     const billingSupport=temporal.billingSupport.filter(applies),commitmentSupport=temporal.commitmentSupport.filter(applies);
                     for(const item of temporal.billingSupport.filter(b=>!applies(b)))result.rejected.push({offer:index,charge:charge.id,proposition:'BILLING_CADENCE',reason:'BILLING_ITEM_NOT_APPLICABLE',support:[item]});
                     const paymentProposal=charge.payment??{kind:'UNKNOWN',text:null,support:billingSupport};
-                    const payment=admitPayment({excludedQuantities,cadence:temporal.billingCadence,kind:paymentProposal.kind,text:paymentProposal.text,rows:paymentProposal.kind==='UNKNOWN'?billingSupport:paymentProposal.support,commitment:temporal.commitmentText,valid:b=>applies(b)||paymentProposal.kind==='ACTUAL_PAYMENT'&&support([b],p),displayOnly:b=>isolatedDisplay(b,charge),native:b=>nativeStateContext(b.translated?.text??b.quote).cadence});
+                    const payment=admitPayment({excludedQuantities,cadence:temporal.billingCadence,kind:paymentProposal.kind,text:paymentProposal.text,rows:paymentProposal.kind==='UNKNOWN'?billingSupport:paymentProposal.support,commitment:temporal.commitmentText,valid:applies,displayOnly:b=>isolatedDisplay(b,charge),native:b=>nativeStateContext(b.translated?.text??b.quote).cadence});
                     const billingGrounded=payment.kind==='ACTUAL_PAYMENT';
                     charge={...charge,payment};
                     const commitmentRows=temporal.commitmentSupport.filter(b=>support([b],p));

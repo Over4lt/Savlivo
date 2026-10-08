@@ -1,6 +1,6 @@
 // Catalog research is independent of offering truth. Routing scores and model
 // output cannot certify a complete catalog. All records refer to retained sources.
-import {digest,pricePropositions,providerBound} from './model.mjs';
+import {digest,requiredPricePropositions,providerBound} from './model.mjs';
 import {projectObservation} from './projection.mjs';
 import {semanticMaterial} from './source.mjs';
 import {offeringRoutingValue} from './semantic-units.mjs';
@@ -9,7 +9,7 @@ export function researchTruth(k,truth) {
     if(k.objective.kind!=='PRICE')return truth;
     // Even established prices leave catalog questions open. Use existing action
     // intents/channels; neither these research needs nor their scores are truth.
-    const needs=truth.needs.length?truth.needs:k.objective.markets.flatMap(m=>pricePropositions.map(proposition=>({id:m+':'+proposition,market:m,proposition})));
+    const needs=truth.needs.length?truth.needs:k.objective.markets.flatMap(m=>requiredPricePropositions.map(proposition=>({id:m+':'+proposition,market:m,proposition})));
     return {...truth,needs,established:false};
 }
 export function refreshCatalog(k,truth) {

@@ -1,9 +1,11 @@
 import {monthlyPayment,paymentChoice,ordinaryCharge} from './payment-semantics.mjs';
-import { canonical, digest, providerBound, servicePropositions, pricePropositions } from './model.mjs';
+import { canonical, digest, providerBound, servicePropositions, pricePropositions, requiredPricePropositions } from './model.mjs';
 import {projectObservation} from './projection.mjs';
 import {verifiedCountryContext} from './truth-contract.mjs';
 export {truthContract} from './truth-contract.mjs';
 const currencies = new Set(Intl.supportedValuesOf('currency'));
+// The display cadence remains a diagnostic. Actual monthly payment is already
+// required by MONTHLY_SUBSCRIPTION and PRICE_AMOUNT on the same offering.
 const blank = () => ({ state: 'UNRESOLVED', value: null, evidence: [], contradictions: [] });
 const slots = names => Object.fromEntries(names.map(n => [n, blank()]));
 function claim(slot, value, reference, sufficient = true) {
@@ -119,7 +121,7 @@ export function evaluate(k) {
                 p.TARGET_MARKET.state = 'CONTRADICTED';
                 p.TARGET_MARKET.contradictions = p.TARGET_MARKET.evidence;
             }
-            return { ...g, propositions: p, established: pricePropositions.every(n => p[n].state === 'ESTABLISHED') };
+            return { ...g, propositions: p, established: requiredPricePropositions.every(n => p[n].state === 'ESTABLISHED') };
         });
         options.sort((a, b) => Number(b.established) - Number(a.established) || Number(b.market === market) - Number(a.market === market) || Object.values(b.propositions).filter(p => p.state === 'ESTABLISHED').length - Object.values(a.propositions).filter(p => p.state === 'ESTABLISHED').length || a.id.localeCompare(b.id));
         prices[market] = options[0] ?? { id: null, market: null, propositions: slots(pricePropositions), established: false };
@@ -138,7 +140,7 @@ export function evaluate(k) {
     }
     if (k.objective.kind === 'PRICE')
         for (const [market, v] of Object.entries(prices))
-            if(eligibility[market]?.result!=='INELIGIBLE')for (const n of pricePropositions)
+            if(eligibility[market]?.result!=='INELIGIBLE')for (const n of requiredPricePropositions)
                 if (v.propositions[n].state !== 'ESTABLISHED')
                     needs.push({ id: market + ':' + n, proposition: n, market, offerId: v.id, state: v.propositions[n].state });
     const ineligibleMarkets=Object.keys(eligibility).filter(m=>eligibility[m].result==='INELIGIBLE');

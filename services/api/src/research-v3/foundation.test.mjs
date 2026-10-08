@@ -27,16 +27,18 @@ test('A: one authoritative presentation establishes all six price propositions',
   assert.equal(evaluate(k).admitted, false); // Price is not admission.
 });
 
-test('B: ambiguous cadence remains unknown, then grounded navigation resolves it', async () => {
+test('B: actual monthly payment completes without researching display cadence', async () => {
   const seen = [];
   const k = await runResearch(options({capabilities: {DIRECT: a => {
     seen.push(a.url);
     return response(a, a.url === url ? source({offers: [offer({cadence: null})], links: [{url: '/terms', needs: ['MONTHLY_CADENCE']}, {url: '/news', needs: []}]}) : source());
   }}}));
-  assert.deepEqual(seen, [url, 'https://provider.example/terms']);
-  assert.equal(k.decisions[1].needs.join(), 'JP:MONTHLY_CADENCE');
+  assert.deepEqual(seen, [url]);
+  assert.equal(evaluate(k).prices.JP.propositions.MONTHLY_CADENCE.state, 'UNRESOLVED');
+  assert.equal(evaluate(k).needs.some(n=>n.proposition==='MONTHLY_CADENCE'), false);
   assert.ok(k.trace.some(t=>t.event==='OBSERVATION'&&t.evaluations?.established));
-  assert.ok(k.trace.find(t=>t.event==='OBSERVATION').remainingNeeds.includes('JP:MONTHLY_CADENCE'));
+  assert.equal(evaluate(k).established,true);
+  assert.equal(k.stop.reason, 'CATALOG_UNRESOLVED');
 });
 
 test('C/F: Direct HTTP 200 leaves market unknown; same destination Decodo JP resolves only remaining need', async () => {
@@ -110,7 +112,7 @@ test('J: invalid price semantics never establish an ordinary monthly target pric
     annualDivided: {cadence: 'MONTHLY', amountDerivation: 'ANNUAL_DIVIDED_BY_12'},
     annual: {cadence: 'YEARLY', billingCadence: 'YEARLY'}, benefit: {role: 'BENEFIT'}, credit: {role: 'CREDIT'}, discount: {role: 'DISCOUNT'},
     installment: {amountDerivation: 'INSTALLMENT_ARITHMETIC'}, installmentRelationship: {relationship: 'INSTALLMENT'},
-    trial: {role: 'TRIAL'}, zero: {amount: 0}, cadenceAmbiguous: {cadence: null},
+    trial: {role: 'TRIAL'}, zero: {amount: 0},
     wrongMarket: {market: 'AU'}, currencyAmbiguous: {currency: '$'}, nonConsumer: {consumer: false}
   };
   for (const [name, fields] of Object.entries(cases)) await t.test(name, async () => {
@@ -122,6 +124,14 @@ test('J: invalid price semantics never establish an ordinary monthly target pric
     const k = await runResearch(options({capabilities: {DIRECT: a => response(a, data)}}));
     assert.equal(fact(k, 'SERVICE_IDENTITY').state, 'UNRESOLVED');
   }
+});
+
+test('J: unknown display cadence does not veto actual monthly payment',async()=>{
+  const k=await runResearch(options({capabilities:{DIRECT:a=>response(a,source({offers:[offer({cadence:null})]}))}}));
+  assert.equal(evaluate(k).prices.JP.propositions.MONTHLY_CADENCE.state,'UNRESOLVED');
+  assert.equal(evaluate(k).prices.JP.established,true);
+  assert.equal(evaluate(k).established,true);
+  assert.equal(k.stop.reason,'CATALOG_UNRESOLVED');
 });
 
 test('K: minimal independent service admission; missing evidence is not contradiction', async () => {
@@ -153,9 +163,12 @@ test('contradictory observations survive repetition; missing new evidence does n
 });
 
 test('offer, market and qualifier boundaries prevent assembling unrelated fragments', async () => {
+  const first=await runResearch(options({capabilities:{DIRECT:a=>response(a,source({offers:[offer({cadence:null})]}))}}));
+  assert.equal(evaluate(first).prices.JP.established,true);
   for (const second of [offer({id: 'other', amount: null}), offer({role: 'TRIAL', amount: null}), offer({market: 'AU', amount: null}), offer({conditions: 'introductory', amount: null})]) {
     const k = await runResearch(options({capabilities: {DIRECT: a => response(a, source({offers: [offer({cadence: null}), second]}))}}));
-    assert.equal(evaluate(k).prices.JP.established, false);
+    assert.equal(evaluate(k).prices.JP.established, true);
+    assert.equal(evaluate(k).prices.JP.propositions.PRICE_AMOUNT.value,1400);
   }
 });
 
