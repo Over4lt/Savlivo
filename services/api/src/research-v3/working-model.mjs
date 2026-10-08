@@ -1,4 +1,5 @@
 // Research-only state. Never imported by truth, projection, or evidence admission.
+import {gapActionValue} from './research-gaps.mjs';
 import {researchState} from './research-strategist.mjs';
 import {digest,canonical} from './model.mjs';
 export const workingCapacity=Object.freeze({resources:512,families:256,hypotheses:256,variants:256,history:64,decisions:128,provenance:8,advice:64,adviceResults:24,advisoryCalls:4});
@@ -37,7 +38,7 @@ export function buildWorkingModel(k,truth,previous=k.workingModel) {
  const signature=digest({needs:truth.needs,resources:resources.map(r=>({id:r.id,history:r.history,progress:r.progress,learned:r.learned}))});
  const history=[...(previous?.history??[])];
  if(history.at(-1)?.signature!==signature)history.push({signature,actions:k.usage?.actions??0,needs:truth.needs.map(n=>n.id),observations:k.observations.length,failedAttempts:(k.attempts??[]).filter(a=>a.status==='FAILED').length});
- return {version:2,research:strategy,truthAuthority:'NONE',objective:{kind:k.objective?.kind??'PRICE',service:k.objective?.serviceName??null,unresolved:truth.needs.map(n=>({id:n.id,proposition:n.proposition,state:n.state})),eligibility:Object.fromEntries(Object.entries(truth.eligibility??{}).map(([market,e])=>[market,{state:e.state,result:e.result,conflicting:e.conflicting}]))},resources,families,hypotheses,variants:resources.filter(r=>r.state).map(r=>({resource:r.id,...r.state})).slice(0,workingCapacity.variants),history:history.slice(-workingCapacity.history),decisions:(previous?.decisions??[]).slice(-workingCapacity.decisions),capacity:workingCapacity};
+ return {version:3,gaps:k.gapState??null,research:strategy,truthAuthority:'NONE',objective:{kind:k.objective?.kind??'PRICE',service:k.objective?.serviceName??null,unresolved:truth.needs.map(n=>({id:n.id,proposition:n.proposition,state:n.state})),eligibility:Object.fromEntries(Object.entries(truth.eligibility??{}).map(([market,e])=>[market,{state:e.state,result:e.result,conflicting:e.conflicting}]))},resources,families,hypotheses,variants:resources.filter(r=>r.state).map(r=>({resource:r.id,...r.state})).slice(0,workingCapacity.variants),history:history.slice(-workingCapacity.history),decisions:(previous?.decisions??[]).slice(-workingCapacity.decisions),capacity:workingCapacity};
 }
 export function rankResearchActions(state,{initialPerspective='AUTO'}={}) {
  const wm=state.workingModel??buildWorkingModel({...state,trace:state.trace??[]},state.truth);
@@ -96,11 +97,12 @@ export function rankResearchActions(state,{initialPerspective='AUTO'}={}) {
   if(!state.observations.length&&initialPerspective==='UNBOUND'&&action.context?.transport==='DIRECT')factors.geography=40;
   if(!state.observations.length&&initialPerspective==='COUNTRY'&&action.context?.transport==='DECODO')factors.geography=50;
   const roleFailures=r?.history.filter(h=>h.status==='FAILED'&&canonical(h.context)===canonical(action.context)).length??0;factors.failure=roleFailures?-20*roleFailures:0;
+  const gapValue=gapActionValue(action,wm.gaps,r);factors.gapInformation=gapValue.information;factors.gapSourceFamily=gapValue.sourceFamily;factors.gapRedundancy=gapValue.redundancy;
   const value=Object.values(factors).reduce((a,b)=>a+b,0);
-  return {actionId:action.id,value,factors,resource:r?.id??null,family:r?.family??null,needs:action.needs,expectedInformation:action.strategist?.question??(action.kind==='INSPECT'?'Source-bound interpretation of retained monetary material':action.kind==='DISCOVER'?'New authoritative destinations':r?.state?'Discriminate source-exposed provider state':'Resolve '+(action.needs??state.truth.needs.map(n=>n.proposition)).join(', ')),support:action.strategist?.provenance?[action.strategist.provenance]:r?.provenance??[],reason:'Objective deficits, source-local transitions, observed family information yield, novelty and verified acquisition context'};
+  return {actionId:action.id,value,factors,gapCoverage:gapValue.covers,resource:r?.id??null,family:r?.family??null,needs:action.needs,expectedInformation:action.strategist?.question??(action.kind==='INSPECT'?'Source-bound interpretation of retained monetary material':action.kind==='DISCOVER'?'New authoritative destinations':r?.state?'Discriminate source-exposed provider state':'Resolve '+(action.needs??state.truth.needs.map(n=>n.proposition)).join(', ')),support:action.strategist?.provenance?[action.strategist.provenance]:r?.provenance??[],reason:'Objective deficits, source-local transitions, observed family information yield, novelty and verified acquisition context'};
  }).sort((a,b)=>b.value-a.value||a.actionId.localeCompare(b.actionId));
 }
 export function workingDecision(wm,ranked,selected,budgets) {
- const record={selected,considered:ranked.slice(0,64),deferred:ranked.slice(64).map(r=>r.actionId).slice(0,64),budgets:structuredClone(budgets),unresolved:wm.objective.unresolved};
+ const record={selected,considered:ranked.slice(0,64),deferred:ranked.slice(64).map(r=>r.actionId).slice(0,64),budgets:structuredClone(budgets),unresolved:wm.objective.unresolved,gaps:wm.gaps};
  wm.decisions.push(record);wm.decisions=wm.decisions.slice(-workingCapacity.decisions);return record;
 }

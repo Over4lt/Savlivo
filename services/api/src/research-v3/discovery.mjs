@@ -1,5 +1,6 @@
 // Source-owned research candidates. All signals below are advisory, never truth.
 import {structuredSources} from './structured-material.mjs';
+import {gapQueries} from './research-gaps.mjs';
 import {adaptiveQueries} from './research-strategist.mjs';
 import {providerStates} from './provider-states.mjs';
 import {digest,normalizeUrl} from './model.mjs';
@@ -117,7 +118,7 @@ export function extractSitemap(o,objective,needs) {
 export function queryFamilies(objective,market,needs,knowledge) {
     const scope=[...new Set([...objective.providerHosts,...(objective.providerNamespaces??[]).map(s=>s.domain)])].map(h=>'site:'+h).join(' OR '),service=objective.serviceName;
     const intents=objective.kind==='PRICE'?['subscription pricing plans','subscription billing renewal terms','subscription availability official']:['official service subscription','account membership support','official service information'];
-    return [...adaptiveQueries(objective,market,needs,knowledge),...intents.map((intent,index)=>({kind:'DISCOVER',market,needs,family:'objective-'+index,query:[service,market,intent,'('+scope+')'].filter(Boolean).join(' ').slice(0,1000),reason:'Bounded provider discovery family '+index+' for unresolved objective',value:2-index/10}))];
+    return [...gapQueries(objective,market,needs,knowledge),...adaptiveQueries(objective,market,needs,knowledge),...intents.map((intent,index)=>({kind:'DISCOVER',market,needs,family:'objective-'+index,query:[service,market,intent,'('+scope+')'].filter(Boolean).join(' ').slice(0,1000),reason:'Bounded provider discovery family '+index+' for unresolved objective',value:2-index/10}))];
 }
 
 function documentBase(o) {

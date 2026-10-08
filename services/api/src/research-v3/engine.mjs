@@ -1,4 +1,5 @@
 import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound, materializeAuthority } from './model.mjs';
+import {diagnoseGaps,gapInspectionActions,inspectGapSource,gapTermination} from './research-gaps.mjs';
 import {exhaustionDiagnosis} from './research-strategist.mjs';
 import {buildWorkingModel,rankResearchActions,workingDecision} from './working-model.mjs';
 import { evaluate, interpretStructured, readSource } from './truth.mjs';
@@ -38,11 +39,11 @@ function proposals(k, truth) {
         const units=(o.semanticUnits??[]).filter(u=>!(o.semanticAttempts??[]).some(a=>a.unit===u.id)).slice(0,semanticUnitLimits.units).map(u=>u.id);
         if(units.length&&!k.semanticUnavailable)actions.push({kind:'INSPECT',observation:o.id,url:o.url,units,needs:truth.needs.map(n=>n.id),reason:'Process unattempted source-bound regions; catalog work remains',value:units.some(id=>o.semanticUnits.find(u=>u.id===id)?.researchValue>=6)?40:2});
     }
-    return [...actions, ...searches(k, truth)];
+    return [...gapInspectionActions(k,truth.needs.map(n=>n.id)), ...actions, ...searches(k, truth)];
 }
 function capacity(k, a) {
     const u = k.usage, b = k.bounds, checks = [['actions', u.actions, b.actions], ['bytes', u.bytes, b.bytes], ['decodedBytes', u.decodedBytes??0, b.decodedBytes??acquisition.objectiveDecodedBytes], ['acquisitionMs', u.acquisitionMs??0, b.acquisitionMs??acquisition.objectiveAcquisitionMs], ['networkRequests', u.networkRequests ?? 0, b.networkRequests ?? 96]];
-    if(a.kind==='INSPECT')checks.push(['modelCalls',u.modelCalls,b.modelCalls]);
+    if(a.kind==='INSPECT'){if(a.inspection!=='GAP_SOURCE')checks.push(['modelCalls',u.modelCalls,b.modelCalls]);}
     else if (a.kind === 'DISCOVER')
         checks.push(['searches', u.searches, b.searches]);
     else {
@@ -67,8 +68,9 @@ function validate(k, truth, input, adapters) {
         return { action: a, reason: 'NO_EXPLAINED_INFORMATION_VALUE' };
     if(a.kind==='INSPECT'){
         const retained=k.observations.find(o=>o.id===a.observation&&o.outcome==='OK'&&!o.truncated&&o.sha256===digest(o.body));
+        const gapSource=a.inspection==='GAP_SOURCE'&&retained&&a.bodySha256===retained.sha256&&gapInspectionActions(k,truth.needs.map(n=>n.id)).some(x=>x.observation===a.observation);
         const queued=retained&&Array.isArray(a.units)&&a.units.length>0&&a.units.length<=semanticUnitLimits.units&&a.units.every(id=>retained.semanticUnits?.some(u=>u.id===id)&&!retained.semanticAttempts?.some(x=>x.unit===id));
-        if(!queued&&(!retained||retained.reinspectionCount>0||k.semanticUnavailable?.status!==429||Date.now()<k.semanticUnavailable.until))return {action:a,reason:'UNGROUNDED_INSPECTION'};
+        if(!gapSource&&!queued&&(!retained||retained.reinspectionCount>0||k.semanticUnavailable?.status!==429||Date.now()<k.semanticUnavailable.until))return {action:a,reason:'UNGROUNDED_INSPECTION'};
         a.url=retained.url;delete a.context;
     }
     else if (a.kind === 'ACQUIRE') {
@@ -90,6 +92,7 @@ function validate(k, truth, input, adapters) {
     }
     else if (typeof a.query !== 'string' || !a.query.trim() || a.query.length > 1000 || a.needs.some(id => truth.needs.find(n => n.id === id).market !== (a.market ?? null)))
         return { action: a, reason: 'INVALID_DISCOVERY_INTENT' };
+    if(a.kind==='DISCOVER'&&k.attempts.some(x=>x.action.kind==='DISCOVER'&&x.action.query?.trim().replace(/\s+/g,' ').toLowerCase()===a.query.trim().replace(/\s+/g,' ').toLowerCase()))return {action:a,reason:'SEMANTIC_DUPLICATE'};
     if(a.kind==='DISCOVER'&&a.family) {
         const expected=queryFamilies(k.objective,a.market??null,a.needs,k).find(x=>x.family===a.family);
         if(!expected||expected.query!==a.query)return {action:a,reason:'INVALID_DISCOVERY_FAMILY'};
@@ -105,7 +108,8 @@ function validate(k, truth, input, adapters) {
     return { action: a, reason: 'ADMISSIBLE' };
 }
 export function availableActions(k, adapters = {}, extra = []) {
-    const truth = researchTruth(k,evaluate(k)), seen = new Set(), evaluated = [];
+    const finalTruth=evaluate(k);k.gapState=diagnoseGaps(k,finalTruth);
+    const truth = researchTruth(k,finalTruth), seen = new Set(), evaluated = [];
     for (const p of [...extra, ...proposals(k, truth)]) {
         const row = validate(k, truth, p, adapters), key = row.action.id ?? digest(row.action);
         if (seen.has(key))
@@ -125,7 +129,7 @@ async function persist(k, save) {
 }
 function stop(k, reason, details = {}) {
     const researchStop=details.researchStop??(['OBJECTIVE_ESTABLISHED','MONTHLY_SUBSCRIPTION_NOT_OFFERED'].includes(reason)?{kind:'OBJECTIVE_RESOLVED'}:reason==='CAPACITY_BOUND_REACHED'?{kind:'CAPACITY_EXHAUSTED',bounds:details.bounds??[]}:['CAPABILITY_OR_INTERPRETATION_FAILED','REASONER_FAILED','RECOVERY_REQUIRED'].includes(reason)?{kind:'TOOL_UNAVAILABLE',scope:'PERMITTED_EXECUTION'}:exhaustionDiagnosis(k));
-    k.stop = { reason, ...details,researchStop, remainingNeeds: researchTruth(k,evaluate(k)).needs.map(n => n.id) };
+    k.stop = { reason, ...details,researchStop,...(k.gapStop?{gapTermination:k.gapStop}:{}), remainingNeeds: researchTruth(k,evaluate(k)).needs.map(n => n.id) };
     refreshCatalog(k,evaluate(k));
     if(k.catalog){
         k.stop.catalogState=k.catalog.state;
@@ -337,7 +341,7 @@ async function accept(k, a, response, interpret, navigate, save) {
 }
 export async function runResearch({ knowledge, objective, permissions, bounds, capabilities = {}, reasoner, interpret = interpretStructured, navigate, save } = {}) {
     const k = knowledge ? structuredClone(knowledge) : createKnowledge({ objective, permissions, bounds });
-    if(interpret.semanticUnits)capabilities={...capabilities,LOCAL:async()=>({})};
+    capabilities={...capabilities,LOCAL:async()=>({})};
     if (k.version !== 1)
         throw Error('UNSUPPORTED_KNOWLEDGE_VERSION');
     k.usage.sitemapAcquisitions??=0;
@@ -362,6 +366,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             const result=addDestination(k,{url:'https://'+host+'/',depth:0,needs:initial.needs.map(n=>n.proposition),grounding:{kind:'PROVIDER_ROOT',host}});
             k.trace.push({event:'RESEARCH_BOOTSTRAP',host,result,reason:'SEARCH_CONVERSION_EMPTY_REVIEWED_ROOT_UNINSPECTED'});
         }
+        k.gapState=diagnoseGaps(k,finalTruth);
         k.workingModel=buildWorkingModel(k,initial);
         if(k.objective.kind!=='PRICE'&&initial.ineligibleMarkets.length>0&&initial.ineligibleMarkets.length===k.objective.markets.length){stop(k,'MONTHLY_SUBSCRIPTION_NOT_OFFERED',{markets:initial.ineligibleMarkets});await persist(k,save);return k;}
         if (initial.established||k.catalog?.state==='CATALOG_EXHAUSTED'&&!k.catalog.pending) {
@@ -397,8 +402,10 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         const selected = offered.actions.find(a => a.id === decision.actionId) ?? offered.actions.find(a=>a.id===ranked[0]?.actionId);
         const audit = { needs: initial.needs.map(n => n.id), evaluated: offered.evaluated.map(r => ({ id: r.action.id ?? null, kind: r.action.kind, url: r.action.url ?? null, context: r.action.context ?? null, value:r.action.value, family:r.action.family??null, needs: r.action.needs, reason: r.reason, bounds: r.bounds ?? [] })), selected: selected?.id ?? null, reason: selected ? (decision.actionId === selected.id && typeof decision.reason === 'string' ? decision.reason : selected.reason) : 'No admissible useful action in the current grounded knowledge' };
         k.decisions.push(audit);
+        k.trace.push({event:'GAP_DIAGNOSIS',...structuredClone(k.gapState)});
         k.trace.push({event:'RESEARCH_DECISION',...workingDecision(k.workingModel,ranked,selected?.id??null,{usage:k.usage,bounds:k.bounds})});
         if (!selected) {
+            k.gapStop=gapTermination(k,offered.evaluated);
             const hit = [...new Set([...k.limitsHit, ...offered.evaluated.flatMap(r => r.bounds ?? [])])];
             stop(k, hit.length ? 'CAPACITY_BOUND_REACHED' : finalTruth.established?'OBJECTIVE_ESTABLISHED':finalTruth.ineligibleMarkets.length===k.objective.markets.length&&k.objective.kind==='PRICE'?'MONTHLY_SUBSCRIPTION_NOT_OFFERED':'SEMANTIC_EXHAUSTION', { bounds: hit, decision: k.decisions.length - 1, scope: 'CURRENT_GROUNDED_KNOWLEDGE_AND_PERMISSIONS', researchStop:hit.length?{kind:'CAPACITY_EXHAUSTED',bounds:hit}:exhaustionDiagnosis(k) });
             await persist(k, save);
@@ -421,10 +428,13 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         await persist(k, save);
         try {
             let observation;
-            if(a.kind==='INSPECT'){const retained=k.observations.find(o=>o.id===a.observation);if(!a.units){retained.reinspectionCount=(retained.reinspectionCount??0)+1;k.semanticUnavailable=null;}await understandUnits(k,retained,interpret,save,!a.units,a.units??null);observation={kind:'RETAINED_INSPECTION',id:retained.id,url:retained.url,sha256:retained.sha256};}
+            if(a.kind==='INSPECT'&&a.inspection==='GAP_SOURCE'){const retained=k.observations.find(o=>o.id===a.observation);const review=inspectGapSource(retained);k.gapReviews??=[];k.gapReviews.push({action:a.id,...review});k.trace.push({event:'GAP_SOURCE_INSPECTION',action:a.id,gapIds:a.gapIds,...review});observation={kind:'GAP_SOURCE_INSPECTION',id:retained.id,url:retained.url,sha256:retained.sha256};}
+            else if(a.kind==='INSPECT'){const retained=k.observations.find(o=>o.id===a.observation);if(!a.units){retained.reinspectionCount=(retained.reinspectionCount??0)+1;k.semanticUnavailable=null;}await understandUnits(k,retained,interpret,save,!a.units,a.units??null);observation={kind:'RETAINED_INSPECTION',id:retained.id,url:retained.url,sha256:retained.sha256};}
             else {const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxDecodedBytes:(k.bounds.decodedBytes??acquisition.objectiveDecodedBytes)-(k.usage.decodedBytes??0), maxAcquisitionMs:(k.bounds.acquisitionMs??acquisition.objectiveAcquisitionMs)-(k.usage.acquisitionMs??0), maxResults: k.bounds.candidateDestinations, maxRequests:(k.bounds.networkRequests??96)-(k.usage.networkRequests??0) });
             observation = await accept(k, a, response, interpret, navigate, save);}
             const after = evaluate(k);
+            const nextGaps=diagnoseGaps(k,after),priorIds=new Set(k.gapState.gaps.map(g=>g.id)),nextIds=new Set(nextGaps.gaps.map(g=>g.id));
+            k.trace.push({event:'GAP_PROGRESS',action:a.id,noLongerDiagnosed:[...priorIds].filter(id=>!nextIds.has(id)),newlyDiagnosed:[...nextIds].filter(id=>!priorIds.has(id)),remaining:nextGaps.gaps.map(g=>g.id),meaning:'DIAGNOSIS_CHANGE_NOT_TRUTH',truthAuthority:'NONE'});k.gapState=nextGaps;
             k.attempts.at(-1).status = 'COMPLETED';
             k.pending = null;
             k.trace.push({ event: 'OBSERVATION', observation, changes: changes(initial, after),evaluations:after,usage:structuredClone(k.usage),bounds:k.bounds,remainingNeeds: after.needs.map(n => n.id) });
@@ -448,6 +458,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             await persist(k, save);
             return k;
         }
+        k.gapState=diagnoseGaps(k,evaluate(k));
         k.workingModel=buildWorkingModel(k,evaluate(k));
         await persist(k, save);
     }
