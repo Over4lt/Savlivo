@@ -3,6 +3,7 @@ import {projectWebSource} from './source.mjs';
 import {projectTranslation} from './translation.mjs';
 import {digest} from './model.mjs';
 import {projectEvidence} from './evidence.mjs';
+import {projectVisualEvidence} from './visual-evidence.mjs';
 export function projectObservation(o,objective) {
     const parts=[projectWebSource(o,objective)],errors=[];
     for(const [key,project] of [['translation',projectTranslation],['evidence',projectEvidence]]) {
@@ -16,11 +17,15 @@ export function projectObservation(o,objective) {
         const p=projectEvidence(o,objective,fragment.envelope,fragment.unit);
         if(p.error)errors.push({kind:'evidence',unit:fragment.unit?.id,code:p.error});else parts.push(p);
     }
+    for(const fragment of o.visualEvidence??[]) {
+        const p=projectVisualEvidence(o,objective,fragment);
+        if(p.error)errors.push({kind:'visual-evidence',renderId:fragment?.renderId??null,code:p.error});else parts.push(p);
+    }
     // A validated explicit graph resolves the semantics of an overlapping native
     // partial presentation. Do not retain an anonymous duplicate offer that can
     // hide a real contradiction for the identified offer. Unrelated native offers
     // and all native evidence on failed/ambiguous understanding remain available.
-    for(const graph of parts.filter(p=>p.accepted)) {
+    for(const graph of parts.filter(p=>p.referenceKind!=='IMAGE_REGION'&&p.accepted)) {
         const covered=Object.values(graph.bindings).filter(b=>b.presentation&&graph.accepted.some(a=>a.offer===b.offerIndex&&a.charge===b.charge)).map(b=>b.presentation);
         const native=parts[0];
         for(const [i,offer] of graph.source.offers.entries()) {
