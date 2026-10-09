@@ -21,6 +21,8 @@ const manyLinks=hosts=>hosts.flatMap(host=>[
     page(`https://${host}/start`,`<html><body><h1>Fixture equipment</h1>${Array.from({length:15},(_,i)=>`<a href="/membership/${i}">Membership option ${i}</a>`).join('')}</body></html>`),
     ...Array.from({length:15},(_,i)=>page(`https://${host}/membership/${i}`,'<html><body>Information about membership.</body></html>')),
 ]);
+const ownedCandidate=deep=>`<html><body><main><h1>${serviceName}</h1><p>We operate ${serviceName} membership and provide our own classes.</p><a href="${deep}">Membership details</a></main><footer>© ${serviceName} 2026. All rights reserved.</footer></body></html>`;
+const sequencedReasoner=sequence=>{let index=0;const missing=[];return {missing,reasoner:({actions})=>{if(index===sequence.length)return {};const selected=actions.find(action=>action.url===sequence[index]);if(selected){index++;return {actionId:selected.id};}missing.push({wanted:sequence[index],available:actions.map(action=>action.url??action.query)});return {};}};};
 
 test('candidate-only exact host can be acquired while authority and Truth remain unresolved',async()=>{
     const url='https://lead.example/plans',fixture=input({candidateHosts:['lead.example'],seeds:[url],fixtures:[robots('lead.example'),page(url)],bounds:{actions:1,acquisitions:1,searches:0,modelCalls:0}});
@@ -110,6 +112,33 @@ test('same-host candidate navigation remains available after initial host breadt
     assert(hosts.includes(new URL(knowledge.attempts[3].action.url).hostname));
     assert(knowledge.observations.every(o=>o.kind==='CANDIDATE'&&o.authority==='UNREVIEWED_CANDIDATE'));
     assert.equal(result.truth.established,false);assert.equal(result.catalog.state,'CAPACITY');
+});
+
+test('autonomous authority mid-breadth preserves remaining initial-host attempts before provider depth',async()=>{
+    const hosts=['first.example','authority.example','third.example','fourth.example'],starts=hosts.map(host=>`https://${host}/start`),deep='https://authority.example/membership/deep';
+    const fixtures=hosts.flatMap((host,index)=>[robots(host),page(starts[index],host==='authority.example'?ownedCandidate('/membership/deep'):'<html><body>Candidate information.</body></html>'),...(host==='authority.example'?[page(deep)]:[])]);
+    const fixture=input({candidateHosts:hosts,seeds:starts,fixtures,bounds:{actions:5,acquisitions:5,searches:0,modelCalls:0}}),sequence=[starts[0],starts[1],starts[2],starts[3],deep],control=sequencedReasoner(sequence);
+    const {knowledge}=await execute(fixture,{reasoner:control.reasoner});
+    assert.deepEqual(control.missing,[]);assert.deepEqual(knowledge.attempts.map(row=>row.action.url),sequence);
+    assert.deepEqual(knowledge.objective.providerHosts,['authority.example']);assert.deepEqual(new Set(knowledge.objective.candidateHosts),new Set(['first.example','third.example','fourth.example']));
+    assert.equal(knowledge.authorityBindings.length,1);assert.equal(knowledge.authorityBindings[0].kind,'AUTONOMOUS_FIRST_PARTY_PRESENTATION');
+    const source=knowledge.observations.find(row=>row.id===knowledge.authorityBindings[0].observation),provider=knowledge.observations.find(row=>row.url===deep);
+    assert.equal(source.kind,'CANDIDATE');assert.equal(source.authority,'UNREVIEWED_CANDIDATE');assert.equal(source.context.representation,'CANDIDATE_PAGE');
+    assert.equal(provider.kind,'PROVIDER');assert.equal(provider.context.representation,'PROVIDER_PAGE');
+    assert.equal(knowledge.usage.modelCalls,0);
+});
+
+test('failed first attempt still satisfies mid-authority breadth and bounds may leave later coverage unfinished',async()=>{
+    const hosts=['authority.example','failed.example','third.example','bounded.example'],starts=hosts.map(host=>`https://${host}/start`),deep='https://authority.example/membership/deep';
+    const fixtures=hosts.flatMap((host,index)=>[robots(host),host==='failed.example'?{url:starts[index],transport:'DIRECT',status:302,location:'https://outside.example/',body:''}:page(starts[index],host==='authority.example'?ownedCandidate('/membership/deep'):'<html><body>Candidate information.</body></html>'),...(host==='authority.example'?[page(deep)]:[])]);
+    const fixture=input({candidateHosts:hosts,seeds:starts,fixtures,bounds:{actions:3,acquisitions:3,searches:0,modelCalls:0}}),sequence=starts.slice(0,3),control=sequencedReasoner(sequence);
+    const {knowledge,result}=await execute(fixture,{reasoner:control.reasoner});
+    assert.deepEqual(control.missing,[]);assert.deepEqual(knowledge.attempts.map(row=>row.action.url),sequence);
+    assert.equal(knowledge.attempts[1].status,'FAILED');assert.equal(knowledge.attempts[1].failure.code,'PROVIDER_BOUNDARY');
+    assert.equal(knowledge.attempts.filter(row=>new URL(row.action.url).hostname==='failed.example').length,1);
+    assert.deepEqual(knowledge.objective.providerHosts,['authority.example']);assert.equal(knowledge.observations.find(row=>row.url===starts[0]).kind,'CANDIDATE');
+    assert(!knowledge.attempts.some(row=>row.action.url===deep));assert(!knowledge.attempts.some(row=>row.action.url===starts[3]));
+    assert.equal(result.stop.reason,'CAPACITY_BOUND_REACHED');assert(result.stop.bounds.includes('acquisitions'));assert.equal(knowledge.usage.modelCalls,0);
 });
 
 test('reviewed provider action frontier keeps same-host links alongside other roots',()=>{

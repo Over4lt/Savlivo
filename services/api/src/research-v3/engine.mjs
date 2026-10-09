@@ -138,10 +138,10 @@ export function availableActions(k, adapters = {}, extra = []) {
         evaluated.push(row);
     }
     const actions=evaluated.filter(r => r.reason === 'ADMISSIBLE').map(r => r.action).sort((a, b) => b.value - a.value || a.id.localeCompare(b.id));
-    // In candidate-only research, spend the first acquisition opportunity on
-    // each exact discovered host before following links on an attempted host.
+    // Finish the initial candidate-host breadth pass before following links on
+    // an attempted host, including when one candidate gains provider authority.
     // A failed attempt counts, so a blocked host cannot monopolize the budget.
-    if(k.objective.providerHosts.length===0&&(k.objective.candidateHosts??[]).length>1){
+    if((k.objective.candidateHosts??[]).length){
         const attempted=new Set(k.attempts.filter(row=>row.action.kind==='ACQUIRE').map(row=>new URL(row.action.url).hostname));
         const unattempted=new Set(k.objective.candidateHosts.filter(host=>!attempted.has(host)));
         const breadth=actions.filter(a=>a.kind==='ACQUIRE'&&unattempted.has(new URL(a.url).hostname));
