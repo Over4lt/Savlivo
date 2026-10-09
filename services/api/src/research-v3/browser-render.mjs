@@ -71,14 +71,15 @@ async function publicHost(host,cache) {
     cache.set(host,safe);return safe;
 }
 
-async function boundedRequest(context,url,{maxBytes=512000}={}) {
+async function boundedRequest(context,url,{maxBytes=512000,record=null,resourceType='auxiliary'}={}) {
+    record?.({url,method:'GET',resourceType,channel:'CONTEXT_REQUEST'});
     const response=await context.request.get(url,{timeout:15000,maxRedirects:0});
     const body=await response.body();
     if(body.length>maxBytes)throw Error('RENDERED_AUXILIARY_BOUND');
     return {status:response.status(),text:body.toString('utf8')};
 }
 
-export function createPlaywrightRenderedCapability({chromium,proxyFor=()=>null,clock=()=>new Date().toISOString(),viewportCss={width:1440,height:900},locale='en-US',timezoneId='UTC',limits=browserRenderLimits}={}) {
+export function createPlaywrightRenderedCapability({chromium,proxyFor=()=>null,clock=()=>new Date().toISOString(),viewportCss={width:1440,height:900},locale='en-US',timezoneId='UTC',limits=browserRenderLimits,hostAllowed=publicHost}={}) {
     if(!chromium?.launch)throw Error('RENDERED_BROWSER_CONFIGURATION_REQUIRED');
     const sessions=new Map(),imageHash=bytes=>createHash('sha256').update(bytes).digest('hex');
     let sharedBrowser=null;
@@ -115,26 +116,31 @@ export function createPlaywrightRenderedCapability({chromium,proxyFor=()=>null,c
         let context,keep=false;
         try {
             context=await browser.newContext({viewport:viewportCss,deviceScaleFactor:1,locale,timezoneId,serviceWorkers:'block',acceptDownloads:false,permissions:[],userAgent:researchUserAgent,...(proxy?{proxy}:{})});
-            const origin=new URL(action.url).origin,dns=new Map();
-            if(!(await publicHost(new URL(origin).hostname,dns)))throw Error('RENDERED_PUBLIC_HOST_REQUIRED');
-            const robots=await boundedRequest(context,origin+'/robots.txt');
+            const origin=new URL(action.url).origin,dns=new Map(),ledger=[];
+            const sessionBinding=digest(['PLAYWRIGHT_BROWSER_CONTEXT',action.id,origin,country??'UNBOUND']);
+            const record=({url,method,resourceType,channel})=>{
+                if(ledger.length>=limits.requests)throw Error('RENDERED_REQUEST_BOUND');
+                const parsed=new URL(url);
+                ledger.push({urlHash:digest(url),origin:parsed.origin,method,resourceType,channel,transport:country?'DECODO':'DIRECT',requestedCountry:country,sessionBinding});
+            };
+            if(!(await hostAllowed(new URL(origin).hostname,dns)))throw Error('RENDERED_PUBLIC_HOST_REQUIRED');
+            const robots=await boundedRequest(context,origin+'/robots.txt',{record,resourceType:'robots'});
             const policy=[404,410].includes(robots.status)?{decision:'ALLOWED',reason:'ROBOTS_ABSENT'}:robots.status===200?evaluateAcquisitionRobots(parseAcquisitionRobots(robots.text),action.url):{decision:'REVIEW_REQUIRED'};
             if(policy.decision!=='ALLOWED')throw Error('RENDERED_ROBOTS_NOT_ALLOWED');
             const access=[{destinationOrigin:origin,destinationHash:digest(action.url),status:robots.status,decision:policy.decision,reason:policy.reason??null}];
             const geo=async()=>{
-                const result=await boundedRequest(context,'https://ipwho.is/?fields=success,ip,country_code',{maxBytes:8192});
+                const result=await boundedRequest(context,'https://ipwho.is/?fields=success,ip,country_code',{maxBytes:8192,record,resourceType:'geography'});
                 if(result.status!==200)throw Error('RENDERED_GEOGRAPHY_UNVERIFIED');
                 let parsed;try{parsed=JSON.parse(result.text);}catch{throw Error('RENDERED_GEOGRAPHY_UNVERIFIED');}
                 if(parsed.success!==true||parsed.country_code!==country||typeof parsed.ip!=='string')throw Error('RENDERED_GEOGRAPHY_UNVERIFIED');
                 return parsed.ip;
             };
             const before=country?await geo():null;
-            const ledger=[];
             await context.route('**/*',async route=>{
                 const request=route.request(),url=request.url(),method=request.method();
                 let parsed;try{parsed=new URL(url);}catch{return route.abort();}
-                if(!['GET','HEAD'].includes(method)||!normalizeUrl(url)||request.resourceType()==='document'&&!providerBound(objective,url)||ledger.length>=limits.requests||!(await publicHost(parsed.hostname,dns)))return route.abort();
-                ledger.push({urlHash:digest(url),origin:parsed.origin,method,resourceType:request.resourceType()});
+                if(!['GET','HEAD'].includes(method)||!normalizeUrl(url)||request.resourceType()==='document'&&!providerBound(objective,url)||ledger.length>=limits.requests||!(await hostAllowed(parsed.hostname,dns)))return route.abort();
+                record({url,method,resourceType:request.resourceType(),channel:'PAGE'});
                 return route.continue();
             });
             const page=await context.newPage();
@@ -153,9 +159,10 @@ export function createPlaywrightRenderedCapability({chromium,proxyFor=()=>null,c
             if(country&&before!==after)throw Error('RENDERED_GEOGRAPHY_UNVERIFIED');
             const transport=country?{kind:'DECODO',requestedCountry:country,verifiedCountry:country,verification:'BRACKET_VERIFIED',exitAddressHash:digest(before)}:{kind:'DIRECT',verification:'UNBOUND'};
             const acquiredAt=clock();
-            const receipt={url:finalUrl,requestedUrl:action.url,body:body.toString('utf8'),httpStatus:200,contentType:response.headers()['content-type']??'text/html',completeness:'COMPLETE',acquiredAt,transport,access,redirects:[],responseMetadata:{browser:'PLAYWRIGHT',mainDocumentSha256:digest(body.toString('utf8')),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64)},acquisitionTiming:{elapsedMs:Math.round(performance.now()-started)}};
+            const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:country?'DECODO':'DIRECT',requestedCountry:country,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:!!country,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
+            const receipt={url:finalUrl,requestedUrl:action.url,body:body.toString('utf8'),httpStatus:200,contentType:response.headers()['content-type']??'text/html',completeness:'COMPLETE',acquiredAt,transport,access,redirects:[],responseMetadata:{browser:'PLAYWRIGHT',mainDocumentSha256:digest(body.toString('utf8')),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64),networkSessionBinding:sessionBinding},acquisitionTiming:{elapsedMs:Math.round(performance.now()-started)}};
             sessions.set(action.id,{browser,context,page,receipt,geo:country?geo:null,imageSha256:imageHash(pngBytes)});keep=true;
-            return {page:receipt,finalUrl,pngBytes,capture:{capturedAt:clock(),browserBuild:browser.version(),captureRevision:'playwright-fullpage-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([finalUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:ledger};
+            return {page:receipt,finalUrl,pngBytes,capture:{capturedAt:clock(),browserBuild:browser.version(),captureRevision:'playwright-fullpage-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([finalUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:ledger,networkSession};
         } finally {if(!keep)await context?.close().catch(()=>{});}
     };
     capability.close=async()=>{for(const session of sessions.values())await session.context.close().catch(()=>{});sessions.clear();await sharedBrowser?.close().catch(()=>{});sharedBrowser=null;};
