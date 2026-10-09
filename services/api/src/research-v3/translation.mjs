@@ -50,7 +50,7 @@ export function needsTranslation(o,objective) {
     return !!(lang&&!/^en(?:-|$)/i.test(lang))||semanticMaterial(o).segments.some(s=>/[^\u0000-\u024f]/u.test(s.text));
 }
 export function translationError(error) {
-    const safe=new Set(['TRANSLATION_BINDING_INVALID','TRANSLATION_MATERIAL_BOUND','TRANSLATION_NUMBERS_CHANGED','TRANSLATION_TIMEOUT','TRANSLATION_RESPONSE_BOUND','TRANSLATION_ENDPOINT_NOT_ALLOWED','TRANSLATION_RESPONSE_UNAVAILABLE','TRANSLATION_RESPONSE_INCOMPLETE','TRANSLATION_REFUSAL']);
+    const safe=new Set(['TRANSLATION_BINDING_INVALID','TRANSLATION_MATERIAL_BOUND','TRANSLATION_NUMBERS_CHANGED','TRANSLATION_TIMEOUT','TRANSLATION_RESPONSE_BOUND','TRANSLATION_ENDPOINT_NOT_ALLOWED','TRANSLATION_RESPONSE_UNAVAILABLE','TRANSLATION_RESPONSE_INCOMPLETE','TRANSLATION_REFUSAL','TRANSLATION_CREDENTIAL_UNAVAILABLE','TRANSLATION_MODEL_CONFIGURATION_REQUIRED']);
     for(let e=error,depth=0;e&&depth<3;e=e.cause,depth++)if(safe.has(e.message))return {code:e.message};
     if(error?.name==='AbortError'||error?.name==='APIConnectionTimeoutError')return {code:'TRANSLATION_TIMEOUT'};
     if(error instanceof SyntaxError)return {code:'TRANSLATION_JSON_INVALID'};

@@ -57,7 +57,7 @@ test('duplicate valid support references normalize without creating additional e
  const {r,w}=setup(),a=reconstructWire(r,w);for(const c of w.charges)c.sources.push(...c.sources);for(const rel of w.relations)rel.sources.push(...rel.sources);assert.deepEqual(reconstructWire(r,w),a);
 });
 test('actual SDK mock / safe diagnostics / checkpoint retain every failed reference field',async()=>{
- const {createLiveSemanticInterpreter}=await import('./live-semantic.mjs'),{runTarget,offlineCapabilities}=await import('./runner.mjs'),{checkpoint,restore}=await import('./model.mjs');
+ const {createLiveSemanticInterpreter}=await import('./legacy-live-semantic.test-support.mjs'),{runTarget,offlineCapabilities}=await import('./runner.mjs'),{checkpoint,restore}=await import('./model.mjs');
  const f={...fixture,html:'<main>'+fixture.html+'</main>'},input={...fixtureInput(f,{bounds:{actions:1,modelCalls:1}}),semantic:{mode:'LIVE'}};
  const interpret=await createLiveSemanticInterpreter({env:{GROQ_API_KEY:'offline-placeholder',SAVLIVO_V3_SEMANTIC_MODEL:'offline-model'},fetchImpl:async(url,options)=>{
   const request=JSON.parse(JSON.parse(options.body).messages[1].content),wire=wireCompletion(request,f);wire.serviceSources=['s_invented'];
@@ -67,7 +67,7 @@ test('actual SDK mock / safe diagnostics / checkpoint retain every failed refere
  assert.deepEqual(restore(checkpoint(run.knowledge)).trace.find(t=>t.code==='WIRE_REFERENCE_INVALID').diagnostics,failed.diagnostics);
 });
 test('faithful pricing crosses actual mocked SDK with system service and null currency references',async()=>{
- const {createLiveSemanticInterpreter}=await import('./live-semantic.mjs'),{runTarget,offlineCapabilities}=await import('./runner.mjs'),{checkpoint,restore}=await import('./model.mjs'),{evaluate}=await import('./truth.mjs');
+ const {createLiveSemanticInterpreter}=await import('./legacy-live-semantic.test-support.mjs'),{runTarget,offlineCapabilities}=await import('./runner.mjs'),{checkpoint,restore}=await import('./model.mjs'),{evaluate}=await import('./truth.mjs');
  const f={...fixture,html:'<main>'+fixture.html+'</main>'},input={...fixtureInput(f,{bounds:{actions:1,modelCalls:1}}),semantic:{mode:'LIVE'}};let count=0;
  const interpret=await createLiveSemanticInterpreter({env:{GROQ_API_KEY:'offline-placeholder',SAVLIVO_V3_SEMANTIC_MODEL:'offline-model'},fetchImpl:async(url,options)=>{
   count++;const payload=JSON.parse(options.body);assert.equal(payload.response_format.json_schema.name,'v3_semantic_unit_v6');

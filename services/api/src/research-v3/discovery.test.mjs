@@ -167,7 +167,7 @@ test('sitemap bound and navigation-depth exhaustion do not masquerade as truth',
 });
 
 test('faithful semantic SDK price path remains unchanged after provider navigation',async()=>{
-    const {createLiveSemanticInterpreter}=await import('./live-semantic.mjs');
+    const {createLiveSemanticInterpreter}=await import('./legacy-live-semantic.test-support.mjs');
     const {evidenceFixtures,fixtureInput:semanticInput,wireCompletion}=await import('./evidence-fixtures.test-support.mjs');
     const oracle=evidenceFixtures.find(f=>f.key==='retained-oracle'),input=semanticInput({...oracle,html:'<main>'+oracle.html+'</main>'});
     input.objective.seeds=[home];input.semantic={mode:'LIVE'};

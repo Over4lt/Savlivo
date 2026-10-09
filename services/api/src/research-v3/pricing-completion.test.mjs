@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createLiveSemanticInterpreter} from './live-semantic.mjs';
+import {createLiveSemanticInterpreter} from './legacy-live-semantic.test-support.mjs';
 import {runTarget,offlineCapabilities} from './runner.mjs';
 import {checkpoint,restore} from './model.mjs';
 import {evaluate} from './truth.mjs';

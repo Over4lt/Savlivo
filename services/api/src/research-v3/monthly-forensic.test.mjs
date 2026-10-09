@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';
 import {digest,checkpoint,restore} from './model.mjs';import {evaluate} from './truth.mjs';
-import {runTarget,offlineCapabilities} from './runner.mjs';import {createLiveSemanticInterpreter} from './live-semantic.mjs';
+import {runTarget,offlineCapabilities} from './runner.mjs';import {createLiveSemanticInterpreter} from './legacy-live-semantic.test-support.mjs';
 const f=JSON.parse(readFileSync(new URL('monthly-forensic.test-fixtures.json',import.meta.url)));
 test('retained annual-commitment excerpt does not prove either monthly or annual payment',async()=>{
  assert.equal(digest(f.excerpt),f.excerptSha256);const name='Proton Unlimited',url='https://provider.example/resource',body='<title>'+name+'</title><main>'+f.excerpt+'</main>';

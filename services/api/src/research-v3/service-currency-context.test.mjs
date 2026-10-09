@@ -5,7 +5,7 @@ import {semanticMaterial,projectWebSource} from './source.mjs';
 import {observationService,associateService} from './service-association.mjs';
 import {resolveSourceCurrency,currencyOccurrences} from './currency-sources.mjs';
 import {compatibleCurrencies} from './market-currencies.mjs';
-import {createLiveSemanticInterpreter} from './live-semantic.mjs';
+import {createLiveSemanticInterpreter} from './legacy-live-semantic.test-support.mjs';
 import {runTarget,offlineCapabilities} from './runner.mjs';
 import {evaluate} from './truth.mjs';
 import {fixtureInput,evidenceFixtures,wireCompletion} from './evidence-fixtures.test-support.mjs';

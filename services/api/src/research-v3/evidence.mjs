@@ -9,6 +9,7 @@ import {currencyOccurrences,resolveSourceCurrency} from './currency-sources.mjs'
 import {validateTranslation,projectTranslation} from './translation.mjs';
 import {selectSemanticUnits,selectSemanticPlan,materialForUnit,semanticUnitLimits,offeringRoutingValue} from './semantic-units.mjs';
 import {nativeSubscriptionEvidence} from './native-subscription-evidence.mjs';
+import {targetTextSignals} from './evidence-targets.mjs';
 export const evidenceSchema='V3_EVIDENCE_V2';
 export const evidenceLimits=Object.freeze({responseBytes:32768,offers:8,charges:8,supports:64});
 const exact=(o,keys)=>o&&typeof o==='object'&&!Array.isArray(o)&&Object.keys(o).sort().join(',')===[...keys].sort().join(',');
@@ -288,10 +289,31 @@ export function needsUnderstanding(o,objective) {
     if(o.translation){const p=projectTranslation(o,objective);if(!p.error)parts.push(p);}
     return !parts.some(p=>p.source.serviceId&&p.source.offers.some(v=>v.amount>0&&v.currency&&v.cadence&&v.billingCadence==='MONTHLY'&&v.consumer===true&&['SUBSCRIPTION','MEMBERSHIP'].includes(v.relationship)&&v.role==='ORDINARY'&&v.amountDerivation==='EXPLICIT'));
 }
+// A live language request needs a source-local interpretation problem, not
+// merely an unresolved objective or a price-shaped token on a candidate page.
+export function materialLanguageGap(o,objective,unit,needs) {
+    if(o.kind!=='PROVIDER'||!providerBound(objective,o.url)||digest(o.body)!==o.sha256)return false;
+    const missing=new Set(needs.map(n=>typeof n==='string'?n:n.proposition));
+    const materialNeeds=unit.needs.filter(n=>missing.has(n)&&n!=='TARGET_MARKET');
+    if(!materialNeeds.length)return false;
+    let material;try{material=materialForUnit(o,unit);}catch{return false;}
+    if(!material.segments.length||!material.presentations.length)return false;
+    const text=material.segments.map(s=>s.text).join(' ');
+    const signals=targetTextSignals(text);
+    const foreignLanguage=!!o.body.match(/<html\b[^>]*\blang=["']([^"']+)["']/i)?.[1]?.match(/^(?!en(?:-|$))[a-z]{2,3}(?:-|$)/i)
+        ||[...text].some(c=>/\p{L}/u.test(c)&&c.codePointAt(0)>0x024f);
+    const ambiguities=projectWebSource(o,objective).ambiguities;
+    const localAmbiguity=ambiguities.some(a=>a.source&&material.presentations.some(p=>a.source.start>=p.start&&a.source.end<=p.end)
+        &&(a.reasons??[]).some(r=>['CADENCE_RELATIONSHIP_UNRESOLVED','SELECTED_SOURCE_CONTEXT_UNINTERPRETED'].includes(r)));
+    const temporalProse=signals.temporal&&signals.money&&(signals.subscription||signals.payment);
+    if(!foreignLanguage&&!localAmbiguity&&!temporalProse)return false;
+    if(!signals.relevant&&!localAmbiguity)return false;
+    return needsUnderstanding(o,objective);
+}
 export function understandingError(error) {
     if(error?.v3Diagnostics) {const clean=understandingError(Object.assign(Object.create(Object.getPrototypeOf(error)),error,{message:error.message,v3Diagnostics:null}));return {...clean,diagnostics:error.v3Diagnostics};}
     if(/^WIRE_[A-Z_]+$/.test(error?.message??''))return {code:error.message};
-    const safe=new Set(['EVIDENCE_ENVELOPE_INVALID','EVIDENCE_MATERIAL_BOUND','EVIDENCE_TRANSLATION_BINDING_INVALID','EVIDENCE_SERVICE_INVALID','EVIDENCE_OFFER_INVALID','EVIDENCE_MARKET_INVALID','EVIDENCE_CHARGE_INVALID','EVIDENCE_TRANSITION_INVALID','EVIDENCE_POPULATION_INVALID','EVIDENCE_ACCOUNT_INVALID','EVIDENCE_INVALID','EVIDENCE_RESPONSE_BOUND','EVIDENCE_UNIT_INVALID','EVIDENCE_UNIT_BOUND','EVIDENCE_REQUEST_BOUND','EVIDENCE_ACCOUNT_GRAPH_INVALID','UNDERSTANDING_TIMEOUT','UNDERSTANDING_ENDPOINT_NOT_ALLOWED','UNDERSTANDING_RESPONSE_UNAVAILABLE','UNDERSTANDING_RESPONSE_BOUND','UNDERSTANDING_RESPONSE_INCOMPLETE','UNDERSTANDING_REFUSAL']);
+    const safe=new Set(['EVIDENCE_ENVELOPE_INVALID','EVIDENCE_MATERIAL_BOUND','EVIDENCE_TRANSLATION_BINDING_INVALID','EVIDENCE_SERVICE_INVALID','EVIDENCE_OFFER_INVALID','EVIDENCE_MARKET_INVALID','EVIDENCE_CHARGE_INVALID','EVIDENCE_TRANSITION_INVALID','EVIDENCE_POPULATION_INVALID','EVIDENCE_ACCOUNT_INVALID','EVIDENCE_INVALID','EVIDENCE_RESPONSE_BOUND','EVIDENCE_UNIT_INVALID','EVIDENCE_UNIT_BOUND','EVIDENCE_REQUEST_BOUND','EVIDENCE_ACCOUNT_GRAPH_INVALID','UNDERSTANDING_TIMEOUT','UNDERSTANDING_ENDPOINT_NOT_ALLOWED','UNDERSTANDING_RESPONSE_UNAVAILABLE','UNDERSTANDING_RESPONSE_BOUND','UNDERSTANDING_RESPONSE_INCOMPLETE','UNDERSTANDING_REFUSAL','UNDERSTANDING_CREDENTIAL_UNAVAILABLE','UNDERSTANDING_MODEL_CONFIGURATION_REQUIRED']);
     for(let e=error,depth=0;e&&depth<3;e=e.cause,depth++)if(safe.has(e.message))return {code:e.message};
     if(error?.name==='AbortError'||error?.name==='APIConnectionTimeoutError')return {code:'UNDERSTANDING_TIMEOUT'};
     if(error instanceof SyntaxError)return {code:'UNDERSTANDING_JSON_INVALID'};

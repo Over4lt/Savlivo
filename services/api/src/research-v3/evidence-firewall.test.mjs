@@ -2,7 +2,7 @@ import {firstEstablishedUsage,firstEstablishedAttempts} from './catalog-progress
 import {readFileSync} from 'node:fs';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {runTarget,offlineCapabilities} from './runner.mjs';
-import {createLiveSemanticInterpreter} from './live-semantic.mjs';
+import {createLiveSemanticInterpreter} from './legacy-live-semantic.test-support.mjs';
 import {evaluate} from './truth.mjs';import {evaluate as baseline} from './truth-approved-baseline.test-support.mjs';
 import {createKnowledge,digest,context,checkpoint,restore} from './model.mjs';
 import {paymentChoice,monthlyPayment,monetaryKinds,admitPayment} from './payment-semantics.mjs';
@@ -32,7 +32,7 @@ async function ecosystem({annotations=[],homeNoise=12,advisory='429',states=fals
  }}}}});
  const result=await runTarget({input,interpret,capabilities:offlineCapabilities(input)});assert.deepEqual(evaluate(restore(checkpoint(result.knowledge))),result.result.truth);return {...result,advice};
 }
-for(const failure of ['400','429','malformed'])test('ecosystem: advisory entirely unavailable '+failure,async()=>{const r=await ecosystem({advisory:failure,annotations:[notes('Consumer subscription USD 13.75 charged monthly.')]});assert.ok(r.advice>0);assert.equal(r.result.truth.established,true);assert.equal(firstEstablishedUsage(r.result).acquisitions,2);assert.equal(r.result.truth.prices.US.propositions.PRICE_AMOUNT.value,13.75);});
+for(const failure of ['400','429','malformed'])test('ecosystem: model navigation is never requested '+failure,async()=>{const r=await ecosystem({advisory:failure,annotations:[notes('Consumer subscription USD 13.75 charged monthly.')]});assert.equal(r.advice,0);assert.equal(r.result.truth.established,true);assert.equal(firstEstablishedUsage(r.result).acquisitions,2);assert.equal(r.result.truth.prices.US.propositions.PRICE_AMOUNT.value,13.75);});
 for(const count of [0,8,32,96])test('ecosystem: frontier competitors '+count,async()=>{const r=await ecosystem({homeNoise:count,states:true,annotations:[notes('Consumer subscription USD 13.75 charged monthly, with a twelve-month commitment.',13.75,'SUBSCRIPTION_CHARGE','MONTHLY',{commitment:'twelve-month commitment'})]});assert.equal(r.result.truth.established,true);assert.ok(firstEstablishedUsage(r.result).acquisitions<=4);assert.ok(r.knowledge.destinations.some(d=>d.url.includes('selection=two')));assert.equal(r.result.truth.prices.US.propositions.PRICE_AMOUNT.value,13.75);});
 for(const [name,n,elig,price]of [
  ['monthly',notes('Consumer subscription USD 13.75 charged every month.'),'ELIGIBLE',true],

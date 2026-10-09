@@ -29,8 +29,8 @@ for(const [name,reply,code] of [
 test('live preflight fails closed, cannot substitute static or forged adapters',async()=>{
  const input={...config(fixtures[5]),semantic:{mode:'LIVE'}};
  await assert.rejects(configuredInterpreter(input,()=>[],{}),/ADAPTER_REQUIRED/);
- await assert.rejects(configuredInterpreter(input,undefined,{}),/CONFIGURATION_REQUIRED/);
- await assert.rejects(configuredInterpreter(input,undefined,env),/CREDENTIAL_REQUIRED/);
+ assert.equal((await configuredInterpreter(input,undefined,{})).semanticAdapter.model,null);
+ assert.equal((await configuredInterpreter(input,undefined,env)).semanticAdapter.role,'EVIDENCE_UNDERSTANDING');
  let calls=0;const client={chat:{completions:{create:()=>{calls++;}}}};
  const deps=await prepareLive(input,{env,client});assert.equal(calls,0);assert.equal(deps.interpret.semanticAdapter.role,'EVIDENCE_UNDERSTANDING');
 });

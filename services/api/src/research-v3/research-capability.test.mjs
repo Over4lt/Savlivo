@@ -9,7 +9,7 @@ import {extractNavigation,diverseCandidates,rankCandidate} from './discovery.mjs
 import {selectSemanticPlan,materialForUnit,semanticUnitLimits} from './semantic-units.mjs';
 import {evidenceRequest,projectEvidence} from './evidence.mjs';
 import {wireInput,reconstructWire,numericOccurrences} from './semantic-wire.mjs';
-import {createLiveSemanticInterpreter} from './live-semantic.mjs';
+import {createLiveSemanticInterpreter} from './legacy-live-semantic.test-support.mjs';
 import {evaluate} from './truth.mjs';import {evaluate as baselineEvaluate} from './truth-baseline.test-support.mjs';
 import {createReasoner} from './reasoner.mjs';import {runResearch} from './engine.mjs';import {runTarget,offlineCapabilities} from './runner.mjs';
 function approvedDelta(k){

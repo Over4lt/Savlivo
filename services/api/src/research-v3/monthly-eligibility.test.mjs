@@ -5,7 +5,7 @@ import {evaluate} from './truth.mjs';
 import {runResearch} from './engine.mjs';
 import {fixtureInput,wireCompletion} from './evidence-fixtures.test-support.mjs';
 import {runTarget,offlineCapabilities} from './runner.mjs';
-import {createLiveSemanticInterpreter} from './live-semantic.mjs';
+import {createLiveSemanticInterpreter} from './legacy-live-semantic.test-support.mjs';
 const objective={kind:'PRICE',serviceId:'club',serviceName:'Aurora',providerHosts:['provider.example'],markets:['US'],seeds:['https://provider.example/']};
 function graph(extra={},choice=null){
  const k=createKnowledge({objective}),body=JSON.stringify({serviceId:'club',offers:[{id:'personal',amount:12.99,currency:'USD',cadence:'MONTHLY',billingCadence:'UNKNOWN',consumer:true,relationship:'SUBSCRIPTION',role:'ORDINARY',amountDerivation:'EXPLICIT',...extra}],...(choice?{subscriptionChoices:[choice]}:{})});

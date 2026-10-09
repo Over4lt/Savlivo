@@ -6,7 +6,7 @@ import {exhaustionDiagnosis} from './research-strategist.mjs';
 import {buildWorkingModel,rankResearchActions,workingDecision} from './working-model.mjs';
 import { evaluate, interpretStructured, readSource } from './truth.mjs';
 import {projectTranslation,translationError} from './translation.mjs';
-import {projectEvidence,understandingError} from './evidence.mjs';
+import {projectEvidence,understandingError,materialLanguageGap} from './evidence.mjs';
 import {projectObservation} from './projection.mjs';
 import {admittedProjectionCandidates} from './native-structured.mjs';
 import {acquisitionCapacity as acquisition,failureClass} from './acquisition-contract.mjs';
@@ -336,14 +336,11 @@ async function accept(k, a, response, interpret, navigate, save) {
         if(web) {
             const plan=extractNavigation(o,k.objective,current);
             o.navigation=plan.candidates.map((c,index)=>({...c,index}));
-            const automaticAdvice=!navigate&&interpret.researchAdvisor&&(!k.researchAdviceUnavailable||!k.researchAdviceUnavailable.disabled&&k.researchAdviceUnavailable.until<=Date.now())&&(o.navigation.length>=8||o.navigation.filter(c=>c.kind==='PROVIDER_STATE').length>=2);
-            const advisor=navigate??(automaticAdvice?interpret.researchAdvisor:null);
-            if(advisor&&o.navigation.length&&(navigate||k.usage.modelCalls<k.bounds.modelCalls-1&&(k.researchAdvisoryCalls??0)<4)) {
+            if(navigate&&o.navigation.length) {
                 // Advisory bounded source-owned references. No new hrefs or truth fields are honored.
                 try {
                     const rows=diverseCandidates(o.navigation,discoveryCapacity.advisoryCandidates);
-                    if(!navigate){k.usage.modelCalls++;k.researchAdvisoryCalls=(k.researchAdvisoryCalls??0)+1;await persist(k,save);}
-                    const advice=await boundedNavigationAdvice(advisor,rows,evaluate(k).needs,automaticAdvice?advisor.deadlineMs:discoveryCapacity.advisoryMs);
+                    const advice=await boundedNavigationAdvice(navigate,rows,evaluate(k).needs,discoveryCapacity.advisoryMs);
                     if(!Array.isArray(advice))throw Error('INVALID_NAVIGATION_RESULT');
                     const promoted=[];
                     for(const p of advice.slice(0,discoveryCapacity.advisoryCandidates)) {
@@ -359,9 +356,6 @@ async function accept(k, a, response, interpret, navigate, save) {
                     k.trace.push({event:'NAVIGATION_ADVICE',observation:o.id,exposedIds:rows.map(c=>c.id),promoted,advice:plan.candidates.filter(c=>c.research).map(c=>({id:c.id,...c.research})),modelCalls:k.usage.modelCalls,request:advice.diagnostics??null,accepted:'SOURCE_IDS_ONLY',truthAuthority:'NONE'});
                 } catch(error) {const status=Number.isInteger(error?.status)?error.status:null;
                     k.trace.push({event:'NAVIGATION_ADVICE_UNAVAILABLE',observation:o.id,code:/^RESEARCH_[A-Z_]+$/.test(error?.message??'')?error.message:'ADVISORY_FAILED_NATIVE_FRONTIER_PRESERVED',status,purpose:'RESEARCH_ONLY',modelCalls:k.usage.modelCalls,requestBytes:error?.v3Diagnostics?.requestBytes??null,diagnostics:error?.v3Diagnostics??null});
-                    if(!navigate){
-                        k.researchAdviceUnavailable={status,disabled:status===400||/^RESEARCH_RESPONSE_/.test(error.message),until:Date.now()+30000,bodySha256:o.sha256,purpose:'RESEARCH_ADVICE'};
-                    }
                 }
             }
             navigation.push(...admitNavigation(k,o,a,plan,'PROVIDER_LINK'));
@@ -606,6 +600,7 @@ async function understandUnits(k,o,interpret,save,reinspection=false,selectedUni
         const truth=evaluate(k);
         if(!reinspection&&(o.semanticAttempts??[]).some(a=>a.unit===unit.id))continue;
         if(k.objective.kind!=='PRICE'&&(truth.established||!truth.needs.some(n=>unit.needs.includes(n.proposition))))break;
+        if(interpret.languageFallbackOnly&&!materialLanguageGap(o,k.objective,unit,truth.needs))continue;
         if(k.usage.modelCalls>=k.bounds.modelCalls) {markLimit(k,'modelCalls');o.interpretation={kind:'UNDERSTANDING_UNAVAILABLE',code:'UNDERSTANDING_MODEL_CALL_BOUND'};break;}
         k.usage.modelCalls++;
         const attempt={unit:unit.id,status:'RESERVED',modelCalls:k.usage.modelCalls};o.semanticAttempts.push(attempt);

@@ -5,7 +5,7 @@ import {digest,checkpoint,restore} from './model.mjs';
 import {selectSemanticUnits} from './semantic-units.mjs';
 import {evidenceRequest,projectEvidence} from './evidence.mjs';
 import {semanticWireSchema,wireInput,reconstructWire,validateWire} from './semantic-wire.mjs';
-import {createLiveSemanticInterpreter} from './live-semantic.mjs';
+import {createLiveSemanticInterpreter} from './legacy-live-semantic.test-support.mjs';
 import {runTarget,offlineCapabilities} from './runner.mjs';
 import {evaluate} from './truth.mjs';
 import {evidenceFixtures,fixtureInput,wireCompletion} from './evidence-fixtures.test-support.mjs';

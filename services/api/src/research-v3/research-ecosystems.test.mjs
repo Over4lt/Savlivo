@@ -3,7 +3,7 @@ import {firstEstablishedUsage,firstEstablishedAttempts} from './catalog-progress
 // Targets contain no destination hints or expected price. No SDK/network IO.
 import test from 'node:test';import assert from 'node:assert/strict';
 import {runTarget,offlineCapabilities} from './runner.mjs';
-import {createLiveSemanticInterpreter} from './live-semantic.mjs';
+import {createLiveSemanticInterpreter} from './legacy-live-semantic.test-support.mjs';
 import {checkpoint,restore,digest,context,createKnowledge} from './model.mjs';
 import {evaluate} from './truth.mjs';
 import {numericOccurrences} from './semantic-wire.mjs';
@@ -66,4 +66,4 @@ for(const raw of ['١٢٫٩٩','۱۲٫۹۹','१२.९९'])test('Unicode wire 
 test('introductory monthly charge is never the ordinary recurring monthly charge',async()=>{const r=await site({intro:true});assert.equal(r.result.truth.established,true);assert.equal(r.result.truth.prices.US.propositions.PRICE_AMOUNT.value,17.25);assert.ok(r.result.truth.offers.some(o=>o.propositions.PRICE_AMOUNT.state==='UNRESOLVED'));});
 test('explicit complete annual-only provider ecosystem stops ineligible without chasing a monthly answer',async()=>{const r=await site({annualOnly:true});assert.equal(r.result.truth.eligibility.US.result,'INELIGIBLE');assert.notEqual(r.result.catalog.state,'CATALOG_EXHAUSTED');assert.ok(r.result.usage.acquisitions>=2);});
 
-for(const label of ['Aurora 購読の選択','Aurora 구독 옵션','Aurora خيارات الاشتراك','Aurora Abonnementmöglichkeiten'])test('semantic resource roles overcome ambiguous multilingual frontier '+label,async()=>{const r=await site({navigationCount:96,pricingLabel:label});assert.equal(r.result.truth.established,true);assert.equal(firstEstablishedUsage(r.result).acquisitions,3);assert.ok(r.adviceCalls>0);});
+for(const label of ['Aurora 購読の選択','Aurora 구독 옵션','Aurora خيارات الاشتراك','Aurora Abonnementmöglichkeiten'])test('native frontier handles ambiguous multilingual label without model advice '+label,async()=>{const r=await site({navigationCount:96,pricingLabel:label});assert.equal(r.result.truth.established,true);assert.equal(firstEstablishedUsage(r.result).acquisitions,3);assert.equal(r.adviceCalls,0);});

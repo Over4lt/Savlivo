@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {digest,checkpoint,restore} from './model.mjs';
 import {currencyOccurrences,wireInput,reconstructWire} from './semantic-wire.mjs';
 import {evidenceFixtures,fixtureInput,wireCompletion} from './evidence-fixtures.test-support.mjs';
-import {createLiveSemanticInterpreter} from './live-semantic.mjs';
+import {createLiveSemanticInterpreter} from './legacy-live-semantic.test-support.mjs';
 import {runTarget,offlineCapabilities} from './runner.mjs';
 import {evaluate} from './truth.mjs';
 const req=text=>({observation:{id:'observation',sha256:digest(text)},unit:{id:digest(text)},serviceName:'Library',translation:null,material:{segments:[{start:0,end:text.length,text}],presentations:[{id:'presentation',start:0,end:text.length}],destinations:[]}});

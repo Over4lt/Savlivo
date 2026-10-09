@@ -39,7 +39,7 @@ test('live preflight remains fail-closed and never dispatches',async()=>{
  const deps=await prepareLive(input(),{env:{...env,DECODO_USERNAME:'offline-user',DECODO_PASSWORD:'offline-password'},client});
  assert.equal(calls,0);assert.equal(deps.interpret.semanticAdapter.role,'EVIDENCE_UNDERSTANDING');
  await assert.rejects(configuredInterpreter(input(),()=>[],{}),/ADAPTER_REQUIRED/);
- await assert.rejects(configuredInterpreter(input(),undefined,env),/CREDENTIAL_REQUIRED/);
+ const native=await configuredInterpreter(input(),undefined,env);assert.equal(native.languageFallbackOnly,true);
 });
 test('real SDK exercised through offline fetch: strict evidence mode and no retry',async()=>{
  let calls=0;const i=input();
