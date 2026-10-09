@@ -9,6 +9,7 @@ import {decodeCheckpointPayload} from '../../research-v1/checkpoint-objects.mjs'
 import {assertNoSymlinkAncestors} from '../../research-v1/active-state.mjs';
 import {findingScope} from '../../research-v1/contract.mjs';
 import {resolveSourceOccurrence,sourceMappingVersion} from './source-occurrence.mjs';
+import {resolveTrustedReference} from '../offline-recovery/evidence-trust-root.mjs';
 // Frozen V1 population projection (research-result-view.mjs). Importing that view
 // loads the market/tsx execution graph. Reuse the authoritative scope contract,
 // without loading an executor, compiler, transport, interpreter or browser.
@@ -20,8 +21,8 @@ export const expectedPopulation=Object.freeze({rejected:622,concrete:152,null:47
 export const statuses=Object.freeze({intact:'RESOLVED_TO_INTACT_RETAINED_EVIDENCE',missing:'RESOLVED_BUT_BODY_UNAVAILABLE',integrity:'HASH_INTEGRITY_FAILURE',dangling:'DANGLING_UNRESOLVED_REFERENCE',unsupported:'UNSUPPORTED_HISTORICAL_FORMAT',incomplete:'OTHER_PROVEN_INCOMPLETE_STATE'});
 const clone=v=>JSON.parse(JSON.stringify(v??null));
 const field=(v,keys)=>Object.fromEntries(keys.filter(k=>v?.[k]!==undefined).map(k=>[k,clone(v[k])]));
-export function readOccurrence(occurrence,root){
- const path=resolve(root,occurrence.record.path);assert(!lstatSync(path).isSymbolicLink());
+export function readOccurrence(occurrence,trustContext){
+ const path=resolveTrustedReference(occurrence.record,trustContext);assert(!lstatSync(path).isSymbolicLink());
  const record=JSON.parse(readFileSync(path,'utf8')),{hash,...body}=record;assert.equal(digest(body),hash);assert.equal(hash,occurrence.record.hash);
  let page=decodeCheckpointPayload(resolve(path,'..'),record.payload);
  for(const k of occurrence.record.pointer.split('/').slice(1))page=page?.[k.replaceAll('~1','/').replaceAll('~0','~')];

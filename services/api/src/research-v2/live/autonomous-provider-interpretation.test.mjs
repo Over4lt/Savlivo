@@ -8,7 +8,7 @@ import {interpretDirectProvider} from './direct-provider-evidence.mjs';
 import {admittedDiscoveryCandidate} from './tavily-discovery.mjs';
 import {autonomousProviderAuthorityDecision,installRunScopedV3ProviderAuthority} from './provider-routing-authority.mjs';
 
-const repo=process.cwd(),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'autonomous-provider-stack-')));for(const entry of ['docs','services'])fs.symlinkSync(path.join(repo,entry),path.join(root,entry));process.chdir(root);after(()=>{process.chdir(repo);fs.rmSync(root,{recursive:true,force:true});});
+const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'autonomous-provider-stack-')));after(()=>fs.rmSync(root,{recursive:true,force:true}));
 const name='Lumen',service='lumen',host='provider.example',candidateUrl=`https://${host}/membership`,providerUrl=`https://${host}/us/pricing`;
 const candidateBody=`<html><script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@type':'Organization',name,url:`https://${host}`})}</script><main><h1>${name} membership</h1><a href="/us/pricing">Pricing</a></main></html>`;
 const providerBody='<html><head><meta property="og:locale" content="en-US"></head><body><article><h2>Personal</h2><p>USD 12/month</p></article><script id="__NEXT_DATA__" type="application/json">'+JSON.stringify({props:{pageProps:{basePageProps:{country:'US',market:'us'},metadata:{country:'US',market:'us',locale:'en-US'}}},query:{market:'us'}})+'</script></body></html>';

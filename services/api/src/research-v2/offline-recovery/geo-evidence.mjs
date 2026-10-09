@@ -6,10 +6,10 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {decodeCheckpointPayload} from '../../research-v1/checkpoint-objects.mjs';
+import {resolveTrustedReference} from './evidence-trust-root.mjs';
 const sha = value => createHash('sha256').update(value).digest('hex');
-export function readHistoricalReference(ref, root = process.cwd()) {
-  const file = path.resolve(root, ref.path);
-  assert(file.startsWith(path.resolve(root) + path.sep), 'Reference outside repository');
+export function readHistoricalReference(ref, trustContext) {
+  const file = resolveTrustedReference(ref, trustContext);
   const record = JSON.parse(fs.readFileSync(file));
   const {hash, ...content} = record;
   assert.equal(sha(JSON.stringify(content)), hash, 'Journal record integrity');
@@ -70,14 +70,15 @@ export function checkGeoChain({occurrence, bodyHash, attempt, sourcePage, execut
 }
 // Index supplies locators, never trusted classifications. Re-open hash-checked
 // original records and validate each chain for this run. No credentials copied.
-export function resolveGeoOccurrence(occurrence, bodyHash, indexRows, root = process.cwd()) {
-  const sourcePage = readHistoricalReference(occurrence.record, root);
+export function resolveGeoOccurrence(occurrence, bodyHash, indexRows, trustContext) {
+  const sourcePage = readHistoricalReference(occurrence.record, trustContext);
   const row = indexRows.get(occurrence.id);
   let ref = row?.executionReferences?.[0] ?? null;
   if (!ref && /\/attempts\/\d+\/page$/.test(occurrence.record.pointer)) ref = {
     path: occurrence.record.path, recordHash: occurrence.record.hash,
-    pointer: occurrence.record.pointer.replace(/\/page$/, '')
+    pointer: occurrence.record.pointer.replace(/\/page$/, ''),
+    ...(occurrence.record.trustRoot?{trustRoot:occurrence.record.trustRoot}:{})
   };
-  const attempt = ref ? readHistoricalReference(ref, root) : null;
+  const attempt = ref ? readHistoricalReference(ref, trustContext) : null;
   return checkGeoChain({occurrence, bodyHash, attempt, sourcePage, executionReference: ref});
 }

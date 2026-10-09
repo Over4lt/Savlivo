@@ -1,7 +1,7 @@
 import {loadLiveSource} from '../verification/live-source.mjs';
 import {bindCurrencyFormatter} from './currency-formatter.mjs';
 // Post-interpretation field evidence: canonical claims stay under the existing gate.
-export function analyzeCurrencyResources({sources,candidates=[],bindings=[]}){
+export function analyzeCurrencyResources({sources,candidates=[],bindings=[],trustContext}){
  const groups=new Map(),rows=[];
  for(const source of sources)for(const occurrence of source.occurrences??[]){const key=occurrence.service+'|'+occurrence.market;if(!groups.has(key))groups.set(key,[]);groups.get(key).push({source,occurrence});}
  for(const [target,entries] of groups){
@@ -10,7 +10,7 @@ export function analyzeCurrencyResources({sources,candidates=[],bindings=[]}){
   if(scripts.length>8){rows.push({target,status:'UNRESOLVED',reason:'RESOURCE_COUNT_BOUND'});continue;}
   if(scripts.some(e=>new Set(scripts.filter(s=>s.occurrence.url===e.occurrence.url).map(s=>s.source.sha256)).size>1)){rows.push({target,status:'UNRESOLVED',reason:'RESOURCE_CONTENT_CONFLICT'});continue;}
   const loaded=[];
-  for(const e of entries){try{const x=loadLiveSource(e.occurrence,e.source.sha256,bindings);if(x.body.includes('<script')||scripts.includes(e))loaded.push({...e,body:x.body,url:e.occurrence.url,sha256:e.source.sha256,receipt:x.receipt});}catch{rows.push({target,status:'UNRESOLVED',reason:'RESOURCE_PROVENANCE_FAILURE',occurrence:e.occurrence.id});}}
+  for(const e of entries){try{const x=loadLiveSource(e.occurrence,e.source.sha256,bindings,trustContext);if(x.body.includes('<script')||scripts.includes(e))loaded.push({...e,body:x.body,url:e.occurrence.url,sha256:e.source.sha256,receipt:x.receipt});}catch{rows.push({target,status:'UNRESOLVED',reason:'RESOURCE_PROVENANCE_FAILURE',occurrence:e.occurrence.id});}}
   const docs=loaded.filter(e=>e.body.includes('<script'));if(docs.length>8){rows.push({target,status:'UNRESOLVED',reason:'DOCUMENT_COUNT_BOUND'});continue;}
   for(const document of docs)for(const resource of loaded.filter(e=>scripts.some(s=>s.occurrence.id===e.occurrence.id))){
    if(!document.body.includes(new URL(resource.url).pathname))continue;
