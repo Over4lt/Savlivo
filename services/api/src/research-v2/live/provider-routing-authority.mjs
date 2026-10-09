@@ -7,10 +7,15 @@ const autonomous=new WeakMap();
 const historical=(target,host)=>(target.authorities??[]).find(row=>row.hostname===host&&row.provider===target.serviceName&&row.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(row.sourceType));
 const objective=(target,host)=>({kind:'PRICE',serviceId:target.service,serviceName:target.serviceName,providerHosts:[],candidateHosts:[host],markets:[],seeds:[]});
 
-export function installRunScopedV3ProviderAuthority(target,review){
+export function validatedV3ProviderAuthorityBinding(target,review){
  const binding=review?.providerAuthorityBinding,observation=review?.candidateObservation,host=binding?.host;
  const expected=host&&reviewCandidateAuthority(observation,objective(target,host));
  if(review?.contractVersion!==1||!expected||canonical(expected)!==canonical(binding))throw Error('V3_AUTONOMOUS_AUTHORITY_REQUIRED');
+ return structuredClone(binding);
+}
+
+export function installRunScopedV3ProviderAuthority(target,review){
+ const binding=validatedV3ProviderAuthorityBinding(target,review);
  const records=autonomous.get(target)??[];
  if(!records.some(row=>canonical(row.providerAuthorityBinding)===canonical(binding)))records.push(structuredClone(review));
  autonomous.set(target,records);
