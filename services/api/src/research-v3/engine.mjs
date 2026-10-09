@@ -136,7 +136,17 @@ export function availableActions(k, adapters = {}, extra = []) {
         seen.add(key);
         evaluated.push(row);
     }
-    return { truth, evaluated, actions: evaluated.filter(r => r.reason === 'ADMISSIBLE').map(r => r.action).sort((a, b) => b.value - a.value || a.id.localeCompare(b.id)) };
+    const actions=evaluated.filter(r => r.reason === 'ADMISSIBLE').map(r => r.action).sort((a, b) => b.value - a.value || a.id.localeCompare(b.id));
+    // In candidate-only research, spend the first acquisition opportunity on
+    // each exact discovered host before following links on an attempted host.
+    // A failed attempt counts, so a blocked host cannot monopolize the budget.
+    if(k.objective.providerHosts.length===0&&(k.objective.candidateHosts??[]).length>1){
+        const attempted=new Set(k.attempts.filter(row=>row.action.kind==='ACQUIRE').map(row=>new URL(row.action.url).hostname));
+        const unattempted=new Set(k.objective.candidateHosts.filter(host=>!attempted.has(host)));
+        const breadth=actions.filter(a=>a.kind==='ACQUIRE'&&unattempted.has(new URL(a.url).hostname));
+        if(breadth.length)return {truth,evaluated,actions:breadth};
+    }
+    return {truth,evaluated,actions};
 }
 function changes(before, after) {
     const flat = t => Object.fromEntries([...Object.entries(t.service), ...Object.entries(t.prices).flatMap(([m, v]) => Object.entries(v.propositions).map(([n, p]) => [m + ':' + n, p]))].map(([id, p]) => [id, { state: p.state, value: p.value }]));

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {runTarget,offlineCapabilities} from './runner.mjs';
+import {availableActions} from './engine.mjs';
 import {createKnowledge,addDestination,providerBound,digest,checkpoint,restore,pricePropositions} from './model.mjs';
 import {evaluate} from './truth.mjs';
 import {interpretBillingFixture} from './billing-fixtures.test-support.mjs';
@@ -14,7 +15,12 @@ const input=({candidateHosts=[],providerHosts=[],seeds=[],fixtures=[],permission
     ...(providerHosts.length?{provider:{reviewed:true,serviceId,hosts:providerHosts}}:{}),
     permissions,bounds,fixtures,discoveries,
 });
-const execute=fixture=>runTarget({input:fixture,capabilities:offlineCapabilities(fixture),interpret:interpretBillingFixture});
+const execute=(fixture,options={})=>runTarget({input:fixture,capabilities:offlineCapabilities(fixture),interpret:interpretBillingFixture,...options});
+const manyLinks=hosts=>hosts.flatMap(host=>[
+    robots(host),
+    page(`https://${host}/start`,`<html><body><h1>Fixture equipment</h1>${Array.from({length:15},(_,i)=>`<a href="/membership/${i}">Membership option ${i}</a>`).join('')}</body></html>`),
+    ...Array.from({length:15},(_,i)=>page(`https://${host}/membership/${i}`,'<html><body>Information about membership.</body></html>')),
+]);
 
 test('candidate-only exact host can be acquired while authority and Truth remain unresolved',async()=>{
     const url='https://lead.example/plans',fixture=input({candidateHosts:['lead.example'],seeds:[url],fixtures:[robots('lead.example'),page(url)],bounds:{actions:1,acquisitions:1,searches:0,modelCalls:0}});
@@ -69,6 +75,51 @@ test('multiple candidate hosts are researched independently under finite action 
     assert(knowledge.observations.every(o=>o.kind==='CANDIDATE'&&o.authority==='UNREVIEWED_CANDIDATE'));
     assert.equal(knowledge.usage.acquisitions,2);assert.equal(result.truth.established,false);
     assert.deepEqual(knowledge.objective.providerHosts,[]);
+});
+
+test('candidate breadth precedes attractive same-host links under a three-acquisition bound',async()=>{
+    const hosts=['north.example','south.example','west.example'];
+    const fixture=input({candidateHosts:hosts,seeds:hosts.map(host=>`https://${host}/start`),fixtures:manyLinks(hosts),bounds:{actions:3,acquisitions:3,searches:0,modelCalls:0}});
+    const {knowledge,result}=await execute(fixture);
+    assert.equal(knowledge.attempts.length,3);
+    assert.deepEqual(new Set(knowledge.attempts.map(a=>new URL(a.action.url).hostname)),new Set(hosts));
+    assert(knowledge.attempts.every(a=>new URL(a.action.url).pathname==='/start'));
+    assert(knowledge.observations.every(o=>o.kind==='CANDIDATE'&&o.authority==='UNREVIEWED_CANDIDATE'));
+    assert.deepEqual(knowledge.objective.providerHosts,[]);assert.equal(result.truth.established,false);
+    assert.equal(result.catalog.state,'CAPACITY');assert.equal(result.stop.reason,'CAPACITY_BOUND_REACHED');
+});
+
+test('failed candidate acquisition counts as exploration and other hosts proceed',async()=>{
+    const hosts=['north.example','south.example','west.example'],failed='south.example';
+    const fixtures=manyLinks(hosts).map(row=>row.url===`https://${failed}/start`?{...row,status:302,location:'https://north.example/other',body:''}:row);
+    const fixture=input({candidateHosts:hosts,seeds:hosts.map(host=>`https://${host}/start`),fixtures,bounds:{actions:3,acquisitions:3,searches:0,modelCalls:0}});
+    const reasoner=({actions})=>({actionId:actions.find(a=>a.kind==='ACQUIRE'&&new URL(a.url).hostname===failed)?.id});
+    const {knowledge,result}=await execute(fixture,{reasoner});
+    assert.equal(new URL(knowledge.attempts[0].action.url).hostname,failed);
+    assert.equal(knowledge.attempts[0].status,'FAILED');assert.equal(knowledge.attempts[0].failure.code,'PROVIDER_BOUNDARY');
+    assert.deepEqual(new Set(knowledge.attempts.map(a=>new URL(a.action.url).hostname)),new Set(hosts));
+    assert.equal(knowledge.usage.acquisitions,3);assert.equal(result.truth.established,false);
+});
+
+test('same-host candidate navigation remains available after initial host breadth',async()=>{
+    const hosts=['north.example','south.example','west.example'];
+    const fixture=input({candidateHosts:hosts,seeds:hosts.map(host=>`https://${host}/start`),fixtures:manyLinks(hosts),bounds:{actions:4,acquisitions:4,searches:0,modelCalls:0}});
+    const {knowledge,result}=await execute(fixture);
+    assert.deepEqual(new Set(knowledge.attempts.slice(0,3).map(a=>new URL(a.action.url).hostname)),new Set(hosts));
+    assert.match(new URL(knowledge.attempts[3].action.url).pathname,/^\/membership\/\d+$/);
+    assert(hosts.includes(new URL(knowledge.attempts[3].action.url).hostname));
+    assert(knowledge.observations.every(o=>o.kind==='CANDIDATE'&&o.authority==='UNREVIEWED_CANDIDATE'));
+    assert.equal(result.truth.established,false);assert.equal(result.catalog.state,'CAPACITY');
+});
+
+test('reviewed provider action frontier keeps same-host links alongside other roots',()=>{
+    const providerHosts=['north.example','south.example'],seeds=providerHosts.map(host=>`https://${host}/start`);
+    const k=createKnowledge({objective:{kind:'PRICE',serviceId,serviceName,providerHosts,markets:[market],seeds},permissions:{DIRECT:true}});
+    const descendant='https://north.example/membership/1';
+    assert.equal(addDestination(k,{url:descendant,depth:1,needs:pricePropositions,grounding:{kind:'PROVIDER_LINK',observation:'prior'}}),'ADMITTED');
+    k.attempts.push({id:'prior',action:{kind:'ACQUIRE',url:seeds[0]},status:'COMPLETED'});
+    const urls=new Set(availableActions(k,{DIRECT:async()=>({})}).actions.filter(a=>a.kind==='ACQUIRE').map(a=>a.url));
+    assert(urls.has(descendant));assert(urls.has(seeds[1]));
 });
 
 test('candidate host neither admits sibling destinations nor unbounded host lists',()=>{
