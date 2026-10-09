@@ -1,5 +1,5 @@
 import {targetMarketAcquisition} from './provider-access-gap.mjs';
-import {pendingMarketProof,marketProofContradicted} from './market-proof-continuation.mjs';
+import {pendingMarketProof,pendingV3MarketProof,marketProofContradicted} from './market-proof-continuation.mjs';
 import {currentRetainedPriceReview,targetMarketPriceReview} from './retained-pricing.mjs';
 import {priceNeedsStop,priceNeedRelevance,researchablePriceNeeds} from '../intelligence/price-evidence-needs.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
@@ -47,8 +47,8 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  const {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked}=actionableDestinations(t,{knowledge,urls,executionContext});
  const authorityFrontier=!hasProviderRoutingAuthority(t)?candidateAuthorityFrontier(t,urls,executionContext,k):{candidates:[],budgetBlocked:[]};
  let route,reason,url=null;
- const sufficientReview=t.market?targetMarketPriceReview(t,retained):currentRetainedPriceReview(t,retained);
- if((!pendingMarketProof(t).length||currentRetainedPriceReview(t,retained)?.market===t.market)&&!marketProofContradicted(t)&&!catalogObjective(t)&&sufficientReview?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
+ const pendingMarket=pendingMarketProof(t),v3MarketNeed=!!pendingV3MarketProof(t),sufficientReview=t.market?targetMarketPriceReview(t,retained):currentRetainedPriceReview(t,retained);
+ if((!pendingMarket.length||(!v3MarketNeed&&currentRetainedPriceReview(t,retained)?.market===t.market))&&!marketProofContradicted(t)&&!catalogObjective(t)&&sufficientReview?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
  else if(marketProofContradicted(t)){route='STOP';reason='MARKET_CONTRADICTED';}
  else if(k.memoryRejected){route='STOP';reason='RESEARCH_MEMORY_RECONCILIATION_REQUIRED';}
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished===true){route='STOP';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}
