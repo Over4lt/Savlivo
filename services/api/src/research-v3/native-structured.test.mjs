@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {projectObservation} from './projection.mjs';
+import {admittedProjectionCandidates} from './native-structured.mjs';
+import {digest} from './model.mjs';
+import {evaluate} from './truth.mjs';
+import {runResearch} from './engine.mjs';
+import {interpretWeb} from './source.mjs';
+
+const url='https://provider.example/pricing';
+const objective={kind:'PRICE',serviceId:'fixture',serviceName:'Example service',providerHosts:['provider.example'],markets:['NO'],seeds:[url]};
+const product=(id='alpha',extra={})=>{const {product:productExtra,...rest}=extra;return {product:{id,name:id,productType:'SUBSCRIPTION',consumer:true,subscription:{length:1,unit:'months'},...productExtra},totalAmountWithTaxes:{amount:'7999',currencyCode:'NOK'},...rest};};
+const page=(items,metadata={currenciesSubunit:{NOK:2}})=>`<html><head><title>Example service</title></head><body><script>const data = ${JSON.stringify({offeredProducts:{months:items},...metadata})};</script></body></html>`;
+const observation=(body,id='obs')=>({id,kind:'PROVIDER',format:'WEB',contentType:'text/html',url,context:{transport:'DECODO',networkGeography:'NO'},transport:{verification:'BRACKET_VERIFIED',requestedCountry:'NO',verifiedCountry:'NO'},outcome:'OK',httpStatus:200,completeness:'COMPLETE',truncated:false,body,sha256:digest(body),candidates:[]});
+function projected(items,metadata){const o=observation(page(items,metadata)),p=projectObservation(o,objective);return {o,p,facts:p.nativeStructured.facts,offers:p.source.offers.filter(x=>x.nativeStructured)};}
+function truth(o,p,admit=true){o.candidates=admit?admittedProjectionCandidates(p):[];return evaluate({objective,observations:[o]});}
+
+test('A: native facts and admitted candidate survive a failed semantic adapter',async()=>{
+ const interpret=async()=>{const e=Error('rate limit');e.status=429;throw e;};interpret.requiresModel=()=>true;interpret.semanticAdapter={role:'EVIDENCE_UNDERSTANDING'};
+ const k=await runResearch({objective,permissions:{DECODO:true},bounds:{actions:1},capabilities:{DECODO:a=>({url:a.url,context:a.context,outcome:'OK',format:'WEB',contentType:'text/html',httpStatus:200,body:page([product()]),transport:{verification:'BRACKET_VERIFIED',requestedCountry:'NO',verifiedCountry:'NO'}})},interpret});
+ assert.ok(k.observations[0].nativeStructured.facts.length);
+ assert.ok(k.observations[0].candidates.some(c=>c.kind==='OFFER'));
+ assert.equal(evaluate(k).prices.NO.propositions.PRICE_AMOUNT.value,79.99);
+});
+test('B: one record binds identity, interval, and money',()=>{const {facts,offers}=projected([product()]);assert.equal(facts[0].identity.id,'alpha');assert.equal(facts[0].interval.kind,'MONTHLY');assert.equal(facts[0].money[0].amount,79.99);assert.equal(offers[0].id,'alpha');});
+test('C: sibling price and interval never form a synthetic offer',()=>{const a=product('a',{product:{subscription:null}}),b=product('b',{totalAmountWithTaxes:undefined});const {facts,offers}=projected([a,b]);assert.equal(facts.length,2);assert.equal(offers.length,0);});
+test('D: interval or access-only charge cannot invent recurring payment',()=>{for(const item of [product('access',{totalAmountWithTaxes:undefined}),product('pass',{accessOnly:true})]){const {o,p,facts,offers}=projected([item]);assert.equal(facts[0].interval.kind,'MONTHLY');assert.equal(offers.length,0);assert.equal(truth(o,p).prices.NO.established,false);}});
+test('E: annual offer and monthly equivalent do not establish monthly payment',()=>{const item=product('annual',{product:{subscription:{length:1,unit:'years'}},monthlyEquivalent:{amount:'4999',currencyCode:'NOK'}});const {o,p,facts,offers}=projected([item]);assert.ok(facts[0].money.some(m=>m.kind==='monthlyEquivalent'));assert.equal(facts[0].interval.kind,'YEARLY');assert.equal(offers[0].billingCadence,'YEARLY');assert.equal(truth(o,p).prices.NO.established,false);});
+test('F: trial remains separate from ordinary total',()=>{const item=product('trial',{incentive:{freeTime:7,trialAmount:{amount:'0',currencyCode:'NOK'}}});const {o,p,facts,offers}=projected([item]);assert.equal(facts[0].trial.value.trialAmount.amount,'0');assert.equal(offers[0].amount,79.99);assert.equal(truth(o,p).prices.NO.propositions.PRICE_AMOUNT.value,79.99);const discounted=projected([product('intro',{discountAmount:{amount:'1000',currencyCode:'NOK'}})]);assert.equal(discounted.facts[0].money.some(m=>m.kind==='discountAmount'),true);assert.equal(discounted.offers.length,0);});
+test('G: explicit source scale normalizes raw integer',()=>{const {facts,offers}=projected([product()]);assert.equal(facts[0].money[0].scale.digits,2);assert.equal(offers[0].amount,79.99);});
+test('H: unknown integer scale stays unresolved',()=>{const {o,p,facts,offers}=projected([product()],{});assert.equal(facts[0].money[0].raw,'7999');assert.equal(facts[0].money[0].amount,null);assert.equal(offers.length,0);assert.equal(truth(o,p).prices.NO.established,false);});
+test('I: decimal source amount stays decimal',()=>{const item=product('decimal',{totalAmountWithTaxes:{amount:'79.99',currencyCode:'NOK'}});const {facts,offers}=projected([item],{});assert.equal(facts[0].money[0].amount,79.99);assert.equal(offers[0].amount,79.99);});
+test('J: base, tax, and total retain distinct source paths',()=>{const item=product('tax',{subtotalAmount:{amount:'6399',currencyCode:'NOK'},taxAmount:{amount:'1600',currencyCode:'NOK'}});const {facts,offers}=projected([item]);assert.deepEqual(facts[0].money.map(m=>m.kind),['totalAmountWithTaxes','subtotalAmount','taxAmount']);assert.equal(offers[0].amount,79.99);});
+test('K: exact provider identity is stable across source-local facts',()=>{const {facts,offers}=projected([product('same',{taxAmount:{amount:'1600',currencyCode:'NOK'}})]);assert.equal(facts[0].identity.id,offers[0].id);assert.ok(offers[0].nativeStructured.money.every(m=>m.source.includes('/offeredProducts/months/0/')));});
+test('L: different provider IDs remain separate',()=>{const {offers}=projected([product('a'),product('b',{totalAmountWithTaxes:{amount:'12999',currencyCode:'NOK'}})]);assert.deepEqual(offers.map(x=>x.id),['a','b']);assert.deepEqual(offers.map(x=>x.amount),[79.99,129.99]);});
+test('M: an unsupported model opinion cannot erase native facts',()=>{const {o,p}=projected([product()]);o.evidence={envelope:{schema:'bad',offers:[]}};const again=projectObservation(o,objective);assert.equal(again.source.offers.find(x=>x.nativeStructured)?.amount,79.99);assert.equal(truth(o,p).prices.NO.established,true);});
+test('N: projection alone is not admitted Truth evidence',()=>{const {o,p,offers}=projected([product()]);assert.equal(offers.length,1);assert.equal(truth(o,p,false).prices.NO.established,false);const stripped={...p,bindings:{...p.bindings}};for(const c of p.candidates)if(c.kind==='OFFER')delete stripped.bindings[c.pointer];assert.equal(admittedProjectionCandidates(stripped).some(c=>c.kind==='OFFER'),false);});
+test('O: a source-bound candidate enters the persisted path',async()=>{const body=page([product()]);for(const interpret of [undefined,interpretWeb]){const k=await runResearch({objective,permissions:{DECODO:true},bounds:{actions:1},capabilities:{DECODO:a=>({url:a.url,context:a.context,outcome:'OK',format:'WEB',contentType:'text/html',httpStatus:200,body,transport:{verification:'BRACKET_VERIFIED',requestedCountry:'NO',verifiedCountry:'NO'}})},interpret});assert.ok(k.observations[0].candidates.some(c=>c.kind==='OFFER'));assert.equal(evaluate(k).prices.NO.established,true);}});

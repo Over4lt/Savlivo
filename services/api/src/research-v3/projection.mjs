@@ -4,8 +4,10 @@ import {projectTranslation} from './translation.mjs';
 import {digest} from './model.mjs';
 import {projectEvidence} from './evidence.mjs';
 import {projectVisualEvidence} from './visual-evidence.mjs';
+import {projectNativeStructured} from './native-structured.mjs';
 export function projectObservation(o,objective) {
-    const parts=[projectWebSource(o,objective)],errors=[];
+    const native=projectNativeStructured(o,objective);
+    const parts=[projectWebSource(o,objective),native],errors=[];
     for(const [key,project] of [['translation',projectTranslation],['evidence',projectEvidence]]) {
         if(!o[key])continue;
         const p=project(o,objective);
@@ -54,5 +56,5 @@ export function projectObservation(o,objective) {
             const pointer='/'+key+'/'+source[key].length;source[key].push(value);bindings[pointer]=p.bindings['/'+key+'/'+i];
         }
     }
-    return {source,bindings,errors,limited:parts.some(p=>p.limited),candidates:[{kind:'SERVICE',pointer:''},...source.offers.map((_,i)=>({kind:'OFFER',pointer:'/offers/'+i}))]};
+    return {source,bindings,errors,limited:parts.some(p=>p.limited),nativeStructured:{facts:native.facts,limited:native.limited},candidates:[{kind:'SERVICE',pointer:''},...source.offers.map((_,i)=>({kind:'OFFER',pointer:'/offers/'+i}))]};
 }

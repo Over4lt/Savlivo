@@ -7,6 +7,7 @@ import { evaluate, interpretStructured, readSource } from './truth.mjs';
 import {projectTranslation,translationError} from './translation.mjs';
 import {projectEvidence,understandingError} from './evidence.mjs';
 import {projectObservation} from './projection.mjs';
+import {admittedProjectionCandidates} from './native-structured.mjs';
 import {acquisitionCapacity as acquisition,failureClass} from './acquisition-contract.mjs';
 import {semanticUnitLimits} from './semantic-units.mjs';
 import { projectWebSource } from './source.mjs';
@@ -14,6 +15,11 @@ import {researchTruth,refreshCatalog} from './subscription-catalog.mjs';
 import {extractNavigation,extractSitemap,queryFamilies,discoveryCapacity,diverseCandidates,rankCandidate} from './discovery.mjs';
 import {renderedResearchActions,browserPageObservation,retainRenderedObservation,retainControlSourceEvidence,admitRenderedInterpretation,visualFingerprint} from './rendered-research.mjs';
 import {createTargetedVisualRegion} from './rendered-overview.mjs';
+function admitWebProjection(o,objective){
+    const projection=projectObservation(o,objective);
+    o.nativeStructured=projection.nativeStructured;
+    return admittedProjectionCandidates(projection);
+}
 const resourceCapacityFailure=f=>f?.kind==='CAPACITY'&&['BODY_CAPACITY','DECOMPRESSION_CAPACITY','DECODED_CAPACITY','OBSERVATION_CAPACITY','HEADER_CAPACITY','REDIRECT_CAPACITY'].includes(failureClass(f.code));
 const route = a => a.kind === 'DISCOVER' ? 'TAVILY' : a.kind==='INSPECT'?'LOCAL':a.kind==='RENDER'?'RENDERED':a.context?.transport;
 function searches(k, truth) {
@@ -234,7 +240,7 @@ async function accept(k, a, response, interpret, navigate, save) {
     }
     k.observations.push(o);
     if (o.outcome === 'OK' && !o.truncated && (o.completeness===undefined||o.completeness==='COMPLETE')) {
-        o.candidates=o.format==='WEB'?projectObservation(o,k.objective).candidates:interpretStructured(o,k.objective);
+        o.candidates=o.format==='WEB'?admitWebProjection(o,k.objective):interpretStructured(o,k.objective);
         if(interpret.semanticUnits) {
             await understandUnits(k,o,interpret,save);
         } else {
@@ -265,7 +271,7 @@ async function accept(k, a, response, interpret, navigate, save) {
             if(projection.error)o.interpretation={kind:'UNDERSTANDING_REJECTED',code:projection.error};
             else {
                 o.evidence={envelope:candidates.envelope,adapter:interpret.semanticAdapter};
-                o.candidates=projectObservation(o,k.objective).candidates;
+                o.candidates=admitWebProjection(o,k.objective);
                 o.interpretation={kind:'EVIDENCE',adapter:interpret.semanticAdapter,accepted:projection.accepted,rejected:projection.rejected};
                 k.trace.push({event:'EVIDENCE_UNDERSTANDING',observation:o.id,sha256:o.sha256,evidence:o.evidence,interpretation:o.interpretation,sourceSupport:projection.bindings,candidates:o.candidates});
             }
@@ -274,14 +280,19 @@ async function accept(k, a, response, interpret, navigate, save) {
             const projection=projectTranslation(o,k.objective,translation.envelope);
             if(projection.error)o.interpretation={kind:'TRANSLATION_REJECTED',code:projection.error};
             else {
-                o.translation=translation;o.candidates=projectObservation(o,k.objective).candidates;
+                o.translation=translation;o.candidates=admitWebProjection(o,k.objective);
                 o.interpretation={kind:'TRANSLATION',adapter:interpret.semanticAdapter,limited:projection.limited};
                 k.trace.push({event:'TRANSLATION',observation:o.id,sha256:o.sha256,translation,sourceSupport:projection.bindings,candidates:o.candidates});
             }
         } else if(candidates!==undefined) {
             if(!Array.isArray(candidates)||modelNeeded)throw Error('INVALID_INTERPRETER_RESULT');
             const source=readSource(o,k.objective),maximum=1+(source?.offers?.length??0);
-            o.candidates=candidates.slice(0,maximum).map(c=>({kind:c.kind,pointer:c.pointer}));
+            const selected=candidates.slice(0,maximum).map(c=>({kind:c.kind,pointer:c.pointer}));
+            if(o.format==='WEB'){
+                const projection=projectObservation(o,k.objective);
+                const native=admittedProjectionCandidates(projection).filter(c=>projection.bindings[c.pointer]?.nativeStructured===true);
+                o.candidates=admittedProjectionCandidates({...projection,candidates:[...selected,...native]}).filter((c,i,all)=>all.findIndex(v=>v.kind===c.kind&&v.pointer===c.pointer)===i);
+            }else o.candidates=selected;
         }
         if(/(?:MATERIAL|RESPONSE)_BOUND$/.test(o.interpretation?.code??''))markLimit(k,'interpretationCapacity');
         if(o.interpretation?.kind?.startsWith(stage+'_'))k.trace.push({event:stage+'_UNAVAILABLE',observation:o.id,...o.interpretation});
@@ -470,7 +481,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
                         retained.renderedOverviews??=[];retained.renderedOverviews.push({renderId:produced.artifact.id,...produced.overview});
                         retained.renderedControlRegions??=[];retained.renderedControlRegions.push(produced.controlRegions);
                         retained.domSnapshot=produced.dom;
-                        retained.candidates=projectObservation(retained,k.objective).candidates;
+                        retained.candidates=admitWebProjection(retained,k.objective);
                         if(a.mode!=='STATE')k.observations.push(retained);
                         observation={...observation,id:retained.id,url:retained.url,sha256:retained.sha256,status:'RENDERED',renderId:produced.artifact.id,overviewSha256:produced.overview.sha256,domElements:produced.dom.length};
                         k.trace.push({event:'RENDERED_ARTIFACT_RETAINED',action:a.id,observation:retained.id,renderId:produced.artifact.id,imageSha256:produced.artifact.image.sha256,widthPx:produced.artifact.image.widthPx,heightPx:produced.artifact.image.heightPx,overviewSha256:produced.overview.sha256,overviewWidth:produced.overview.widthPx,overviewHeight:produced.overview.heightPx,domElements:produced.dom.length,truthAuthority:'NONE'});
@@ -551,7 +562,7 @@ async function understandUnits(k,o,interpret,save,reinspection=false,selectedUni
         if(o.evidence)o.evidenceFragments.push(fragment);else o.evidence=fragment;
         o.nativeProcessedUnits??=[];o.nativeProcessedUnits.push(unit.id);
         if(value.complete)o.semanticAttempts.push({unit:unit.id,status:'COMPLETED',mode:'NATIVE',modelCalls:0});
-        o.candidates=projectObservation(o,k.objective).candidates;
+        o.candidates=admitWebProjection(o,k.objective);
         o.interpretation={kind:'EVIDENCE',unit:unit.id,mode:'NATIVE',accepted:projection.accepted,rejected:projection.rejected};
         k.trace.push({event:'NATIVE_PAYMENT_INTERPRETATION',observation:o.id,sha256:o.sha256,unit:unit.id,evidence:fragment,interpretation:o.interpretation,sourceSupport:projection.bindings});
         await persist(k,save);
@@ -588,7 +599,7 @@ async function understandUnits(k,o,interpret,save,reinspection=false,selectedUni
             if(projection.error)throw Error(projection.error);
             const fragment={envelope:value.envelope,unit,adapter:interpret.semanticAdapter,...(value.wire?{wire:value.wire}:{})};
             if(o.evidence)o.evidenceFragments.push(fragment);else o.evidence=fragment;
-            o.candidates=projectObservation(o,k.objective).candidates;
+            o.candidates=admitWebProjection(o,k.objective);
             attempt.status='COMPLETED';o.interpretation={kind:'EVIDENCE',unit:unit.id,accepted:projection.accepted,rejected:projection.rejected};
             k.trace.push({event:'EVIDENCE_UNDERSTANDING',observation:o.id,sha256:o.sha256,unit:unit.id,evidence:fragment,interpretation:o.interpretation,sourceSupport:projection.bindings,candidates:o.candidates});
         } catch(error) {
