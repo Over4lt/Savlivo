@@ -126,3 +126,15 @@ export function materializeAuthority(k,url) {
     }
     return true;
 }
+
+// Source review promotes only the observed candidate's exact host. The
+// observation that supplied the proof remains a candidate forever.
+export function promoteCandidateHost(k,binding) {
+    const host=binding?.host;
+    if(binding?.kind!=='AUTONOMOUS_FIRST_PARTY_PRESENTATION'||!k.objective.candidateHosts?.includes(host)||k.objective.providerHosts.includes(host))return false;
+    k.objective.candidateHosts=k.objective.candidateHosts.filter(h=>h!==host);
+    k.objective.providerHosts.push(host);
+    k.objective.providerHosts.sort();
+    k.authorityBindings.push(structuredClone(binding));
+    return true;
+}

@@ -1,4 +1,5 @@
-import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound, materializeAuthority } from './model.mjs';
+import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound, materializeAuthority, promoteCandidateHost } from './model.mjs';
+import {reviewCandidateAuthority} from './provider-authority-review.mjs';
 import {targetOutcome} from './evidence-targets.mjs';
 import {diagnoseGaps,gapInspectionActions,inspectGapSource,gapTermination} from './research-gaps.mjs';
 import {exhaustionDiagnosis} from './research-strategist.mjs';
@@ -371,6 +372,10 @@ async function accept(k, a, response, interpret, navigate, save) {
             for(const [index,l]of links.slice(0,k.bounds.candidateDestinations).entries())navigation.push({url:l.url,result:addDestination(k,{url:normalizeUrl(l.url,url),depth,needs:l.needs,grounding:{kind:'PROVIDER_LINK',observation:o.id,pointer:'/links/'+index}})});
             if(links.length>k.bounds.candidateDestinations)markLimit(k,'candidateDestinations');
         }
+    }
+    if(candidate){
+        const binding=reviewCandidateAuthority(o,k.objective);
+        if(binding&&promoteCandidateHost(k,binding))k.trace.push({event:'AUTONOMOUS_PROVIDER_AUTHORITY',binding:structuredClone(binding)});
     }
     return { kind: o.kind, id: o.id, url, context: o.context, outcome: o.outcome, sha256: o.sha256, bytes, navigation };
 }

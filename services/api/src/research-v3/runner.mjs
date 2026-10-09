@@ -9,7 +9,8 @@ import {interpretWeb} from './source.mjs';
 import {createCapabilities} from './capabilities.mjs';
 import {createReasoner} from './reasoner.mjs';
 import {candidateRouted,navigationOwned} from './discovery-authority.mjs';
-import {restore,checkpoint,createKnowledge,addDestination,pricePropositions,servicePropositions} from './model.mjs';
+import {restore,checkpoint,createKnowledge,addDestination,pricePropositions,servicePropositions,canonical} from './model.mjs';
+import {reviewCandidateAuthority} from './provider-authority-review.mjs';
 import {createLiveSemanticInterpreter,isLiveSemanticInterpreter} from './live-semantic.mjs';
 import {createLiveVisualInterpreter} from './live-visual.mjs';
 import {createPlaywrightRenderedCapability} from './browser-render.mjs';
@@ -29,8 +30,18 @@ export async function runTarget({input,capabilities,reasoner,navigate,interpret,
     const knowledge=snapshot?restore(snapshot):undefined;
     if(knowledge) {
         const restoredObjective=structuredClone(knowledge.objective);
-        if(restoredObjective.providerHosts.some(h=>!navigationOwned(objective,'https://'+h+'/')))throw Error('RESUME_OBJECTIVE_MISMATCH');
+        const autonomous=(knowledge.authorityBindings??[]).filter(b=>b.kind==='AUTONOMOUS_FIRST_PARTY_PRESENTATION');
+        const hosts=new Set();
+        for(const binding of autonomous){
+            const observation=knowledge.observations.find(o=>o.id===binding.observation);
+            const reviewed=reviewCandidateAuthority(observation,objective);
+            if(!reviewed||canonical(reviewed)!==canonical(binding)||hosts.has(binding.host)||!knowledge.attempts.some(a=>a.id===observation.id&&a.action.kind==='ACQUIRE'&&a.action.context?.representation==='CANDIDATE_PAGE'&&new URL(a.action.url).hostname===binding.host&&a.status==='COMPLETED'))throw Error('RESUME_AUTHORITY_MISMATCH');
+            hosts.add(binding.host);
+        }
+        if(restoredObjective.providerHosts.some(h=>!navigationOwned(objective,'https://'+h+'/')&&!hosts.has(h))||[...hosts].some(h=>!restoredObjective.providerHosts.includes(h)))throw Error('RESUME_OBJECTIVE_MISMATCH');
+        if(canonical(restoredObjective.candidateHosts??[])!==canonical((objective.candidateHosts??[]).filter(h=>!hosts.has(h))))throw Error('RESUME_OBJECTIVE_MISMATCH');
         restoredObjective.providerHosts=[...objective.providerHosts];
+        if(objective.candidateHosts)restoredObjective.candidateHosts=[...objective.candidateHosts];
         if(JSON.stringify(restoredObjective)!==JSON.stringify({...objective,seeds:objective.seeds??[]}))throw Error('RESUME_OBJECTIVE_MISMATCH');
     }
     if(knowledge&&knowledge.semanticAdapter&&JSON.stringify(knowledge.semanticAdapter)!==JSON.stringify(interpret.semanticAdapter??{mode:'LEGACY_STATIC'}))throw Error('RESUME_SEMANTIC_ADAPTER_MISMATCH');
