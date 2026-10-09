@@ -46,13 +46,13 @@ export function assessAdaptiveService(state,service){
  else if(s.reconciliation){reason=s.reconciliation;}
  else if(t.executionBlocked){reason=t.executionBlocked;}
  // Retained review blocks reuse, not independently admitted fresh research.
- else if(t.retainedFailure?.reason==='RETAINED_INTERPRETATION_REVIEW_REQUIRED'&&!(cap.executable&&['DIRECT','DECODO','DISCOVERY',...(t.researchObjective==='CATALOG_ONLY'?['AUTHORITY_DISCOVERY']:[])].includes(p.route))){reason=t.retainedFailure.reason;}
+ else if(t.retainedFailure?.reason==='RETAINED_INTERPRETATION_REVIEW_REQUIRED'&&!(cap.executable&&['DIRECT','DECODO','DISCOVERY','AUTHORITY_DISCOVERY'].includes(p.route))){reason=t.retainedFailure.reason;}
  else if(t.researchObjective!=='CATALOG_ONLY'&&t.priceStrategy==='MANUAL_ONLY'&&t.manualOnlyDecision?.established&&t.manualOnlyDecision.reference){decision='REJECT';reason='MANUAL_ONLY_APPROPRIATE';}
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished){decision='REJECT';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}
  else if(t.demonstratedConfigurator||t.demonstratedRendering){reason=t.demonstratedConfigurator?'CONFIGURATOR_REQUIRED':'RENDERING_REQUIRED';}
  else if(p.route==='REUSE_RETAINED'&&s.used.retainedReviews<state.bounds.retainedReviews){decision='ACTIVATE';value=100;}
  else if((p.route==='DECODO'?ts.some(x=>x.market===t.market&&(x.decisions??[]).some(d=>d.acquisitionReserved&&resourceKey(d.url)===resourceKey(p.url))):p.route==='DIRECT'&&attempted.has(resourceKey(p.url))&&!(t.reads??[]).some(r=>resourceKey(r.requestedUrl)===resourceKey(p.url)))){decision='REJECT';reason=p.route==='DECODO'?'EQUIVALENT_PROVIDER_REQUEST_ALREADY_ATTEMPTED':'EQUIVALENT_DIRECT_REQUEST_ALREADY_ATTEMPTED';}
- else if(cap.executable&&['DIRECT','DECODO','DISCOVERY',...(t.researchObjective==='CATALOG_ONLY'?['AUTHORITY_DISCOVERY']:[])].includes(p.route)){value=p.reason==='TARGET_MARKET_OBSERVATION_REQUIRED'?9:['DIRECT','DECODO'].includes(p.route)?(p.candidates?.[0]?.value??0):1;decision=value>0?'ACTIVATE':'REJECT';reason=value>0?p.reason:'NO_POSITIVE_INFORMATION_VALUE';}
+ else if(cap.executable&&['DIRECT','DECODO','DISCOVERY','AUTHORITY_DISCOVERY'].includes(p.route)){value=p.reason==='TARGET_MARKET_OBSERVATION_REQUIRED'?9:['DIRECT','DECODO'].includes(p.route)?(p.candidates?.[0]?.value??0):1;decision=value>0?'ACTIVATE':'REJECT';reason=value>0?p.reason:'NO_POSITIVE_INFORMATION_VALUE';}
  else if(p.route==='CONDITIONAL_DECODO'){reason='FRESH_ACCESS_REVIEW_REQUIRED';}
  else if(['RESEARCH_MEMORY_RECONCILIATION_REQUIRED','AUTHORITY_UNRESOLVED','CONFIGURATOR_REQUIRED','RENDERING_REQUIRED','PROVIDER_ACCESS_POLICY_STOP','RETAINED_STRUCTURE_REQUIRES_REVIEW','PRICING_NAVIGATION_BOUND_REACHED'].includes(p.reason)){reason=p.reason;}
  else if(exhaustedExecutionBudget(cap)||exhaustedExecutionBudget({executable:false,reason:p.reason})||p.reason==='KNOWN_DESTINATION_NEEDS_EVIDENCE_NOT_SEARCH'&&p.budgetBlocked?.length>0){reason='BUDGET_EXHAUSTED';}

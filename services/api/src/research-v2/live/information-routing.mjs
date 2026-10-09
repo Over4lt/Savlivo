@@ -37,8 +37,15 @@ export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionCon
  const budgetBlocked=valid.filter(x=>exhaustedExecutionBudget(x.capability)&&(!pendingMarketProof(t).length&&(refresh||reacquire.has(x.url)&&x.informationGain>=4)||!seen.has(x.url)));
  return {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked};
 }
+function candidateAuthorityFrontier(t,urls,executionContext,knowledge){
+ const attempted=new Set([...(t.reads??[]).flatMap(r=>[r.requestedUrl,r.url]),...(knowledge?.attempts??[]).flatMap(a=>[a.url,a.finalUrl])].map(norm).filter(Boolean));
+ const blocked=new Set(knowledge?.blockedOrigins??t.blockedOrigins??[]);
+ const rows=[...new Set(urls)].map((url,index)=>{const normalized=norm(url);if(!normalized||attempted.has(normalized)||blocked.has(new URL(normalized).origin))return null;const lead=(t.leads??[]).find(l=>norm(l.url)===normalized),capability=executableAction(t,{route:'DIRECT',url:normalized},executionContext);return {url:normalized,index,rank:lead?.rank??Number.MAX_SAFE_INTEGER,priority:Number.isFinite(lead?.navigationPriority)?lead.navigationPriority:100,capability};}).filter(Boolean).sort((a,b)=>a.priority-b.priority||a.rank-b.rank||a.index-b.index||a.url.localeCompare(b.url));
+ return {candidates:rows.filter(row=>row.capability.executable),budgetBlocked:rows.filter(row=>exhaustedExecutionBudget(row.capability))};
+}
 export function chooseInformationAction(t,{knowledge,retained=null,configurationDemonstrated=false,renderingDemonstrated=false,urls=t.urls??[],discoveryAllowed=true,discoveryQuery=null,executionContext}={}){
  const {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked}=actionableDestinations(t,{knowledge,urls,executionContext});
+ const authorityFrontier=!hasProviderRoutingAuthority(t)?candidateAuthorityFrontier(t,urls,executionContext,k):{candidates:[],budgetBlocked:[]};
  let route,reason,url=null;
  const sufficientReview=t.market?targetMarketPriceReview(t,retained):currentRetainedPriceReview(t,retained);
  if((!pendingMarketProof(t).length||currentRetainedPriceReview(t,retained)?.market===t.market)&&!marketProofContradicted(t)&&!catalogObjective(t)&&sufficientReview?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
@@ -47,6 +54,8 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished===true){route='STOP';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}
  else if(configurationDemonstrated){route='PARK_CONFIGURATOR';reason='CONFIGURATOR_REQUIRED';}
  else if(renderingDemonstrated){route='PARK_RENDERING';reason='RENDERING_REQUIRED';}
+ else if(!hasProviderRoutingAuthority(t)&&authorityFrontier.candidates.length){route='AUTHORITY_DISCOVERY';reason='CANDIDATE_FRONTIER_AVAILABLE';url=authorityFrontier.candidates[0].url;}
+ else if(!hasProviderRoutingAuthority(t)&&authorityFrontier.budgetBlocked.length){route='STOP';reason=authorityFrontier.budgetBlocked[0].capability.reason;}
  else if(!hasProviderRoutingAuthority(t)){route=discoveryQuery?'AUTHORITY_DISCOVERY':'STOP';reason=discoveryQuery?'AUTHORITY_UNRESOLVED':'DISCOVERY_EXHAUSTED';}
  else if(reuse&&!pendingMarketProof(t).length){route='REUSE_RETAINED';reason='HASH_BOUND_PROVIDER_SUCCESS_REUSE';url=reuse.url;}
  else if(priceNeedsStop(t)&&!pendingMarketProof(t).length){route='STOP';reason=k.blockedOrigins?.length&&evaluated.filter(x=>x.url).length&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))?'PROVIDER_ACCESS_POLICY_STOP':priceNeedsStop(t);}
@@ -63,5 +72,5 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(!executableAction(t,{route:'DISCOVERY'},executionContext).executable){route='STOP';reason=executableAction(t,{route:'DISCOVERY'},executionContext).reason;}
  else {route='DISCOVERY';reason='NO_USEFUL_PROVIDER_DESTINATION';}
  }
- return {route,reason,url,objective:pendingMarketProof(t).length?'MARKET_PROOF':null,marketProofIdentityKeys:pendingMarketProof(t).map(o=>o.key),retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DECODO','DISCOVERY','REUSE_RETAINED'].includes(route),evaluated,candidates,budgetBlocked,attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5},ordinalOnly:true};
+ return {route,reason,url,objective:pendingMarketProof(t).length?'MARKET_PROOF':null,marketProofIdentityKeys:pendingMarketProof(t).map(o=>o.key),retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DECODO','DISCOVERY','AUTHORITY_DISCOVERY','REUSE_RETAINED'].includes(route),evaluated,candidates,budgetBlocked:[...budgetBlocked,...authorityFrontier.budgetBlocked],attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5},ordinalOnly:true};
 }

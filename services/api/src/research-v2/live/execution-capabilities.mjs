@@ -11,6 +11,7 @@ export function executableAction(t,action,{bounds=executionBounds,usage={reads:0
  if(t.capabilities)available={direct:available.direct!==false&&t.capabilities.direct,discovery:available.discovery!==false&&t.capabilities.tavily,decodo:available.decodo!==false&&t.capabilities.decodo};
  const no=reason=>({executable:false,reason}),yes=()=>({executable:true,reason:'CAPABILITY_AND_BUDGET_ALLOWED'}),route=action.route;
  if(route==='REUSE_RETAINED')return yes();
+ if(route==='AUTHORITY_DISCOVERY'&&action.url)return executableAction(t,{route:'DIRECT',url:action.url},{bounds,usage,available});
  if(route==='DIRECT'){
  if(bounds.managementReserveOnly===1){const lead=(t.leads??[]).find(l=>l.url===action.url),m=managementInformation(t,action.url,lead?.label??lead?.title??'');if(t.researchObjective!=='CATALOG_ONLY'||!m.strongManagement||m.missing.join('|')!=='WEB_MANAGEMENT')return no('MANAGEMENT_RESERVE_DESTINATION_REQUIRED');}
  if(available.direct===false)return no('DIRECT_DISABLED');if((t.reads??[]).length>=bounds.perServiceReads||usage.reads>=bounds.reads)return no('DIRECT_BUDGET_EXHAUSTED');
