@@ -5,9 +5,15 @@ import {createTavilySearch} from './tavily-search.mjs';
 import {createV2RobotsPublicAdapter} from './robots-policy.mjs';
 import {DiscoveryJournal,officialCandidate} from './online-discovery.mjs';
 import {discoveryInputs,createDiscoveryAcquirer} from './online-discovery-stage.mjs';
-export function admittedDiscoveryCandidate(candidate){
+import {canonical} from '../../research-v3/model.mjs';
+import {providerRoutingAuthority} from './provider-routing-authority.mjs';
+export function admittedDiscoveryCandidate(candidate,target){
  const decision=candidate.authority;
  if(decision?.eligible!==true||!decision.authority?.validated||new URL(decision.url).hostname!==decision.authority.hostname)throw Error('DISCOVERY_AUTHORITY_URL_MISMATCH');
+ if(decision.providerAuthorityBinding){
+  const current=target&&providerRoutingAuthority(target,decision.url);
+  if(current?.provenance!=='V3_AUTONOMOUS_CANDIDATE_REVIEW'||current.host!==decision.authority.hostname||canonical(current.binding)!==canonical(decision.providerAuthorityBinding)||canonical(decision.authority.reference?.binding)!==canonical(current.binding))throw Error('DISCOVERY_AUTHORITY_URL_MISMATCH');
+ }
  // Authority belongs to the reviewed final URL, not an untrusted redirecting lead.
  return {url:decision.url,authority:decision.authority,discoveryLeadUrl:candidate.url};
 }
@@ -25,7 +31,7 @@ export async function createTavilyDiscovery({inventory,readKeychain,bounds,cover
    },
    async classify({target,page}){return officialCandidate(target,{url:page.url??page.requestedUrl,label:'subscription pricing',method:'TAVILY_DISCOVERED_SOURCE'},registry.domains);},
    async consumeProvider({target,candidate,page,directory}){
-    const admitted=admittedDiscoveryCandidate(candidate),gapProof=providerAccessGap(page);
+    const admitted=admittedDiscoveryCandidate(candidate,target),gapProof=providerAccessGap(page);
     if(gapProof)return {url:admitted.url,classification:'DIRECT_ACCESS_GAP',verified:[],needsGeo:true,gapProof,acquisitionEscalation:acquisitionEscalation({page,targetMarket:target.market}),blockers:[page.failure.code],channel:'DIRECT_FAILED'};
     const direct=await interpretDirectProvider({target,page,directory});
     journal.append('DIRECT_INTERPRETED',{target:target.id,url:admitted.url,runDirectory:direct.runDirectory,monetary:direct.monetary,verified:direct.verified.length,blockers:direct.blockers});
@@ -39,7 +45,7 @@ export async function createTavilyDiscovery({inventory,readKeychain,bounds,cover
     // Reservation already exists at dispatch; validate permission again without treating this reservation as a duplicate.
     if(independent&&!(target.capabilities?.direct===false&&target.capabilities?.decodo===true))throw Error('INDEPENDENT_DECODO_PERMISSION_REQUIRED');
     if(!independent&&(!direct?.needsGeo||!direct.acquisitionEscalation?.eligible))throw Error('DISCOVERY_ACQUISITION_FAILURE_PROOF_REQUIRED');
-    const admitted=admittedDiscoveryCandidate(candidate);journal.reserve(target.id,'pages');
+    const admitted=admittedDiscoveryCandidate(candidate,target);journal.reserve(target.id,'pages');
     journal.append(independent?'INDEPENDENT_DECODO_ADMITTED':'GEO_ESCALATION_ELIGIBLE',{target:target.id,url:admitted.url,reason:independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent?{proof:direct.acquisitionEscalation,blockers:direct.blockers}:{})});
     const start=journal.events.length,geo=await acquire({target,candidate:admitted,journal});
     if(journal.events.slice(start).some(e=>e.type==='BOUND_STOP'))return {...geo,classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO',direct};

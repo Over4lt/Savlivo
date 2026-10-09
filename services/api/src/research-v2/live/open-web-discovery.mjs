@@ -21,7 +21,7 @@ import {normalizePublicUrl} from '../../research-v1/public-network.mjs';
 import {sourceLinks} from './source-frontier-links.mjs';
 import {providerNavigation,navigationRank,navigationKey} from './provider-navigation.mjs';
 import {reviewV2CandidateAuthority} from '../../research-v3/v2-candidate-authority-adapter.mjs';
-import {hasProviderRoutingAuthority,installRunScopedV3ProviderAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
+import {autonomousProviderAuthorityDecision,hasProviderRoutingAuthority,installRunScopedV3ProviderAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {loadHybridProviderResources,recordHybridProviderResourceFailure} from './hybrid-provider-resource-memory.mjs';
 export const openWebBounds=Object.freeze({managementReserveOnly:0,services:78,searches:50,reads:80,acquisitions:30,perServiceSearches:5,perServiceReads:8,perServiceAcquisitions:3,leadsPerService:40,linksPerPage:80,bytesPerPage:2097152});
 export function retainedPriceReview(directory,target){
@@ -125,8 +125,10 @@ export async function runOpenWebResearch({directory,targets,search,read,classify
  if(a.type==='ACQUIRE'){
   const gate=executableAction(t,{route:a.route,url:a.url},{bounds:session.bounds,usage:session.state.usage});
   if(!gate.executable)throw Error(gate.reason);
-  if(typeof classify!=='function'||typeof acquire!=='function')throw Error('DECODO_ADAPTER_REQUIRED');
-  const authority=await classify({target:t,page:{url:a.url,requestedUrl:a.url},directory});
+  if(typeof acquire!=='function')throw Error('DECODO_ADAPTER_REQUIRED');
+  const autonomousAuthority=autonomousProviderAuthorityDecision(t,a.url);
+  if(!autonomousAuthority&&typeof classify!=='function')throw Error('DECODO_ADAPTER_REQUIRED');
+  const authority=autonomousAuthority??await classify({target:t,page:{url:a.url,requestedUrl:a.url},directory});
   session.recordAuthority(t.id,a.url,authority);
   if(authority.eligible!==true){t.done=authority.reason??'AUTHORITY_UNRESOLVED';session.state.pending=null;session.save();if(++executed>=maxActions)return session.state;continue;}
   session.state.usage.acquisitions++;Object.assign(t.decisions.at(-1),{acquisitionReserved:true,route:a.route,routingReason:a.reason});session.save();
@@ -155,7 +157,7 @@ export async function runOpenWebResearch({directory,targets,search,read,classify
  }
  const providerPage=a.type==='READ'?t.reads.at(-1):null,requestedRouting=providerPage&&!a.candidateAuthorityReview?providerRoutingAuthority(t,a.url):null,finalRouting=providerPage?providerRoutingAuthority(t,providerPage.url??a.url):null,autonomousProviderSource=requestedRouting?.provenance==='V3_AUTONOMOUS_CANDIDATE_REVIEW'&&finalRouting?.provenance==='V3_AUTONOMOUS_CANDIDATE_REVIEW'&&requestedRouting.host===finalRouting.host;
  if(autonomousProviderSource){const page=providerPage,routing=requestedRouting;page.researchRole='PROVIDER_SOURCE';page.providerAuthority={provenance:routing.provenance,binding:routing.binding};session.event('V3_PROVIDER_SOURCE_RETAINED',{target:t.id,url:a.url,bodyHash:page.bodyHash,binding:routing.binding});session.save();}
- if(a.type==='READ'&&!a.candidateAuthorityReview&&!autonomousProviderSource&&classify){const page=t.reads.at(-1),authority=(page.outcome==='OK'||providerAccessGap(page))?await classify({target:t,page,directory}):{eligible:false,reason:page.failure?.code??'PAGE_NOT_ACQUIRED'};session.recordAuthority(t.id,a.url,authority);
+ if(a.type==='READ'&&!a.candidateAuthorityReview&&(autonomousProviderSource||classify)){const page=t.reads.at(-1),authority=autonomousProviderSource?autonomousProviderAuthorityDecision(t,page.url??a.url):(page.outcome==='OK'||providerAccessGap(page))?await classify({target:t,page,directory}):{eligible:false,reason:page.failure?.code??'PAGE_NOT_ACQUIRED'};session.recordAuthority(t.id,a.url,authority);
  let direct=null;
  if(authority.eligible===true&&page.outcome==='OK'&&page.bodyFile){interpret(()=>observeAdmissionSource(t,page,fs.readFileSync(directory+'/'+page.bodyFile,'utf8'),{path:directory+'/'+page.bodyFile,hash:page.bodyHash}));session.save();}
  if(authority.eligible===true&&t.researchObjective==='CATALOG_ONLY'&&page.outcome==='OK'&&page.bodyFile){const body=fs.readFileSync(directory+'/'+page.bodyFile,'utf8');const proof=interpret(()=>inspectLoginManage({body,sourceHash:page.bodyHash,url:page.url??a.url,service:t.service,provider:t.serviceName,market:t.market,authorityEstablished:true,reference:{path:directory+'/'+page.bodyFile,hash:page.bodyHash}}));mergeTargetCapabilities(t,proof);t.researchDiagnosis=t.loginManageEstablished?'LOGIN_MANAGE_ESTABLISHED':t.gaps.join('_AND_')+'_UNRESOLVED';session.event('CATALOG_CAPABILITY_INTERPRETATION',{target:t.id,proof,status:t.catalogEligibility.status});session.save();onSourceObservation?.({target:t,url:a.url,page,proof,directory});}

@@ -32,6 +32,14 @@ export function providerRoutingAuthority(target,url){
  return null;
 }
 
+// Revalidate the run-scoped V3 proof at the exact URL being consumed, then
+// project only the authority fields expected by the existing V2 adapters.
+export function autonomousProviderAuthorityDecision(target,url){
+ const normalized=normalizeUrl(url),routing=normalized&&providerRoutingAuthority(target,normalized);
+ if(routing?.provenance!=='V3_AUTONOMOUS_CANDIDATE_REVIEW')return null;
+ return {eligible:true,url:normalized,reason:'V3_AUTONOMOUS_FIRST_PARTY_PRESENTATION',providerAuthorityBinding:structuredClone(routing.binding),authority:{service:target.service,provider:target.serviceName,hostname:routing.host,role:'OFFICIAL_PROVIDER',validated:true,authorityScope:'EXACT_HOST_PROVIDER_SOURCING',reference:{kind:'V3_AUTONOMOUS_CANDIDATE_REVIEW',binding:structuredClone(routing.binding)}}};
+}
+
 export function hasProviderRoutingAuthority(target){
  if((target.authorities??[]).some(row=>row.provider===target.serviceName&&row.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(row.sourceType)))return true;
  return (autonomous.get(target)??[]).some(record=>providerRoutingAuthority(target,record.providerAuthorityBinding?.url));
