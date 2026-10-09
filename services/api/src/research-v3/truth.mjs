@@ -8,6 +8,18 @@ const currencies = new Set(Intl.supportedValuesOf('currency'));
 // required by MONTHLY_SUBSCRIPTION and PRICE_AMOUNT on the same offering.
 const blank = () => ({ state: 'UNRESOLVED', value: null, evidence: [], contradictions: [] });
 const slots = names => Object.fromEntries(names.map(n => [n, blank()]));
+const billingOnlyCondition = text => /^(?:(?:when\s+)?(?:billed|billing|charged|paid|payment(?:s)?)\s+)?(?:monthly|yearly|annual(?:ly)?|per\s+month|per\s+year|every\s+month|every\s+year)(?:\s+(?:billing|payment(?:s)?))?$|^\/(?:mo|month|yr|year)$/i.test(text.trim());
+function materialConditions(value){
+    if(value===undefined||value===null||value===''||value==='UNKNOWN')return null;
+    let parts=value;
+    if(typeof value==='string'&&value.startsWith('['))try{const parsed=JSON.parse(value);if(Array.isArray(parsed))parts=parsed;}catch{}
+    if(Array.isArray(parts)){
+        const material=parts.filter(part=>typeof part!=='string'||!billingOnlyCondition(part));
+        return material.length?canonical(material):null;
+    }
+    return typeof parts==='string'&&billingOnlyCondition(parts)?null:parts;
+}
+const fixedEffectiveScope = value => typeof value==='string'&&/\b(?:effective\b[^,\n]{0,64}\b\d{4}|version\b[^,\n]{0,32}\b[0-9a-z]+)\b/i.test(value);
 function claim(slot, value, reference, sufficient = true) {
     if (!sufficient)
         return;
@@ -39,7 +51,7 @@ export function interpretStructured(observation, objective) {
 }
 export function evaluate(k) {
     const availability=Object.fromEntries(k.objective.markets.map(m=>[m,[]]));
-    const service = slots(servicePropositions), groups = new Map(), accountAccess={LOGIN:blank(),ACCOUNT:blank(),MANAGE:blank(),CANCEL:blank()};
+    const service = slots(servicePropositions), groups = new Map(), paymentClaims = new Map(), pendingMonthly = [], accountAccess={LOGIN:blank(),ACCOUNT:blank(),MANAGE:blank(),CANCEL:blank()};
     for (const o of k.observations) {
         if (o.kind !== 'PROVIDER' || o.outcome !== 'OK' || o.truncated || digest(o.body) !== o.sha256 || !providerBound(k.objective, o.url))
             continue;
@@ -85,19 +97,23 @@ export function evaluate(k) {
                 continue;
             const consumer = offer.consumer === true && ['SUBSCRIPTION', 'MEMBERSHIP'].includes(offer.relationship);
             const explicitCadence = !offer.amountDerivation || offer.amountDerivation === 'EXPLICIT';
-            if (monthlyPayment(offer) && explicitCadence)
-                claim(service.CONSUMER_MONTHLY_SUBSCRIPTION_EXISTS, true, reference(c.pointer));
             const explicitMarket = typeof offer.market === 'string' && /^[A-Z]{2}$/.test(offer.market) ? offer.market : null;
             const country = !offer.marketAmbiguous ? verifiedCountryContext(o) : null;
             const market = explicitMarket ?? country;
-            if(monthlyPayment(offer)&&availability[market]&&!offer.excludedMarkets?.includes(market))availability[market].push({value:true,reference:refForAvailability(o,c.pointer,web)});
             // Never assemble a price from unrelated plans, qualifiers, or geographically
             // different unlocalized presentations. A source without an offer ID stands alone.
+            // Billing cadence, commitment copy, and derivation are claims about
+            // this scope, not identities that can hide an incompatible claim.
             const id = typeof offer.id === 'string' && offer.id ? offer.id : o.id + c.pointer;
-            const key = canonical([id, market, offer.conditions ?? null, offer.billingCadence??'UNKNOWN',offer.commitment??null, offer.role ?? null, offer.amountDerivation ?? 'EXPLICIT', market ? null : o.context.networkGeography]);
+            const key = canonical([id, market, materialConditions(offer.conditions), offer.role ?? null, market ? null : o.context.networkGeography]);
             if (!groups.has(key))
-                groups.set(key, { id, market, conditions: offer.conditions ?? null, propositions: slots(pricePropositions) });
+                groups.set(key, { id, market, conditions:offer.conditions ?? null, propositions: slots(pricePropositions) });
             const g = groups.get(key), p = g.propositions, ref = reference(c.pointer);
+            if(consumer&&ordinaryCharge(offer)&&['MONTHLY','YEARLY','WEEKLY','DAILY'].includes(offer.billingCadence)){
+                if(!paymentClaims.has(key))paymentClaims.set(key,[]);
+                paymentClaims.get(key).push({cadence:offer.billingCadence,reference:ref});
+            }
+            if(monthlyPayment(offer))pendingMonthly.push({key,market,reference:ref,availabilityReference:refForAvailability(o,c.pointer,web),explicitCadence,excluded:offer.excludedMarkets?.includes(market)});
             for(const excluded of offer.excludedMarkets??[])if(/^[A-Z]{2}$/.test(excluded)) {g.exclusions??=[];g.exclusions.push({country:excluded,reference:ref});}
             claim(p.SERVICE_IDENTITY, true, reference('/serviceId'));
             const ordinary = ordinaryCharge(offer) && (!offer.amountDerivation || offer.amountDerivation === 'EXPLICIT');
@@ -111,6 +127,27 @@ export function evaluate(k) {
             if (market)
                 claim(p.TARGET_MARKET, market, explicitMarket?ref:{...ref,marketContext:{basis:'VERIFIED_COUNTRY_OBSERVATION',country,verification:o.transport.verification}});
         }
+    }
+    const conflicted=new Set();
+    for(const [key,claims] of paymentClaims){
+        if(new Set(claims.map(c=>c.cadence)).size<2)continue;
+        conflicted.add(key);
+        const group=groups.get(key),p=group.propositions;
+        if(p.MONTHLY_SUBSCRIPTION.state==='ESTABLISHED'){
+            claim(p.MONTHLY_SUBSCRIPTION,false,claims.find(c=>c.cadence!=='MONTHLY').reference);
+            // Separate observations with no source-stated effective scope may
+            // be successive versions. Keep both references, but do not assert
+            // that the incompatible claims were simultaneously effective.
+            if(!fixedEffectiveScope(group.conditions)&&!claims.every(c=>c.reference.observation===claims[0].reference.observation)){
+                p.MONTHLY_SUBSCRIPTION.state='UNRESOLVED';
+                p.MONTHLY_SUBSCRIPTION.contradictions=[];
+            }
+        }
+    }
+    for(const row of pendingMonthly){
+        if(conflicted.has(row.key))continue;
+        if(row.explicitCadence)claim(service.CONSUMER_MONTHLY_SUBSCRIPTION_EXISTS,true,row.reference);
+        if(availability[row.market]&&!row.excluded)availability[row.market].push({value:true,reference:row.availabilityReference});
     }
     const prices = {};
     for (const market of k.objective.markets) {
