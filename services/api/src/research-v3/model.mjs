@@ -1,6 +1,6 @@
 // Independent V3 domain primitives. No filesystem, network or V2 imports.
 import { createHash } from 'node:crypto';
-import {validateNamespaces,navigationOwned,authorityBinding,navigationParametersSafe} from './discovery-authority.mjs';
+import {validateNamespaces,navigationOwned,candidateRouted,researchRouted,authorityBinding,navigationParametersSafe} from './discovery-authority.mjs';
 import {acquisitionCapacity} from './acquisition-contract.mjs';
 export const canonical = value => JSON.stringify(sort(value));
 function sort(v) {
@@ -33,14 +33,14 @@ export function normalizeUrl(value, base) {
     }
 }
 export const providerBound = (objective, url) => !!normalizeUrl(url) && objective.providerHosts.includes(new URL(url).hostname);
-export const context = (transport, networkGeography = 'UNBOUND') => ({ transport, networkGeography, representation: 'PROVIDER_PAGE' });
+export const context = (transport, networkGeography = 'UNBOUND', representation = 'PROVIDER_PAGE') => ({ transport, networkGeography, representation });
 export function actionIdentity(action) {
     if(action.kind==='INSPECT')return digest(['INSPECT',action.observation,...(action.inspection?[action.inspection]:[]),...(action.units?[action.units]:[])]);
     if(action.kind==='RENDER')return digest(['RENDER',action.observation,action.mode??'OVERVIEW',action.interaction?.controlId??null,action.focus?.regionId??null,action.overviewWidth]);
     return digest(action.kind === 'DISCOVER' ? ['DISCOVER', action.market ?? null, action.family??[...action.needs].sort()] : ['ACQUIRE', action.url, action.context]);
 }
 export function createKnowledge({ objective, permissions = {}, bounds = {} }) {
-    if (!objective || !['PRICE', 'SERVICE_QUALIFICATION'].includes(objective.kind) || !objective.serviceId || !objective.serviceName || !Array.isArray(objective.providerHosts) || !objective.providerHosts.length)
+    if (!objective || !['PRICE', 'SERVICE_QUALIFICATION'].includes(objective.kind) || !objective.serviceId || !objective.serviceName || !Array.isArray(objective.providerHosts) || !Array.isArray(objective.candidateHosts??[]) || !objective.providerHosts.length && !(objective.candidateHosts??[]).length)
         throw Error('INVALID_OBJECTIVE');
     const b = { ...defaultBounds, ...bounds };
     for (const [k, v] of Object.entries(b))
@@ -56,16 +56,18 @@ export function createKnowledge({ objective, permissions = {}, bounds = {} }) {
     if (o.providerHosts.some(h => typeof h !== 'string' || !normalizeUrl('https://' + h + '/') || new URL('https://' + h + '/').hostname !== h))
         throw Error('INVALID_PROVIDER_HOST');
     validateNamespaces(o);
+    if((o.candidateHosts??[]).length>12||new Set(o.candidateHosts??[]).size!==(o.candidateHosts??[]).length||(o.candidateHosts??[]).some(h=>typeof h!=='string'||!normalizeUrl('https://'+h+'/')||new URL('https://'+h+'/').hostname!==h||navigationOwned(o,'https://'+h+'/')))
+        throw Error('INVALID_CANDIDATE_HOST');
     const k = { version: 1, objective: o, permissions: Object.fromEntries(['DIRECT', 'TAVILY', 'DECODO', 'RENDERED'].map(p => [p, permissions[p] === true])), bounds: b, destinations: [], navigationResources: [], authorityBindings: [], observations: [], attempts: [], decisions: [], trace: [], policyBlocks: [], limitsHit: [], usage: { actions: 0, searches: 0, acquisitions: 0, countryAcquisitions: 0, renderedActions: 0, bytes: 0, decodedBytes: 0, retainedBytes: 0, acquisitionMs: 0, sitemapAcquisitions: 0, plannerCalls: 0, networkRequests: 0, modelCalls: 0 }, pending: null, stop: null };
     for (const url of o.seeds)
-        addDestination(k, { url, depth: 0, needs: o.kind === 'PRICE' ? pricePropositions : servicePropositions, grounding: { kind: 'OPERATOR_SEED' } });
+        addDestination(k, { url, depth: 0, needs: o.kind === 'PRICE' ? pricePropositions : servicePropositions, grounding: { kind: candidateRouted(o,url) ? 'CANDIDATE_SEED' : 'OPERATOR_SEED' } });
     return k;
 }
 export function addDestination(k, { url, depth, needs, grounding, discovery }) {
     const normalized = normalizeUrl(url);
-    if (!normalized || !navigationOwned(k.objective, normalized))
+    if (!normalized || !researchRouted(k.objective, normalized))
         return 'OUTSIDE_PROVIDER_BOUNDARY';
-    if (!grounding || !['OPERATOR_SEED', 'PROVIDER_ROOT', 'DISCOVERY_RESULT', 'PROVIDER_LINK', 'SITEMAP_ENTRY', 'ROBOTS_SITEMAP'].includes(grounding.kind))
+    if (!grounding || !['OPERATOR_SEED', 'CANDIDATE_SEED', 'PROVIDER_ROOT', 'CANDIDATE_ROOT', 'DISCOVERY_RESULT', 'PROVIDER_LINK', 'SITEMAP_ENTRY', 'ROBOTS_SITEMAP'].includes(grounding.kind))
         return 'UNGROUNDED_DESTINATION';
     if(grounding.kind!=='OPERATOR_SEED'&&!navigationParametersSafe(normalized))return 'UNSAFE_NAVIGATION_PARAMETER';
     const allowed = k.objective.kind === 'PRICE' ? pricePropositions : servicePropositions;

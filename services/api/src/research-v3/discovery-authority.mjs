@@ -11,6 +11,12 @@ export function navigationOwned(objective,url) {
     let h;try{h=new URL(url).hostname;}catch{return false;}
     return objective.providerHosts.includes(h)||(objective.providerNamespaces??[]).some(s=>s.reviewed===true&&s.scope==='OWNED_DNS_NAMESPACE'&&(h===s.domain||h.endsWith('.'+s.domain)));
 }
+// Exact-host permission to investigate a lead; it never grants provider authority.
+export function candidateRouted(objective,url) {
+    let u;try{u=new URL(url);}catch{return false;}
+    return u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&(objective.candidateHosts??[]).includes(u.hostname);
+}
+export const researchRouted=(objective,url)=>navigationOwned(objective,url)||candidateRouted(objective,url);
 export function authorityBinding(objective,url) {
     const host=new URL(url).hostname;
     if(objective.providerHosts.includes(host))return {host,kind:'REVIEWED_HOST'};

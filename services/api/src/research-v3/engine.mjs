@@ -11,6 +11,7 @@ import {admittedProjectionCandidates} from './native-structured.mjs';
 import {acquisitionCapacity as acquisition,failureClass} from './acquisition-contract.mjs';
 import {semanticUnitLimits} from './semantic-units.mjs';
 import { projectWebSource } from './source.mjs';
+import {candidateRouted,researchRouted} from './discovery-authority.mjs';
 import {researchTruth,refreshCatalog} from './subscription-catalog.mjs';
 import {extractNavigation,extractSitemap,queryFamilies,discoveryCapacity,diverseCandidates,rankCandidate} from './discovery.mjs';
 import {renderedResearchActions,browserPageObservation,retainRenderedObservation,retainControlSourceEvidence,admitRenderedInterpretation,visualFingerprint} from './rendered-research.mjs';
@@ -39,9 +40,10 @@ function proposals(k, truth) {
         const needs = truth.needs.filter(n => d.needs.includes(n.proposition));
         if (!needs.length)
             continue;
-        actions.push({ kind: 'ACQUIRE', url: d.url, context: context('DIRECT'), needs: needs.map(n => n.id), reason: 'Observe this grounded provider resource for unresolved facts', value: 5+(d.discovery?.score??0) });
+        const representation=candidateRouted(k.objective,d.url)?'CANDIDATE_PAGE':'PROVIDER_PAGE';
+        actions.push({ kind: 'ACQUIRE', url: d.url, context: context('DIRECT','UNBOUND',representation), needs: needs.map(n => n.id), reason: representation==='CANDIDATE_PAGE'?'Observe this grounded research candidate for unresolved facts':'Observe this grounded provider resource for unresolved facts', value: 5+(d.discovery?.score??0) });
         for (const market of [...new Set(needs.map(n => n.market).filter(Boolean))])
-            actions.push({ kind: 'ACQUIRE', url: d.url, context: context('DECODO', market), needs: needs.filter(n => n.market === market).map(n => n.id), reason: 'Target-country perspective may reveal the missing market-specific presentation', value: 10+(d.discovery?.score??0) });
+            actions.push({ kind: 'ACQUIRE', url: d.url, context: context('DECODO', market,representation), needs: needs.filter(n => n.market === market).map(n => n.id), reason: 'Target-country perspective may reveal the missing market-specific presentation', value: 10+(d.discovery?.score??0) });
     }
     if(k.semanticUnavailable?.status===429&&Date.now()>=k.semanticUnavailable.until)for(const o of k.observations.filter(o=>(o.semanticUnits?.length??0)>0&&/\p{Sc}\s*\p{N}|\b[A-Z]{3}\s*\p{N}/u.test(o.body)&&/UNAVAILABLE|FAILED/.test(o.interpretation?.kind??'')&&!(o.reinspectionCount>0)).slice(-8))actions.push({kind:'INSPECT',observation:o.id,url:o.url,needs:truth.needs.map(n=>n.id),reason:'Reinterpret intact retained source after understanding cooldown; no provider request',value:30});
     for(const o of k.observations) {
@@ -92,15 +94,16 @@ function validate(k, truth, input, adapters) {
     else if (a.kind === 'ACQUIRE') {
         a.url = normalizeUrl(a.url);
         const d = k.destinations.find(d => d.url === a.url);
-        if (!d || !providerBound(k.objective, a.url))
+        if (!d || !researchRouted(k.objective, a.url))
             return { action: a, reason: 'UNGROUNDED_DESTINATION' };
         if (a.needs.some(id => !d.needs.includes(truth.needs.find(n => n.id === id).proposition)))
             return { action: a, reason: 'DESTINATION_NOT_RELEVANT' };
         const c = a.context;
-        if (!c || c.representation !== 'PROVIDER_PAGE' || !['DIRECT', 'DECODO'].includes(c.transport) || c.transport === 'DIRECT' && c.networkGeography !== 'UNBOUND' || c.transport === 'DECODO' && (!k.objective.markets.includes(c.networkGeography) || a.needs.some(id => truth.needs.find(n => n.id === id).market !== c.networkGeography)))
+        const representation=candidateRouted(k.objective,a.url)?'CANDIDATE_PAGE':'PROVIDER_PAGE';
+        if (!c || c.representation !== representation || !['DIRECT', 'DECODO'].includes(c.transport) || c.transport === 'DIRECT' && c.networkGeography !== 'UNBOUND' || c.transport === 'DECODO' && (!k.objective.markets.includes(c.networkGeography) || a.needs.some(id => truth.needs.find(n => n.id === id).market !== c.networkGeography)))
             return { action: a, reason: 'INVALID_OBSERVATION_CONTEXT' };
         // Extra planner metadata must never create a new observation identity.
-        a.context = context(c.transport, c.networkGeography);
+        a.context = context(c.transport, c.networkGeography,representation);
         // Only a source-bound state relationship can request session continuity.
         if(d.discovery?.state?.group&&c.transport==='DECODO')a.journey=d.discovery.state.group;else delete a.journey;
         if (k.policyBlocks.some(b => b.scope === 'ORIGIN' ? new URL(a.url).origin === b.value : a.url === b.value))
@@ -216,7 +219,8 @@ async function accept(k, a, response, interpret, navigate, save) {
     if (canonical(response.context) !== canonical(a.context))
         throw Error('OBSERVATION_CONTEXT_MISMATCH');
     const url = normalizeUrl(response.url ?? a.url);
-    if (!url || !materializeAuthority(k,url) || !providerBound(k.objective, url))
+    const candidate=candidateRouted(k.objective,a.url);
+    if (!url || !researchRouted(k.objective,url) || candidate && new URL(url).hostname!==new URL(a.url).hostname || !candidate && (!materializeAuthority(k,url) || !providerBound(k.objective,url)))
         throw Error('PROVIDER_REDIRECT_NOT_AUTHORIZED');
     if (response.outcome === 'POLICY_BLOCKED') {
         const scope = response.policyScope === 'ORIGIN' ? 'ORIGIN' : 'URL';
@@ -230,7 +234,7 @@ async function accept(k, a, response, interpret, navigate, save) {
     if (!response.accounting && bytes > remaining)
         throw Error('CAPABILITY_BYTE_CONTRACT_VIOLATION');
     if(!response.accounting) k.usage.bytes += bytes;
-    const o = { id: a.id, kind: 'PROVIDER', url, context: structuredClone(a.context), outcome: response.outcome ?? 'ERROR', truncated: response.truncated === true, body, bytes, sha256: digest(body), action: a.id, candidates: [],
+    const o = { id: a.id, kind: candidate?'CANDIDATE':'PROVIDER', ...(candidate?{authority:'UNREVIEWED_CANDIDATE'}:{}), url, context: structuredClone(a.context), outcome: response.outcome ?? 'ERROR', truncated: response.truncated === true, body, bytes, sha256: digest(body), action: a.id, candidates: [],
         ...(response.format==='WEB'?{format:'WEB',contentType:response.contentType,requestedUrl:a.url,httpStatus:response.httpStatus,acquiredAt:response.acquiredAt,transport:response.transport,access:response.access,completeness:response.completeness??(response.truncated?'INCOMPLETE':'COMPLETE'),responseMetadata:response.responseMetadata,redirects:response.redirects,acquisitionTiming:response.acquisitionTiming}: {}) };
     if(k.destinations.find(d=>d.url===a.url)?.discovery?.resource==='SITEMAP') {
         k.navigationResources??=[];k.navigationResources.push(o);
@@ -358,7 +362,7 @@ async function accept(k, a, response, interpret, navigate, save) {
             if(links.length>k.bounds.candidateDestinations)markLimit(k,'candidateDestinations');
         }
     }
-    return { kind: 'PROVIDER', id: o.id, url, context: o.context, outcome: o.outcome, sha256: o.sha256, bytes, navigation };
+    return { kind: o.kind, id: o.id, url, context: o.context, outcome: o.outcome, sha256: o.sha256, bytes, navigation };
 }
 export async function runResearch({ knowledge, objective, permissions, bounds, capabilities = {}, reasoner, interpret = interpretStructured, interpretVisual, navigate, save } = {}) {
     const k = knowledge ? structuredClone(knowledge) : createKnowledge({ objective, permissions, bounds });
@@ -383,10 +387,11 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
         const finalTruth=evaluate(k);
         refreshCatalog(k,finalTruth);
         const initial = researchTruth(k,finalTruth);
-        // Empty search conversion is not exhaustion while reviewed roots remain uninspected.
-        if(!k.destinations.length&&k.attempts.some(a=>a.action.kind==='DISCOVER'&&a.status==='COMPLETED')&&(k.permissions.DIRECT||k.permissions.DECODO))for(const host of k.objective.providerHosts){
-            const result=addDestination(k,{url:'https://'+host+'/',depth:0,needs:initial.needs.map(n=>n.proposition),grounding:{kind:'PROVIDER_ROOT',host}});
-            k.trace.push({event:'RESEARCH_BOOTSTRAP',host,result,reason:'SEARCH_CONVERSION_EMPTY_REVIEWED_ROOT_UNINSPECTED'});
+        // Empty search conversion is not exhaustion while routed roots remain uninspected.
+        if(!k.destinations.length&&k.attempts.some(a=>a.action.kind==='DISCOVER'&&a.status==='COMPLETED')&&(k.permissions.DIRECT||k.permissions.DECODO))for(const host of [...k.objective.providerHosts,...(k.objective.candidateHosts??[])]){
+            const candidate=candidateRouted(k.objective,'https://'+host+'/');
+            const result=addDestination(k,{url:'https://'+host+'/',depth:0,needs:initial.needs.map(n=>n.proposition),grounding:{kind:candidate?'CANDIDATE_ROOT':'PROVIDER_ROOT',host}});
+            k.trace.push({event:'RESEARCH_BOOTSTRAP',host,result,reason:candidate?'SEARCH_CONVERSION_EMPTY_CANDIDATE_ROOT_UNINSPECTED':'SEARCH_CONVERSION_EMPTY_REVIEWED_ROOT_UNINSPECTED'});
         }
         k.gapState=diagnoseGaps(k,finalTruth);
         k.workingModel=buildWorkingModel(k,initial);

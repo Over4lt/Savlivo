@@ -4,7 +4,7 @@ import {randomBytes} from 'node:crypto';
 import {isIP} from 'node:net';
 import {publicAddress,researchUserAgent} from '../research-v1/public-network.mjs';
 import {createIndependentExitVerifier} from '../../../../docs/catalog/global-47/research-v1/independent-exit-verifier.mjs';
-import {navigationOwned,validateNamespaces} from './discovery-authority.mjs';
+import {candidateRouted,researchRouted,validateNamespaces} from './discovery-authority.mjs';
 import {normalizeUrl,digest} from './model.mjs';
 import {boundedOperation,directHop,createProxyHop,systemTiming,safeOrigin} from './acquisition-io.mjs';
 import {createAcquisitionReader} from './acquisition-reader.mjs';
@@ -29,7 +29,7 @@ export function createCapabilities({objective,permissions={},network={},tavily={
  if(!Number.isSafeInteger(acquisitionTimeoutMs)||acquisitionTimeoutMs<1||acquisitionTimeoutMs>600000||timeoutMs!==undefined&&(!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>90000))throw fault('INVALID_TIMEOUT');
  validateNamespaces(objective);
  const journeys=new Map();
- const check=url=>{if(!normalizeUrl(url)||!navigationOwned(objective,url))throw fault('PROVIDER_BOUNDARY');};
+ const check=(url,requested)=>{if(!normalizeUrl(url)||!researchRouted(objective,url)||candidateRouted(objective,requested)&&new URL(url).hostname!==new URL(requested).hostname)throw fault('PROVIDER_BOUNDARY');};
  async function acquire(action,limits,geo) {
   const account=budget(limits),access=[],controller=new AbortController(),ledger=[],redirects=[],navigationDocuments=[],operations=[],secretTokens=[],attemptId=randomBytes(12).toString('hex'),started=timing.now();let lastFailure=null,stage='SETUP',status=null,finalUrl=action.url;
   const acquisitionDeadline=Math.min(acquisitionTimeoutMs,limits.maxAcquisitionMs??acquisitionTimeoutMs);
@@ -42,7 +42,7 @@ export function createCapabilities({objective,permissions={},network={},tavily={
   const recordFailure=(error,extra={})=>{lastFailure={...normalizedFailure(error),stage,...extra};};
   let transport={kind:'DIRECT',networkGeography:'UNBOUND'};
   try{
-   check(action.url);
+   check(action.url,action.url);
    if(action.context.transport!==(geo?'DECODO':'DIRECT')||geo&&!objective.markets.includes(action.context.networkGeography)||!geo&&action.context.networkGeography!=='UNBOUND')throw fault('INVALID_CONTEXT');
    let requestOnce=network.requestOnce??directHop,before=null;
    const resolveHost=async host=>{
@@ -74,7 +74,7 @@ export function createCapabilities({objective,permissions={},network={},tavily={
     }catch(e){const failure=lastFailure?.requestSequence===row.sequence?lastFailure:normalizedFailure(e,'NETWORK_FAILED');row.state='FAILED';row.failure=failure.code;row.failureClass=failure.classification;if(e.diagnostics?.cause)row.transportCause=e.diagnostics.cause;recordFailure({code:failure.code},{phase:row.phase,requestSequence:row.sequence});throw e;}
     finally{timing.clear(phaseTimer);row.elapsedMs=Math.max(0,Math.round(timing.now()-began));}
    };
-   const makeReader=(extra={},purpose=stage)=>{const read=createAcquisitionReader({resolveHost:host=>{stage=purpose;return resolveHost(host);},requestOnce:r=>wireRequest(r,purpose),validateDestination:check,maxWireBytes:Math.min(cap.wireResponseBytes,account.remaining()),maxDecodedBytes:Math.min(cap.decodedResponseBytes,account.decodedRemaining()),maxObservationBytes:cap.observationBytes,
+   const makeReader=(extra={},purpose=stage)=>{const read=createAcquisitionReader({resolveHost:host=>{stage=purpose;return resolveHost(host);},requestOnce:r=>wireRequest(r,purpose),validateDestination:url=>check(url,action.url),maxWireBytes:Math.min(cap.wireResponseBytes,account.remaining()),maxDecodedBytes:Math.min(cap.decodedResponseBytes,account.decodedRemaining()),maxObservationBytes:cap.observationBytes,
     onDecodedText:text=>{if(secretTokens.some(s=>text.includes(s)))throw fault('SECRET_IN_RESPONSE');},
     onRedirect:decision=>{const row=ledger.filter(r=>r.purpose===purpose).at(-1);redirects.push({...decision,requestSequence:row?.sequence??null,purpose});if(row)row.redirectDecision=decision;},
     onDecodedBytes:n=>{const row=ledger.filter(r=>r.purpose===purpose).at(-1);if(row)row.decodedBytes+=n;account.decoded(n);},
@@ -115,7 +115,7 @@ export function createCapabilities({objective,permissions={},network={},tavily={
    if(geo)before=await probe('GEO_PRE');
    const policies=new Map();
    const page=await makeReader({beforeRequest:async r=>{
-    check(r.url);stage='ROBOTS';const origin=new URL(r.url).origin;let policy=policies.get(origin);
+    check(r.url,action.url);stage='ROBOTS';const origin=new URL(r.url).origin;let policy=policies.get(origin);
     if(!policy){
      const result=await makeReader({maxWireBytes:Math.min(cap.robotsBytes,account.remaining()),maxDecodedBytes:cap.robotsBytes,maxObservationBytes:cap.robotsBytes,robotsPolicyRetrieval:true,maxRedirects:cap.robotsRedirects},'ROBOTS')(origin+'/robots.txt',{signal:controller.signal});
      if([404,410].includes(result.status))policy={absent:true,status:result.status};
@@ -162,14 +162,14 @@ export function createCapabilities({objective,permissions={},network={},tavily={
             if(typeof tavily.apiKey!=='string'||!tavily.apiKey)throw fault('TAVILY_CONFIGURATION_REQUIRED');
             if(action.query.includes(tavily.apiKey))throw fault('INVALID_DISCOVERY_QUERY');
             account.request();
-            const res=await (tavily.fetchImpl??fetch)('https://api.tavily.com/search',{method:'POST',redirect:'error',signal:AbortSignal.timeout(timeoutMs??cap.geographyRequestMs),headers:{'Content-Type':'application/json',Authorization:'Bearer '+tavily.apiKey},body:JSON.stringify({query:action.query,include_domains:[...new Set([...objective.providerHosts,...(objective.providerNamespaces??[]).map(s=>s.domain)])],max_results:Math.min(8,limits.maxResults),include_answer:false,include_raw_content:false,include_images:false,search_depth:'basic'})});
+            const res=await (tavily.fetchImpl??fetch)('https://api.tavily.com/search',{method:'POST',redirect:'error',signal:AbortSignal.timeout(timeoutMs??cap.geographyRequestMs),headers:{'Content-Type':'application/json',Authorization:'Bearer '+tavily.apiKey},body:JSON.stringify({query:action.query,include_domains:[...new Set([...objective.providerHosts,...(objective.candidateHosts??[]),...(objective.providerNamespaces??[]).map(s=>s.domain)])],max_results:Math.min(8,limits.maxResults),include_answer:false,include_raw_content:false,include_images:false,search_depth:'basic'})});
             if(!res.ok)throw fault('TAVILY_HTTP_UNAVAILABLE');
             const reader=res.body.getReader(), chunks=[];
             try {for(;;){const {done,value}=await reader.read();if(done)break;account.bytes(value.byteLength);chunks.push(Buffer.from(value));}}finally{await reader.cancel().catch(()=>{});}
             const material=Buffer.concat(chunks);account.decoded(material.length);
             const data=JSON.parse(material.toString('utf8'));
             if(!Array.isArray(data.results))throw fault('TAVILY_INVALID_RESPONSE');
-            const results=data.results.slice(0,Math.min(8,limits.maxResults)).filter(r=>typeof r.url==='string'&&!r.url.includes(tavily.apiKey)&&navigationOwned(objective,r.url)).map(r=>({url:normalizeUrl(r.url),title:typeof r.title==='string'?r.title.slice(0,240):'',content:typeof r.content==='string'?r.content.slice(0,512):'',language:typeof r.language==='string'?r.language.slice(0,32):null,truthAuthority:'NONE'}));
+            const results=data.results.slice(0,Math.min(8,limits.maxResults)).filter(r=>typeof r.url==='string'&&!r.url.includes(tavily.apiKey)&&researchRouted(objective,r.url)).map(r=>({url:normalizeUrl(r.url),title:typeof r.title==='string'?r.title.slice(0,240):'',content:typeof r.content==='string'?r.content.slice(0,512):'',language:typeof r.language==='string'?r.language.slice(0,32):null,truthAuthority:'NONE'}));
             return {results,accounting:account.result()};
         }catch(error){return {results:[],accounting:account.result(),failure:{kind:error.kind==='CAPACITY'?'CAPACITY':'DISCOVERY',code:'TAVILY_REQUEST_UNAVAILABLE'}};}
     };

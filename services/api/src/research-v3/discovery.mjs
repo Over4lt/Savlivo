@@ -4,7 +4,7 @@ import {gapQueries} from './research-gaps.mjs';
 import {adaptiveQueries} from './research-strategist.mjs';
 import {providerStates} from './provider-states.mjs';
 import {digest,normalizeUrl} from './model.mjs';
-import {navigationOwned,authorityBinding,navigationParametersSafe} from './discovery-authority.mjs';
+import {researchRouted,authorityBinding,navigationParametersSafe} from './discovery-authority.mjs';
 export const discoveryCapacity=Object.freeze({tokens:131072,extracted:2048,sourceSlice:4096,label:240,jsonBytes:262144,jsonNodes:4096,jsonDepth:32,jsonScripts:32,jsonPointer:2048,sitemapEntries:4096,provenance:8,advisoryCandidates:64,advisoryMs:1000});
 const decode=s=>String(s).replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi,(all,k)=>k[0]==='#'?(()=>{const n=k[1].toLowerCase()==='x'?parseInt(k.slice(2),16):Number(k.slice(1));return n>0&&n<=0x10ffff&&!(n>=0xd800&&n<=0xdfff)?String.fromCodePoint(n):all;})():({amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '}[k.toLowerCase()]));
 const attrs=s=>Object.fromEntries([...s.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)].map(m=>[m[1].toLowerCase(),decode(m[2]??m[3]??m[4])]));
@@ -12,12 +12,12 @@ const label=s=>decode(s.replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim().slic
 const assets=/\.(?:png|jpe?g|gif|svg|webp|ico|woff2?|css|js|mp[34]|zip|exe)(?:$|\?)/i;
 function safeCandidate(raw,base,objective) {
     const url=normalizeUrl(decode(raw),base);
-    if(!url||!navigationOwned(objective,url)||assets.test(new URL(url).pathname))return null;
+    if(!url||!researchRouted(objective,url)||assets.test(new URL(url).pathname))return null;
     const u=new URL(url);
     if(!navigationParametersSafe(url))return null;
     // A redirect-shaped query does not authorize an otherwise unreviewed destination.
     for(const key of ['url','target','next','continue','return','redirect','redirect_uri'])for(const value of u.searchParams.getAll(key)) {
-        if(/^(?:https?:|\/\/)/i.test(value)&&(!normalizeUrl(value,url)||!navigationOwned(objective,new URL(value,url).href)))return null;
+        if(/^(?:https?:|\/\/)/i.test(value)&&(!normalizeUrl(value,url)||!researchRouted(objective,new URL(value,url).href)))return null;
     }
     return url;
 }
@@ -116,7 +116,7 @@ export function extractSitemap(o,objective,needs) {
     return {candidates:candidates.sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id)),limited,inspected};
 }
 export function queryFamilies(objective,market,needs,knowledge) {
-    const scope=[...new Set([...objective.providerHosts,...(objective.providerNamespaces??[]).map(s=>s.domain)])].map(h=>'site:'+h).join(' OR '),service=objective.serviceName;
+    const scope=[...new Set([...objective.providerHosts,...(objective.candidateHosts??[]),...(objective.providerNamespaces??[]).map(s=>s.domain)])].map(h=>'site:'+h).join(' OR '),service=objective.serviceName;
     const intents=objective.kind==='PRICE'?['subscription pricing plans','subscription billing renewal terms','subscription availability official']:['official service subscription','account membership support','official service information'];
     return [...gapQueries(objective,market,needs,knowledge),...adaptiveQueries(objective,market,needs,knowledge),...intents.map((intent,index)=>({kind:'DISCOVER',market,needs,family:'objective-'+index,query:[service,market,intent,'('+scope+')'].filter(Boolean).join(' ').slice(0,1000),reason:'Bounded provider discovery family '+index+' for unresolved objective',value:2-index/10}))];
 }

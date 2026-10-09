@@ -8,15 +8,22 @@ import {evaluate} from './truth.mjs';
 import {interpretWeb} from './source.mjs';
 import {createCapabilities} from './capabilities.mjs';
 import {createReasoner} from './reasoner.mjs';
-import {navigationOwned} from './discovery-authority.mjs';
+import {candidateRouted,navigationOwned} from './discovery-authority.mjs';
 import {restore,checkpoint,createKnowledge,addDestination,pricePropositions,servicePropositions} from './model.mjs';
 import {createLiveSemanticInterpreter,isLiveSemanticInterpreter} from './live-semantic.mjs';
 import {createLiveVisualInterpreter} from './live-visual.mjs';
 import {createPlaywrightRenderedCapability} from './browser-render.mjs';
 
+function validResearchScope(input) {
+    const {objective,provider}=input??{};
+    if(!objective||objective.markets?.length!==1||!Array.isArray(objective.providerHosts))return false;
+    if(provider?.reviewed===true)return objective.providerHosts.length>0&&provider.serviceId===objective.serviceId&&Array.isArray(provider.hosts)&&JSON.stringify([...provider.hosts].sort())===JSON.stringify([...objective.providerHosts].sort());
+    return objective.providerHosts.length===0&&Array.isArray(objective.candidateHosts)&&objective.candidateHosts.length>0&&(!provider||provider.reviewed===false&&provider.serviceId===objective.serviceId&&(!provider.hosts||provider.hosts.length===0));
+}
+
 export async function runTarget({input,capabilities,reasoner,navigate,interpret,interpretVisual,save,snapshot,env=process.env}={}) {
     const {objective,provider,permissions={},bounds={}}=input??{};
-    if(!objective||objective.markets?.length!==1||!provider?.reviewed||provider.serviceId!==objective.serviceId||JSON.stringify([...provider.hosts].sort())!==JSON.stringify([...objective.providerHosts].sort()))throw Error('REVIEWED_SINGLE_TARGET_REQUIRED');
+    if(!validResearchScope(input))throw Error('REVIEWED_SINGLE_TARGET_REQUIRED');
     interpret=await configuredInterpreter(input,interpret,env);
     if(input.rendered?.mode==='LIVE'&&input.permissions?.RENDERED)interpretVisual??=createLiveVisualInterpreter({env,timeoutMs:input.rendered.timeoutMs??90000,maxOutputTokens:input.rendered.maxOutputTokens??12000});
     const knowledge=snapshot?restore(snapshot):undefined;
@@ -30,7 +37,7 @@ export async function runTarget({input,capabilities,reasoner,navigate,interpret,
     if(knowledge&&input.semantic?.mode==='LIVE'&&(!knowledge.semanticAdapter||!Number.isSafeInteger(knowledge.usage.modelCalls)||!Number.isSafeInteger(knowledge.bounds.modelCalls)||knowledge.observations.some(o=>o.semantic)))throw Error('RESUME_SEMANTIC_ADAPTER_MISMATCH');
     const initial=knowledge??createKnowledge({objective,permissions,bounds});
     if(!snapshot&&(input.discovery?.bootstrapRoots===true||(input.discovery?.bootstrapRoots!==false&&!permissions.TAVILY))&&!objective.seeds?.length) {
-        for(const host of objective.providerHosts)addDestination(initial,{url:'https://'+host+'/',depth:0,needs:objective.kind==='PRICE'?pricePropositions:servicePropositions,grounding:{kind:'PROVIDER_ROOT',host}});
+        for(const host of [...objective.providerHosts,...(objective.candidateHosts??[])])addDestination(initial,{url:'https://'+host+'/',depth:0,needs:objective.kind==='PRICE'?pricePropositions:servicePropositions,grounding:{kind:candidateRouted(objective,'https://'+host+'/')?'CANDIDATE_ROOT':'PROVIDER_ROOT',host}});
     }
     initial.semanticAdapter=interpret.semanticAdapter??{mode:'LEGACY_STATIC'};
     let k;
@@ -69,7 +76,7 @@ export async function prepareLive(input,{env=process.env,client,fetchImpl}={}) {
     if(input?.semantic?.mode!=='LIVE'&&!(input?.rendered?.mode==='LIVE'&&input?.semantic?.mode==='LEGACY_STATIC'))throw Error('V3_LIVE_SEMANTIC_MODE_REQUIRED');
     if(input.permissions?.TAVILY&&!env.TAVILY_API_KEY?.trim())throw Error('V3_TAVILY_CONFIGURATION_REQUIRED');
     if(input.permissions?.DECODO&&(!env.DECODO_USERNAME?.trim()||!env.DECODO_PASSWORD?.trim()||/[:\r\n]|^user-|-country-|-session-/i.test(env.DECODO_USERNAME)||/[\r\n]/.test(env.DECODO_PASSWORD)))throw Error('V3_DECODO_CONFIGURATION_REQUIRED');
-    if(!input.provider?.reviewed||input.provider.serviceId!==input.objective?.serviceId||input.objective?.markets?.length!==1||JSON.stringify([...input.provider.hosts].sort())!==JSON.stringify([...input.objective.providerHosts].sort()))throw Error('REVIEWED_SINGLE_TARGET_REQUIRED');
+    if(!validResearchScope(input))throw Error('REVIEWED_SINGLE_TARGET_REQUIRED');
     createKnowledge({objective:input.objective,permissions:input.permissions,bounds:input.bounds});
     const interpret=input.semantic.mode==='LIVE'?await createLiveSemanticInterpreter({env,client,fetchImpl,timeoutMs:input.semantic.timeoutMs??30000,maxOutputTokens:input.semantic.maxOutputTokens??8192}):interpretWeb;
     const capabilities=createCapabilities({objective:input.objective,permissions:input.permissions,tavily:{apiKey:env.TAVILY_API_KEY},decodo:{username:env.DECODO_USERNAME,password:env.DECODO_PASSWORD}});
