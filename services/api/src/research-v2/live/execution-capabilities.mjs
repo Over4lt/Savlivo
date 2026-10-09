@@ -1,11 +1,12 @@
 import {targetMarketAcquisition} from './provider-access-gap.mjs';
 import {usableResearchMemory} from './research-memory.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
+import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 // One executable action space for planning and dispatch. No transport or evidence grants.
 import {navigationKey,navigationRank} from './provider-navigation.mjs';
 export const executionBounds=Object.freeze({managementReserveOnly:0,perServiceReads:4,perServiceSearches:2,perServiceAcquisitions:2,reads:80,searches:40,acquisitions:30});
 export function resourceKey(url){const u=new URL(url),m=u.pathname.match(/^\/hc\/[^/]+\/(articles|sections)\/(\d+)/),app=u.pathname.match(/^\/([a-z]{2})\/app\/[^/]+\/(id\d+)/);return m?u.origin+'/'+m[1]+'/'+m[2]:app?u.origin+'/'+app[1]+'/'+app[2]:navigationKey(u.href);}
-export function destinationReadAllowed(t,lead,bounds=executionBounds){const reviewed=t.authorities?.some(a=>a.hostname===new URL(lead.url).hostname),count=(t.reads??[]).filter(r=>new URL(r.requestedUrl).origin===new URL(lead.url).origin).length;return (!t.authorities?.length||reviewed)&&count<(reviewed&&navigationRank(t,lead)<=15?bounds.perServiceReads:2);}
+export function destinationReadAllowed(t,lead,bounds=executionBounds){const reviewed=providerRoutingAuthority(t,lead.url),count=(t.reads??[]).filter(r=>new URL(r.requestedUrl).origin===new URL(lead.url).origin).length;return (!hasProviderRoutingAuthority(t)||reviewed)&&count<(reviewed&&navigationRank(t,lead)<=15?bounds.perServiceReads:2);}
 export function executableAction(t,action,{bounds=executionBounds,usage={reads:0,searches:0,acquisitions:0},available={direct:true,discovery:true,decodo:true}}={}){
  if(t.capabilities)available={direct:available.direct!==false&&t.capabilities.direct,discovery:available.discovery!==false&&t.capabilities.tavily,decodo:available.decodo!==false&&t.capabilities.decodo};
  const no=reason=>({executable:false,reason}),yes=()=>({executable:true,reason:'CAPABILITY_AND_BUDGET_ALLOWED'}),route=action.route;
@@ -27,7 +28,7 @@ export function executableAction(t,action,{bounds=executionBounds,usage={reads:0
   if(!(/^[A-Z]{2}$/.test(t.market??'')))return no('DECODO_ADMITTED_MARKET_REQUIRED');
   let url;try{url=new URL(action.url);}catch{return no('INVALID_URL');}
   if(url.protocol!=='https:'||url.username||url.password)return no('INVALID_URL');
-  if(!t.authorities?.some(a=>a.hostname===url.hostname&&a.provider===t.serviceName&&a.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(a.sourceType)))return no('AUTHORITY_UNRESOLVED');
+  if(!providerRoutingAuthority(t,url.href))return no('AUTHORITY_UNRESOLVED');
   const memory=usableResearchMemory(t);if(memory.rejected)return no('RESEARCH_MEMORY_RECONCILIATION_REQUIRED');
   if([...(t.blockedOrigins??[]),...memory.blockedOrigins].includes(url.origin))return no('PROVIDER_ACCESS_POLICY_STOP');
   const lead=(t.leads??[]).find(l=>l.url===action.url);if((lead?.navigationDepth??0)>Math.min(3,t.smartResearch?.navigationDepth??3))return no('NAVIGATION_DEPTH_EXHAUSTED');

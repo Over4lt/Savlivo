@@ -4,6 +4,7 @@ import {priceNeedQuery,priceNeedIntents} from '../intelligence/price-evidence-ne
 import {missingCatalogFields} from '../intelligence/management-targeting.mjs';
 import {researchKnowledge} from './research-memory.mjs';
 import {chooseInformationAction} from './information-routing.mjs';
+import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 // Deterministic planning metadata only. No transport and no evidence grants.
 import {normalizeFrontierUrl} from './source-frontier.mjs';
 export const marketLanguages={NO:'nb',SE:'sv',DK:'da',DE:'de',AT:'de',FR:'fr',BE:'fr',ES:'es',MX:'es',CL:'es',CO:'es',PT:'pt',BR:'pt',IT:'it',NL:'nl',PL:'pl',CZ:'cs',TR:'tr',TH:'th',KR:'ko',JP:'ja',CN:'zh',TW:'zh',HK:'zh',FI:'fi',RO:'ro'};
@@ -36,14 +37,14 @@ export function diagnoseResearch({authority=false,target=false,priceCount=0,bloc
 function planResearchUnrestricted(t,{retained=null,diagnosis=null,history=[],unreadUrls=null,configurationDemonstrated=false,renderingDemonstrated=false,discoveryAllowed=true,executionContext}={}){
  if(t.smartResearch?.version===2){const knowledge=researchKnowledge(t),discoveryQuery=nextDiscoveryQuery(t,knowledge.attempts),action=chooseInformationAction(t,{knowledge,discoveryQuery,executionContext,discoveryAllowed,retained:retained??t.retainedPriceReview,configurationDemonstrated:configurationDemonstrated||t.demonstratedConfigurator===true,renderingDemonstrated:renderingDemonstrated||t.demonstratedRendering===true,urls:unreadUrls??t.urls??[]});return {version:2,...action,knowledge,service:t.service,requestedMarket:t.market,marketApplicabilityEstablished:false,language:t.language??marketLanguages[t.market]??'en',categoryIntent:categoryIntent(t),query:['DISCOVERY','AUTHORITY_DISCOVERY'].includes(action.route)?discoveryQuery:null,directAppropriate:action.route==='DIRECT',discoveryRequired:['DISCOVERY','AUTHORITY_DISCOVERY'].includes(action.route),decodoConditional:true,configuratorEnabled:false,browserEnabled:false,evidenceStatus:'PLANNING_ONLY',bounds:{reads:4,depth:3,width:2}};}
  const discoveryQuery=nextDiscoveryQuery(t,[...history,...(t.queries??[]).map(q=>({route:'DISCOVERY',query:q.query,completed:true}))]);
- const authority=(t.authorities??[]).filter(a=>a.provider===t.serviceName&&a.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(a.sourceType));
- const urls=(unreadUrls??t.urls??[]).map(u=>normalizeFrontierUrl(u).url).filter(u=>u&&authority.some(a=>a.hostname===new URL(u).hostname));
+ const authority=hasProviderRoutingAuthority(t);
+ const urls=(unreadUrls??t.urls??[]).map(u=>normalizeFrontierUrl(u).url).filter(u=>u&&providerRoutingAuthority(t,u));
  const completed=new Set(history.filter(h=>h.completed).map(h=>h.route+'|'+h.url));const fresh=urls.filter(u=>!completed.has('DIRECT|'+u));
  let route,reason;
  if((t.market?targetMarketPriceReview(t,retained):currentRetainedPriceReview(t,retained))?.sourceBound===true&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
  else if(configurationDemonstrated){route='PARK_CONFIGURATOR';reason='CONFIGURATOR_REQUIRED';}
  else if(renderingDemonstrated){route='PARK_RENDERING';reason='RENDERING_REQUIRED';}
- else if(!authority.length){route=discoveryQuery?'AUTHORITY_DISCOVERY':'STOP';reason=discoveryQuery?'AUTHORITY_UNRESOLVED':'DISCOVERY_EXHAUSTED';}
+ else if(!authority){route=discoveryQuery?'AUTHORITY_DISCOVERY':'STOP';reason=discoveryQuery?'AUTHORITY_UNRESOLVED':'DISCOVERY_EXHAUSTED';}
  else if(['DIRECT_ACCESS_FAILED','GEO_ACCESS_FAILED'].includes(diagnosis)&&history.some(h=>h.route==='DIRECT'&&h.completed&&h.failure===diagnosis&&h.escalationPermitted===true&&urls.includes(h.url))){route='CONDITIONAL_DECODO';reason=diagnosis;}
  else if(diagnosis==='PRICE_FOUND_STRUCTURE_AMBIGUOUS'&&!fresh.length){route='STRUCTURED_REINTERPRETATION';reason=diagnosis;}
  else if(fresh.length){route='DIRECT';reason=history.length?'ALTERNATE_REVIEWED_PROVIDER_DESTINATION':'REVIEWED_PROVIDER_FIRST';}

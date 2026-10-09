@@ -6,11 +6,12 @@ import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {catalogObjective,capabilityDestination} from '../intelligence/login-manage.mjs';
 import {retainedSuccesses} from './retained-success.mjs';
 import {executableAction,exhaustedExecutionBudget} from './execution-capabilities.mjs';
+import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 // Ordinal information value, not a probability or provider fact. No transport.
 import {normalizeFrontierUrl,semanticReasons} from './source-frontier.mjs';
 const norm=u=>normalizeFrontierUrl(u).url;
 export function destinationInformation(t,url,{diagnosis=null,unresolvedFields=[],attempts=[]}={}){
- const normalized=norm(url);if(!normalized)return {url:null,eligible:false,reason:'UNSAFE_URL'};const u=new URL(normalized),authority=t.authorities?.some(a=>a.hostname===u.hostname&&a.provider===t.serviceName&&a.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(a.sourceType));
+ const normalized=norm(url);if(!normalized)return {url:null,eligible:false,reason:'UNSAFE_URL'};const u=new URL(normalized),authority=providerRoutingAuthority(t,normalized);
  if(!authority)return {url:normalized,eligible:false,reason:'AUTHORITY_UNRESOLVED'};
  const regional=u.pathname.match(/^\/[a-z]{2,3}-([a-z]{2})(?:\/|$)/i)?.[1]?.toUpperCase();if(regional&&regional!==t.market)return {url:normalized,eligible:false,reason:'FOREIGN_LOCALE_DESTINATION'};
  const lead=(t.leads??[]).find(l=>norm(l.url)===normalized);const sem=semanticReasons(normalized,lead?.label??lead?.title??'');let p;try{p=decodeURIComponent(u.pathname).toLowerCase();}catch{return {url:normalized,eligible:false,reason:'MALFORMED_PATH'};}
@@ -46,7 +47,7 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished===true){route='STOP';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}
  else if(configurationDemonstrated){route='PARK_CONFIGURATOR';reason='CONFIGURATOR_REQUIRED';}
  else if(renderingDemonstrated){route='PARK_RENDERING';reason='RENDERING_REQUIRED';}
- else if(!t.authorities?.some(a=>a.provider===t.serviceName&&a.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(a.sourceType))){route=discoveryQuery?'AUTHORITY_DISCOVERY':'STOP';reason=discoveryQuery?'AUTHORITY_UNRESOLVED':'DISCOVERY_EXHAUSTED';}
+ else if(!hasProviderRoutingAuthority(t)){route=discoveryQuery?'AUTHORITY_DISCOVERY':'STOP';reason=discoveryQuery?'AUTHORITY_UNRESOLVED':'DISCOVERY_EXHAUSTED';}
  else if(reuse&&!pendingMarketProof(t).length){route='REUSE_RETAINED';reason='HASH_BOUND_PROVIDER_SUCCESS_REUSE';url=reuse.url;}
  else if(priceNeedsStop(t)&&!pendingMarketProof(t).length){route='STOP';reason=k.blockedOrigins?.length&&evaluated.filter(x=>x.url).length&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))?'PROVIDER_ACCESS_POLICY_STOP':priceNeedsStop(t);}
  else if(candidates.length){route=t.capabilities?.direct===false&&t.capabilities?.decodo===true?'DECODO':'DIRECT';url=candidates[0].url;reason=route==='DECODO'?'DIRECT_PROHIBITED_DECODO_PERMITTED':candidates[0].reason;}

@@ -8,9 +8,10 @@ import {catalogObjective,capabilityDestination} from '../intelligence/login-mana
 import {categoryIntent} from './research-planner.mjs';
 import {sourceLinks} from './source-frontier-links.mjs';
 import {normalizeFrontierUrl,semanticReasons} from './source-frontier.mjs';
+import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 const norm=s=>{try{s=decodeURIComponent(s);}catch{}return String(s).normalize('NFKD').replace(/\p{M}/gu,'').normalize('NFC').toLowerCase();};
 const commercial=/(?:^|[^\p{L}\p{N}])(?:pricing|prices?|plans?|memberships?|subscribe|subscriptions?|premium|personal|individual|checkout|buy|join|packages?|tariffs?|pris|priser|abonnement(?:en|s)?|abonnemang|medlemskap|medlemskab|kjop|pakker|preise?|tarife?|mitgliedschaft|abo|pakete|prijzen|lidmaatschap|prix|tarifs?|offres|precios?|planes|suscripci[oó]n(?:es)?|membresia|precos?|planos|assinatura|subscricao|adesao|prezzi|piani|abbonament[oi]|iscriviti|cennik|cena|ceny|abonament|subskrypcja|pakiety|cenik|predplatne|clenstvi|tarify|fiyat(?:lar)?|uyelik|abonelik|paketler)(?:$|[^\p{L}\p{N}])|料金|価格|プラン|入会|月額|サブスクリプション|가격|요금|멤버십|구독|价格|定价|套餐|会员|订阅|開通|开通|ราคา|สมัครสมาชิก/iu;
-export const reviewedNavigationHost=(t,url)=>t.authorities?.some(a=>a.hostname===new URL(url).hostname)??false;
+export const reviewedNavigationHost=(t,url)=>!!providerRoutingAuthority(t,url);
 export function navigationKey(url){return normalizeFrontierUrl(url).url??url;}
 export function navigationRank(t,lead,needs=null){
  const u=new URL(lead.url);if(!reviewedNavigationHost(t,u.href))return 100;
