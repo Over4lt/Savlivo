@@ -2,17 +2,17 @@
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {bootstrapProvider,createLiveBootstrap,researchInputFromBinding} from './provider-bootstrap.mjs';
+import {discoverCandidateHosts,createLiveBootstrap,researchInputFromCandidates} from './provider-bootstrap.mjs';
 import {prepareLive,runTarget} from './runner.mjs';
 import {checkpoint} from './model.mjs';
 
 export async function runAutonomous({service,market,bootstrap,prepare=prepareLive,run=runTarget,env=process.env,save}={}) {
-    const binding=await bootstrapProvider({service,market,search:bootstrap?.search,read:bootstrap?.read,bounds:bootstrap?.bounds});
-    if(binding.status!=='PROVIDER_BOUND')return {bootstrap:binding,result:null};
-    const input=researchInputFromBinding(binding,{permissions:{DIRECT:true,TAVILY:!!env.TAVILY_API_KEY?.trim(),DECODO:!!(env.DECODO_USERNAME&&env.DECODO_PASSWORD)}});
+    const discovery=await discoverCandidateHosts({service,market,search:bootstrap?.search,bounds:bootstrap?.bounds});
+    if(discovery.status!=='CANDIDATE_HOSTS_FOUND')return {bootstrap:discovery,result:null};
+    const input=researchInputFromCandidates(discovery,{permissions:{DIRECT:true,TAVILY:!!env.TAVILY_API_KEY?.trim(),DECODO:!!(env.DECODO_USERNAME&&env.DECODO_PASSWORD)}});
     const capabilities=await prepare(input,{env});
     const {knowledge,result}=await run({input,...capabilities,save,env});
-    return {bootstrap:binding,result,knowledge};
+    return {bootstrap:discovery,result,knowledge};
 }
 
 async function main() {
