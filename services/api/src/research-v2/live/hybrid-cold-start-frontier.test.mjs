@@ -5,7 +5,7 @@ import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
 import {digest} from '../../research-v3/model.mjs';
 import {reviewV2CandidateAuthority} from '../../research-v3/v2-candidate-authority-adapter.mjs';
 import {initializeAdaptiveState,assessAdaptiveService,runAdaptiveCampaign} from '../inventory/adaptive-campaign.mjs';
-import {candidateRelevant,rankPlannerLeads,runOpenWebResearch,serviceIdentityTokens} from './open-web-discovery.mjs';
+import {candidateRelevant,rankPlannerLeads,runOpenWebResearch,serviceDomainHint,serviceIdentityTokens} from './open-web-discovery.mjs';
 import {contextualQuery,planResearch} from './research-planner.mjs';
 import {hasProviderRoutingAuthority} from './provider-routing-authority.mjs';
 
@@ -29,9 +29,20 @@ test('authority discovery is not activated when its capability or objective work
 
 test('domain-shaped service identities discard suffix syntax and preserve the meaningful identity',()=>{
  for(const [serviceName,expected,noise] of [['Chess.com',['chess'],'com'],['Nimbus.com',['nimbus'],'com'],['Foo.co.uk',['foo'],'co'],['Service.io',['service'],'io'],['Brand.app',['brand'],'app']]){const x=target({serviceName});assert.deepEqual(serviceIdentityTokens(x),expected);assert(!serviceIdentityTokens(x).includes(noise));}
+ assert.equal(serviceDomainHint(target({serviceName:'Chess.com'})),'chess.com');assert.equal(serviceDomainHint(target({serviceName:'www.Foo.co.uk'})),'foo.co.uk');assert.equal(serviceDomainHint(target({serviceName:'Aurora Club'})),null);
  assert.deepEqual(serviceIdentityTokens(target({serviceName:'Aurora Club'})),['aurora','club']);
  assert.equal(candidateRelevant(target({serviceName:'Chess.com'}),{title:'Generic offers',url:'https://unrelated.com/pricing'}),false);
  assert.equal(candidateRelevant(target({serviceName:'Chess.com'}),{title:'Chess membership',url:'https://unrelated.example/pricing'}),true);
+});
+
+test('full dotted identity ranks its exact optional-www host ahead of token-only domains',()=>{
+ for(const [serviceName,token,exact,tokenOnly]of [['Chess.com','chess','https://www.chess.com/membership','https://chess.org/membership'],['Foo.co.uk','foo','https://www.foo.co.uk/plans','https://foo.com/plans']]){
+  const x=target({serviceName});x.leads=[{url:tokenOnly,title:'Membership',rank:0},{url:exact,title:'Membership',rank:0}];rankPlannerLeads(x);
+  assert(x.leads[1].navigationPriority<x.leads[0].navigationPriority,JSON.stringify(x.leads));
+  const plan=planResearch(x,{unreadUrls:x.leads.map(row=>row.url)});assert.equal(plan.route,'AUTHORITY_DISCOVERY');assert.equal(plan.url,exact);
+  assert.deepEqual(serviceIdentityTokens(x),[token]);
+  assert.equal(hasProviderRoutingAuthority(x),false);assert.deepEqual(x.authorities,[]);
+ }
 });
 
 test('pre-authority ordering favors a service-bearing host but remains routing metadata only',()=>{
@@ -59,6 +70,12 @@ test('search metadata and provider-looking paths cannot establish authority with
  rankPlannerLeads(Object.assign(x,{leads:[{url,title:'Nimbus official pricing',snippet:'Best Nimbus subscription',rank:0}]}));assert.equal(hasProviderRoutingAuthority(x),false);
  const review=reviewV2CandidateAuthority({contractVersion:1,observationId:'candidate-only',target:{service:x.service,serviceName:x.serviceName},page:{url,requestedUrl:url,outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,bodyHash:sha256,sourceIntegrity:{sha256},rawSource:{text:body},accessDecisions:[{decision:'ALLOWED'}]}});
  assert.equal(review.providerAuthorityBinding,null);assert.equal(review.candidateObservation.kind,'CANDIDATE');assert.equal(hasProviderRoutingAuthority(x),false);
+});
+
+test('routing domain hint cannot alter an otherwise identical authority decision',()=>{
+ const x=target({service:'chess-com',serviceName:'Chess.com'}),url='https://www.chess.com/membership',body='<title>Chess.com</title><main>Membership information.</main>',sha256=digest(body),authorityInput={contractVersion:1,observationId:'routing-is-not-authority',target:{service:x.service,serviceName:x.serviceName},page:{url,requestedUrl:url,outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,bodyHash:sha256,sourceIntegrity:{sha256},rawSource:{text:body},accessDecisions:[{decision:'ALLOWED'}]}};
+ const before=reviewV2CandidateAuthority(authorityInput);x.leads=[{url:'https://chess.org/membership',title:'Chess membership',rank:0},{url,title:'Membership',rank:0}];rankPlannerLeads(x);const after=reviewV2CandidateAuthority(authorityInput);
+ assert.equal(serviceDomainHint(x),'chess.com');assert(x.leads[1].navigationPriority<x.leads[0].navigationPriority);assert.deepEqual(after,before);assert.equal(after.providerAuthorityBinding,null);assert.equal(hasProviderRoutingAuthority(x),false);
 });
 
 test('separate market runs retain isolated frontiers and the same finite bounds',async t=>{

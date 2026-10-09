@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reviewCandidateAuthority} from './provider-authority-review.mjs';
+import {reviewCandidateAuthority,structuredExactOriginBounds} from './provider-authority-review.mjs';
 import {runTarget,offlineCapabilities} from './runner.mjs';
 import {checkpoint,digest,providerBound} from './model.mjs';
 import {evaluate} from './truth.mjs';
@@ -10,6 +10,8 @@ const name='Aurora Club',host='aurora.example',url=`https://${host}/membership`;
 const objective={kind:'PRICE',serviceId:'aurora-club',serviceName:name,providerHosts:[],candidateHosts:[host],markets:['US'],seeds:[url]};
 const owned=`<html><main><h1>${name} membership</h1><p>We operate ${name} membership and provide our own classes.</p><p>Personal consumer subscription price USD 12 per month.</p></main><footer>© ${name} 2026. All rights reserved.</footer></html>`;
 const product=`<html><main><h1>${name} product</h1><p>Our ${name} subscription provides classes and content to members.</p></main><footer>© ${name} 2026.</footer></html>`;
+const jsonLd=value=>`<script type="application/ld+json">${JSON.stringify(value)}</script>`;
+const structured=jsonLd({'@context':'https://schema.org','@type':'Organization','@id':'https://aurora.example/#organization',name,url:'https://aurora.example'});
 const observation=(body=owned,extra={})=>({id:'candidate-1',kind:'CANDIDATE',authority:'UNREVIEWED_CANDIDATE',url,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'CANDIDATE_PAGE'},outcome:'OK',truncated:false,completeness:'COMPLETE',format:'WEB',httpStatus:200,access:[{decision:'ALLOWED'}],body,sha256:digest(body),...extra});
 const review=(body,extra={})=>reviewCandidateAuthority(observation(body,extra),objective);
 const robots={url:`https://${host}/robots.txt`,transport:'DIRECT',status:404,contentType:'text/plain',body:''};
@@ -38,6 +40,27 @@ test('a differently named publisher can explicitly identify its own operated ser
     assert.equal(review(body.replace('operates','reviews')),null);
 });
 
+test('bounded exact target Organization URL establishes exact-host authority without a footer',()=>{
+    const body=`<html><head><link rel="canonical" href="${url}">${structured}</head><main>${name} membership</main></html>`,binding=review(body);
+    assert.equal(binding?.host,host);assert.equal(binding.reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY');assert.equal(binding.scope,'EXACT_HOST_PROVIDER_SOURCING');
+    for(const source of binding.locators.structuredSources)assert.equal(digest(body.slice(source.start,source.end)),source.sha256);assert.equal(binding.locators.representation.normalizedUrl,'https://aurora.example/');
+});
+
+test('bounded same-document @graph and @id resolution joins one Organization representation',()=>{
+    const body=jsonLd({'@context':'https://schema.org','@graph':[{'@id':'#provider','@type':'https://schema.org/Corporation',name},{'@id':'#provider',url:'https://aurora.example/about'}]}),binding=review(body);
+    assert.equal(binding?.reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY');assert.equal(binding.host,host);assert.equal(binding.locators.representation.id,'#provider');
+});
+
+test('minimized retained Chess-shaped presentations use the same exact-origin invariant',()=>{
+    const chessName='Chess.com',chessHost='www.chess.com',org={'@context':'https://schema.org','@type':'Organization','@id':'https://www.chess.com/#organization',name:chessName,url:'https://www.chess.com'},rows=[
+        ['root','https://www.chess.com/',`<title>Chess.com - Play Chess Online</title>${jsonLd(org)}<main>Play Chess Online</main><footer>Chess.com, LLC © 2026</footer>`],
+        ['play','https://www.chess.com/play',`<title>Play Chess Online - Chess.com</title>${jsonLd(org)}<main>Play online</main>`],
+        ['membership','https://www.chess.com/membership',`<title>Premium Membership - Chess.com</title>${jsonLd(org)}<main>Choose a Plan</main>`],
+        ['family','https://www.chess.com/family',`${jsonLd(org)}${jsonLd({'@type':'Article',mainEntityOfPage:{'@id':'https://www.chess.com/family'},publisher:{'@type':'Organization',name:chessName}})}<main>Our Friends & Family Plan</main><footer>Copyright 2026 Chess.com, LLC.</footer>`],
+    ];
+    for(const [id,chessUrl,body]of rows){const o={...observation(body),id,url:chessUrl},binding=reviewCandidateAuthority(o,{...objective,serviceId:'chess-com',serviceName:chessName,candidateHosts:[chessHost],seeds:[chessUrl]});assert.equal(binding?.reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY',id);assert.equal(binding.host,chessHost,id);}
+});
+
 test('reseller, editorial, non-affiliation, platform and ambiguous same-name pages remain candidates',()=>{
     const pages=[
         `<main>We sell ${name} memberships and ship the provider's products.</main><footer>© Gear Shop 2026</footer>`,
@@ -49,6 +72,50 @@ test('reseller, editorial, non-affiliation, platform and ambiguous same-name pag
         `<main>We sell ${name} membership and products.</main><footer>© ${name} 2026</footer>`,
     ];
     for(const body of pages)assert.equal(review(body),null,body);
+});
+
+test('structured identity path rejects incomplete unrelated copied and publisher-only representations',()=>{
+    const cases=[
+        jsonLd({'@type':'Organization',name,logo:'https://aurora.example/logo.png'}),
+        `${jsonLd({'@type':'Organization',name:'Daily Review',url:'https://aurora.example'})}<main>${name} review and logo</main>`,
+        jsonLd({'@type':'Article',publisher:{'@type':'Organization',name,url:'https://aurora.example'}}),
+        jsonLd({'@type':'Organization',name,url:'https://real-provider.example'}),
+        jsonLd({'@type':'Organization',name:'App Store',url:'https://aurora.example',sameAs:['https://real-provider.example']}),
+        jsonLd({'@type':'Organization',name,logo:'x',sameAs:['https://aurora.example']}),
+        `<link rel="canonical" href="${url}"><main>${name}</main>`,
+        `<script>window.data=${JSON.stringify({'@type':'Organization',name,url:'https://aurora.example'})}</script>`,
+        `<!-- ${jsonLd({'@type':'Organization',name,url:'https://aurora.example'})} -->`,
+        `<template>${jsonLd({'@type':'Organization',name,url:'https://aurora.example'})}</template>`,
+    ];
+    for(const body of cases)assert.equal(review(body),null,body.slice(0,200));
+});
+
+test('third-party commercial and infrastructure Organization records cannot borrow target mentions',()=>{
+    for(const operator of ['Daily Review','Gear Reseller','Payments Processor','App Store','Static CDN','Support SaaS','Authentication Provider','Multi Tenant Pages']){
+        const body=`${jsonLd({'@type':'Organization',name:operator,url:'https://aurora.example'})}<main>${name} logo, membership and official-looking profile</main>`;
+        assert.equal(review(body),null,operator);
+    }
+    const copied=jsonLd({'@type':'Organization',name,url:'https://aurora.example'}),lookalike={...objective,candidateHosts:['aurora-club.pages.example'],seeds:['https://aurora-club.pages.example/membership']},o={...observation(copied),url:'https://aurora-club.pages.example/membership'};
+    assert.equal(reviewCandidateAuthority(o,lookalike),null,'multi-tenant hostname and copied real-provider URL cannot establish the tenant host');
+});
+
+test('structured conflicts canonical contradictions malformed data and non-affiliation fail closed',()=>{
+    const exact={'@type':'Organization',name,url:'https://aurora.example'};
+    for(const body of [
+        `${jsonLd(exact)}${jsonLd({'@type':'Organization',name,url:'https://other.example'})}`,
+        `<link rel="canonical" href="https://other.example/membership">${jsonLd(exact)}`,
+        '<script type="application/ld+json">{"@type":"Organization",</script>',
+        `${jsonLd(exact)}<main>We are not affiliated with ${name}.</main>`,
+    ])assert.equal(review(body),null);
+    assert.equal(review(`<link rel="canonical" href="${url}">${jsonLd(exact)}`)?.reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY','same-host canonical is non-authoritative and non-contradictory');
+});
+
+test('structured JSON-LD byte depth and total-node bounds fail closed',()=>{
+    const oversized=jsonLd({'@type':'Organization',name,url:'https://aurora.example',description:'x'.repeat(structuredExactOriginBounds.scriptBytes)});
+    let nested={};for(let index=0;index<structuredExactOriginBounds.depth+2;index++)nested={next:nested};
+    const deep=jsonLd({'@type':'Organization',name,url:'https://aurora.example',nested});
+    const excessive=jsonLd({'@context':'https://schema.org','@graph':[{'@type':'Organization',name,url:'https://aurora.example'},...Array.from({length:structuredExactOriginBounds.nodes},()=>({}))]});
+    for(const body of [oversized,deep,excessive])assert.equal(review(body),null);
 });
 
 test('policy, integrity, completeness and final exact-host prerequisites fail closed',()=>{
@@ -96,6 +163,13 @@ test('checkpoint resume revalidates autonomous source, exact host and decision',
         const altered=structuredClone(saved);mutate(altered.payload);altered.sha256=digest(altered.payload);
         await assert.rejects(()=>execute(input,{snapshot:altered}),/RESUME_(AUTHORITY|OBJECTIVE)_MISMATCH/);
     }
+});
+
+test('structured authority checkpoint revalidates the same proof and stays outside Truth',async()=>{
+    const body=`<main>${name} membership</main>${structured}`,input=fixture(body,{actions:1,acquisitions:1,searches:0,modelCalls:0}),first=await execute(input),saved=checkpoint(first.knowledge),binding=first.knowledge.authorityBindings[0];
+    assert.equal(binding.reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY');assert.equal(first.knowledge.observations[0].kind,'CANDIDATE');assert.equal(first.result.truth.established,false);
+    const resumed=await execute(input,{snapshot:saved});assert.deepEqual(resumed.knowledge.authorityBindings,[binding]);assert.deepEqual(resumed.knowledge.objective.providerHosts,[host]);
+    const changed=structuredClone(saved);changed.payload.authorityBindings[0].locators.representation.normalizedUrl='https://other.example/';changed.sha256=digest(changed.payload);await assert.rejects(()=>execute(input,{snapshot:changed}),/RESUME_AUTHORITY_MISMATCH/);
 });
 
 test('a completed candidate checkpoint resumes with a provider-context acquisition',async()=>{

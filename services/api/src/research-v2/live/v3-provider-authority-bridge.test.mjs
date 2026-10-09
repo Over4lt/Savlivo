@@ -17,6 +17,7 @@ import {runOpenWebResearch} from './open-web-discovery.mjs';
 
 const name='Aurora Club',service='aurora-club',host='aurora.example',url=`https://${host}/membership`;
 const owned=`<html><main><h1>${name} membership</h1><p>We operate ${name} membership and provide our own classes.</p><a href="/pricing">Pricing</a></main><footer>© ${name} 2026. All rights reserved.</footer></html>`;
+const structured=`<html><script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@type':'Organization',name,url:'https://aurora.example'})}</script><main><h1>${name} membership</h1><a href="/pricing">Pricing</a></main></html>`;
 const target=()=>({id:'aurora-us',service,serviceName:name,market:'US',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[],authorities:[],gaps:['amount'],reads:[],queries:[],decisions:[],capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false}});
 function input(body=owned,extra={}){
  const sha256=digest(body),page={url,requestedUrl:url,outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,bodyHash:sha256,sourceIntegrity:{sha256},rawSource:{text:body},accessDecisions:[{decision:'ALLOWED'}],...(extra.page??{})};
@@ -31,6 +32,11 @@ test('contract is frozen and equivalent V2 material produces the exact native V3
  assert.equal(Object.isFrozen(v2CandidateAuthorityBoundary),true);
  const a=reviewV2CandidateAuthority(input()),n=native();assert.deepEqual(a.candidateObservation,n.o);assert.deepEqual(a.providerAuthorityBinding,n.binding);
  assert.equal(a.providerAuthorityBinding.host,host);assert.equal(a.providerAuthorityBinding.scope,'EXACT_HOST_PROVIDER_SOURCING');
+});
+
+test('V2 boundary installs the bounded structured exact-origin proof without changing scope',()=>{
+ const review=reviewV2CandidateAuthority(input(structured)),t=target();assert.equal(review.providerAuthorityBinding.reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY');installRunScopedV3ProviderAuthority(t,review);
+ assert.equal(providerRoutingAuthority(t,url).provenance,'V3_AUTONOMOUS_CANDIDATE_REVIEW');assert.equal(providerRoutingAuthority(t,url).binding.scope,'EXACT_HOST_PROVIDER_SOURCING');assert.equal(providerRoutingAuthority(t,'https://support.aurora.example/'),null);
 });
 
 for(const [label,body] of [
@@ -97,6 +103,12 @@ test('bounded run resume revalidates retained candidate proof before the later p
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'phase2-authority-resume-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));const calls=[],args={directory,targets:[target()],maxActions:1,search:async()=>{calls.push('SEARCH');return {results:[{url,title:`${name} official membership`}]};},read:async({url:requested})=>{if(requested===url){calls.push('CANDIDATE_READ');return {url:requested,outcome:'OK',httpStatus:200,contentType:'text/html',body:owned,sourceIntegrity:{sha256:digest(owned)},accessDecisions:[{decision:'ALLOWED'}]};}calls.push('PROVIDER_READ');const body='<html><title>Aurora Club plans</title></html>';return {url:requested,outcome:'OK',httpStatus:200,contentType:'text/html',body,sourceIntegrity:{sha256:digest(body)},accessDecisions:[{decision:'ALLOWED'}]};},classify:async()=>assert.fail('old V2 authority must not replace the V3 autonomous binding')};
  await runOpenWebResearch(args);await runOpenWebResearch(args);const state=await runOpenWebResearch(args);
  assert.deepEqual(calls,['SEARCH','CANDIDATE_READ','PROVIDER_READ']);assert.equal(state.targets[0].reads[0].researchRole,'CANDIDATE_AUTHORITY_SOURCE');assert.equal(state.targets[0].reads[1].requestedUrl,`https://${host}/pricing`);assert.equal(state.targets[0].reads[1].researchRole,'PROVIDER_SOURCE');assert.equal(state.targets[0].reads[1].providerAuthority.binding.host,host);
+});
+
+test('hybrid reload revalidates retained structured proof before provider routing',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'phase2-structured-authority-resume-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));const calls=[],args={directory,targets:[target()],maxActions:1,search:async()=>{calls.push('SEARCH');return {results:[{url,title:`${name} official membership`}]};},read:async({url:requested})=>{if(requested===url){calls.push('CANDIDATE_READ');return {url:requested,outcome:'OK',httpStatus:200,contentType:'text/html',body:structured,sourceIntegrity:{sha256:digest(structured)},accessDecisions:[{decision:'ALLOWED'}]};}calls.push('PROVIDER_READ');const body='<html><title>Aurora Club plans</title></html>';return {url:requested,outcome:'OK',httpStatus:200,contentType:'text/html',body,sourceIntegrity:{sha256:digest(body)},accessDecisions:[{decision:'ALLOWED'}]};},classify:async()=>assert.fail('retained structured V3 authority must be reinstalled')};
+ await runOpenWebResearch(args);const bound=await runOpenWebResearch(args);assert.equal(bound.targets[0].reads[0].v3AuthorityReview.binding.reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY');await runOpenWebResearch(args);
+ assert.deepEqual(calls,['SEARCH','CANDIDATE_READ','PROVIDER_READ']);
 });
 
 test('changed retained candidate body cannot restore run-scoped authority',async t=>{
