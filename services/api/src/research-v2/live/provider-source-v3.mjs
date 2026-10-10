@@ -3,6 +3,7 @@
 import {authorityBinding} from '../../research-v3/discovery-authority.mjs';
 import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.mjs';
 import {evaluate} from '../../research-v3/truth.mjs';
+import {refreshCatalog} from '../../research-v3/subscription-catalog.mjs';
 import {digest} from '../../research-v3/model.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 
@@ -21,8 +22,8 @@ export function evaluateProviderSourceTruth({target,retained,acquisition,observa
  const contentType=String(retained.contentType??'text/html').split(';')[0].trim().toLowerCase();
  const accessDecisions=retained.accessDecisions.map(row=>Object.fromEntries(Object.entries(row).filter(([key,value])=>allowedAccessFields.has(key)&&value!==undefined)));
  const observation=adaptV2CurrentSource({contractVersion:1,observationId,target:{service:target.service,serviceName:target.serviceName,market:target.market},page:{url,requestedUrl:retained.requestedUrl??url,outcome:'OK',httpStatus:retained.httpStatus,contentType,bodyHash:retained.bodyHash,sourceIntegrity:{sha256:retained.sourceIntegrity.sha256},rawSource:{text:retained.rawSource.text},accessDecisions},providerAuthority:{status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,url)},acquisition},objective);
- const truth=evaluate({objective,observations:[observation]});
- return {v3Observation:compactObservation(observation),v3Truth:truth};
+ const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},truth=evaluate(knowledge),catalog=refreshCatalog(knowledge,truth);
+ return {v3Observation:compactObservation(observation),v3Truth:truth,v3Catalog:structuredClone(catalog)};
 }
 
 function canonicalCountrySource({target,sourceCheck,attempt}){

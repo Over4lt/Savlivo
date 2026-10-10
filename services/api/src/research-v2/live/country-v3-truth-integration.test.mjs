@@ -21,7 +21,7 @@ function countryFixture(body=html(),{targetValue=target(),pageUrl=url}={}){
 const evaluateCountry=(body=html(),options)=>{const fixture=countryFixture(body,options);return {...fixture,result:evaluateCountryProviderTruth(fixture)};};
 
 test('country authoritative source reaches the shared V3 adapter and unchanged evaluate',()=>{
- const {result}=evaluateCountry();assert.equal(result.v3Observation.kind,'PROVIDER');assert.equal(result.v3Observation.context.transport,'DECODO');assert(result.v3Observation.candidateCount>0);assert.equal(result.v3Truth.prices.NO.propositions.PRICE_AMOUNT.value,79.99);
+ const {result}=evaluateCountry();assert.equal(result.v3Observation.kind,'PROVIDER');assert.equal(result.v3Observation.context.transport,'DECODO');assert(result.v3Observation.candidateCount>0);assert.equal(result.v3Truth.prices.NO.propositions.PRICE_AMOUNT.value,79.99);assert.equal(result.v3Catalog.offeringState,'OFFERING_FOUND');assert.equal(result.v3Catalog.state,'CATALOG_UNRESOLVED');assert.equal(result.v3Catalog.scope,'UNRESOLVED');
 });
 
 test('canonical country context lets existing Truth establish target market',()=>{
@@ -74,7 +74,7 @@ test('legacy zero rows and commercial insufficiency cannot veto country V3 evalu
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'country-v3-controller-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
  const body=html(),hash=digest(body),direct=evaluateProviderSourceTruth({target:fixture.target,retained:{url,requestedUrl:url,httpStatus:200,contentType:'text/html',bodyHash:hash,sourceIntegrity:{sha256:hash},rawSource:{text:body},accessDecisions:[{decision:'ALLOWED'}]},acquisition:{route:'DIRECT'},observationId:'controller-direct'}),args={directory,targets:[fixture.target],search:async()=>assert.fail('search'),read:async()=>({url,requestedUrl:url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:body},sourceIntegrity:{sha256:hash},accessDecisions:[{decision:'ALLOWED'}],authority:{status:'CONFIGURED_REVIEWED',...authority}}),classify:async()=>({eligible:true,url,authority:{validated:true,hostname:host}}),consumeProvider:async()=>({...direct,classification:'COMMERCIAL_FIELDS_INSUFFICIENT',verified:[],blockers:['CONFLICTING_MONTHLY_AMOUNTS']}),acquire:async()=>({...v3,classification:'COMMERCIAL_FIELDS_INSUFFICIENT',verified:[],blockers:['CONFLICTING_MONTHLY_AMOUNTS']})};
  await runOpenWebResearch({...args,maxActions:1});const state=await runOpenWebResearch({...args,maxActions:1});
- const current=state.targets[0],country=current.providerInterpretations.at(-1);assert.equal(current.verified.length,0);assert.equal(current.v3Truth.established,true);assert.equal(current.marketProof,undefined);assert.equal(country.classification,'COMMERCIAL_FIELDS_INSUFFICIENT');assert.equal(country.v3Truth.established,true);assert.equal(country.countryV3Evaluation.status,'EVALUATED');
+ const current=state.targets[0],country=current.providerInterpretations.at(-1);assert.equal(current.verified.length,0);assert.equal(current.v3Truth.established,true);assert.equal(current.v3Catalog.state,'CATALOG_UNRESOLVED');assert.equal(current.marketProof,undefined);assert.equal(country.classification,'COMMERCIAL_FIELDS_INSUFFICIENT');assert.equal(country.v3Truth.established,true);assert.equal(country.v3Catalog.state,'CATALOG_UNRESOLVED');assert.equal(country.countryV3Evaluation.status,'EVALUATED');
 });
 
 test('real unresolved propositions remain in existing Truth needs',()=>{

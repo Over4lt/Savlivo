@@ -11,6 +11,7 @@ import fs from 'node:fs';import path from 'node:path';
 import {digest,json} from './new-service-controller.mjs';
 import {createResearchMemory,combineResearchMemory} from '../live/research-memory.mjs';
 import {atomic} from './expansion-campaign.mjs';
+import {projectTargetV3Result} from './v3-result-projection.mjs';
 const hashFile=f=>stableHash(f);
 export function assertLifecycleCohort(ids,baseline){
  if(!ids.length||new Set(ids).size!==ids.length||ids.some(id=>baseline.includes(id)))throw Error('LIFECYCLE_COHORT_SCOPE');
@@ -86,7 +87,9 @@ export function writeLifecycleDisposition({directory,handoff,phases,events,boots
   row.productionEligible=row.serviceAdmission.status==='ESTABLISHED';
   row.subscriptionQualification=row.serviceAdmission.dimensions.monthlyRecurring;
   for(const price of row.pricing){price.exposure=row.productionEligible?'ADMITTED_SERVICE_PRICING':'RESEARCH_HYPOTHESIS_ONLY';price.publicationEligible=row.productionEligible&&price.status==='ESTABLISHED'&&price.observations.length>0;}
-  row.finalStatus=!bound||row.humanReview.length?'HUMAN_REVIEW_REQUIRED':row.login.status==='ESTABLISHED'||row.management.status==='ESTABLISHED'||row.pricing.some(p=>p.status!=='UNRESOLVED')?'PARTIAL':'UNRESOLVED';return row;
+  const projected=p.map(target=>({target,projection:projectTargetV3Result(target)})).filter(row=>row.projection);
+  if(projected.length){row.v3Offerings=projected.flatMap(({target,projection})=>projection.offerings.map(offering=>({targetId:target.id,...offering})));row.v3Catalogs=projected.map(({target,projection})=>({targetId:target.id,market:target.market,catalog:projection.catalog}));row.legacyDiagnostics=projected.flatMap(({target,projection})=>projection.legacyDiagnostics.map(diagnostic=>({targetId:target.id,market:target.market,...diagnostic})));row.termination=phases.pricing.services?.[id]?.stop??null;}
+  row.finalStatus=!bound||row.humanReview.length?'HUMAN_REVIEW_REQUIRED':row.login.status==='ESTABLISHED'||row.management.status==='ESTABLISHED'||row.pricing.some(p=>p.status!=='UNRESOLVED')||row.v3Offerings?.length?'PARTIAL':'UNRESOLVED';return row;
  });
  atomic(directory+'/final-dispositions.json',{services,executionComplete,productionPromoted:false});
  fs.writeFileSync(directory+'/final-dispositions.md','# Mature V2 final dispositions\n\nExecution completion is not evidence completion. No catalog promotion.\n\n| Service | Authority | Login | Management | Cancellation | Pricing | Requests | Final |\n|---|---|---|---|---|---|---:|---|\n'+services.map(s=>`| ${s.service_id} | ${s.providerAuthority.status} | ${s.login.status} | ${s.management.status} | ${s.cancellation.status} | ${s.pricing.map(p=>p.market+':'+p.status).join(', ')||'UNRESOLVED: no scope'} | ${s.requests} | ${s.finalStatus} |`).join('\n')+'\n');
