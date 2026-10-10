@@ -7,6 +7,9 @@ const terms=['price','prices','pricing','rates','fees','plans','plan','packages'
 const escape=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const words=terms.map(t=>new RegExp(/[\u3040-\u30ff\u3400-\u9fff\u0e00-\u0e7f]/u.test(t)?escape(t):'(?:^|[^\\p{L}\\p{N}])'+escape(t)+'(?:$|[^\\p{L}\\p{N}])','u'));
 const has=s=>{const n=normalizePriceIntent(s);return words.some((re,i)=>terms[i]==='goi'?/^(?:goi|cac goi|goi dang ky)$/.test(n):re.test(n));};
+const subscriptionBeyondPlan=/(?:^|[^\p{L}\p{N}])(?:price|prices|pricing|rates|fees|packages|tiers|membership|memberships|subscription|subscriptions|subscribe|pris|priser|abonnement|abonnements|abonnemang|medlemskap|medlemskab|preis|preise|tarife|mitgliedschaft|abo|prix|tarifs|precio|precios|suscripci[oó]n|membres[ií]a|prezzo|prezzi|abbonamento|pre[çc]o|pre[çc]os|assinatura|prijs|prijzen|lidmaatschap|cennik|abonament|fiyat|üyelik|abonelik|hinnat|tilaus|料金|価格|会員|요금|구독|멤버십|价格|定价|會員|会员|订阅|ราคา|สมัครสมาชิก|اشتراك|الأسعار|מחירים|מנוי|कीमत|सदस्यता)(?:$|[^\p{L}\p{N}])/u;
+const educational=/(?:^|[^\p{L}\p{N}])(?:study|studies|learning|lesson|lessons|curriculum|course|courses|education|educational|training)(?:$|[^\p{L}\p{N}])/u;
+export function educationalPlanOnly(lead){let path;try{path=new URL(lead.url).pathname;}catch{return false;}const text=normalizePriceIntent([path,lead.label,lead.accessibleName,lead.context].filter(Boolean).join(' '));return educational.test(text)&&/(?:^|[^\p{L}\p{N}])plans?(?:$|[^\p{L}\p{N}])/u.test(text)&&!subscriptionBeyondPlan.test(text);}
 const negative=/(?:^|[^\p{L}\p{N}])(?:account|settings|register|registration|signup|verification|artikler|nyheter|newsletter|privacy|cookies?|legal|terms|blog|news|press|investors?|careers?|jobs|compensation|business|enterprise|teams|advertising|advertiser|partner|merchant|developer|api|affiliate|commission|shipping|roaming|hardware|gift(?:s|card)?|merchandise|cancel(?:lation)?|refund|price change|historical|announcement|promotion article|oauth|authorize|logout|signin|login|reset|delete)(?:$|[^\p{L}\p{N}])/u;
 // A public information link is not a purchase/price entry. Only callers with
 // an existing researchable need may admit it as navigation, never as evidence.
@@ -24,8 +27,9 @@ export function priceIntent(lead,{base,authorities=[]}={}){
  const u=new URL(n.url),text=normalizePriceIntent([lead.label,lead.accessibleName].filter(Boolean).join(' ')),p=normalizePriceIntent(decoded),context=normalizePriceIntent(lead.context);
  if(/(?:^|\/)(?:account|billing|download|downloads|watch|episodes?|videos?|genres?|guidance)(?:\/|$)/i.test(u.pathname)||negative.test(text+' '+p+' '+context+' '+normalizePriceIntent(u.search))||/\.(?:pdf|js|css|png|svg|zip|mp4)$/i.test(u.pathname)||lead.inForm||lead.hidden)return no('NONCONSUMER_EDITORIAL_ACTION_OR_INERT');
  if(unreviewedRedirectParameter(u.href,authorities.map(a=>'https://'+a.hostname)))return no('UNREVIEWED_REDIRECT');
- const path=decoded.split('/').some(segment=>terms.includes(normalizePriceIntent(segment))),label=has(text),host=/^(?:pricing|plans|membership|subscriptions)\./i.test(u.hostname),weak=/^(?:join(?: now)?|get started|see options|compare options|choose|start now|become a member)$/i.test(text),ctx=has(context);
+ const path=decoded.split('/').some(segment=>terms.includes(normalizePriceIntent(segment))),label=has(text),host=/^(?:pricing|plans|membership|subscriptions)\./i.test(u.hostname),weak=[lead.label,lead.accessibleName].filter(Boolean).some(value=>/^(?:join(?: now)?|get started|see options|compare options|choose|start now|become a member)$/i.test(normalizePriceIntent(value))),ctx=has(context);
  if(/\b(?:how|why|when)\b|[?？]/u.test(text))return no('QUESTION_NOT_PLAN_ENTRY');
+ if(educationalPlanOnly({...lead,url:n.url}))return no('EDUCATIONAL_PLAN_NOT_COMMERCIAL');
  if(/(?:^|[.\/_-])(?:help|helpx|support|faq|articles?|hc)(?:[.\/_-]|$)/i.test(u.hostname+u.pathname))return no('NO_CORROBORATED_PRICE_INTENT');
  if(!path&&!label&&!host&&!(weak&&ctx))return no(weak?'UNCORROBORATED_PURCHASE_CTA':'NO_CORROBORATED_PRICE_INTENT');
  if(!path&&/information|about/.test(text))return no('NO_CORROBORATED_PRICE_INTENT');

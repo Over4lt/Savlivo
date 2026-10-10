@@ -7,6 +7,7 @@ import {catalogObjective,capabilityDestination} from '../intelligence/login-mana
 import {retainedSuccesses} from './retained-success.mjs';
 import {executableAction,exhaustedExecutionBudget} from './execution-capabilities.mjs';
 import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
+import {providerStageRoutingObjective,providerResourceRelevance,providerBranchPreference} from './provider-resource-routing.mjs';
 // Ordinal information value, not a probability or provider fact. No transport.
 import {normalizeFrontierUrl,semanticReasons} from './source-frontier.mjs';
 const norm=u=>normalizeFrontierUrl(u).url;
@@ -22,10 +23,11 @@ export function destinationInformation(t,url,{diagnosis=null,unresolvedFields=[]
  if(/cancel|downgrade|delete/.test(p)&&!terms){gain=0;reason='LOW_VALUE_FOR_PRICE_DISCOVERY';}
  if(!ranked&&(t.knownCommercialUrls??[]).some(x=>norm(x)===normalized))gain+=1;
  const marketObjective=pendingMarketProof(t).length>0;
- if(marketObjective){const relevant=/country|region|market|availability|terms|legal|membership|subscription|bedingungen/iu.test(p+' '+(lead?.label??lead?.title??''));return {url:normalized,eligible:relevant,informationGain:relevant?9:0,value:relevant?9:0,reason:relevant?'RESOLVE_MARKET_PROOF':'NOT_MARKET_PROOF_DESTINATION',marketApplicabilityEstablished:false};}
+ if(marketObjective){const relevant=/country|region|market|availability|terms|legal|membership|subscription|bedingungen/iu.test(p+' '+(lead?.label??lead?.title??'')),objective=providerStageRoutingObjective(t),relevance=providerResourceRelevance(t,lead??{url:normalized,title:''},objective);return {url:normalized,eligible:relevant,informationGain:relevant?9:0,value:relevant?9:0,reason:relevant?'RESOLVE_MARKET_PROOF':'NOT_MARKET_PROOF_DESTINATION',objective,objectiveRelevanceTier:relevance.tier,objectiveRole:relevance.role,objectiveSignals:relevance.signals,branchPreference:providerBranchPreference(t,lead,relevance),discoveryRank:lead?.rank??0,traversalOrder:lead?(t.leads??[]).indexOf(lead):(t.urls??[]).indexOf(url),marketApplicabilityEstablished:false};}
  const need=priceNeedRelevance(t,normalized,lead?.label??lead?.title??'');if(need&&gain>0){gain+=need.bonus;reason=need.reason;}
- return {url:normalized,eligible:gain>0,informationGain:gain,relativeCost:1,value:gain,reason,discoveryRank:lead?.rank??0,traversalOrder:lead?(t.leads??[]).indexOf(lead):(t.urls??[]).indexOf(url),marketApplicabilityEstablished:false};
+ const objective=providerStageRoutingObjective(t),relevance=providerResourceRelevance(t,lead??{url:normalized,title:''},objective);return {url:normalized,eligible:gain>0,informationGain:gain,relativeCost:1,value:gain,reason,objective,objectiveRelevanceTier:relevance.tier,objectiveRole:relevance.role,objectiveSignals:relevance.signals,branchPreference:providerBranchPreference(t,lead,relevance),discoveryRank:lead?.rank??0,traversalOrder:lead?(t.leads??[]).indexOf(lead):(t.urls??[]).indexOf(url),marketApplicabilityEstablished:false};
 }
+const compareDestination=(a,b)=>(a.objectiveRelevanceTier??3)-(b.objectiveRelevanceTier??3)||(a.branchPreference??0)-(b.branchPreference??0)||b.value-a.value||a.discoveryRank-b.discoveryRank||a.traversalOrder-b.traversalOrder||a.url.localeCompare(b.url);
 export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionContext}={}){
  const k=knowledge??{attempts:[],blockedOrigins:[],unresolvedFields:[]},attempts=k.attempts??[],evaluated=[...new Set(urls)].map(url=>{const x=destinationInformation(t,url,k);return {...x,capability:x.url?executableAction(t,{route:t.capabilities?.direct===false&&t.capabilities?.decodo===true?'DECODO':'DIRECT',url:x.url},executionContext):{executable:false,reason:'UNSAFE_URL'}};});
  const valid=evaluated.filter(x=>x.eligible&&!k.blockedOrigins?.includes(new URL(x.url).origin));
@@ -33,8 +35,8 @@ export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionCon
  // A refresh is explicit metadata, not an implicit time-based retry or provider fact.
  const refresh=t.refreshReview?.approved===true&&typeof t.refreshReview.reason==='string'&&!!t.refreshReview.reference;
  const successes=t.adaptiveExecution&&!catalogObjective(t)?retainedSuccesses(t):[],reuse=successes.filter(r=>r.intact&&!r.reviewed&&!r.stale).sort((a,b)=>Number(!!b.sufficient)-Number(!!a.sufficient)||a.url.localeCompare(b.url))[0],reacquire=new Set(successes.filter(r=>r.intact&&(r.reviewed||r.stale)&&!r.sufficient).map(r=>r.url));
- const candidates=valid.map(x=>reacquire.has(x.url)?{...x,value:x.value+1,reason:'PREVIOUS_PROVIDER_SUCCESS_INSUFFICIENT_REACQUIRE_ONCE'}:x).filter(x=>x.capability.executable&&(!pendingMarketProof(t).length&&(refresh||reacquire.has(x.url)&&x.informationGain>=4)||!seen.has(x.url))).sort((a,b)=>b.value-a.value||a.discoveryRank-b.discoveryRank||a.traversalOrder-b.traversalOrder||a.url.localeCompare(b.url));
- const budgetBlocked=valid.filter(x=>exhaustedExecutionBudget(x.capability)&&(!pendingMarketProof(t).length&&(refresh||reacquire.has(x.url)&&x.informationGain>=4)||!seen.has(x.url)));
+ const candidates=valid.map(x=>reacquire.has(x.url)?{...x,value:x.value+1,reason:'PREVIOUS_PROVIDER_SUCCESS_INSUFFICIENT_REACQUIRE_ONCE'}:x).filter(x=>x.capability.executable&&(!pendingMarketProof(t).length&&(refresh||reacquire.has(x.url)&&x.informationGain>=4)||!seen.has(x.url))).sort(compareDestination);
+ const budgetBlocked=valid.filter(x=>exhaustedExecutionBudget(x.capability)&&(!pendingMarketProof(t).length&&(refresh||reacquire.has(x.url)&&x.informationGain>=4)||!seen.has(x.url))).sort(compareDestination);
  return {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked};
 }
 function candidateAuthorityFrontier(t,urls,executionContext,knowledge){
@@ -72,5 +74,5 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(!executableAction(t,{route:'DISCOVERY'},executionContext).executable){route='STOP';reason=executableAction(t,{route:'DISCOVERY'},executionContext).reason;}
  else {route='DISCOVERY';reason='NO_USEFUL_PROVIDER_DESTINATION';}
  }
- return {route,reason,url,objective:pendingMarketProof(t).length?'MARKET_PROOF':null,marketProofIdentityKeys:pendingMarketProof(t).map(o=>o.key),retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DECODO','DISCOVERY','AUTHORITY_DISCOVERY','REUSE_RETAINED'].includes(route),evaluated,candidates,budgetBlocked:[...budgetBlocked,...authorityFrontier.budgetBlocked],attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5},ordinalOnly:true};
+ return {route,reason,url,objective:providerStageRoutingObjective(t),marketProofIdentityKeys:pendingMarketProof(t).map(o=>o.key),retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DECODO','DISCOVERY','AUTHORITY_DISCOVERY','REUSE_RETAINED'].includes(route),evaluated,candidates,budgetBlocked:[...budgetBlocked,...authorityFrontier.budgetBlocked],attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5},ordinalOnly:true};
 }

@@ -1,6 +1,6 @@
 import {priceNeedRelevance,priceNeedIntents} from '../intelligence/price-evidence-needs.mjs';
 import {pendingMarketProof} from './market-proof-continuation.mjs';
-import {priceEntries,priceInformationLink} from '../intelligence/price-entry-intent.mjs';
+import {priceEntries,priceInformationLink,educationalPlanOnly} from '../intelligence/price-entry-intent.mjs';
 import {loginEntries} from '../intelligence/login-entry-intent.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {catalogObjective,capabilityDestination} from '../intelligence/login-manage.mjs';
@@ -9,6 +9,7 @@ import {categoryIntent} from './research-planner.mjs';
 import {sourceLinks} from './source-frontier-links.mjs';
 import {normalizeFrontierUrl,semanticReasons} from './source-frontier.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
+import {providerResourceRelevance} from './provider-resource-routing.mjs';
 const norm=s=>{try{s=decodeURIComponent(s);}catch{}return String(s).normalize('NFKD').replace(/\p{M}/gu,'').normalize('NFC').toLowerCase();};
 const commercial=/(?:^|[^\p{L}\p{N}])(?:pricing|prices?|plans?|memberships?|subscribe|subscriptions?|premium|personal|individual|checkout|buy|join|packages?|tariffs?|pris|priser|abonnement(?:en|s)?|abonnemang|medlemskap|medlemskab|kjop|pakker|preise?|tarife?|mitgliedschaft|abo|pakete|prijzen|lidmaatschap|prix|tarifs?|offres|precios?|planes|suscripci[oó]n(?:es)?|membresia|precos?|planos|assinatura|subscricao|adesao|prezzi|piani|abbonament[oi]|iscriviti|cennik|cena|ceny|abonament|subskrypcja|pakiety|cenik|predplatne|clenstvi|tarify|fiyat(?:lar)?|uyelik|abonelik|paketler)(?:$|[^\p{L}\p{N}])|料金|価格|プラン|入会|月額|サブスクリプション|가격|요금|멤버십|구독|价格|定价|套餐|会员|订阅|開通|开通|ราคา|สมัครสมาชิก/iu;
 export const reviewedNavigationHost=(t,url)=>!!providerRoutingAuthority(t,url);
@@ -25,7 +26,7 @@ export function navigationRank(t,lead,needs=null){
  if([1,2].includes(t.smartResearch?.version)&&categoryIntent(t).startsWith('MEMBERSHIP')&&/(?:clubs?|locations?|gyms?|studios?|standorte|klubber|salles|pobocky|pobočky|店舗|지점)/iu.test(text))return 10;
  if([1,2].includes(t.smartResearch?.version)&&/faq|support|help|hilfe|aide|よくある質問|자주/iu.test(text)&&commercial.test(label))return 15;
  if(/(?:^|[.\/_-])(?:help|support|faq|terms|legal)(?:[.\/_-]|$)/.test(u.hostname+' '+p))return 40;
- if(commercial.test(p)||commercial.test(label)&&!/(?:information|about|information about)/.test(label))return /(?:^|[\/_-])(?:business|enterprise|teams?|contact-sales)(?:[\/_-]|$)/.test(p)?15:[1,2].includes(t.smartResearch?.version)&&lead.navigationDepth>1?-1:0;
+ if((commercial.test(p)||commercial.test(label)&&!/(?:information|about|information about)/.test(label))&&!educationalPlanOnly({...lead,label,url:u.href}))return /(?:^|[\/_-])(?:business|enterprise|teams?|contact-sales)(?:[\/_-]|$)/.test(p)?15:0;
  return p==='/'?30:20;
 }
 export function navigationLocale(t,lead){
@@ -39,7 +40,8 @@ export function providerNavigation(t,body,base,{width=2,depth=0,maxBytes=2097152
  const needs={intents:catalogObjective(t)?[]:priceNeedIntents(t),marketPending:pendingMarketProof(t).length>0};
  const scanBody=catalogObjective(t)?body:typeof body==='string'?body.replace(/<(template|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,m=>' '.repeat(m.length)):body;
  const parsed=sourceLinks(scanBody,{maxBytes,maxLinks}),map=new Map();
- const prices=!catalogObjective(t)?priceEntries(body,{base,authorities:t.authorities,maxBytes,maxControls:maxLinks}):null;
+ const routing=providerRoutingAuthority(t,base),authorities=routing?[...(t.authorities??[]),{hostname:routing.host}]:t.authorities;
+ const prices=!catalogObjective(t)?priceEntries(body,{base,authorities,maxBytes,maxControls:maxLinks}):null;
  if(prices){const information=new Set(prices.rejected.filter(c=>t.smartResearch?.version===2&&priceInformationLink(c,{base,authorities:t.authorities})&&(priceNeedRelevance(t,new URL(c.url,base).href,c.label,needs.intents)||needs.marketPending)).map(c=>c.reference.offset));const blocked=new Set(prices.rejected.filter(c=>!['NO_CORROBORATED_PRICE_INTENT'].includes(c.reason)&&!information.has(c.reference.offset)).map(c=>c.reference.offset));parsed.links=parsed.links.filter(l=>l.mechanism!=='FORM_GET_READ_ONLY'&&!blocked.has(l.reference.offset));parsed.links.push(...prices.candidates.filter(c=>c.runnable).map(c=>({...c,priceEntryIntent:true})));parsed.stops.push(...prices.stops);}
  const entries=catalogObjective(t)?loginEntries(body,{base,serviceName:t.serviceName,authorities:t.authorities,maxBytes,maxControls:maxLinks}):null;
  if(entries){parsed.links.push(...entries.candidates.filter(c=>c.runnable).map(c=>({...c,label:c.label||c.accessibleName})));parsed.stops.push(...entries.stops);}
@@ -49,7 +51,7 @@ export function providerNavigation(t,body,base,{width=2,depth=0,maxBytes=2097152
  const rank=navigationRank(t,lead,needs),weakRelevant=rank===20&&/subscription|abonnement|billing/i.test(l.label)&&String(l.label).toLowerCase().includes(t.serviceName.toLowerCase()),context=l.mechanism==='PROVIDER_CANONICAL_OR_LOCALE';
  if(rank>15&&!weakRelevant&&!(context&&locale.compatibility==='TARGET')&&!(/(?:^|[\/_-])(?:products?|services?|offers?|packages?)(?:[\/_-]|$)/i.test(p)&&rank<40))continue;
  if(navigationKey(base)===n.url||(t.reads??[]).some(r=>[r.requestedUrl,r.url].filter(Boolean).some(url=>navigationKey(url)===n.url)))continue;
- const row={...lead,priority:rank,localeHint:locale,depth:depth+1,evidenceStatus:'DISCOVERY_LEAD_ONLY',authoritative:false};
+ const relevance=providerResourceRelevance(t,lead),row={...lead,priority:rank,localeHint:locale,depth:depth+1,routingObjectiveRelevance:relevance,evidenceStatus:'DISCOVERY_LEAD_ONLY',authoritative:false};
  const prev=map.get(n.url);if(!prev||rank<prev.priority||!catalogObjective(t)&&rank===prev.priority&&(row.score??0)>(prev.score??0))map.set(n.url,row);
  }
  const links=[...map.values()].sort((a,b)=>a.priority-b.priority||(!catalogObjective(t)?(b.score??0)-(a.score??0):0)||(a.localeHint.compatibility==='TARGET'?-1:0)-(b.localeHint.compatibility==='TARGET'?-1:0)||a.reference.offset-b.reference.offset||a.url.localeCompare(b.url));
