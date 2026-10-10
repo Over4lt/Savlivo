@@ -10,6 +10,7 @@ const identity=value=>typeof value==='string'?value.normalize('NFKC').trim().rep
 const values=value=>typeof value==='string'?[value]:Array.isArray(value)&&value.every(row=>typeof row==='string')?value:[];
 const types=value=>new Set(values(value));
 const organizationType=value=>value==='Organization'||value==='Corporation'||/^https?:\/\/schema\.org\/(?:Organization|Corporation)\/?$/.test(value);
+const schemaType=(value,name)=>value===name||new RegExp('^https?://schema\\.org/'+name+'/?$').test(value);
 const pointer=(base,key)=>base+'/'+String(key).replaceAll('~','~0').replaceAll('/','~1');
 
 function structuredDocument(body){
@@ -69,6 +70,121 @@ function structuredExactOrigin(body,url,name){
     return {reason:'STRUCTURED_EXACT_ORIGIN_IDENTITY',locators:{structuredSources:sources,representation:{id:claim.id,jsonPointers:{types:claim.typeRows.map(row=>row.path),names:claim.nameRows.map(row=>row.path),url:claim.path},normalizedUrl:claim.normalized}}};
 }
 
+const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+const rowsFor=(group,key)=>group.rows.flatMap(row=>values(row.value[key]).map(value=>({value,path:pointer(row.path,key),source:row.source})));
+const typeRows=group=>rowsFor(group,'@type');
+const sourcesFor=rows=>[...new Map(rows.map(row=>[row.source.offset,row.source])).values()].map(source=>({start:source.offset,end:source.end,sha256:source.sha256}));
+const providerKey=group=>group.id?'id:'+group.id:'node:'+group.rows[0].source.offset+':'+group.rows[0].path;
+
+function groupsFor(scripts,{crossScript=false}={}){
+    const groups=[],byId=new Map();
+    for(const script of scripts)for(const entity of script.entities){
+        const id=typeof entity.value['@id']==='string'?entity.value['@id']:null;
+        if(id&&id.length>2048)return null;
+        const row={...entity,source:script};
+        if(id){
+            const key=crossScript?id:script.offset+'\n'+id,group=byId.get(key)??{id,rows:[]};
+            group.rows.push(row);byId.set(key,group);
+        }else groups.push({id:null,rows:[row]});
+    }
+    groups.push(...byId.values());return groups;
+}
+
+function exactTypedIdentity(group,type,target){
+    const declared=typeRows(group),kinds=declared.map(row=>row.value);
+    if(!kinds.length||!kinds.every(value=>schemaType(value,type)))return {status:'NOT_THIS_TYPE'};
+    const names=rowsFor(group,'name'),normalized=[...new Set(names.map(row=>identity(row.value)))];
+    if(!names.length||normalized.length!==1)return {status:'INVALID'};
+    return normalized[0]===target?{status:'MATCH',typeRows:declared,nameRows:names}:{status:'NO_MATCH'};
+}
+
+function exactOriginOrganization(group,url){
+    const declared=typeRows(group),kinds=declared.map(row=>row.value);
+    if(!kinds.length||!kinds.every(organizationType))return {status:'NOT_ORGANIZATION'};
+    const names=rowsFor(group,'name'),normalizedNames=[...new Set(names.map(row=>identity(row.value)))],urls=rowsFor(group,'url');
+    if(!names.length||normalizedNames.length!==1||!urls.length)return {status:'INVALID'};
+    const normalized=[];
+    for(const row of urls){const value=normalizeUrl(row.value,url);if(!value)return {status:'INVALID'};normalized.push({...row,normalized:value});}
+    const host=new URL(url).hostname;
+    if(normalized.some(row=>new URL(row.normalized).hostname!==host))return {status:'INVALID'};
+    return {status:'MATCH',group,key:providerKey(group),typeRows:declared,nameRows:names,urlRows:normalized};
+}
+
+function relationshipTargets(row,predicate,byId){
+    if(!Object.hasOwn(row.value,predicate))return [];
+    const raw=row.value[predicate],items=Array.isArray(raw)?raw.map((value,index)=>({value,path:pointer(pointer(row.path,predicate),index)})):[{value:raw,path:pointer(row.path,predicate)}],targets=[];
+    if(!items.length)return null;
+    for(const item of items){
+        if(!object(item.value))return null;
+        const keys=Object.keys(item.value);
+        if(keys.length===1&&keys[0]==='@id'&&typeof item.value['@id']==='string'){
+            const group=byId.get(item.value['@id']);if(!group)return null;
+            targets.push({group,path:item.path,reference:pointer(item.path,'@id')});continue;
+        }
+        if(typeof item.value['@id']==='string'&&(item.value['@id'].length>2048||byId.has(item.value['@id'])))return null;
+        targets.push({group:{id:typeof item.value['@id']==='string'?item.value['@id']:null,rows:[{value:item.value,path:item.path,source:row.source}]},path:item.path,reference:null});
+    }
+    return targets;
+}
+
+function relatedRepresentation({requested,relationship,provider}){
+    const rows=[...requested.group.rows,...provider.group.rows],sources=sourcesFor(rows);
+    return {reason:'STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY',providerKey:provider.key,sortKey:[relationship.predicate,relationship.path,requested.group.id??requested.group.rows[0].path].join('\n'),locators:{structuredSources:sources,representation:{requestedIdentity:{id:requested.group.id,type:requested.type,jsonPointers:{types:requested.typeRows.map(row=>row.path),names:requested.nameRows.map(row=>row.path)}},relationship:{predicate:relationship.predicate,jsonPointer:relationship.path,targetId:relationship.targetId,referencePointer:relationship.reference},providerOrganization:{id:provider.group.id,jsonPointers:{types:provider.typeRows.map(row=>row.path),names:provider.nameRows.map(row=>row.path),urls:provider.urlRows.map(row=>row.path)},normalizedUrls:provider.urlRows.map(row=>row.normalized)}}}};
+}
+
+function structuredIdentityRelationship(body,url,name){
+    const parsed=structuredDocument(body);if(!parsed||!parsed.scripts.length)return null;
+    const host=new URL(url).hostname;
+    for(const href of parsed.canonicals){let canonical;try{canonical=new URL(href,url);}catch{continue;}if(canonical.hostname!==host)return null;}
+    const target=identity(name),proofs=[];
+
+    // New direct identities may compose exact @id fragments across scripts just
+    // as the legacy exact-name proof already does. The legacy proof runs first
+    // and therefore keeps its binding representation byte-stable.
+    const directGroups=groupsFor(parsed.scripts,{crossScript:true});if(!directGroups)return null;
+    for(const group of directGroups){
+        const declared=typeRows(group),kinds=declared.map(row=>row.value);if(!kinds.some(organizationType))continue;
+        const names=rowsFor(group,'name'),exactName=names.some(row=>identity(row.value)===target),alternate=rowsFor(group,'alternateName').filter(row=>identity(row.value)===target),legal=rowsFor(group,'legalName').filter(row=>identity(row.value)===target);
+        if(!exactName&&!alternate.length&&!legal.length)continue;
+        const provider=exactOriginOrganization(group,url);if(provider.status!=='MATCH')return null;
+        if(exactName)continue;
+        const requested=alternate.length?{property:'alternateName',rows:alternate,reason:'STRUCTURED_EXACT_ORIGIN_ALTERNATE_IDENTITY'}:{property:'legalName',rows:legal,reason:'STRUCTURED_EXACT_ORIGIN_LEGAL_IDENTITY'};
+        proofs.push({reason:requested.reason,providerKey:provider.key,sortKey:requested.property,locators:{structuredSources:sourcesFor(group.rows),representation:{id:group.id,jsonPointers:{types:provider.typeRows.map(row=>row.path),providerNames:provider.nameRows.map(row=>row.path),requestedIdentity:requested.rows.map(row=>row.path),urls:provider.urlRows.map(row=>row.path)},requestedIdentity:{property:requested.property,values:requested.rows.map(row=>row.value)},normalizedUrls:provider.urlRows.map(row=>row.normalized)}}});
+    }
+
+    // Relationship references are intentionally same-script only. Embedded
+    // objects are inspected only as the direct target of an allowlisted edge.
+    for(const script of parsed.scripts){
+        const groups=groupsFor([script]);if(!groups)return null;
+        const byId=new Map(groups.filter(group=>group.id).map(group=>[group.id,group]));
+        for(const group of groups){
+            const provider=exactOriginOrganization(group,url);
+            if(provider.status==='MATCH')for(const row of group.rows){
+                const targets=relationshipTargets(row,'brand',byId);if(targets===null)return null;
+                for(const relation of targets){
+                    const brand=exactTypedIdentity(relation.group,'Brand',target);if(brand.status==='INVALID')return null;if(brand.status!=='MATCH')continue;
+                    proofs.push(relatedRepresentation({requested:{group:relation.group,type:'Brand',typeRows:brand.typeRows,nameRows:brand.nameRows},relationship:{predicate:'brand',path:relation.path,targetId:relation.group.id,reference:relation.reference},provider}));
+                }
+            }
+            const shapes=[['Service',['provider','publisher']],['SoftwareApplication',['provider','publisher']],['WebSite',['publisher']],['Product',['manufacturer']]];
+            for(const [type,predicates]of shapes){
+                const requested=exactTypedIdentity(group,type,target);if(requested.status==='INVALID')return null;if(requested.status!=='MATCH')continue;
+                for(const row of group.rows)for(const predicate of predicates){
+                    const targets=relationshipTargets(row,predicate,byId);if(targets===null)return null;
+                    for(const relation of targets){
+                        const provider=exactOriginOrganization(relation.group,url);if(provider.status!=='MATCH')return null;
+                        proofs.push(relatedRepresentation({requested:{group,type,typeRows:requested.typeRows,nameRows:requested.nameRows},relationship:{predicate,path:relation.path,targetId:relation.group.id,reference:relation.reference},provider}));
+                    }
+                }
+            }
+        }
+    }
+    if(!proofs.length)return null;
+    if(new Set(proofs.map(proof=>proof.providerKey)).size!==1)return null;
+    proofs.sort((a,b)=>a.reason.localeCompare(b.reason)||a.sortKey.localeCompare(b.sortKey));
+    const {providerKey:_providerKey,sortKey:_sortKey,...proof}=proofs[0];return proof;
+}
+
 export function reviewCandidateAuthority(observation,objective) {
     const o=observation,body=o?.body;
     if(o?.kind!=='CANDIDATE'||o.authority!=='UNREVIEWED_CANDIDATE'||o.outcome!=='OK'||o.truncated||o.completeness!=='COMPLETE'||typeof body!=='string'||!body.trim()||o.sha256!==digest(body)||o.context?.representation!=='CANDIDATE_PAGE'||o.format!=='WEB'||!Number.isInteger(o.httpStatus)||o.httpStatus<200||o.httpStatus>=300||!Array.isArray(o.access)||!o.access.length||o.access.some(a=>a.decision!=='ALLOWED'))return null;
@@ -101,6 +217,6 @@ export function reviewCandidateAuthority(observation,objective) {
     }
     const host=new URL(url).hostname;
     if(relation)return {host,kind:'AUTONOMOUS_FIRST_PARTY_PRESENTATION',reason:'FIRST_PARTY_PRESENTATION',scope:'EXACT_HOST_PROVIDER_SOURCING',sourceRole:'CANDIDATE_PAGE',serviceId:objective.serviceId,serviceName:name,url,observation:o.id,bodySha256:o.sha256,locators:{publisher:span(body,publisher),relation:span(body,relation)}};
-    const structured=structuredExactOrigin(body,url,name);if(!structured)return null;
+    const structured=structuredExactOrigin(body,url,name)??structuredIdentityRelationship(body,url,name);if(!structured)return null;
     return {host,kind:'AUTONOMOUS_FIRST_PARTY_PRESENTATION',reason:structured.reason,scope:'EXACT_HOST_PROVIDER_SOURCING',sourceRole:'CANDIDATE_PAGE',serviceId:objective.serviceId,serviceName:name,url,observation:o.id,bodySha256:o.sha256,locators:structured.locators};
 }

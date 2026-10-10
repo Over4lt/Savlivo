@@ -14,6 +14,7 @@ const jsonLd=value=>`<script type="application/ld+json">${JSON.stringify(value)}
 const structured=jsonLd({'@context':'https://schema.org','@type':'Organization','@id':'https://aurora.example/#organization',name,url:'https://aurora.example'});
 const observation=(body=owned,extra={})=>({id:'candidate-1',kind:'CANDIDATE',authority:'UNREVIEWED_CANDIDATE',url,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'CANDIDATE_PAGE'},outcome:'OK',truncated:false,completeness:'COMPLETE',format:'WEB',httpStatus:200,access:[{decision:'ALLOWED'}],body,sha256:digest(body),...extra});
 const review=(body,extra={})=>reviewCandidateAuthority(observation(body,extra),objective);
+const structuredReview=(value,{serviceName=name,candidateUrl=url}={})=>{const body=jsonLd(value),candidateHost=new URL(candidateUrl).hostname;return reviewCandidateAuthority(observation(body,{url:candidateUrl}),{...objective,serviceName,candidateHosts:[candidateHost],seeds:[candidateUrl]});};
 const robots={url:`https://${host}/robots.txt`,transport:'DIRECT',status:404,contentType:'text/plain',body:''};
 const fixture=(body=owned,bounds={actions:2,acquisitions:2,searches:0,modelCalls:0})=>({objective,permissions:{DIRECT:true},bounds,fixtures:[robots,{url,transport:'DIRECT',body}]});
 const execute=(input,extra={})=>runTarget({input,capabilities:offlineCapabilities(input),interpret:interpretBillingFixture,...extra});
@@ -49,6 +50,96 @@ test('bounded exact target Organization URL establishes exact-host authority wit
 test('bounded same-document @graph and @id resolution joins one Organization representation',()=>{
     const body=jsonLd({'@context':'https://schema.org','@graph':[{'@id':'#provider','@type':'https://schema.org/Corporation',name},{'@id':'#provider',url:'https://aurora.example/about'}]}),binding=review(body);
     assert.equal(binding?.reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY');assert.equal(binding.host,host);assert.equal(binding.locators.representation.id,'#provider');
+});
+
+test('legacy exact-name and first-party proof objects remain byte-stable',()=>{
+    assert.deepEqual(review(structured),{host:'aurora.example',kind:'AUTONOMOUS_FIRST_PARTY_PRESENTATION',reason:'STRUCTURED_EXACT_ORIGIN_IDENTITY',scope:'EXACT_HOST_PROVIDER_SOURCING',sourceRole:'CANDIDATE_PAGE',serviceId:'aurora-club',serviceName:'Aurora Club',url:'https://aurora.example/membership',observation:'candidate-1',bodySha256:'0c00d101cd9f07715c121b74b9e912d3d2b8a6d99664aa1ea7c365855c9341d9',locators:{structuredSources:[{start:35,end:188,sha256:'623247d9f10a23c2d085f91c58d3e8414f31bf32b92616bd0dda2b2289a31847'}],representation:{id:'https://aurora.example/#organization',jsonPointers:{types:['/@type'],names:['/name'],url:'/url'},normalizedUrl:'https://aurora.example/'}}});
+    assert.deepEqual(review(owned),{host:'aurora.example',kind:'AUTONOMOUS_FIRST_PARTY_PRESENTATION',reason:'FIRST_PARTY_PRESENTATION',scope:'EXACT_HOST_PROVIDER_SOURCING',sourceRole:'CANDIDATE_PAGE',serviceId:'aurora-club',serviceName:'Aurora Club',url:'https://aurora.example/membership',observation:'candidate-1',bodySha256:'ea63702d914c1c33abc1682ccb30083e610f986b17360dbdf47f58e566bc08fb',locators:{publisher:{start:188,end:228,quote:'© Aurora Club 2026. All rights reserved.',sha256:'18eed49635f61a8897fb0b2795e435e9709aa075369465af829a6076c8178cfa'},relation:{start:46,end:108,quote:'We operate Aurora Club membership and provide our own classes.',sha256:'bd0bc478e79b3a62f9dffc0ab839a76927bbcb1b2c7380fe910181efcd78af69'}}});
+});
+
+test('exact-origin Organization alternateName and exact legalName add distinct source-bound proofs',()=>{
+    const alternate=structuredReview({'@type':'Organization',name:'Aurora Holdings',alternateName:name,url:'https://aurora.example'});
+    assert.equal(alternate?.reason,'STRUCTURED_EXACT_ORIGIN_ALTERNATE_IDENTITY');assert.equal(alternate.scope,'EXACT_HOST_PROVIDER_SOURCING');assert.deepEqual(alternate.locators.representation.requestedIdentity,{property:'alternateName',values:[name]});
+    const legal=structuredReview({'@type':'Corporation',name:'Aurora Holdings',legalName:name,url:'https://aurora.example'});
+    assert.equal(legal?.reason,'STRUCTURED_EXACT_ORIGIN_LEGAL_IDENTITY');assert.deepEqual(legal.locators.representation.requestedIdentity,{property:'legalName',values:[name]});
+});
+
+test('semantic and legal suffix shortening remain unresolved without explicit identity',()=>{
+    for(const organizationName of ['Acme Fitness','Acme Fitness LLC'])assert.equal(structuredReview({'@type':'Organization',name:organizationName,legalName:organizationName,url:'https://aurora.example'},{serviceName:'Acme'}),null);
+});
+
+test('Organization brand relationship supports embedded and exact same-script @id Brand objects',()=>{
+    const embedded=structuredReview({'@type':'Organization',name:'Aurora Holdings',url:'https://aurora.example',brand:{'@type':'Brand',name}});
+    assert.equal(embedded?.reason,'STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY');assert.equal(embedded.locators.representation.relationship.predicate,'brand');
+    const referenced=structuredReview({'@context':'https://schema.org','@graph':[{'@id':'#provider','@type':'Organization',name:'Aurora Holdings',url:'https://aurora.example',brand:{'@id':'#brand'}},{'@id':'#brand','@type':'Brand',name}]});
+    assert.equal(referenced?.reason,'STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY');assert.equal(referenced.locators.representation.relationship.targetId,'#brand');assert.ok(referenced.locators.representation.relationship.referencePointer.endsWith('/@id'));
+});
+
+test('Service provider and publisher relationships bind only their exact-origin Organization',()=>{
+    for(const predicate of ['provider','publisher']){
+        const value={'@context':'https://schema.org','@graph':[{'@id':'#service','@type':'Service',name,[predicate]:{'@id':'#provider'}},{'@id':'#provider','@type':'Organization',name:'Aurora Holdings',url:'https://aurora.example'}]},binding=structuredReview(value);
+        assert.equal(binding?.reason,'STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY',predicate);assert.equal(binding.locators.representation.requestedIdentity.type,'Service');assert.equal(binding.locators.representation.relationship.predicate,predicate);
+    }
+});
+
+test('SoftwareApplication provider and publisher relationships are allowlisted',()=>{
+    for(const predicate of ['provider','publisher']){
+        const binding=structuredReview({'@type':'SoftwareApplication',name,[predicate]:{'@type':'Corporation',name:'Aurora Software',url:'https://aurora.example'}});
+        assert.equal(binding?.reason,'STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY',predicate);assert.equal(binding.locators.representation.requestedIdentity.type,'SoftwareApplication');
+    }
+});
+
+test('WebSite publisher and Product manufacturer relationships are allowlisted',()=>{
+    const website=structuredReview({'@type':'WebSite',name,publisher:{'@type':'Organization',name:'Aurora Holdings',url:'https://aurora.example'}});
+    assert.equal(website?.locators.representation.relationship.predicate,'publisher');
+    const product=structuredReview({'@type':'Product',name,manufacturer:{'@type':'Organization',name:'Aurora Manufacturing',url:'https://aurora.example'}});
+    assert.equal(product?.locators.representation.relationship.predicate,'manufacturer');
+});
+
+test('new relationship proof retains identity edge provider and source locators',()=>{
+    const binding=structuredReview({'@context':'https://schema.org','@graph':[{'@id':'#service','@type':'Service',name,provider:{'@id':'#provider'}},{'@id':'#provider','@type':'Organization',name:'Aurora Holdings',url:'https://aurora.example'}]}),r=binding.locators.representation;
+    assert.ok(binding.bodySha256);assert.ok(binding.observation);assert.ok(binding.locators.structuredSources.every(source=>source.start>=0&&source.end>source.start&&source.sha256));
+    assert.deepEqual(r.requestedIdentity.jsonPointers.names,['/@graph/0/name']);assert.equal(r.relationship.jsonPointer,'/@graph/0/provider');assert.equal(r.relationship.referencePointer,'/@graph/0/provider/@id');assert.deepEqual(r.providerOrganization.jsonPointers.names,['/@graph/1/name']);assert.deepEqual(r.providerOrganization.jsonPointers.urls,['/@graph/1/url']);assert.deepEqual(r.providerOrganization.normalizedUrls,['https://aurora.example/']);
+});
+
+test('brand co-location Product provider Product brand and Article publisher stay unresolved',()=>{
+    const provider={'@id':'#provider','@type':'Organization',name:'Aurora Marketplace',url:'https://aurora.example'},brand={'@id':'#brand','@type':'Brand',name};
+    const cases=[
+        {'@context':'https://schema.org','@graph':[brand,provider]},
+        {'@context':'https://schema.org','@graph':[{'@type':'Product',name,provider:{'@id':'#provider'}},provider]},
+        {'@context':'https://schema.org','@graph':[{'@type':'Product',name:'Listed item',brand:{'@id':'#brand'}},brand,provider]},
+        {'@context':'https://schema.org','@graph':[{'@type':'Article',publisher:{'@id':'#provider'},about:{'@type':'Product',name,brand:{'@id':'#brand'}}},brand,provider]},
+        {'@type':'SoftwareApplication',name,description:'Marketplace listing with no provider or publisher relationship'},
+    ];
+    for(const value of cases)assert.equal(structuredReview(value),null,JSON.stringify(value));
+});
+
+test('substring token body and third-party publication signals cannot establish identity',()=>{
+    assert.equal(structuredReview({'@type':'Organization',name:'Aurora Club Fitness',url:'https://aurora.example'}),null);
+    assert.equal(structuredReview({'@type':'Organization',name:'Other Aurora Publisher',url:'https://aurora.example'}),null);
+    assert.equal(review(`<main>${name} is mentioned in this review.</main><footer>© Daily Review 2026.</footer>`),null);
+    assert.equal(review(`${jsonLd({'@type':'Organization',name:'Daily Review',url:'https://aurora.example'})}<main>${name}</main>`),null);
+});
+
+test('relationship graph fails closed for wrong host dangling duplicate conflicting circular and cross-script references',()=>{
+    const service=provider=>({'@id':'#service','@type':'Service',name,provider}),provider=(id='#provider',providerName='Aurora Holdings',providerUrl='https://aurora.example')=>({'@id':id,'@type':'Organization',name:providerName,url:providerUrl});
+    const cases=[
+        {'@context':'https://schema.org','@graph':[service({'@id':'#provider'}),provider('#provider','Aurora Holdings','https://other.example')]},
+        {'@context':'https://schema.org','@graph':[service({'@id':'#missing'})]},
+        {'@context':'https://schema.org','@graph':[service({'@id':'#provider'}),provider(),{'@id':'#provider',name:'Conflicting Holdings'}]},
+        {'@context':'https://schema.org','@graph':[{'@type':'Service',name,provider:[{'@id':'#one'},{'@id':'#two'}]},provider('#one','One Holdings'),provider('#two','Two Holdings')]},
+        {'@context':'https://schema.org','@graph':[{'@id':'#service','@type':'Service',name,provider:{'@id':'#service'}}]},
+    ];
+    for(const value of cases)assert.equal(structuredReview(value),null,JSON.stringify(value));
+    const crossScript=`${jsonLd({'@type':'Service',name,provider:{'@id':'#provider'}})}${jsonLd(provider())}`;assert.equal(review(crossScript),null);
+    const siblingUrl='https://shop.aurora.example/membership';assert.equal(structuredReview({'@type':'Service',name,provider:{'@type':'Organization',name:'Aurora Holdings',url:'https://aurora.example'}},{candidateUrl:siblingUrl}),null);
+});
+
+test('new relationship resolver remains bounded malformed-safe and non-recursive',()=>{
+    const relation={'@context':'https://schema.org','@graph':[{'@type':'Service',name,provider:{'@id':'#provider'}},{'@id':'#provider','@type':'Organization',name:'Aurora Holdings',url:'https://aurora.example'}]};
+    const excessive={'@context':'https://schema.org','@graph':[...relation['@graph'],...Array.from({length:structuredExactOriginBounds.nodes},()=>({}))]};
+    assert.equal(structuredReview(excessive),null);
+    assert.equal(review('<script type="application/ld+json">{"@type":"Service",</script>'),null);
 });
 
 test('minimized retained Chess-shaped presentations use the same exact-origin invariant',()=>{

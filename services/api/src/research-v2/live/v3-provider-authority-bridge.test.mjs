@@ -13,11 +13,12 @@ import {hasProviderRoutingAuthority,installRunScopedV3ProviderAuthority,provider
 import {destinationInformation} from './information-routing.mjs';
 import {executableAction} from './execution-capabilities.mjs';
 import {planResearch} from './research-planner.mjs';
-import {runOpenWebResearch} from './open-web-discovery.mjs';
+import {rehydrateRetainedProviderAuthority,runOpenWebResearch} from './open-web-discovery.mjs';
 
 const name='Aurora Club',service='aurora-club',host='aurora.example',url=`https://${host}/membership`;
 const owned=`<html><main><h1>${name} membership</h1><p>We operate ${name} membership and provide our own classes.</p><a href="/pricing">Pricing</a></main><footer>© ${name} 2026. All rights reserved.</footer></html>`;
 const structured=`<html><script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@type':'Organization',name,url:'https://aurora.example'})}</script><main><h1>${name} membership</h1><a href="/pricing">Pricing</a></main></html>`;
+const related=`<html><script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@graph':[{'@id':'#service','@type':'Service',name,provider:{'@id':'#provider'}},{'@id':'#provider','@type':'Organization',name:'Aurora Holdings',url:'https://aurora.example'}]})}</script><main><a href="/pricing">Pricing</a></main></html>`;
 const target=()=>({id:'aurora-us',service,serviceName:name,market:'US',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[],authorities:[],gaps:['amount'],reads:[],queries:[],decisions:[],capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false}});
 function input(body=owned,extra={}){
  const sha256=digest(body),page={url,requestedUrl:url,outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,bodyHash:sha256,sourceIntegrity:{sha256},rawSource:{text:body},accessDecisions:[{decision:'ALLOWED'}],...(extra.page??{})};
@@ -37,6 +38,22 @@ test('contract is frozen and equivalent V2 material produces the exact native V3
 test('V2 boundary installs the bounded structured exact-origin proof without changing scope',()=>{
  const review=reviewV2CandidateAuthority(input(structured)),t=target();assert.equal(review.providerAuthorityBinding.reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY');installRunScopedV3ProviderAuthority(t,review);
  assert.equal(providerRoutingAuthority(t,url).provenance,'V3_AUTONOMOUS_CANDIDATE_REVIEW');assert.equal(providerRoutingAuthority(t,url).binding.scope,'EXACT_HOST_PROVIDER_SOURCING');assert.equal(providerRoutingAuthority(t,'https://support.aurora.example/'),null);
+});
+
+test('V2 boundary carries a same-observation service-provider proof without creating Truth',()=>{
+ const review=reviewV2CandidateAuthority(input(related)),t=target();assert.equal(review.providerAuthorityBinding.reason,'STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY');installRunScopedV3ProviderAuthority(t,review);
+ assert.equal(providerRoutingAuthority(t,url).provenance,'V3_AUTONOMOUS_CANDIDATE_REVIEW');assert.equal(providerRoutingAuthority(t,'https://support.aurora.example/'),null);assert.equal(review.providerAuthorityBinding.scope,'EXACT_HOST_PROVIDER_SOURCING');
+ const objective={kind:'PRICE',serviceId:service,serviceName:name,providerHosts:[],candidateHosts:[host],markets:['US'],seeds:[url]},truth=evaluate({objective,observations:[review.candidateObservation],attempts:[],policyBlocks:[],stop:null});
+ assert.equal(truth.established,false);assert.equal(truth.service.SERVICE_IDENTITY.state,'UNRESOLVED');for(const field of ['PRICE_AMOUNT','CURRENCY','MONTHLY_SUBSCRIPTION','TARGET_MARKET'])assert.equal(truth.prices.US.propositions[field].state,'UNRESOLVED');assert.equal(refreshCatalog({objective,observations:[review.candidateObservation]},truth).state,'CATALOG_UNRESOLVED');
+});
+
+test('retained relationship proof rehydrates identically and edge URL or body tampering fails',t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'related-authority-rehydrate-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const original=reviewV2CandidateAuthority(input(related)),binding=original.providerAuthorityBinding,make=(body=related,{metadata=true}={})=>{const hash=digest(body),current=target(),page={...input(body).page,bodyHash:hash,sourceIntegrity:{sha256:hash},bodyFile:`bodies/${hash}.txt`,researchRole:'CANDIDATE_AUTHORITY_SOURCE',v3AuthorityReview:{status:'PROVIDER_BOUND',reason:null,binding}};fs.mkdirSync(path.join(directory,'bodies'),{recursive:true});fs.writeFileSync(path.join(directory,page.bodyFile),metadata?body:body+' changed');current.reads=[page];return current;};
+ const intact=make();assert.equal(rehydrateRetainedProviderAuthority(directory,intact),1);assert.deepEqual(runScopedV3ProviderBindings(intact),[binding]);
+ const edge=make(related.replace('"provider"','"publisher"'));assert.equal(rehydrateRetainedProviderAuthority(directory,edge),0);assert.equal(hasProviderRoutingAuthority(edge),false);
+ const changedUrl=make(related.replace('https://aurora.example','https://other.example'));assert.equal(rehydrateRetainedProviderAuthority(directory,changedUrl),0);assert.equal(hasProviderRoutingAuthority(changedUrl),false);
+ const changedBody=make(related,{metadata:false});assert.equal(rehydrateRetainedProviderAuthority(directory,changedBody),0);assert.equal(hasProviderRoutingAuthority(changedBody),false);
 });
 
 for(const [label,body] of [
