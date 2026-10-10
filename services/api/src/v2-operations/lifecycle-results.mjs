@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import {targetingJson,lengthOnly} from './targeting-json.mjs';
 const status={status:true};
-const service={service_id:true,finalStatus:true,providerAuthority:status,identity:status,
+const service={service_id:true,finalStatus:true,servicePresence:status,providerAuthority:status,identity:status,
  subscriptionQualification:status,markets:{status:true,researched:true},login:status,
  management:status,cancellation:status,requests:true,researchComplete:true,executionComplete:true,
  humanReview:true,unresolvedReasons:true,

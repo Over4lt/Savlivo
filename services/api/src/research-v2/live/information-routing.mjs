@@ -8,6 +8,7 @@ import {retainedSuccesses} from './retained-success.mjs';
 import {executableAction,exhaustedExecutionBudget} from './execution-capabilities.mjs';
 import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {providerStageRoutingObjective,providerResourceRelevance,providerBranchPreference} from './provider-resource-routing.mjs';
+import {authorityAcquisitionObjective,candidateAuthorityRouting,orderCandidateAuthorityRows} from './candidate-authority-routing.mjs';
 // Ordinal information value, not a probability or provider fact. No transport.
 import {normalizeFrontierUrl,semanticReasons} from './source-frontier.mjs';
 const norm=u=>normalizeFrontierUrl(u).url;
@@ -42,8 +43,8 @@ export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionCon
 function candidateAuthorityFrontier(t,urls,executionContext,knowledge){
  const attempted=new Set([...(t.reads??[]).flatMap(r=>[r.requestedUrl,r.url]),...(knowledge?.attempts??[]).flatMap(a=>[a.url,a.finalUrl])].map(norm).filter(Boolean));
  const blocked=new Set(knowledge?.blockedOrigins??t.blockedOrigins??[]);
- const rows=[...new Set(urls)].map((url,index)=>{const normalized=norm(url);if(!normalized||attempted.has(normalized)||blocked.has(new URL(normalized).origin))return null;const lead=(t.leads??[]).find(l=>norm(l.url)===normalized),capability=executableAction(t,{route:'DIRECT',url:normalized},executionContext);return {url:normalized,index,rank:lead?.rank??Number.MAX_SAFE_INTEGER,priority:Number.isFinite(lead?.navigationPriority)?lead.navigationPriority:100,capability};}).filter(Boolean).sort((a,b)=>a.priority-b.priority||a.rank-b.rank||a.index-b.index||a.url.localeCompare(b.url));
- return {candidates:rows.filter(row=>row.capability.executable),budgetBlocked:rows.filter(row=>exhaustedExecutionBudget(row.capability))};
+ const rows=[...new Set(urls)].map((url,index)=>{const normalized=norm(url);if(!normalized||attempted.has(normalized)||blocked.has(new URL(normalized).origin))return null;const lead=(t.leads??[]).find(l=>norm(l.url)===normalized)??{url:normalized,originKind:'SEED',frontierOrder:index},capability=executableAction(t,{route:'DIRECT',url:normalized},executionContext);return {url:normalized,index,lead,...candidateAuthorityRouting(t,lead,index),capability};}).filter(Boolean),remainingReads=Math.min((executionContext?.bounds?.perServiceReads??Infinity)-(t.reads?.length??0),(executionContext?.bounds?.reads??Infinity)-(executionContext?.usage?.reads??0));
+ return {objective:authorityAcquisitionObjective,candidates:orderCandidateAuthorityRows(rows.filter(row=>row.capability.executable),{remainingReads}),budgetBlocked:orderCandidateAuthorityRows(rows.filter(row=>exhaustedExecutionBudget(row.capability)),{remainingReads})};
 }
 export function chooseInformationAction(t,{knowledge,retained=null,configurationDemonstrated=false,renderingDemonstrated=false,urls=t.urls??[],discoveryAllowed=true,discoveryQuery=null,executionContext}={}){
  const {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked}=actionableDestinations(t,{knowledge,urls,executionContext});
@@ -74,5 +75,5 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(!executableAction(t,{route:'DISCOVERY'},executionContext).executable){route='STOP';reason=executableAction(t,{route:'DISCOVERY'},executionContext).reason;}
  else {route='DISCOVERY';reason='NO_USEFUL_PROVIDER_DESTINATION';}
  }
- return {route,reason,url,objective:providerStageRoutingObjective(t),marketProofIdentityKeys:pendingMarketProof(t).map(o=>o.key),retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DECODO','DISCOVERY','AUTHORITY_DISCOVERY','REUSE_RETAINED'].includes(route),evaluated,candidates,budgetBlocked:[...budgetBlocked,...authorityFrontier.budgetBlocked],attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5},ordinalOnly:true};
+ return {route,reason,url,objective:!hasProviderRoutingAuthority(t)&&['AUTHORITY_DISCOVERY','STOP'].includes(route)?authorityAcquisitionObjective:providerStageRoutingObjective(t),authorityCandidates:authorityFrontier.candidates??[],marketProofIdentityKeys:pendingMarketProof(t).map(o=>o.key),retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DECODO','DISCOVERY','AUTHORITY_DISCOVERY','REUSE_RETAINED'].includes(route),evaluated,candidates,budgetBlocked:[...budgetBlocked,...authorityFrontier.budgetBlocked],attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5},ordinalOnly:true};
 }
