@@ -41,6 +41,11 @@ const score=l=>{const text=l.title+' '+l.url;return (/\/(?:buy|pricing|plans|sub
 function retainedCandidateAuthority(directory,target,page,observationId){
  if(!/^bodies\/[a-f0-9]{64}\.txt$/.test(page?.bodyFile??''))return null;try{const body=fs.readFileSync(directory+'/'+page.bodyFile,'utf8');return reviewV2CandidateAuthority({contractVersion:1,observationId,target:{service:target.service,serviceName:target.serviceName},page:{url:page.url??page.requestedUrl,requestedUrl:page.requestedUrl??page.url,outcome:page.outcome??'ERROR',httpStatus:page.httpStatus??0,contentType:page.contentType??'',truncated:page.truncated===true,bodyHash:page.bodyHash??'',sourceIntegrity:{sha256:page.sourceIntegrity?.sha256??''},rawSource:{text:body},accessDecisions:(page.accessDecisions??[]).map(row=>({decision:row.decision}))}});}catch{return null;}
 }
+export function rehydrateRetainedProviderAuthority(directory,target){
+ let restored=0;
+ for(const page of target.reads??[])if(page.researchRole==='CANDIDATE_AUTHORITY_SOURCE'&&page.v3AuthorityReview?.binding){const review=retainedCandidateAuthority(directory,target,page,page.v3AuthorityReview.binding.observation);if(review?.providerAuthorityBinding&&JSON.stringify(review.providerAuthorityBinding)===JSON.stringify(page.v3AuthorityReview.binding)){installRunScopedV3ProviderAuthority(target,review);restored++;}}
+ return restored;
+}
 // Scheduling relevance is not authority admission. Exact reviewed hosts only;
 // the normal redirect/authority validator still controls evidence consumption.
 export const reviewedDestination=(t,url)=>!!providerRoutingAuthority(t,url);
@@ -73,7 +78,7 @@ export class OpenWebResearch {
   fs.mkdirSync(directory,{recursive:true});this.file=directory+'/state.json';const existing=fs.existsSync(this.file);this.state=existing?JSON.parse(fs.readFileSync(this.file)): {version:1,catalog:catalogIdentityMetadata(catalog),targets:targets.map(t=>({...t,gaps:t.gaps??commercialFields,queries:[],reads:[],leads:[],decisions:[],blockedOrigins:t.blockedOrigins??[],verified:[]})),usage:{searches:0,reads:0,acquisitions:0},cache:{},pending:null};
   for(const t of this.state.targets){
    revalidateTargetAdmission(t);
-   for(const page of t.reads??[])if(page.researchRole==='CANDIDATE_AUTHORITY_SOURCE'&&page.v3AuthorityReview?.binding){const review=retainedCandidateAuthority(directory,t,page,page.v3AuthorityReview.binding.observation);if(review?.providerAuthorityBinding&&JSON.stringify(review.providerAuthorityBinding)===JSON.stringify(page.v3AuthorityReview.binding))installRunScopedV3ProviderAuthority(t,review);}
+   rehydrateRetainedProviderAuthority(directory,t);
    if(providerResourceMemoryRoot){const memory=loadHybridProviderResources({root:providerResourceMemoryRoot,target:t,now:memoryNow});t.hybridProviderResourceMemory={rejected:memory.rejected,reason:memory.reason??null,resourceIds:memory.resources.map(item=>item.record.id),skipped:memory.skipped??[],meaning:memory.meaning??null};for(const item of memory.resources){installRunScopedV3ProviderAuthority(t,item.authorityReview);const row=item.record;if(!(t.urls??=[]).includes(row.resource.url))t.urls.push(row.resource.url);if(!(t.knownCommercialUrls??=[]).includes(row.resource.url))t.knownCommercialUrls.push(row.resource.url);this.add(t,{url:row.resource.url,title:t.serviceName+' remembered provider resource',rank:-1,from:{method:'HYBRID_PROVIDER_RESOURCE_MEMORY',resourceId:row.id},routingMemoryOnly:true});}}
   }
   this.state.catalog=catalogIdentityMetadata(catalog,this.state.catalog??[]);if(!existing)for(const t of this.state.targets)for(const url of t.urls??[])if(providerRoutingAuthority(t,url))this.add(t,{url,title:t.serviceName+' official provider',rank:0,from:{method:'REVIEWED_PROVIDER_DESTINATION'}});if(targets.length>this.bounds.services)throw Error('SERVICE_BOUND');this.save();
