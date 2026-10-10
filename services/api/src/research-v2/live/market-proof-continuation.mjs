@@ -22,7 +22,7 @@ export function acceptV3TruthNeeds(t,outcome){
  const truth=outcome?.v3Truth,observation=outcome?.v3Observation;
  if(!truth||!Array.isArray(truth.needs)||!observation||typeof observation.url!=='string'||!/^[a-f0-9]{64}$/.test(observation.sha256??''))return false;
  t.v3Truth=structuredClone(truth);t.v3Observation=structuredClone(observation);
- const objective=v3MarketObjective(t,truth,observation);if(!objective)return true;
+ const objective=v3MarketObjective(t,truth,observation);if(!objective){if(truth.prices?.[t.market]?.propositions?.TARGET_MARKET?.state==='ESTABLISHED')delete t.marketProof;return true;}
  t.marketProof={version:1,objectives:[objective],sources:[],leads:[],meaning:'V3_TRUTH_NEEDS_PLANNING_ONLY'};
  return true;
 }

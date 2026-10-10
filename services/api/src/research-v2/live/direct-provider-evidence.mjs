@@ -4,12 +4,9 @@ import fs from 'node:fs';import path from 'node:path';import {createHash,randomU
 import {openMarketRunStore} from '../../research-v1/market-run-store.mjs';
 import {interpretRun} from './runner.mjs';import {verifyRetainedRun} from './module-stage.mjs';
 import {canonical} from '../../research-v3/model.mjs';
-import {authorityBinding} from '../../research-v3/discovery-authority.mjs';
-import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.mjs';
-import {evaluate} from '../../research-v3/truth.mjs';
 import {autonomousProviderAuthorityDecision} from './provider-routing-authority.mjs';
+import {evaluateProviderSourceTruth} from './provider-source-v3.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
-const allowedAccessFields=new Set(['decision','reason','boundary','httpStatus','rule']);
 function autonomousAuthority(target,page){
  const requested=autonomousProviderAuthorityDecision(target,page.requestedUrl??page.url),final=autonomousProviderAuthorityDecision(target,page.url);
  if(!requested||!final||requested.authority.hostname!==final.authority.hostname||page.providerAuthority?.provenance!=='V3_AUTONOMOUS_CANDIDATE_REVIEW'||canonical(page.providerAuthority.binding)!==canonical(final.providerAuthorityBinding))return null;
@@ -27,13 +24,8 @@ export function validateDirectProviderPage({target,page,directory}){
  return {...page,authority,rawSource:{text:body},acquisitionChannel:'DIRECT_PROVIDER'};
 }
 export function evaluateDirectProviderTruth({target,retained}){
- if(retained.truncated===true||retained.completeness==='INCOMPLETE')throw Error('DIRECT_PROVIDER_SOURCE_INCOMPLETE');
- const url=retained.url,host=new URL(url).hostname,objective={kind:'PRICE',serviceId:target.service,serviceName:target.serviceName,providerHosts:[host],markets:[target.market],seeds:[url]};
- const contentType=String(retained.contentType??'text/html').split(';')[0].trim().toLowerCase();
- const accessDecisions=retained.accessDecisions.map(row=>Object.fromEntries(Object.entries(row).filter(([key,value])=>allowedAccessFields.has(key)&&value!==undefined)));
- const observation=adaptV2CurrentSource({contractVersion:1,observationId:'direct-v3-'+retained.bodyHash.slice(0,24),target:{service:target.service,serviceName:target.serviceName,market:target.market},page:{url,requestedUrl:retained.requestedUrl??url,outcome:'OK',httpStatus:retained.httpStatus,contentType,bodyHash:retained.bodyHash,sourceIntegrity:{sha256:retained.sourceIntegrity.sha256},rawSource:{text:retained.rawSource.text},accessDecisions},providerAuthority:{status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,url)},acquisition:{route:'DIRECT'}},objective);
- const truth=evaluate({objective,observations:[observation]});
- return {v3Observation:{id:observation.id,kind:observation.kind,url:observation.url,sha256:observation.sha256,context:observation.context,candidateCount:observation.candidates.length,nativeStructuredFacts:observation.nativeStructured?.facts?.length??0},v3Truth:truth};
+ try{return evaluateProviderSourceTruth({target,retained,observationId:'direct-v3-'+retained.bodyHash.slice(0,24),acquisition:{route:'DIRECT'}});}
+ catch(error){if(error.message==='PROVIDER_SOURCE_INCOMPLETE')throw Error('DIRECT_PROVIDER_SOURCE_INCOMPLETE');throw error;}
 }
 export async function interpretDirectProvider({target,page,directory,interpret=interpretRun,verify=verifyRetainedRun,onReplayStage=()=>{}}){
  onReplayStage('SOURCE_VALIDATION');const retained=validateDirectProviderPage({target,page,directory});
