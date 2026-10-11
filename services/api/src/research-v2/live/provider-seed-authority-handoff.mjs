@@ -46,5 +46,5 @@ export function rehydrateProviderSeedAuthorityHandoff({root,target,handoff}){
  const binding=reviewProviderSeedAuthority(authorityObservation,handoff.researchTarget,{candidateHosts:[handoff.providerAuthorityBinding?.host]});if(!binding||canonical(binding)!==canonical(handoff.providerAuthorityBinding))throw Error('PROVIDER_SEED_HANDOFF_AUTHORITY_INVALID');
  const admission=rehydrateSubscriptionService({admission:{status:'ADMITTED',service:handoff.service},observation:providerObservation,researchTarget:handoff.researchTarget,providerAuthorityBinding:binding});if(admission.status!=='ADMITTED'||canonical(admission.service)!==canonical(handoff.service))throw Error('PROVIDER_SEED_HANDOFF_SERVICE_INVALID');
  installRunScopedProviderSeedAuthority(target,{contractVersion:1,researchTarget:handoff.researchTarget,providerAuthorityBinding:binding,service:admission.service,authorityObservation,providerObservation});
- return {providerAuthorityBinding:binding,service:admission.service};
+ return {providerAuthorityBinding:binding,service:admission.service,authorityObservation,providerObservation};
 }

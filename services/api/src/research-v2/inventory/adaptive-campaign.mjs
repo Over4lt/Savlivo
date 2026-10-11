@@ -10,14 +10,14 @@ import {mergeTargetCapabilities} from '../intelligence/login-manage.mjs';
 // No provider-specific paths, transport, price interpretation, or admission here.
 import fs from 'node:fs';import path from 'node:path';import {createHash} from 'node:crypto';
 import {atomic,recoverInterrupted} from './expansion-campaign.mjs';
-import {runOpenWebResearch,destinationDiscoveryNeeded,rankPlannerLeads,rehydrateRetainedProviderAuthority} from '../live/open-web-discovery.mjs';
+import {runOpenWebResearch,destinationDiscoveryNeeded,rankPlannerLeads,rehydrateRetainedProviderAuthority,reuseProviderSeedCampaignEvidence} from '../live/open-web-discovery.mjs';
 import {planResearch} from '../live/research-planner.mjs';
 import {executableAction,executionBounds,resourceKey,exhaustedExecutionBudget} from '../live/execution-capabilities.mjs';
 import {navigationRank} from '../live/provider-navigation.mjs';
 import {rehydrateProviderSeedAuthorityHandoff} from '../live/provider-seed-authority-handoff.mjs';
 const hash=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 export const adaptiveBounds=Object.freeze({reads:4,searches:2,acquisitions:2,retainedReviews:32,turns:512});
-const counts=t=>({reads:t.reads?.length??0,searches:t.queries?.length??0,acquisitions:t.decisions?.filter(d=>d.acquisitionReserved).length??0,retainedReviews:t.retainedReviews?.length??0});
+const counts=t=>({reads:t.reads?.filter(row=>!row.sameCampaignEvidenceReuse).length??0,searches:t.queries?.length??0,acquisitions:t.decisions?.filter(d=>d.acquisitionReserved).length??0,retainedReviews:t.retainedReviews?.length??0});
 const initialTarget=t=>({...t,adaptiveExecution:true,researchObjective:t.researchObjective??'SERVICE_COVERAGE',gaps:t.gaps??['plan','amount','currency','cadence','priceRole','ownership','market'],reads:t.reads??[],queries:t.queries??[],decisions:t.decisions??[],verified:t.verified??[],blockedOrigins:t.blockedOrigins??[],leads:t.leads?.length?t.leads:(t.urls??[]).map(url=>({url,title:t.serviceName+' official provider',rank:0,navigationPriority:navigationRank(t,{url})}))});
 const zeroUsage=()=>({actions:0,reads:0,searches:0,acquisitions:0,retainedReviews:0});
 function campaignOptions(budgetScope,initialUsage){
@@ -82,6 +82,7 @@ export async function runAdaptiveCampaign({directory,manifest,retainedStates=[],
  const diagnostic=runtimeDiagnostics(directory),checkpoint=()=>diagnostic.sync('ADAPTIVE_CHECKPOINT_WRITE',()=>atomic(file,state,{stream:true}));let state;diagnostic.emit('CAMPAIGN_ENTRY');
  try{const fresh=diagnostic.sync('INITIALIZE_ADAPTIVE',()=>initializeAdaptiveState(manifest,{retainedStates,limits,budgetScope,initialUsage}));state=fs.existsSync(file)?diagnostic.sync('CHECKPOINT_PARSE',()=>JSON.parse(fs.readFileSync(file))):fresh;if(state.fingerprint!==fresh.fingerprint)throw Error('ADAPTIVE_INPUT_CHANGED');diagnostic.sync('ADMISSION_REVALIDATION',()=>{for(const target of Object.values(state.targets))revalidateTargetAdmission(target);});const assess=service=>{rehydrateAdaptiveProviderAuthority(state,directory,service,providerSeedRoot);return diagnostic.sync('ASSESS',()=>assessAdaptiveService(state,service));};checkpoint();
  if(state.pending){const pendingId=state.pending.targetId,native=nativeFile(directory,pendingId);if(fs.existsSync(native)){const interrupted=recoverInterrupted(path.dirname(native));if(interrupted.length)state.services[state.targets[pendingId].service].reconciliation='INTERRUPTED_ACTION_RECONCILIATION_REQUIRED';}if(!diagnostic.sync('NATIVE_COMMIT',()=>commitNative(state,directory))){const f=nativeFile(directory,state.pending.targetId);if(fs.existsSync(f)&&JSON.parse(fs.readFileSync(f)).pending)throw Error('ADAPTIVE_PENDING_ACTION_REQUIRES_RECONCILIATION');state.pending=null;}checkpoint();}
+ for(const t of Object.values(state.targets).filter(row=>providerSeedRoot&&row.providerSeedAuthorityHandoff&&!(row.currentCampaignEvidenceReuses?.length))){const context=targetExecutionContext(state,t),native=nativeFile(directory,t.id),adapters=await diagnostic.async('ADAPTER_CREATE',()=>createAdapters({directory:path.dirname(path.dirname(native)),targets:[t],bounds:context.bounds}));await diagnostic.async('CURRENT_CAMPAIGN_EVIDENCE_REUSE',()=>reuseProviderSeedCampaignEvidence({directory:path.dirname(native),target:t,providerSeedRoot,consumeProvider:adapters.consumeProvider}));}checkpoint();
  // Cross-phase evidence is produced by the existing source-bound verifier.
  // Inject it without resetting action usage, journals or the manifest fingerprint.
  for(const update of evidenceUpdates){const t=state.targets[update.targetId];if(!t)throw Error('ADAPTIVE_EVIDENCE_TARGET');const key=hash(update);state.evidenceUpdates??=[];if(state.evidenceUpdates.includes(key))continue;
