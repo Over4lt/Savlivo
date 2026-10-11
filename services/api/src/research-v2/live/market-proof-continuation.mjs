@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import {digest} from '../../research-v3/model.mjs';
+import {digest,normalizeUrl} from '../../research-v3/model.mjs';
 // Planning only. Sources carried to the next interpreter are re-opened there;
 // this controller cannot establish market applicability or pricing eligibility.
 export const pendingMarketProof=t=>(t.marketProof?.objectives??[]).filter(o=>o.status==='MARKET_NOT_VERIFIED');
@@ -13,9 +13,13 @@ function v3MarketObjective(t,truth,observation){
  return {key:digest(identity),identity,status:'MARKET_NOT_VERIFIED',missingFact:'MARKET_PROOF',established:['AUTHORITY','IDENTITY','COMMERCIAL_MEANING','VALUE_AND_CADENCE','PROVENANCE']};
 }
 export function pendingV3MarketProof(t,url=null){
- const truth=t.v3Truth,observation=t.v3Observation;if(t.marketProof?.meaning!=='V3_TRUTH_NEEDS_PLANNING_ONLY'||!truth||!Array.isArray(truth.needs)||!observation)return null;
- const expected=v3MarketObjective(t,truth,observation),actual=pendingMarketProof(t)[0],page=(t.reads??[]).find(row=>row.bodyHash===observation.sha256&&(row.url===observation.url||row.requestedUrl===observation.url));
- if(!expected||!actual||actual.key!==expected.key||JSON.stringify(actual.identity)!==JSON.stringify(expected.identity)||(url&&observation.url!==url)||page?.outcome!=='OK'||!page.accessDecisions?.length||page.accessDecisions.some(row=>!['ALLOWED','NO_ROBOTS_POLICY'].includes(row.decision)))return null;
+ if(t.marketProof?.meaning!=='V3_TRUTH_NEEDS_PLANNING_ONLY')return null;
+ const requested=url&&normalizeUrl(url),actual=pendingMarketProof(t).find(row=>{const source=normalizeUrl(row.identity?.sourceUrl);return source&&(!requested||source===requested);});
+ const sourceUrl=normalizeUrl(actual?.identity?.sourceUrl),sourceHash=actual?.identity?.sourceHash;if(!actual||!sourceUrl||!/^[a-f0-9]{64}$/.test(sourceHash??''))return null;
+ const rows=[...(t.providerInterpretations??[]),{v3Truth:t.v3Truth,v3Observation:t.v3Observation}],owner=rows.find(row=>{const observation=row?.v3Observation;return row?.v3Truth&&Array.isArray(row.v3Truth.needs)&&observation?.kind==='PROVIDER'&&normalizeUrl(observation.url)===sourceUrl&&observation.sha256===sourceHash;});
+ if(!owner)return null;
+ const truth=owner.v3Truth,observation=owner.v3Observation,expected=v3MarketObjective(t,truth,observation),page=(t.reads??[]).find(row=>row.bodyHash===sourceHash&&(normalizeUrl(row.url)===sourceUrl||normalizeUrl(row.requestedUrl)===sourceUrl));
+ if(!expected||actual.key!==expected.key||JSON.stringify(actual.identity)!==JSON.stringify(expected.identity)||page?.outcome!=='OK'||!page.accessDecisions?.length||page.accessDecisions.some(row=>!['ALLOWED','NO_ROBOTS_POLICY'].includes(row.decision)))return null;
  return actual;
 }
 export function acceptV3TruthNeeds(t,outcome){
