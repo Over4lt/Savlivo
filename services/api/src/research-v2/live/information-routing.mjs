@@ -1,4 +1,4 @@
-import {targetMarketAcquisition} from './provider-access-gap.mjs';
+import {targetMarketAcquisition,unresolvedV3TargetNeed} from './provider-access-gap.mjs';
 import {pendingMarketProof,pendingV3MarketProof,marketProofContradicted} from './market-proof-continuation.mjs';
 import {currentRetainedPriceReview,targetMarketPriceReview} from './retained-pricing.mjs';
 import {priceNeedsStop,priceNeedRelevance,researchablePriceNeeds} from '../intelligence/price-evidence-needs.mjs';
@@ -50,8 +50,8 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  const {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked}=actionableDestinations(t,{knowledge,urls,executionContext});
  const authorityFrontier=!hasProviderRoutingAuthority(t)?candidateAuthorityFrontier(t,urls,executionContext,k):{candidates:[],budgetBlocked:[]};
  let route,reason,url=null;
- const pendingMarket=pendingMarketProof(t),v3MarketNeed=!!pendingV3MarketProof(t),sufficientReview=t.market?targetMarketPriceReview(t,retained):currentRetainedPriceReview(t,retained);
- if((!pendingMarket.length||(!v3MarketNeed&&currentRetainedPriceReview(t,retained)?.market===t.market))&&!marketProofContradicted(t)&&!catalogObjective(t)&&sufficientReview?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
+ const pendingMarket=pendingMarketProof(t),v3MarketNeed=!!pendingV3MarketProof(t),unresolvedV3Need=unresolvedV3TargetNeed(t),sufficientReview=t.market?targetMarketPriceReview(t,retained):currentRetainedPriceReview(t,retained);
+ if(!unresolvedV3Need&&(!pendingMarket.length||(!v3MarketNeed&&currentRetainedPriceReview(t,retained)?.market===t.market))&&!marketProofContradicted(t)&&!catalogObjective(t)&&sufficientReview?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
  else if(marketProofContradicted(t)){route='STOP';reason='MARKET_CONTRADICTED';}
  else if(k.memoryRejected){route='STOP';reason='RESEARCH_MEMORY_RECONCILIATION_REQUIRED';}
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished===true){route='STOP';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}
@@ -61,9 +61,9 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(!hasProviderRoutingAuthority(t)&&authorityFrontier.budgetBlocked.length){route='STOP';reason=authorityFrontier.budgetBlocked[0].capability.reason;}
  else if(!hasProviderRoutingAuthority(t)){route=discoveryQuery?'AUTHORITY_DISCOVERY':'STOP';reason=discoveryQuery?'AUTHORITY_UNRESOLVED':'DISCOVERY_EXHAUSTED';}
  else if(reuse&&!pendingMarketProof(t).length){route='REUSE_RETAINED';reason='HASH_BOUND_PROVIDER_SUCCESS_REUSE';url=reuse.url;}
- else if(priceNeedsStop(t)&&!pendingMarketProof(t).length){route='STOP';reason=k.blockedOrigins?.length&&evaluated.filter(x=>x.url).length&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))?'PROVIDER_ACCESS_POLICY_STOP':priceNeedsStop(t);}
  else if(candidates.length){route=t.capabilities?.direct===false&&t.capabilities?.decodo===true?'DECODO':'DIRECT';url=candidates[0].url;reason=route==='DECODO'?'DIRECT_PROHIBITED_DECODO_PERMITTED':candidates[0].reason;}
  else if(valid.some(x=>targetMarketAcquisition(t,x.url)&&executableAction(t,{route:'DECODO',url:x.url},executionContext).executable)){route='DECODO';url=valid.find(x=>targetMarketAcquisition(t,x.url)&&executableAction(t,{route:'DECODO',url:x.url},executionContext).executable).url;reason='TARGET_MARKET_OBSERVATION_REQUIRED';}
+ else if(priceNeedsStop(t)&&!pendingMarketProof(t).length){route='STOP';reason=k.blockedOrigins?.length&&evaluated.filter(x=>x.url).length&&evaluated.filter(x=>x.url).every(x=>k.blockedOrigins.includes(new URL(x.url).origin))?'PROVIDER_ACCESS_POLICY_STOP':priceNeedsStop(t);}
  else {
  const failed=attempts.filter(a=>completed(a)&&a.permittedEscalation===true&&valid.some(x=>x.url===norm(a.url))&&!attempts.some(b=>b.route==='DECODO'&&b.completed&&norm(b.url)===norm(a.url))&&!attempts.some(b=>completed(b)&&b.outcome==='OK'&&norm(b.url)===norm(a.url))).at(-1);
  if(failed){route='CONDITIONAL_DECODO';url=norm(failed.url);reason='EXACT_PERMITTED_FAILED_DESTINATION';}

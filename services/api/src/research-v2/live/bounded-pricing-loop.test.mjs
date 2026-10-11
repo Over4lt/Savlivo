@@ -62,6 +62,10 @@ test('500 links remain a bounded ranked queue, irrelevant and unreviewed URLs ne
  const body=Array.from({length:500},(_,i)=>'<a href="/pricing/'+i+'">Plans</a>').join('')+'<a href="https://evil.example/pricing">Plans</a><a href="/logout">Logout</a><a href="/news">News</a>';
  const n=providerNavigation(target(),body,home);assert.equal(n.frontier.length,40);assert.equal(n.omittedDestinations,460);assert(n.frontier.every(l=>l.url.startsWith(home+'pricing/')));assert(n.frontier.every(l=>l.evidenceStatus==='DISCOVERY_LEAD_ONLY'&&!l.authoritative));
 });
+test('safe source-grounded provider leads remain boundedly reachable after stronger commercial links',()=>{
+ const body='<a href="/experience">Explore</a><a href="/pricing">Subscription pricing</a><a href="/experience">Explore again</a><a href="/blog">News</a><a href="/asset.js">Asset</a><a href="https://external.example/plans">External plans</a>',n=providerNavigation(target(),body,home,{width:4});
+ assert.deepEqual(n.links.map(row=>row.url),[home+'pricing',home+'experience']);assert.deepEqual(n.links.map(row=>row.priority),[0,20]);assert.equal(n.frontier.length,2);assert(n.frontier.every(row=>row.evidenceStatus==='DISCOVERY_LEAD_ONLY'&&row.authoritative===false));
+});
 test('existing read budget limits the frontier; no speculative destination is requested',async()=>{
  const f=scenario({pages:{[home]:'<a href="/us/pricing">Plans</a>',[home+'us/pricing']:offer()},limits:{reads:1}}),s=await f.run();assert.equal(s.services.lumen.used.reads,1);assert.equal(f.calls.length,1);assert.equal(s.targets[f.t.id].verified.length,0);
 });

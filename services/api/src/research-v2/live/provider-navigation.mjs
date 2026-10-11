@@ -48,8 +48,7 @@ export function providerNavigation(t,body,base,{width=2,depth=0,maxBytes=2097152
  for(const l of parsed.links){const n=normalizeFrontierUrl(l.url,base);if(!n.url||!reviewedNavigationHost(t,n.url))continue;const lead={...l,url:n.url,title:l.label},p=new URL(n.url).pathname;if(catalogObjective(t)?!capabilityDestination(n.url,l.label).eligible:semanticReasons(n.url,l.label,l.mechanism).reject)continue;
  if(/\.(?:png|jpe?g|gif|webp|svg|ico|woff2?|ttf|mp4|mp3|css|js|zip)$/i.test(p)||/\/(?:logout|signout|delete|remove-account|unsubscribe)(?:\/|$)/i.test(p))continue;
  const locale=navigationLocale(t,lead);if(locale.compatibility==='FOREIGN')continue;
- const rank=navigationRank(t,lead,needs),weakRelevant=rank===20&&/subscription|abonnement|billing/i.test(l.label)&&String(l.label).toLowerCase().includes(t.serviceName.toLowerCase()),context=l.mechanism==='PROVIDER_CANONICAL_OR_LOCALE';
- if(rank>15&&!weakRelevant&&!(context&&locale.compatibility==='TARGET')&&!(/(?:^|[\/_-])(?:products?|services?|offers?|packages?)(?:[\/_-]|$)/i.test(p)&&rank<40))continue;
+ const rank=navigationRank(t,lead,needs);
  if(navigationKey(base)===n.url||(t.reads??[]).some(r=>[r.requestedUrl,r.url].filter(Boolean).some(url=>navigationKey(url)===n.url)))continue;
  const relevance=providerResourceRelevance(t,lead),row={...lead,priority:rank,localeHint:locale,depth:depth+1,routingObjectiveRelevance:relevance,evidenceStatus:'DISCOVERY_LEAD_ONLY',authoritative:false};
  const prev=map.get(n.url);if(!prev||rank<prev.priority||!catalogObjective(t)&&rank===prev.priority&&(row.score??0)>(prev.score??0))map.set(n.url,row);
