@@ -128,6 +128,14 @@ test('established authority reuses one retained candidate reference and replays 
  assert.equal(fs.readdirSync(path.dirname(authorityFile)).filter(name=>name===path.basename(authorityFile)).length,1);
 });
 
+test('expanded source provider identity persists and replays from retained evidence without network',async t=>{
+ const directory=temp(t),providerUrl='https://acmedigital.example/',authority=`<script type="application/ld+json">${JSON.stringify({'@type':'Organization',name:'Acme Digital',legalName:'Acme Digital GmbH',url:providerUrl})}</script><script type="application/ld+json">${JSON.stringify({'@type':'WebSite',name:'Acme Digital',url:providerUrl})}</script>`,calls=[];
+ const factory=async()=>({search:async()=>({results:[{url:providerUrl}]}),read:async({role})=>{calls.push(role);return role==='CANDIDATE_AUTHORITY_SOURCE'?page(providerUrl,authority,'text/html'):page(providerUrl,discoveryBody([]),'application/json');}}),target=providerOrBrandResearchTarget({seedName:'Acme',targetMarket:market});
+ const result=await runProviderSeedCampaign({directory,researchTarget:target,createAdapters:factory}),review=result.candidateReviews.find(row=>row.status==='ESTABLISHED'),before=calls.length;
+ assert.equal(result.providerAuthorityBinding.providerIdentity.presentationName,'Acme Digital');assert.equal(result.providerAuthorityBinding.providerIdentity.legalName,'Acme Digital GmbH');assert.equal(result.providerAuthorityBinding.researchTarget.seedName,'Acme');
+ const replayed=replayProviderSeedCandidateReview({root:directory,review,researchTarget:target,candidateHosts:[new URL(providerUrl).hostname]});assert.deepEqual(replayed.binding,result.providerAuthorityBinding);assert.equal(calls.length,before);
+});
+
 test('retained unresolved candidate evidence fails closed for tampering missing references and metadata substitution',async t=>{
  const directory=temp(t),url='https://audit-source.example/',body='<main>Unrelated complete candidate</main>',factory=async()=>({search:async()=>({results:[{url}]}),read:async()=>page(url,body)}),result=await runProviderSeedCampaign({directory,researchTarget:providerOrBrandResearchTarget({seedName:'Audit Source',targetMarket:market}),createAdapters:factory,limits:{reads:1}}),review=result.candidateReviews[0],file=path.join(directory,review.bodyReference.path),original=fs.readFileSync(file,'utf8');
  fs.writeFileSync(file,original+'tampered');assert.throws(()=>restoreProviderSeedCandidateReview(directory,review),/PROVIDER_SEED_HANDOFF_SOURCE_INVALID/);fs.writeFileSync(file,original);

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reviewCandidateAuthority,reviewCandidateAuthorityWithDiagnostic,structuredExactOriginBounds} from './provider-authority-review.mjs';
+import {reviewCandidateAuthority,reviewCandidateAuthorityWithDiagnostic,reviewProviderSeedAuthority,structuredExactOriginBounds} from './provider-authority-review.mjs';
+import {providerOrBrandResearchTarget,providerSeedCampaignState} from './research-target.mjs';
 import {runTarget,offlineCapabilities} from './runner.mjs';
 import {checkpoint,digest,providerBound} from './model.mjs';
 import {evaluate} from './truth.mjs';
@@ -18,6 +19,8 @@ const structuredReview=(value,{serviceName=name,candidateUrl=url}={})=>{const bo
 const robots={url:`https://${host}/robots.txt`,transport:'DIRECT',status:404,contentType:'text/plain',body:''};
 const fixture=(body=owned,bounds={actions:2,acquisitions:2,searches:0,modelCalls:0})=>({objective,permissions:{DIRECT:true},bounds,fixtures:[robots,{url,transport:'DIRECT',body}]});
 const execute=(input,extra={})=>runTarget({input,capabilities:offlineCapabilities(input),interpret:interpretBillingFixture,...extra});
+const providerSeed=(seedName,body,{candidateUrl=url}={})=>reviewProviderSeedAuthority(observation(body,{url:candidateUrl}),providerOrBrandResearchTarget({seedName,targetMarket:'DE'}),{candidateHosts:[new URL(candidateUrl).hostname]});
+const coherentProvider=(presentation,{legalName=null,providerUrl=url,canonical=providerUrl}={})=>`<link rel="canonical" href="${canonical}">${jsonLd({'@type':'Organization',name:presentation,...(legalName?{legalName}:{}),url:providerUrl})}${jsonLd({'@type':'WebSite',name:presentation,url:providerUrl})}`;
 
 test('first-party homepage and product presentation admit only the exact candidate host with audited spans',()=>{
     for(const body of [owned,product]){
@@ -66,6 +69,39 @@ test('exact-origin Organization alternateName and exact legalName add distinct s
 
 test('semantic and legal suffix shortening remain unresolved without explicit identity',()=>{
     for(const organizationName of ['Acme Fitness','Acme Fitness LLC'])assert.equal(structuredReview({'@type':'Organization',name:organizationName,legalName:organizationName,url:'https://aurora.example'},{serviceName:'Acme'}),null);
+});
+
+test('provider seed research preserves exact source identity and resolves one coherent presentation expansion',()=>{
+    const exact=providerSeed('Acme',coherentProvider('Acme'));
+    assert.equal(exact?.providerIdentity.presentationName,'Acme');
+    const expanded=providerSeed('Acme',coherentProvider('Acme Digital',{legalName:'Acme Digital GmbH'}));
+    assert.equal(expanded?.providerIdentity.presentationName,'Acme Digital');
+    assert.equal(expanded.providerIdentity.legalName,'Acme Digital GmbH');
+    assert.equal(expanded.researchTarget.seedName,'Acme');
+    assert.deepEqual(expanded.resolution,{mechanism:'SOURCE_PRESENTATION_SINGLE_TOKEN_EXPANSION',originalSeed:'Acme',sourceProviderPresentation:'Acme Digital',legalIdentity:'Acme Digital GmbH',authoritativeHost:host});
+    assert.equal(expanded.proof.reason,'STRUCTURED_EXACT_ORIGIN_PROVIDER_SEED_RESOLUTION');
+});
+
+test('provider seed resolution creates only routing authority and invents no Service or verified fact',()=>{
+    const binding=providerSeed('Acme',coherentProvider('Acme Digital',{legalName:'Acme Digital GmbH'})),state=providerSeedCampaignState(providerOrBrandResearchTarget({seedName:'Acme',targetMarket:'DE'}),{providerAuthorityBinding:binding});
+    assert.deepEqual(state.services,[]);assert.equal(state.serviceDiscovery.status,'PROVIDER_ESTABLISHED_SERVICE_DISCOVERY_REQUIRED');
+    for(const field of ['service','serviceId','serviceName','amount','currency','cadence','market','offering','catalog'])assert.equal(Object.hasOwn(binding,field),false,field);
+});
+
+test('provider seed expansion rejects lexical overlap without coherent source presentation corroboration',()=>{
+    for(const [seed,presentation] of [['Apple','Apple Valley Dental'],['Prime','Prime Plumbing'],['Max','Maximum Security Services'],['Core','Core Fitness'],['Now','Nowhere Media']]){
+        const body=jsonLd({'@type':'Organization',name:presentation,url});
+        assert.equal(providerSeed(seed,body),null,`${seed} -> ${presentation}`);
+    }
+});
+
+test('provider seed expansion rejects domain redirect snippet third-party ambiguity and canonical conflict',()=>{
+    assert.equal(providerSeed('Acme','<main>Acme Digital</main>'),null,'domain resemblance or page text');
+    assert.equal(providerSeed('Acme','<main>Redirected to Acme Digital official site</main>'),null,'redirect text');
+    assert.equal(providerSeed('Acme','<main>Search result: Acme Digital official provider</main>'),null,'search snippet');
+    assert.equal(providerSeed('Acme',`${jsonLd({'@type':'Product',name:'Listing',brand:{'@type':'Brand',name:'Acme Digital'}})}${jsonLd({'@type':'Article',publisher:{'@type':'Organization',name:'Retail Review',url}})}`),null,'retailer/review');
+    assert.equal(providerSeed('Acme',`${coherentProvider('Acme Digital')}${jsonLd({'@type':'Organization',name:'Acme Labs',url})}`),null,'multiple provider identities');
+    assert.equal(providerSeed('Acme',coherentProvider('Acme Digital',{canonical:'https://other.example/'})),null,'canonical conflict');
 });
 
 test('Organization brand relationship supports embedded and exact same-script @id Brand objects',()=>{
