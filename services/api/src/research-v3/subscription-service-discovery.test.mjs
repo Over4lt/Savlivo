@@ -123,8 +123,8 @@ test('adversarial app/hardware mixture and external auth or billing hosts stay o
  for(const external of ['https://auth.example/login','https://billing.northstar.example/plans']){const result=discover(providerObservation(service('External Product'),{url:external}));assert.deepEqual(result.services,[]);assert.ok(result.unresolved.some(row=>row.reason==='AUTHORITATIVE_PROVIDER_OBSERVATION_REQUIRED'));}
 });
 
-test('native HTML can admit an explicit named subscription Service without price',()=>{
- const body='<main><section><h1>Orbit Reader</h1><p>Choose a subscription plan for Orbit Reader.</p></section></main>',result=discover(providerObservation(body,{format:'WEB',contentType:'text/html'}));assert.deepEqual(result.services.map(row=>row.serviceName),['Orbit Reader']);assert.equal(result.services[0].provenance.extractionMechanism,'NATIVE_HTML');
+test('native HTML does not promote a heading merely because nearby copy says subscription',()=>{
+ const body='<main><section><h1>Orbit Reader</h1><p>Choose a subscription plan for Orbit Reader.</p></section></main>',result=discover(providerObservation(body,{format:'WEB',contentType:'text/html'}));assert.deepEqual(result.services,[]);
 });
 
 test('provider campaign lifecycle contains discovery and child Services without production eligibility',()=>{

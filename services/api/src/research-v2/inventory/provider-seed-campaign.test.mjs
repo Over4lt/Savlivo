@@ -8,7 +8,8 @@ import {digest} from '../../research-v3/model.mjs';
 import {providerOrBrandResearchTarget} from '../../research-v3/research-target.mjs';
 import {evaluateDirectProviderTruth,validateDirectProviderPage} from '../live/direct-provider-evidence.mjs';
 import {replayProviderSeedCandidateReview,restoreProviderSeedCandidateReview} from '../live/provider-seed-authority-handoff.mjs';
-import {providerRoutingAuthority} from '../live/provider-routing-authority.mjs';
+import {autonomousProviderAuthorityDecision,providerRoutingAuthority} from '../live/provider-routing-authority.mjs';
+import {admittedDiscoveryCandidate} from '../live/tavily-discovery.mjs';
 import {createV2RobotsPublicAdapter} from '../live/robots-policy.mjs';
 import {initializeAdaptiveState,runAdaptiveCampaign} from './adaptive-campaign.mjs';
 import {providerSeedCampaignBounds,runProviderSeedCampaign} from './provider-seed-campaign.mjs';
@@ -58,6 +59,12 @@ test('production-shaped provider seed autonomously reaches one KNOWN_SERVICE chi
  assert.equal(Object.hasOwn(result.children[0].target,'marketProof'),false);assert.equal(Object.hasOwn(result.providerAuthorityBinding,'market'),false);const adaptiveTarget=result.adaptive.targets[result.children[0].targetId];assert.equal(providerRoutingAuthority(adaptiveTarget,catalogUrl).host,host);assert.equal(providerRoutingAuthority(adaptiveTarget,'https://billing.northstar.example/catalog'),null);
  assert.equal(result.lifecycle.results[0].offerings[0].ordinaryRecurringPrice.amount,12);assert.equal(result.lifecycle.results[0].catalog.state,'CATALOG_EXHAUSTED');assert.equal(result.lifecycle.complete,true);assert.equal(result.lifecycle.productionEligible,false);assert.equal(Object.hasOwn(result.researchTarget,'serviceId'),false);
  assert.deepEqual(calls.map(row=>row.route),['SEARCH','SEARCH','READ','READ']);assert.equal(result.lifecycle.usage.reads,2);assert.equal(result.lifecycle.usage.searches,2);assert.equal(result.adaptive.budgetScope,'CAMPAIGN');assert.equal(result.adaptive.initialUsage.reads,1);assert.equal(result.providerResourceReviews[0].status,'REUSED_CURRENT_CAMPAIGN');assert.equal(adaptiveTarget.reads[0].sameCampaignEvidenceReuse.bytes,0);assert.equal(adaptiveTarget.reads[0].networkGeography,'UNBOUND');assert.equal(adaptiveTarget.decisions.some(row=>row.currentCampaignEvidenceReuse&&row.acquisitionReserved),false);assert.equal(result.usage.countryAcquisitions,0);
+});
+
+test('adversarial 16-17: source-bound Service authority crosses with real provenance while fabricated provenance fails',async t=>{
+ const result=await runProviderSeedCampaign({directory:temp(t),researchTarget:researchTarget(),createAdapters:adapters({names:['Orbit']})}),current=result.adaptive.targets[result.children[0].targetId],decision=autonomousProviderAuthorityDecision(current,candidateUrl);
+ assert.equal(providerRoutingAuthority(current,candidateUrl).provenance,'SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY');assert.equal(decision.authority.reference.kind,'SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY');assert.equal(admittedDiscoveryCandidate({url:candidateUrl,authority:decision},current).url,candidateUrl);
+ const fabricated=structuredClone(decision);fabricated.authority.reference.kind='V3_AUTONOMOUS_CANDIDATE_REVIEW';assert.throws(()=>admittedDiscoveryCandidate({url:candidateUrl,authority:fabricated},current),/DISCOVERY_AUTHORITY_URL_MISMATCH/);
 });
 
 test('current-campaign authority evidence is reused exactly while a different provider resource is acquired normally',async t=>{
@@ -122,7 +129,7 @@ test('provider-seed routing independently reacquires a regional redirect before 
  const result=await runProviderSeedCampaign({directory,researchTarget:providerOrBrandResearchTarget({seedName:seed,targetMarket:market}),createAdapters:factory,limits:{reads:4}});
  assert.deepEqual(calls.filter(row=>row.stage==='PROVIDER_SEED').map(row=>[row.url,row.role]),[[official,'CANDIDATE_AUTHORITY_SOURCE'],[regional,'CANDIDATE_AUTHORITY_SOURCE']]);
  assert.deepEqual(result.candidateReviews.map(row=>row.status),['REDIRECTED','ESTABLISHED']);assert.equal(result.candidateReviews[0].redirectCandidateId,result.discovery.candidates.find(row=>row.originKind==='REDIRECT_DESTINATION').candidateId);assert.equal(result.providerAuthorityBinding.host,regionalHost);assert.equal(result.providerAuthorityBinding.proof.url,regional);assert.equal(result.providerAuthorityBinding.proof.scope,'EXACT_HOST_PROVIDER_SOURCING');assert.notEqual(result.providerAuthorityBinding.host,new URL(official).hostname);
- assert.deepEqual(result.discoveredServices.map(row=>row.serviceId),['orbit']);assert.equal(result.serviceDiscovery.status,'SERVICE_DISCOVERY_EXHAUSTED');assert.equal(result.children.length,1);assert.equal(result.children[0].researchTarget.targetKind,'KNOWN_SERVICE');assert.equal(result.lifecycle.usage.reads,3);assert.equal(result.lifecycle.usage.bytes,result.usage.bytes);
+ assert.deepEqual(result.discoveredServices.map(row=>row.serviceId),['orbit']);assert.equal(result.serviceDiscovery.status,'SERVICE_DISCOVERY_EXHAUSTED');assert.equal(result.children.length,1);assert.equal(result.children[0].researchTarget.targetKind,'KNOWN_SERVICE');assert.equal(result.lifecycle.usage.reads,3);assert.equal(result.lifecycle.usage.bytes,result.usage.bytes+result.adaptive.services.orbit.used.bytes);assert(result.lifecycle.usage.bytes<=providerSeedCampaignBounds.bytes);
  const adaptiveTarget=result.adaptive.targets[result.children[0].targetId];assert.equal(providerRoutingAuthority(adaptiveTarget,regional).host,regionalHost);assert.equal(providerRoutingAuthority(adaptiveTarget,'https://sibling.'+regionalHost+'/catalog'),null);
 });
 

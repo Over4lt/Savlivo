@@ -4,10 +4,12 @@ import {structuredMaterial,structuredSources} from './structured-material.mjs';
 import {selectedStateContext,providerStates} from './provider-states.mjs';
 import {digest, pricePropositions, servicePropositions} from './model.mjs';
 import {presentationCapacity as capacity} from './acquisition-contract.mjs';
+import {interpretSubscriptionPage} from './subscription-page.mjs';
 const documents=new WeakMap(),semanticMaterials=new WeakMap();
 function observationDocument(o){const old=documents.get(o),cached=old?.parsed.deref();if(cached&&old.body===o.body&&old.contentType===o.contentType)return cached;const parsed=document(o.body,o.contentType);documents.set(o,{body:o.body,contentType:o.contentType,parsed:new WeakRef(parsed)});return parsed;}
 
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const normalized = s => s.normalize('NFKC').replace(/\s+/gu,' ').trim().toLocaleLowerCase('en');
 const decode = s => s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi, (all, key) => {
     if (key[0] !== '#') return {amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '}[key.toLowerCase()];
     const n = key[1].toLowerCase() === 'x' ? parseInt(key.slice(2),16) : Number(key.slice(1));
@@ -155,10 +157,17 @@ export function projectWebSource(observation, objective) {
     const pointer=n=>({start:n.start,end:n.end,sha256:digest(observation.body.slice(n.start,n.end))});
     const identity=nodes.find(n=>['title','h1','p'].includes(n.tag)&&name.test(n.text));
     if(identity) {source.serviceId=objective.serviceId; bindings['/serviceId']=pointer(identity);}
+    const subscriptionPage=interpretSubscriptionPage({body:observation.body,url:observation.url}),pageService=subscriptionPage.services.find(row=>normalized(row.name)===normalized(objective.serviceName));
+    if(pageService&&source.serviceId===objective.serviceId)for(const offering of subscriptionPage.offerings)for(const [chargeIndex,charge]of offering.charges.entries()){
+        const p='/offers/'+source.offers.length,id=digest([new URL(observation.url).hostname,normalized(objective.serviceName),normalized(offering.name),charge.cadence,charge.amount,charge.currency,chargeIndex]);
+        source.offers.push({id,amount:charge.amount,currency:charge.currency,cadence:charge.cadence,billingCadence:charge.billingCadence,consumer:charge.consumer,relationship:charge.relationship,role:charge.role,monetaryKind:charge.monetaryKind,amountDerivation:charge.amountDerivation,market:null});
+        bindings[p]={start:offering.presentation.start,end:offering.presentation.end,sha256:offering.presentation.sha256,offer:offering.name,offerIdentity:offering.nameLocator,nativePageStructure:true,charge:{text:charge.text,cadence:charge.cadence,billingCadence:charge.billingCadence,...(charge.composition?{composition:charge.composition}:{})}};
+        if(charge.billingCadence==='UNKNOWN')ambiguities.push({pointer:p,reasons:['PAYMENT_CADENCE_UNRESOLVED'],source:bindings[p]});
+    }
     // Keep an offer within one presentation. Prefer small enclosing offer sections,
     // never pool an entire page's prices, currencies and headings.
     if(state.limited)ambiguities.push({reason:'SOURCE_STATE_CONTEXT_BOUND'});
-    const priced=state.limited?[]:nodes.filter(n=>n.tag!=='a'&&monetary(n.text).length&&/\b(?:subscription|membership)\b/i.test(n.text));
+    const priced=state.limited||subscriptionPage.offerings.length?[]:nodes.filter(n=>n.tag!=='a'&&monetary(n.text).length&&/\b(?:subscription|membership)\b/i.test(n.text));
     const selected=priced.filter((n,i)=>!(priced[i+1]?.start>n.start&&priced[i+1].end<n.end));
     for(const n of selected.slice(0,64)) {
         const context=selectedStateContext(observation,n);

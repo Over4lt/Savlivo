@@ -12,7 +12,8 @@ export function admittedDiscoveryCandidate(candidate,target){
  if(decision?.eligible!==true||!decision.authority?.validated||new URL(decision.url).hostname!==decision.authority.hostname)throw Error('DISCOVERY_AUTHORITY_URL_MISMATCH');
  if(decision.providerAuthorityBinding){
   const current=target&&providerRoutingAuthority(target,decision.url);
-  if(current?.provenance!=='V3_AUTONOMOUS_CANDIDATE_REVIEW'||current.host!==decision.authority.hostname||canonical(current.binding)!==canonical(decision.providerAuthorityBinding)||canonical(decision.authority.reference?.binding)!==canonical(current.binding))throw Error('DISCOVERY_AUTHORITY_URL_MISMATCH');
+  const mechanisms=new Set(['V3_AUTONOMOUS_CANDIDATE_REVIEW','SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY']);
+  if(!mechanisms.has(current?.provenance)||decision.authority.reference?.kind!==current.provenance||current.host!==decision.authority.hostname||canonical(current.binding)!==canonical(decision.providerAuthorityBinding)||canonical(decision.authority.reference?.binding)!==canonical(current.binding))throw Error('DISCOVERY_AUTHORITY_URL_MISMATCH');
  }
  // Authority belongs to the reviewed final URL, not an untrusted redirecting lead.
  return {url:decision.url,authority:decision.authority,discoveryLeadUrl:candidate.url};
@@ -24,8 +25,8 @@ export async function createTavilyDiscovery({inventory,readKeychain,bounds,cover
   const acquire=createDiscoveryAcquirer({runtime,bundle,runLive,root:dest+'/acquisitions',dependencies});
   let requests=journal.events.filter(e=>e.type==='LEAD_READ_REQUEST').length,bytes=journal.events.filter(e=>e.type==='LEAD_READ_USAGE').at(-1)?.bytes??0;const perTarget=new Map();for(const e of journal.events.filter(e=>e.type==='LEAD_READ_REQUEST'))perTarget.set(e.target,(perTarget.get(e.target)??0)+1);
   return {search,bounds,coveredServices,
-   async read({url,target}){
-    const adapter=createV2RobotsPublicAdapter({authorities:target.authorities,retainRaw:true,maxLinks:80,maxReads:1,maxRequests:8,network:{timeoutMs:15000,maxBytes:2097152,maxRedirects:2,onBodyBytes:n=>{bytes+=n;if(bytes>48*1024*1024)throw Error('DISCOVERY_READ_BYTES_BOUND');}}});
+   async read({url,target,maxBytes=2097152}){
+    const adapter=createV2RobotsPublicAdapter({authorities:target.authorities,retainRaw:true,maxLinks:80,maxReads:1,maxRequests:8,network:{timeoutMs:15000,maxBytes,maxRedirects:2,onBodyBytes:n=>{bytes+=n;if(bytes>48*1024*1024)throw Error('DISCOVERY_READ_BYTES_BOUND');}}});
     const page=await adapter.read({url,targetCountry:target.market,maxRedirects:2,consumeNetwork:kind=>{if(requests>=180||(perTarget.get(target.id)??0)>=24)throw Error('DISCOVERY_READ_REQUEST_BOUND');requests++;perTarget.set(target.id,(perTarget.get(target.id)??0)+1);journal.append('LEAD_READ_REQUEST',{target:target.id,url,kind});}});
     journal.append('LEAD_READ_USAGE',{target:target.id,requests,bytes});return page;
    },
@@ -37,7 +38,7 @@ export async function createTavilyDiscovery({inventory,readKeychain,bounds,cover
     journal.append('DIRECT_INTERPRETED',{target:target.id,url:admitted.url,runDirectory:direct.runDirectory,monetary:direct.monetary,verified:direct.verified.length,blockers:direct.blockers});
     return {...direct,needsGeo:directGeoGap(direct)};
    },
-   async acquire({target,candidate,direct,route,reason}){
+   async acquire({target,candidate,direct,route,reason,maxBytes=2097152}){
     if(target.capabilities?.decodo===false)throw Error('CAPABILITY_DISABLED_DECODO');
     const semantic=route==='DECODO'&&reason==='TARGET_MARKET_OBSERVATION_REQUIRED'?targetMarketAcquisition(target,candidate.url):null;
     if(semantic){if(target.capabilities?.decodo!==true)throw Error('CAPABILITY_DISABLED_DECODO');direct={needsGeo:true,acquisitionEscalation:semantic};}
@@ -47,7 +48,7 @@ export async function createTavilyDiscovery({inventory,readKeychain,bounds,cover
     if(!independent&&(!direct?.needsGeo||!direct.acquisitionEscalation?.eligible))throw Error('DISCOVERY_ACQUISITION_FAILURE_PROOF_REQUIRED');
     const admitted=admittedDiscoveryCandidate(candidate,target);journal.reserve(target.id,'pages');
     journal.append(independent?'INDEPENDENT_DECODO_ADMITTED':'GEO_ESCALATION_ELIGIBLE',{target:target.id,url:admitted.url,reason:independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent?{proof:direct.acquisitionEscalation,blockers:direct.blockers}:{})});
-    const start=journal.events.length,geo=await acquire({target,candidate:admitted,journal});
+    const start=journal.events.length,geo=await acquire({target,candidate:admitted,journal,maxBytes});
     if(journal.events.slice(start).some(e=>e.type==='BOUND_STOP'))return {...geo,classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO',direct};
     return {...geo,channel:independent?'INDEPENDENT_DECODO':'DIRECT_THEN_GEO',routingReason:independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent?{direct}:{})};
    }

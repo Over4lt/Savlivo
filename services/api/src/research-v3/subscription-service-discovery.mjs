@@ -3,6 +3,7 @@
 import {canonical,digest,normalizeUrl} from './model.mjs';
 import {admitSubscriptionService,rehydrateSubscriptionService} from './subscription-service-admission.mjs';
 import {createResearchTarget,knownServiceResearchTarget,providerSeedCampaignState,researchTargetKinds,serviceDiscoveryObjective,serviceObjectiveForResearchTarget} from './research-target.mjs';
+import {interpretSubscriptionPage} from './subscription-page.mjs';
 
 export const providerResearchByteCapacity=2*1024*1024;
 export const subscriptionServiceDiscoveryBounds=Object.freeze({actions:16,acquisitions:8,navigationDepth:4,observations:8,candidates:32,bytes:providerResearchByteCapacity,nodes:4096,depth:24});
@@ -12,7 +13,6 @@ const types=value=>(Array.isArray(value)?value:[value]).filter(row=>typeof row==
 const identityTypes=new Set(['Service','SoftwareApplication','WebApplication','MobileApplication','Product']);
 const subscription=/\b(?:subscriptions?|memberships?)\b/iu;
 const recurring=/\b(?:recurr(?:ing|ence)|billed|billing|charged|paid|payment)\b[^.\n<]{0,80}\b(?:monthly|annually|annual|yearly|per month|per year)\b|\b(?:monthly|annually|annual|yearly|per month|per year)\b[^.\n<]{0,80}\b(?:recurr(?:ing|ence)|billed|billing|charged|paid|payment)\b/iu;
-const commercial=/\b(?:plans?|tiers?|choose|compare|subscribe|join|upgrade|recurr(?:ing|ence)|billed|billing|per month|per year)\b/iu;
 const genericName=/^(?:plans?|pricing|subscriptions?|memberships?|premium|pro|plus|basic|free|monthly|annual|yearly|account|login)$/iu;
 const peripheralName=/\b(?:support|help(?: center)?|login|account|authentication|billing portal|article|blog)\b/iu;
 const hardwareKeys=new Set(['sku','gtin','gtin8','gtin12','gtin13','gtin14','mpn','weight','shippingDetails','itemCondition']);
@@ -74,20 +74,10 @@ function extractJson(value,raw,start,mechanism,observation,bounds){
  return {candidates,unresolved,coverage:catalogDeclaration(value,raw,start),limited:walked.limited,nodes:walked.nodes};
 }
 
-function insideArticle(body,index){const open=body.lastIndexOf('<article',index),close=body.lastIndexOf('</article',index);return open>close;}
-function textRange(body,start,end){return body.slice(start,end).replace(/<script\b[\s\S]*?<\/script\s*>/giu,' ').replace(/<[^>]+>/gu,' ').replace(/&nbsp;/giu,' ').replace(/\s+/gu,' ').trim();}
 function extractHtml(body,observation){
- const candidates=[],unresolved=[],containers=[...body.matchAll(/<(main|section)\b[^>]*>([\s\S]*?)<\/\1\s*>/giu)];
- for(const container of containers.slice(0,64)){const inner=container[2],base=container.index+container[0].indexOf(inner);for(const heading of inner.matchAll(/<h([12])\b[^>]*>([\s\S]*?)<\/h\1\s*>/giu)){
-  const rawName=heading[2].replace(/<[^>]+>/gu,' ').replace(/\s+/gu,' ').trim(),nameIndex=body.indexOf(rawName,base+heading.index);if(!rawName||genericName.test(rawName)||peripheralName.test(rawName)||nameIndex<0||insideArticle(body,nameIndex))continue;
-  const scopeText=textRange(body,base,base+inner.length),explicit=scopeText.match(subscription),recurringMatch=scopeText.match(recurring),commercialMatch=scopeText.match(commercial),relationship=explicit?(explicit[0].toLowerCase().startsWith('member')?'EXPLICIT_MEMBERSHIP':'EXPLICIT_SUBSCRIPTION'):recurringMatch?'RECURRING_OFFER_SPACE':null;
-  if(!relationship||!commercialMatch){unresolved.push({name:rawName,reason:'SUBSCRIPTION_RELATIONSHIP_REQUIRED',observation:observation.id});continue;}
-  const rawRelationship=explicit?.[0]??recurringMatch[0],relationIndex=body.indexOf(rawRelationship,base);if(relationIndex<0)continue;
-  const type=/\bapp\b/iu.test(rawName)?'SoftwareApplication':'Service';
-  candidates.push({identity:{name:rawName,type,locator:spanLocator(body,nameIndex,nameIndex+rawName.length)},subscription:{kind:relationship,locator:spanLocator(body,relationIndex,relationIndex+rawRelationship.length)},source:{mechanism:'NATIVE_HTML',observation:observation.id,url:observation.url,sha256:observation.sha256,providerHost:new URL(observation.url).hostname},ambiguous:false});
- }}
+ const page=interpretSubscriptionPage({body,url:observation.url}),candidates=page.services.map(service=>({identity:{name:service.name,type:service.type,locator:service.identity},subscription:service.subscription,source:{mechanism:'NATIVE_HTML',observation:observation.id,url:observation.url,sha256:observation.sha256,providerHost:new URL(observation.url).hostname},ambiguous:false})),unresolved=[];
  const noSubscription=body.match(/\b(?:we|our (?:company|business|brand|organization))\s+(?:do not|don't|does not|doesn't)\s+(?:offer|provide|sell|operate)\s+(?:any\s+)?(?:subscriptions?|memberships?)\b/iu);
- return {candidates,unresolved,coverage:noSubscription?{serviceIds:[],locator:spanLocator(body,noSubscription.index,noSubscription.index+noSubscription[0].length),mechanism:'NATIVE_HTML_EXPLICIT_ZERO'}:null,limited:containers.length>64,nodes:containers.length};
+ return {candidates,unresolved,coverage:noSubscription?{serviceIds:[],locator:spanLocator(body,noSubscription.index,noSubscription.index+noSubscription[0].length),mechanism:'NATIVE_HTML_EXPLICIT_ZERO'}:null,limited:page.limited,nodes:page.offerings.length+page.services.length};
 }
 
 function extractObservation(observation,bounds){

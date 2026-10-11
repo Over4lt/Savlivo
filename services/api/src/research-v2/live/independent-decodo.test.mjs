@@ -13,7 +13,7 @@ const fail=()=>{throw Error('FORBIDDEN_TRANSPORT');};
 const run=(t,x={},extras={})=>runOpenWebResearch({directory:dir(t),targets:[target(x)],search:fail,read:fail,classify:async()=>admitted,acquire:async()=>({classification:'COMMERCIAL_FIELDS_INSUFFICIENT',verified:[]}),...extras});
 test('known destination with Direct and Tavily OFF reserves Decodo only, once',async t=>{
  let calls=0;const state=await run(t,{}, {acquire:async a=>{calls++;assert.equal(a.route,'DECODO');assert.equal(a.reason,'DIRECT_PROHIBITED_DECODO_PERMITTED');assert.equal(a.direct,undefined);assert.equal(a.page,undefined);return {classification:'COMMERCIAL_FIELDS_INSUFFICIENT',verified:[]};}});
- assert.equal(calls,1);assert.deepEqual(state.usage,{searches:0,reads:0,acquisitions:1});assert.equal(state.targets[0].reads.length,0);assert.equal(state.targets[0].acquisitionOutcomes[0].channel,'INDEPENDENT_DECODO');assert.equal(state.targets[0].decisions[0].routingReason,'DIRECT_PROHIBITED_DECODO_PERMITTED');
+ assert.equal(calls,1);assert.deepEqual(state.usage,{searches:0,reads:0,acquisitions:1,bytes:0});assert.equal(state.targets[0].reads.length,0);assert.equal(state.targets[0].acquisitionOutcomes[0].channel,'INDEPENDENT_DECODO');assert.equal(state.targets[0].decisions[0].routingReason,'DIRECT_PROHIBITED_DECODO_PERMITTED');
 });
 test('Tavily discovery leads pass admission before Decodo; snippets are never evidence',async t=>{
  let acquired=0,classified=0;const x=target({tavily:true});x.urls=[];
