@@ -107,8 +107,8 @@ export function createPublicReader({ resolveHost = host => lookup(host,{all:true
   const mixedJsonAllowed=new Set(mixedJsonUrls.map(u=>normalizePublicUrl(u).href));
   for (const n of [timeoutMs,maxBytes]) if (!Number.isSafeInteger(n) || n <= 0) fail('INVALID_LIMIT');
   if (!Number.isSafeInteger(redirectCap) || redirectCap < 0) fail('INVALID_LIMIT');
-  return async function read(input, {signal, locale=null, maxRedirects=redirectCap} = {}) {
-    if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0 || locale !== null && (typeof locale !== 'string' || /[\r\n]/.test(locale))) fail('INVALID_REQUEST');
+  return async function read(input, {signal, locale=null, maxRedirects=redirectCap, stopOnCrossHostRedirect=false} = {}) {
+    if (!Number.isSafeInteger(maxRedirects) || maxRedirects < 0 || typeof stopOnCrossHostRedirect!=='boolean' || locale !== null && (typeof locale !== 'string' || /[\r\n]/.test(locale))) fail('INVALID_REQUEST');
     const controller = new AbortController(); let timer;
     const abort = () => controller.abort();
     signal?.addEventListener('abort',abort,{once:true});
@@ -116,10 +116,11 @@ export function createPublicReader({ resolveHost = host => lookup(host,{all:true
     const redirects = []; let current = input;
     try {
       const run = async () => {
-        const seen = new Set();
+        const seen = new Set();let requested=null;
         for (;;) {
           if (controller.signal.aborted) fail('ABORTED');
           const u = normalizePublicUrl(current);
+          requested??=u;
           authorityCheck(u);
           if (seen.has(u.href)) fail('REDIRECT_LOOP'); seen.add(u.href);
           const host = u.hostname.replace(/^\[|\]$/g,'');
@@ -153,7 +154,14 @@ export function createPublicReader({ resolveHost = host => lookup(host,{all:true
             if (typeof headers.location !== 'string' || !headers.location.trim() || /[\r\n]/.test(headers.location)) fail('INVALID_REDIRECT');
             if(authorityOrigins!==null&&(headers.location.length>2048||/[\\\x00-\x20\x7f]/.test(headers.location)))fail('INVALID_REDIRECT');
             let next; try { next = new URL(headers.location,u).href; } catch { fail('INVALID_REDIRECT'); }
-            const nextUrl=normalizePublicUrl(next);authorityCheck(nextUrl); redirects.push(nextUrl.href); current = nextUrl.href; continue;
+            const nextUrl=normalizePublicUrl(next);authorityCheck(nextUrl);
+            if(stopOnCrossHostRedirect&&nextUrl.hostname!==u.hostname){
+              if(seen.has(nextUrl.href))fail('REDIRECT_LOOP');
+              const chain=[...redirects,nextUrl.href];
+              return {url:nextUrl.href,redirects:chain,status,contentType:null,declaredLanguage:null,bodyOmitted:true,
+                redirectStop:{kind:'CROSS_HOST_REDIRECT_STOP',requestedUrl:requested.href,requestedHost:requested.hostname,sourceUrl:u.href,sourceHost:u.hostname,destinationUrl:nextUrl.href,destinationHost:nextUrl.hostname,redirectChain:[requested.href,...chain],navigationDepth:chain.length,httpStatus:status}};
+            }
+            redirects.push(nextUrl.href); current = nextUrl.href; continue;
           }
           if (!Buffer.isBuffer(body) || body.length > bodyLimit) fail('RESPONSE_TOO_LARGE');
           const type = String(headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();

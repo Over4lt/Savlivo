@@ -41,3 +41,15 @@ for(const field of ['origin','robotsUrl','targetUrl'])test('unbound redirect '+f
  const s=fixture(t),a=s.next(),r={url:parent,outcome:'ACCESS_CONTROL_STOP',failure:{code:'ROBOTS_ACCESS_STOP'},accessDecisions:[{targetUrl:parent,origin,robotsUrl:origin+'/robots.txt',decision:'ALLOWED'},{targetUrl:'https://account.provider.example/private',origin:'https://account.provider.example',robotsUrl:'https://account.provider.example/robots.txt',decision:'ROBOTS_INVALID',reason:'ROBOTS_NOT_TEXT_PLAIN'}]};
  delete r.accessDecisions[1][field];s.accept(a.id,r);assert.deepEqual(s.target(target.id).blockedOrigins,[origin]);
 });
+
+test('cross-host routing stop does not request or approve destination until its independent read',async()=>{
+ const {createV2RobotsPublicAdapter}=await import('./robots-policy.mjs'),second='https://regional.example/root',calls=[];
+ const reply=(body,status=200,type='text/plain',headers={})=>({status,headers:{'content-type':type,...headers},body:Buffer.from(body)});
+ const adapter=createV2RobotsPublicAdapter({authorities:[],retainRaw:true,maxReads:2,maxRequests:8,network:{resolveHost:async()=>[{address:'93.184.216.34',family:4}],requestOnce:async({url})=>{
+  calls.push(url.href);if(url.pathname==='/robots.txt')return reply('User-agent: *\nAllow: /');if(url.href===parent)return reply('',302,'text/html',{location:second});assert.equal(url.href,second);return reply('<main>Complete regional source</main>',200,'text/html');
+ }}});
+ const routed=await adapter.read({url:parent,targetCountry:'DE',stopOnCrossHostRedirect:true});
+ assert.equal(routed.outcome,'ROUTING_ONLY');assert.equal(routed.url,second);assert.deepEqual(calls,[origin+'/robots.txt',parent]);assert.equal(routed.accessDecisions.length,1);assert.equal(routed.accessDecisions[0].targetUrl,parent);assert.equal(routed.redirectStop.destinationHost,'regional.example');assert.equal(Object.hasOwn(routed,'rawSource'),false);assert.equal(Object.hasOwn(routed,'sourceIntegrity'),false);
+ const acquired=await adapter.read({url:second,targetCountry:'DE',stopOnCrossHostRedirect:true});
+ assert.equal(acquired.outcome,'OK');assert.equal(acquired.rawSource.text,'<main>Complete regional source</main>');assert.deepEqual(calls,[origin+'/robots.txt',parent,'https://regional.example/robots.txt',second]);assert.equal(adapter.statistics().robotsRequests,2);assert.equal(adapter.statistics().pageRequests,2);
+});

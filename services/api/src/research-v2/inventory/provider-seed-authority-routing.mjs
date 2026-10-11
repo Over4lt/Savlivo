@@ -88,9 +88,13 @@ const normalizedChain=(parent,page,finalUrl)=>{
  for(const value of values)if(!seen.has(value)){seen.add(value);chain.push(value);}
  return chain;
 };
+const sameValues=(a,b)=>Array.isArray(a)&&Array.isArray(b)&&a.length===b.length&&a.every((value,index)=>value===b[index]);
 
 export function providerSeedRedirectCandidate({researchTarget,parent,page,candidates,navigationDepthLimit,insertionOrder}){
- const requested=safe(parent?.url),final=safe(page?.url);if(!requested||!final||requested.hostname===final.hostname||page?.outcome!=='OK'||page?.truncated===true)return {candidate:null,reason:'NOT_ELIGIBLE_REDIRECT'};
+ const requested=safe(parent?.url),final=safe(page?.url),stop=page?.redirectStop,stopped=page?.outcome==='ROUTING_ONLY'&&stop?.kind==='CROSS_HOST_REDIRECT_STOP';
+ if(!requested||!final||requested.hostname===final.hostname||(!stopped&&page?.outcome!=='OK')||page?.truncated===true)return {candidate:null,reason:'NOT_ELIGIBLE_REDIRECT'};
+ const stopChain=stop?.redirectChain,pageRedirects=page?.redirects;
+ if(stopped&&(safe(stop.requestedUrl)?.href!==requested.href||stop.requestedHost!==requested.hostname||safe(stop.destinationUrl)?.href!==final.href||stop.destinationHost!==final.hostname||safe(stop.sourceUrl)?.href!==stopChain?.at(-2)||stop.sourceHost!==safe(stop.sourceUrl)?.hostname||stop.sourceHost===stop.destinationHost||![301,302,303,307,308].includes(stop.httpStatus)||stop.httpStatus!==page.httpStatus||!sameValues(stopChain,[requested.href,...pageRedirects??[]])||stop.navigationDepth!==pageRedirects?.length||page?.accessDecisions?.some(row=>safe(row.targetUrl)?.hostname===final.hostname)||page.rawSource!==undefined||page.body!==undefined||page.bodyHash!==undefined||page.sourceIntegrity!==undefined))return {candidate:null,reason:'INVALID_REDIRECT_STOP'};
  const access=page?.accessDecisions??[];if(!access.length||access.some(row=>row.decision!=='ALLOWED'))return {candidate:null,reason:'REDIRECT_ACCESS_NOT_ALLOWED'};
  const depth=(parent?.navigationDepth??0)+1;if(depth>navigationDepthLimit)return {candidate:null,reason:'REDIRECT_NAVIGATION_DEPTH_BOUND'};
  const ancestors=new Set([...(parent?.redirectChain??[]),parent.url].map(value=>normalizeUrl(value)).filter(Boolean));if(ancestors.has(final.href))return {candidate:null,reason:'REDIRECT_LOOP'};

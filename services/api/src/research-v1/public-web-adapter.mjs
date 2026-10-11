@@ -94,11 +94,13 @@ export function createFreePublicAdapter({ reader=createPublicReader(), clock=()=
           rawResultCount:parsed.length,query,locale,targetCountry,checkedAt,searchUrl:response.url,redirects:response.redirects};
       } catch(e) { return {costClass:'FREE',results:[],failure:{code:e.code ?? 'NETWORK_FAILED'},...(e.accessDecisions?{accessDecisions:e.accessDecisions}:{}),query,locale,targetCountry,checkedAt}; }
     },
-    async read({url,locale,targetCountry,signal,maxRedirects,consumeNetwork}) {
+    async read({url,locale,targetCountry,signal,maxRedirects,consumeNetwork,stopOnCrossHostRedirect=false}) {
       const checkedAt=clock();
       const base={costClass:'FREE',url,locale,targetCountry,checkedAt,redirects:[],sourceType:'SECONDARY',observations:[],links:[],discoveries:[],gaps:[]};
       try {
-        const response=await reader(url,{locale,signal,maxRedirects,consumeNetwork});
+        const response=await reader(url,{locale,signal,maxRedirects,consumeNetwork,stopOnCrossHostRedirect});
+        if(response.redirectStop)return {...base,url:response.url,redirects:response.redirects,outcome:'ROUTING_ONLY',httpStatus:response.status,contentType:null,
+          redirectStop:structuredClone(response.redirectStop),...(response.accessDecisions?{accessDecisions:response.accessDecisions}:{})};
         const source=classify(response.url);
         if(response.scriptScan)return {...base,url:response.url,redirects:response.redirects,outcome:'SCAN_ONLY',httpStatus:response.status,contentType:response.contentType,
           scriptScan:response.scriptScan,...(response.accessDecisions?{accessDecisions:response.accessDecisions}:{})};
