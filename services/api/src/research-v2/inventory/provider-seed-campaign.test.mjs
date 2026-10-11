@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {PublicNetworkError} from '../../research-v1/public-network.mjs';
 import {digest} from '../../research-v3/model.mjs';
 import {providerOrBrandResearchTarget} from '../../research-v3/research-target.mjs';
 import {evaluateDirectProviderTruth,validateDirectProviderPage} from '../live/direct-provider-evidence.mjs';
 import {providerRoutingAuthority} from '../live/provider-routing-authority.mjs';
+import {createV2RobotsPublicAdapter} from '../live/robots-policy.mjs';
 import {initializeAdaptiveState,runAdaptiveCampaign} from './adaptive-campaign.mjs';
 import {runProviderSeedCampaign} from './provider-seed-campaign.mjs';
 
@@ -18,6 +20,24 @@ const discoveryBody=(names,{complete=true}={})=>JSON.stringify({'@graph':names.m
 const childBody=(id,index=0)=>JSON.stringify({serviceId:id,offers:[{id:id+'-monthly',amount:12+index,currency:'EUR',cadence:'MONTHLY',billingCadence:'MONTHLY',consumer:true,relationship:'SUBSCRIPTION',role:'ORDINARY',market}],catalog:{scope:'SERVICE_MARKET',coverage:'COMPLETE',market,offerIds:[id+'-monthly']}});
 const page=(url,body,contentType=url===candidateUrl?'text/html':'application/json')=>({url,requestedUrl:url,outcome:'OK',httpStatus:200,contentType,truncated:false,body,sourceIntegrity:{sha256:digest(body)},accessDecisions:[{decision:'ALLOWED'}]});
 const temp=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'provider-seed-campaign-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return root;};
+
+function sizedBody(body,bytes){const size=Buffer.byteLength(body);assert(size<=bytes);return body+' '.repeat(bytes-size);}
+function productionSizedRedirectAdapters({redirectBodyBytes,calls=[]}){
+ const seed='Lattice',root='https://lattice.example/',regional='https://de.lattice.example/',fallback='https://directory.example/lattice',identity='<html><head><script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@type':'Organization',name:'Lattice Labs',url:regional,brand:{'@type':'Brand',name:seed}})+'</script></head><body>Lattice</body></html>',parentBody=sizedBody(identity,700),redirectBody=sizedBody(identity,redirectBodyBytes),providerBody=discoveryBody([]),robots='User-agent: *\nAllow: /\n';
+ const createAdapters=async({stage})=>{assert.equal(stage,'PROVIDER_SEED');return {
+  search:async()=>({results:[{url:root},{url:fallback}]}),
+  read:async({url,role,maxBytes})=>{
+   calls.push({url,role,maxBytes});const requested=url,reader=createV2RobotsPublicAdapter({authorities:[],retainRaw:true,maxLinks:20,maxReads:1,maxRequests:4,network:{maxBytes,maxRedirects:1,structuredJsonUrls:[regional],resolveHost:async()=>[{address:'93.184.216.34',family:4}],requestOnce:async request=>{
+    const href=request.url.href;if(request.url.pathname==='/robots.txt')return {status:200,headers:{'content-type':'text/plain'},body:Buffer.from(robots)};
+    if(href===root)return {status:302,headers:{'content-type':'text/html',location:regional},body:Buffer.alloc(0)};
+    assert.equal(href,regional);const body=role==='PROVIDER_SOURCE'?providerBody:requested===root?parentBody:redirectBody,type=role==='PROVIDER_SOURCE'?'application/json':'text/html',bytes=Buffer.byteLength(body);
+    if(bytes>request.maxBytes)throw new PublicNetworkError('RESPONSE_TOO_LARGE',{stage:'DECLARED_LENGTH',limit:request.maxBytes,receivedBytes:0,declaredBytes:bytes,contentType:type});
+    return {status:200,headers:{'content-type':type,'content-length':String(bytes)},body:Buffer.from(body)};
+   }}});return reader.read({url,targetCountry:market,maxRedirects:1});
+  }
+ };};
+ return {seed,root,regional,fallback,parentBody,redirectBody,providerBody,calls,createAdapters};
+}
 
 function adapters({names=['Orbit'],complete=true,calls=[],memoryRead=false}={}){
  return async ({stage})=>stage==='PROVIDER_SEED'?{
@@ -97,4 +117,34 @@ test('oversized final candidate cannot create complete evidence and restart pres
 test('redirect candidates preserve the same aggregate byte budget',async t=>{
  const directory=temp(t),start='https://ember.example/',regional='https://de.ember.example/',allowances=[],factory=async()=>({search:async()=>({results:[{url:start}]}),read:async({url,maxBytes})=>{allowances.push(maxBytes);const body=url===start?'abc':'de';return {requestedUrl:url,url:url===start?regional:url,redirects:url===start?[regional]:[],outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,body,sourceIntegrity:{sha256:digest(body)},accessDecisions:[{decision:'ALLOWED'}]};}});
  const result=await runProviderSeedCampaign({directory,researchTarget:providerOrBrandResearchTarget({seedName:'Ember',targetMarket:market}),createAdapters:factory,limits:{reads:4,bytes:5}});assert.deepEqual(allowances,[5,2]);assert.equal(result.usage.bytes,5);assert.equal(result.discovery.candidates.filter(row=>row.originKind==='REDIRECT_DESTINATION').length,1);assert.deepEqual(result.termination,{kind:'BUDGET_LIMITED',reason:'PROVIDER_AUTHORITY_BYTE_BOUND'});
+});
+
+test('production-shaped remaining-byte rejection stops redirect authority immediately and survives restart',async t=>{
+ const directory=temp(t),fixture=productionSizedRedirectAdapters({redirectBodyBytes:700}),input={directory,researchTarget:providerOrBrandResearchTarget({seedName:fixture.seed,targetMarket:market}),createAdapters:fixture.createAdapters,limits:{reads:4,bytes:1300}};
+ const first=await runProviderSeedCampaign(input),redirect=first.discovery.candidates.find(row=>row.originKind==='REDIRECT_DESTINATION'),review=first.candidateReviews.at(-1),state=JSON.parse(fs.readFileSync(path.join(directory,'provider-seed-state.json'),'utf8'));
+ assert.deepEqual(fixture.calls.map(row=>[row.url,row.role,row.maxBytes]),[[fixture.root,'CANDIDATE_AUTHORITY_SOURCE',1300],[fixture.regional,'CANDIDATE_AUTHORITY_SOURCE',600]]);assert(redirect);assert.deepEqual(first.candidateReviews.map(row=>row.status),['REDIRECTED','CAPACITY_LIMITED']);assert.equal(review.candidateId,redirect.candidateId);assert.equal(review.bytes,0);assert.equal(review.byteAllowance,600);assert.deepEqual(review.acquisitionFailure,{code:'RESPONSE_TOO_LARGE',bodyDiagnostic:{version:1,stage:'DECLARED_LENGTH',limit:600,receivedBytes:0,declaredBytes:700,contentType:'text/html',encoding:'identity'}});
+ assert.deepEqual(first.termination,{kind:'BUDGET_LIMITED',reason:'PROVIDER_AUTHORITY_BYTE_BOUND'});assert.equal(first.usage.reads,2);assert.equal(first.usage.bytes,700);assert(first.usage.bytes<=1300);assert.equal(first.providerAuthorityBinding,null);assert.equal(first.authorityProof,null);assert.equal(first.serviceDiscovery,null);assert.deepEqual(first.children,[]);assert.equal(Object.hasOwn(review,'observation'),false);assert.equal(Object.hasOwn(review,'bodySha256'),false);assert.deepEqual(state.termination,first.termination);assert.equal(state.usage.bytes,700);
+ const calls=fixture.calls.length,candidates=first.discovery.candidates.length,resumed=await runProviderSeedCampaign(input);assert.equal(fixture.calls.length,calls);assert.equal(resumed.discovery.candidates.length,candidates);assert.equal(resumed.usage.bytes,700);assert.equal(resumed.usage.reads,2);assert.deepEqual(resumed.termination,first.termination);assert.equal(resumed.providerAuthorityBinding,null);assert.equal(resumed.serviceDiscovery,null);assert.deepEqual(resumed.children,[]);
+});
+
+test('fitting production-shaped redirect still establishes exact-host authority and reaches Service discovery',async t=>{
+ const directory=temp(t),fixture=productionSizedRedirectAdapters({redirectBodyBytes:300}),result=await runProviderSeedCampaign({directory,researchTarget:providerOrBrandResearchTarget({seedName:fixture.seed,targetMarket:market}),createAdapters:fixture.createAdapters,limits:{reads:4,bytes:1300}}),providerBytes=Buffer.byteLength(fixture.providerBody);
+ assert.deepEqual(fixture.calls.map(row=>[row.url,row.role,row.maxBytes]),[[fixture.root,'CANDIDATE_AUTHORITY_SOURCE',1300],[fixture.regional,'CANDIDATE_AUTHORITY_SOURCE',600],[fixture.regional,'PROVIDER_SOURCE',300]]);assert.deepEqual(result.candidateReviews.map(row=>row.status),['REDIRECTED','ESTABLISHED']);assert.equal(result.providerAuthorityBinding.host,new URL(fixture.regional).hostname);assert.equal(result.providerAuthorityBinding.proof.url,fixture.regional);assert.equal(result.serviceDiscovery.status,'SERVICE_DISCOVERY_EXHAUSTED');assert.deepEqual(result.discoveredServices,[]);assert.equal(result.lifecycle.complete,true);assert.equal(result.usage.reads,3);assert.equal(result.usage.bytes,700+300+providerBytes);assert(result.usage.bytes<=1300);assert.equal(fixture.calls.some(row=>row.url===fixture.fallback),false);
+});
+
+test('stream overflow at the exact remaining allowance preserves the same byte-bound cause',async t=>{
+ const directory=temp(t),urls=['https://tungsten-one.example/','https://tungsten-two.example/'],calls=[],factory=async()=>({search:async()=>({results:urls.map(url=>({url}))}),read:async({url,maxBytes})=>{calls.push({url,maxBytes});return {url,outcome:'UNRESOLVED',failure:{code:'RESPONSE_TOO_LARGE'},bodyDiagnostic:{version:1,stage:'STREAM',limit:maxBytes,receivedBytes:maxBytes+1,declaredBytes:null,contentType:'text/html',encoding:'identity'},accessDecisions:[{decision:'ALLOWED'}]};}}),result=await runProviderSeedCampaign({directory,researchTarget:providerOrBrandResearchTarget({seedName:'Tungsten',targetMarket:market}),createAdapters:factory,limits:{reads:4,bytes:100}});
+ assert.deepEqual(calls,[{url:urls[0],maxBytes:100}]);assert.equal(result.candidateReviews[0].status,'CAPACITY_LIMITED');assert.equal(result.candidateReviews[0].bytes,0);assert.deepEqual(result.termination,{kind:'BUDGET_LIMITED',reason:'PROVIDER_AUTHORITY_BYTE_BOUND'});assert.equal(result.usage.bytes,0);assert.equal(result.providerAuthorityBinding,null);
+});
+
+const ordinaryFailures=[
+ ['ordinary access failure',allowance=>({outcome:'UNRESOLVED',httpStatus:503,failure:{code:'HTTP_STATUS',status:503},accessDecisions:[{decision:'ALLOWED'}]})],
+ ['robots denial',allowance=>({outcome:'ACCESS_CONTROL_STOP',failure:{code:'ROBOTS_ACCESS_STOP'},accessDecisions:[{decision:'DISALLOWED'}]})],
+ ['timeout',allowance=>({outcome:'UNRESOLVED',failure:{code:'TIMEOUT'},accessDecisions:[{decision:'ALLOWED'}]})],
+ ['network failure',allowance=>({outcome:'UNRESOLVED',failure:{code:'NETWORK_FAILED'},accessDecisions:[{decision:'ALLOWED'}]})],
+ ['lower per-page safety oversize',allowance=>({outcome:'UNRESOLVED',failure:{code:'RESPONSE_TOO_LARGE'},bodyDiagnostic:{version:1,stage:'DECLARED_LENGTH',limit:allowance-1,receivedBytes:0,declaredBytes:allowance,contentType:'application/json',encoding:'identity'},accessDecisions:[{decision:'ALLOWED'}]})]
+];
+for(const [name,failure] of ordinaryFailures)test(name+' remains an ordinary incomplete acquisition and keeps fallback scheduling',async t=>{
+ const directory=temp(t),urls=['https://cobalt-a.example/','https://cobalt-b.example/'],calls=[],factory=async()=>({search:async()=>({results:urls.map(url=>({url}))}),read:async({url,maxBytes})=>{calls.push({url,maxBytes});if(url===urls[0])return {url,...failure(maxBytes)};return {url,requestedUrl:url,outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,body:'<main>Unrelated directory</main>',sourceIntegrity:{sha256:digest('<main>Unrelated directory</main>')},accessDecisions:[{decision:'ALLOWED'}]};}}),result=await runProviderSeedCampaign({directory,researchTarget:providerOrBrandResearchTarget({seedName:'Cobalt',targetMarket:market}),createAdapters:factory,limits:{reads:2,bytes:100}});
+ assert.deepEqual(calls.map(row=>row.url),urls);assert.equal(result.candidateReviews[0].status,'UNRESOLVED');assert.equal(result.candidateReviews[0].reason,'CANDIDATE_ACQUISITION_INCOMPLETE');assert.equal(result.candidateReviews.some(row=>row.status==='CAPACITY_LIMITED'),false);assert.deepEqual(result.termination,{kind:'UNRESOLVED',reason:'PROVIDER_AUTHORITY_READ_BOUND'});assert.equal(result.providerAuthorityBinding,null);
 });
