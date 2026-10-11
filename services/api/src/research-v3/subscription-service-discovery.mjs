@@ -4,7 +4,8 @@ import {canonical,digest,normalizeUrl} from './model.mjs';
 import {admitSubscriptionService,rehydrateSubscriptionService} from './subscription-service-admission.mjs';
 import {createResearchTarget,knownServiceResearchTarget,providerSeedCampaignState,researchTargetKinds,serviceDiscoveryObjective,serviceObjectiveForResearchTarget} from './research-target.mjs';
 
-export const subscriptionServiceDiscoveryBounds=Object.freeze({actions:16,acquisitions:8,navigationDepth:4,observations:8,candidates:32,bytes:512*1024,nodes:4096,depth:24});
+export const providerResearchByteCapacity=2*1024*1024;
+export const subscriptionServiceDiscoveryBounds=Object.freeze({actions:16,acquisitions:8,navigationDepth:4,observations:8,candidates:32,bytes:providerResearchByteCapacity,nodes:4096,depth:24});
 export const subscriptionServiceDiscoveryStates=Object.freeze(['SERVICE_FOUND_MORE_POSSIBLE','SERVICE_DISCOVERY_EXHAUSTED','SERVICE_DISCOVERY_UNRESOLVED']);
 const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
 const types=value=>(Array.isArray(value)?value:[value]).filter(row=>typeof row==='string').map(row=>row.split('/').at(-1));

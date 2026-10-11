@@ -9,7 +9,7 @@ import {adaptiveBounds,runAdaptiveCampaign} from './adaptive-campaign.mjs';
 import {projectTargetV3Result} from './v3-result-projection.mjs';
 import {discoverResearchTargetCandidates,reviewProviderSeedCandidate,reviewProviderSeedCandidateWithDiagnostic} from '../../research-v3/provider-bootstrap.mjs';
 import {createResearchTarget,researchTargetKinds} from '../../research-v3/research-target.mjs';
-import {discoverSubscriptionServices,fanOutSubscriptionServices,rehydrateDiscoveredService,subscriptionServiceDiscoveryBounds} from '../../research-v3/subscription-service-discovery.mjs';
+import {discoverSubscriptionServices,fanOutSubscriptionServices,providerResearchByteCapacity,rehydrateDiscoveredService,subscriptionServiceDiscoveryBounds} from '../../research-v3/subscription-service-discovery.mjs';
 import {loadProviderSeedResources,rememberProviderSeedResource} from '../../research-v3/provider-seed-resource-memory.mjs';
 import {digest,normalizeUrl} from '../../research-v3/model.mjs';
 import {diverseCandidates,extractNavigation} from '../../research-v3/discovery.mjs';
@@ -17,7 +17,7 @@ import {priceIntent} from '../intelligence/price-entry-intent.mjs';
 import {createProviderSeedAuthorityHandoff,retainProviderSeedObservation,restoreProviderSeedObservation} from '../live/provider-seed-authority-handoff.mjs';
 import {refreshProviderSeedAuthorityFrontier,orderProviderSeedAuthorityCandidates,providerSeedCandidateRouting,providerSeedRedirectCandidate} from './provider-seed-authority-routing.mjs';
 
-export const providerSeedCampaignBounds=Object.freeze({...adaptiveBounds,candidateDestinations:12,providerObservations:8,navigationDepth:4,bytes:512*1024,networkRequests:96,countryAcquisitions:8,browserActions:12});
+export const providerSeedCampaignBounds=Object.freeze({...adaptiveBounds,candidateDestinations:12,providerObservations:8,navigationDepth:4,bytes:providerResearchByteCapacity,networkRequests:96,countryAcquisitions:8,browserActions:12});
 const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const publicObservation=observation=>{const copy=structuredClone(observation);delete copy.body;return copy;};
 function bounds(input){const result={...providerSeedCampaignBounds,...input};for(const [key,value]of Object.entries(result))if(!(key in providerSeedCampaignBounds)||!Number.isSafeInteger(value)||value<0||value>providerSeedCampaignBounds[key])throw Error('INVALID_PROVIDER_SEED_CAMPAIGN_BOUND:'+key);return result;}
