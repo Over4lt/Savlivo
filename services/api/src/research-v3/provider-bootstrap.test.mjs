@@ -21,6 +21,8 @@ test('service and market yield bounded candidate hosts and exact research seeds'
     assert.equal(found.status,'CANDIDATE_HOSTS_FOUND');
     assert.deepEqual(found.candidateHosts,['radio.example','northstar.example']);
     assert.deepEqual(found.seeds,[first,second]);
+    assert.deepEqual(found.candidates.map(candidate=>candidate.searchRank),[1,2]);
+    assert.deepEqual(found.candidates.map(candidate=>candidate.originKind),['SEARCH','SEARCH']);
     assert.deepEqual(found.searches.map(s=>s.query),['Glacier Radio official site','Glacier Radio GB official subscription']);
     assert(found.candidates.every(c=>c.truthAuthority==='NONE'));
     const input=researchInputFromCandidates(found);

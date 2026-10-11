@@ -1,0 +1,87 @@
+import {digest,normalizeUrl} from '../../research-v3/model.mjs';
+
+// Routing only. These signals schedule scarce pre-authority reads and never
+// establish provider identity, ownership, exact-host authority, or Truth.
+export const providerSeedAuthorityRoutingObjective='PROVIDER_SEED_AUTHORITY_ACQUISITION';
+
+const words=value=>String(value??'').normalize('NFKD').replace(/\p{M}/gu,'').normalize('NFC').toLowerCase().match(/[\p{L}\p{N}]{3,}/gu)??[];
+const safe=value=>{const normalized=normalizeUrl(value);if(!normalized)return null;try{return new URL(normalized);}catch{return null;}};
+const identityPath=/(?:^|[\/_-])(?:about(?:-us)?|company|corporate|contact(?:-us)?|imprint|impressum|legal|privacy|terms(?:-of-service)?|who-we-are)(?:[\/_-]|$)/iu;
+const weakPath=/(?:^|[\/_-])(?:auth|account|accounts|billing|checkout|login|pay|payment)(?:[\/_-]|$)/iu;
+const genericLabel=/^(?:app-?store|community|directory|encyclopedia|forum|magazin(?:e)?|marketplace|news|social|wiki)/iu;
+
+export function providerSeedTokens(researchTarget){return [...new Set(words(researchTarget?.seedName))];}
+
+export function providerSeedDestinationClass(candidate){
+ const url=safe(candidate?.url);if(!url)return 'INVALID';
+ const host=url.hostname.toLowerCase(),labels=host.split('.'),path=url.pathname.toLowerCase();
+ if(/\.(?:gov|mil)(?:\.[a-z]{2})?$/u.test(host)||/\.[a-z]{2}\.us$/u.test(host))return 'PUBLIC_SECTOR_OR_LOCALITY';
+ if(labels.some(label=>genericLabel.test(label))||/\/(?:r|forums?|community|store\/apps)(?:\/|$)/u.test(path)||host.endsWith('.news'))return 'GENERIC_THIRD_PARTY';
+ if(labels.some(label=>/^(?:auth|accounts?|billing|checkout|login|pay|payment)$/u.test(label))||weakPath.test(path))return 'AUTH_OR_PAYMENT';
+ return 'GENERAL';
+}
+
+export function providerSeedHostnameAffinity(researchTarget,candidate){
+ const url=safe(candidate?.url),tokens=providerSeedTokens(researchTarget);if(!url||!tokens.length)return 0;
+ const labels=url.hostname.toLowerCase().replace(/^www\./u,'').split('.'),registrable=labels.at(-2)??labels[0],all=labels.flatMap(words);
+ let score=0;
+ for(const token of tokens){
+  if(registrable===token||all.includes(token))score=Math.max(score,3);
+  else if(registrable.startsWith(token)||registrable.endsWith(token)||all.some(label=>label.startsWith(token)||label.endsWith(token)))score=Math.max(score,2);
+  else if(registrable.includes(token))score=Math.max(score,1);
+ }
+ const kind=providerSeedDestinationClass(candidate);
+ if(kind==='PUBLIC_SECTOR_OR_LOCALITY')score=Math.max(0,score-2);
+ if(kind==='GENERIC_THIRD_PARTY'||kind==='AUTH_OR_PAYMENT')score=0;
+ return score;
+}
+
+function authorityResourceTier(candidate){
+ const url=safe(candidate?.url);if(!url)return 3;
+ if(providerSeedDestinationClass(candidate)==='AUTH_OR_PAYMENT')return 2;
+ return url.pathname==='/'||identityPath.test(url.pathname)?0:1;
+}
+
+export function providerSeedCandidateRouting(researchTarget,candidate,candidates=[],index=0){
+ const url=safe(candidate?.url),affinity=providerSeedHostnameAffinity(researchTarget,candidate),originKind=candidate?.originKind??'SEARCH',parent=candidates.find(row=>row.candidateId===candidate?.parentCandidateId),parentAffinity=parent?providerSeedHostnameAffinity(researchTarget,parent):0;
+ const redirectStrong=originKind==='REDIRECT_DESTINATION'&&affinity>0&&affinity>=parentAffinity;
+ return {
+  objective:providerSeedAuthorityRoutingObjective,
+  executable:url!==null&&candidate?.executable!==false,
+  hostnameAffinity:affinity,
+  destinationClass:providerSeedDestinationClass(candidate),
+  authorityResourceTier:authorityResourceTier(candidate),
+  branchPreference:originKind==='REDIRECT_DESTINATION'?(redirectStrong?1:2):0,
+  redirectStrength:originKind==='REDIRECT_DESTINATION'?(redirectStrong?'EQUAL_OR_STRONGER_PROVIDER_AFFINITY':'WEAKER_OR_GENERIC_REDIRECT'):'INDEPENDENT_DISCOVERY',
+  originKind,
+  searchIndex:Number.isSafeInteger(candidate?.searchIndex)?candidate.searchIndex:Number.MAX_SAFE_INTEGER,
+  searchRank:Number.isSafeInteger(candidate?.searchRank)?candidate.searchRank:Number.isSafeInteger(candidate?.resultIndex)?candidate.resultIndex:Number.MAX_SAFE_INTEGER,
+  insertionOrder:Number.isSafeInteger(candidate?.insertionOrder)?candidate.insertionOrder:index,
+  url:url?.href??String(candidate?.url??'')
+ };
+}
+
+export const compareProviderSeedAuthorityRows=(a,b)=>Number(b.executable)-Number(a.executable)||b.hostnameAffinity-a.hostnameAffinity||a.authorityResourceTier-b.authorityResourceTier||a.branchPreference-b.branchPreference||a.searchIndex-b.searchIndex||a.searchRank-b.searchRank||a.insertionOrder-b.insertionOrder||a.url.localeCompare(b.url);
+
+export function orderProviderSeedAuthorityCandidates(researchTarget,candidates,{reviewedCandidateIds=[],remainingReads=Infinity}={}){
+ const reviewed=new Set(reviewedCandidateIds),rows=candidates.map((candidate,index)=>({...candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,candidates,index)})).filter(row=>!reviewed.has(row.candidateId)&&row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing));
+ if(remainingReads!==1||rows[0]?.originKind!=='REDIRECT_DESTINATION')return rows;
+ const independent=rows.find(row=>row.originKind!=='REDIRECT_DESTINATION'&&row.routing.hostnameAffinity>=rows[0].routing.hostnameAffinity);
+ return independent?[independent,...rows.filter(row=>row!==independent)]:rows;
+}
+
+const normalizedChain=(parent,page,finalUrl)=>{
+ const values=[...(parent?.redirectChain??[]),parent?.url,...(Array.isArray(page?.redirects)?page.redirects:[]),finalUrl].map(value=>normalizeUrl(value)).filter(Boolean),seen=new Set(),chain=[];
+ for(const value of values)if(!seen.has(value)){seen.add(value);chain.push(value);}
+ return chain;
+};
+
+export function providerSeedRedirectCandidate({researchTarget,parent,page,candidates,navigationDepthLimit,insertionOrder}){
+ const requested=safe(parent?.url),final=safe(page?.url);if(!requested||!final||requested.hostname===final.hostname||page?.outcome!=='OK'||page?.truncated===true)return {candidate:null,reason:'NOT_ELIGIBLE_REDIRECT'};
+ const access=page?.accessDecisions??[];if(!access.length||access.some(row=>row.decision!=='ALLOWED'))return {candidate:null,reason:'REDIRECT_ACCESS_NOT_ALLOWED'};
+ const depth=(parent?.navigationDepth??0)+1;if(depth>navigationDepthLimit)return {candidate:null,reason:'REDIRECT_NAVIGATION_DEPTH_BOUND'};
+ const ancestors=new Set([...(parent?.redirectChain??[]),parent.url].map(value=>normalizeUrl(value)).filter(Boolean));if(ancestors.has(final.href))return {candidate:null,reason:'REDIRECT_LOOP'};
+ if(candidates.some(row=>normalizeUrl(row.url)===final.href))return {candidate:null,reason:'REDIRECT_DESTINATION_DUPLICATE'};
+ const candidate={candidateId:'provider-seed-redirect:'+digest([parent.candidateId,final.href,depth]),url:final.href,host:final.hostname,truthAuthority:'NONE',originKind:'REDIRECT_DESTINATION',parentCandidateId:parent.candidateId,parentRequestedUrl:requested.href,parentRequestedHost:requested.hostname,redirectChain:normalizedChain(parent,page,final.href),finalUrl:final.href,finalHost:final.hostname,discoveryProvenance:{searchIndex:parent.searchIndex,resultIndex:parent.resultIndex,searchRank:parent.searchRank},searchIndex:parent.searchIndex,resultIndex:parent.resultIndex,searchRank:parent.searchRank,navigationDepth:depth,insertionOrder};
+ return {candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,[...candidates,candidate],insertionOrder)};
+}

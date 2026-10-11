@@ -2,7 +2,7 @@
 import {createTavilySearch,readTavilyKeychain} from '../research-v2/live/tavily-search.mjs';
 import {normalizeFrontierUrl} from '../research-v2/live/source-frontier.mjs';
 import {navigationParametersSafe} from './discovery-authority.mjs';
-import {normalizeUrl} from './model.mjs';
+import {digest,normalizeUrl} from './model.mjs';
 import {createResearchTarget,researchTargetKinds,serviceObjectiveForResearchTarget} from './research-target.mjs';
 import {reviewProviderSeedAuthority} from './provider-authority-review.mjs';
 
@@ -43,7 +43,7 @@ async function discoverSeedCandidates({seedName,targetMarket,search,bounds={},se
             if(hosts.has(candidate.host))continue;
             if(candidates.length>=limit.candidates){limitReached=true;continue;}
             hosts.add(candidate.host);
-            candidates.push({url:candidate.url,host:candidate.host,searchIndex,resultIndex,truthAuthority:'NONE'});
+            candidates.push({candidateId:'provider-seed-search:'+digest([searchIndex,resultIndex,candidate.url]),url:candidate.url,host:candidate.host,searchIndex,resultIndex,searchRank:Number.isSafeInteger(row?.rank)?row.rank:resultIndex,insertionOrder:candidates.length,originKind:'SEARCH',truthAuthority:'NONE'});
         }
     }
     const common={...identityFields,searches,candidates,rejected,bounds:limit,limitReached};
