@@ -70,18 +70,17 @@ export function orderProviderSeedAuthorityCandidates(researchTarget,candidates,{
  return independent?[independent,...rows.filter(row=>row!==independent)]:rows;
 }
 
-export function admitProviderSeedAuthorityCandidate({researchTarget,candidates,candidate,limit,reviewedCandidateIds=[]}){
- if(!Array.isArray(candidates)||!Number.isSafeInteger(limit)||limit<0||candidates.length>limit)throw Error('INVALID_PROVIDER_SEED_FRONTIER');
- const url=normalizeUrl(candidate?.url);if(!url)throw Error('INVALID_PROVIDER_SEED_CANDIDATE');
- if(candidates.some(row=>row.candidateId===candidate.candidateId||normalizeUrl(row.url)===url))return {status:'REJECTED',reason:'REDIRECT_DESTINATION_DUPLICATE',candidates};
- if(candidates.length<limit)return {status:'ADMITTED',reason:'REDIRECT_DESTINATION_ENQUEUED',candidates:[...candidates,candidate],candidate};
- const protectedIds=new Set(reviewedCandidateIds);for(const row of candidates)if(row.parentCandidateId)protectedIds.add(row.parentCandidateId);
- const replaceable=candidates.map((row,index)=>({candidate:row,index,routing:providerSeedCandidateRouting(researchTarget,row,candidates,index)})).filter(row=>!protectedIds.has(row.candidate.candidateId)).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing)),weakest=replaceable.at(-1);
- if(!weakest)return {status:'REJECTED',reason:'PROVIDER_CANDIDATE_DESTINATION_BOUND',candidates};
- const incoming=providerSeedCandidateRouting(researchTarget,candidate,[...candidates,candidate],candidate.insertionOrder??candidates.length),comparison=compareProviderSeedAuthorityRows(incoming,weakest.routing);
- if(comparison>=0)return {status:'REJECTED',reason:'PROVIDER_CANDIDATE_DESTINATION_BOUND',candidates,weakestCandidateId:weakest.candidate.candidateId,comparison};
- const next=[...candidates];next[weakest.index]=candidate;
- return {status:'REPLACED',reason:'STRONGER_CANDIDATE_REPLACEMENT',candidates:next,candidate,evictedCandidate:weakest.candidate,comparison};
+export function refreshProviderSeedAuthorityFrontier({researchTarget,candidates,activeCandidateIds,newCandidates=[],limit,ineligibleCandidateIds=[],deactivateCandidateIds=[]}){
+ if(!Array.isArray(candidates)||!Array.isArray(newCandidates)||!Array.isArray(ineligibleCandidateIds)||!Array.isArray(deactivateCandidateIds)||!Number.isSafeInteger(limit)||limit<0||newCandidates.length>limit)throw Error('INVALID_PROVIDER_SEED_FRONTIER');
+ const history=[...candidates],byId=new Map(),byUrl=new Map();
+ for(const row of history){const url=normalizeUrl(row?.url);if(typeof row?.candidateId!=='string'||!url||byId.has(row.candidateId)||byUrl.has(url))throw Error('INVALID_PROVIDER_SEED_HISTORY');byId.set(row.candidateId,row);byUrl.set(url,row);}
+ const rejectedCandidates=[],discoveredIds=[];
+ for(const candidate of newCandidates){const url=normalizeUrl(candidate?.url),sameId=byId.get(candidate?.candidateId),sameUrl=url&&byUrl.get(url);if(typeof candidate?.candidateId!=='string'||!url)throw Error('INVALID_PROVIDER_SEED_CANDIDATE');if(sameId||sameUrl){rejectedCandidates.push({candidateId:candidate.candidateId,reason:'REDIRECT_DESTINATION_DUPLICATE',existingCandidateId:(sameId??sameUrl).candidateId});continue;}history.push(candidate);byId.set(candidate.candidateId,candidate);byUrl.set(url,candidate);discoveredIds.push(candidate.candidateId);}
+ const reconstruct=activeCandidateIds===undefined;if(!reconstruct&&(!Array.isArray(activeCandidateIds)||new Set(activeCandidateIds).size!==activeCandidateIds.length||activeCandidateIds.some(id=>!byId.has(id))))throw Error('INVALID_PROVIDER_SEED_ACTIVE_FRONTIER');
+ const ineligible=new Set(ineligibleCandidateIds),deactivate=new Set(deactivateCandidateIds),prior=reconstruct?history.map(row=>row.candidateId):[...activeCandidateIds],pool=[...new Set([...prior,...discoveredIds])],rows=pool.map(id=>byId.get(id)).filter(row=>row&&!ineligible.has(row.candidateId)).map((candidate,index)=>({candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,history,index)})).filter(row=>row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing)),selected=rows.slice(0,limit).map(row=>row.candidate.candidateId),active=selected.filter(id=>!deactivate.has(id));
+ const selectedSet=new Set(selected),activeSet=new Set(active),deactivatedIds=prior.filter(id=>!activeSet.has(id)&&(deactivate.has(id)||ineligible.has(id))),displacedIds=prior.filter(id=>!selectedSet.has(id)&&!ineligible.has(id)&&!deactivate.has(id)),admittedIds=discoveredIds.filter(id=>activeSet.has(id));
+ for(const id of discoveredIds)if(!activeSet.has(id))rejectedCandidates.push({candidateId:id,reason:'PROVIDER_CANDIDATE_DESTINATION_BOUND'});
+ return {candidates:history,activeCandidateIds:active,admittedIds,displacedIds,deactivatedIds,rejectedCandidates,reconstructed:reconstruct};
 }
 
 const normalizedChain=(parent,page,finalUrl)=>{
