@@ -74,17 +74,17 @@ function extractJson(value,raw,start,mechanism,observation,bounds){
  return {candidates,unresolved,coverage:catalogDeclaration(value,raw,start),limited:walked.limited,nodes:walked.nodes};
 }
 
-function extractHtml(body,observation){
- const page=interpretSubscriptionPage({body,url:observation.url}),candidates=page.services.map(service=>({identity:{name:service.name,type:service.type,locator:service.identity},subscription:service.subscription,source:{mechanism:'NATIVE_HTML',observation:observation.id,url:observation.url,sha256:observation.sha256,providerHost:new URL(observation.url).hostname},ambiguous:false})),unresolved=[];
+function extractHtml(body,observation,providerAuthorityBinding){
+ const page=interpretSubscriptionPage({body,url:observation.url,providerName:providerAuthorityBinding.providerIdentity?.presentationName??null}),candidates=page.services.map(service=>({identity:{name:service.name,type:service.type,locator:service.identity},subscription:service.subscription,source:{mechanism:'NATIVE_HTML',observation:observation.id,url:observation.url,sha256:observation.sha256,providerHost:new URL(observation.url).hostname},ambiguous:false})),unresolved=[];
  const noSubscription=body.match(/\b(?:we|our (?:company|business|brand|organization))\s+(?:do not|don't|does not|doesn't)\s+(?:offer|provide|sell|operate)\s+(?:any\s+)?(?:subscriptions?|memberships?)\b/iu);
  return {candidates,unresolved,coverage:noSubscription?{serviceIds:[],locator:spanLocator(body,noSubscription.index,noSubscription.index+noSubscription[0].length),mechanism:'NATIVE_HTML_EXPLICIT_ZERO'}:null,limited:page.limited,nodes:page.offerings.length+page.services.length};
 }
 
-function extractObservation(observation,bounds){
+function extractObservation(observation,bounds,providerAuthorityBinding){
  const body=observation.body,documents=structuredDocuments(body),all={candidates:[],unresolved:[],coverage:[],limited:false,nodes:0};
  for(const document of documents){if(document.malformed){all.unresolved.push({name:null,reason:'MALFORMED_STRUCTURED_DATA',observation:observation.id});continue;}const found=extractJson(document.value,document.raw,document.start,document.mechanism,observation,bounds);all.candidates.push(...found.candidates);all.unresolved.push(...found.unresolved);if(found.coverage)all.coverage.push(found.coverage);all.limited||=found.limited;all.nodes+=found.nodes;}
  if(observation.format!=='WEB'){try{const value=JSON.parse(body),found=extractJson(value,body,0,'PROVIDER_NATIVE_JSON',observation,bounds);all.candidates.push(...found.candidates);all.unresolved.push(...found.unresolved);if(found.coverage)all.coverage.push(found.coverage);all.limited||=found.limited;all.nodes+=found.nodes;}catch{all.unresolved.push({name:null,reason:'MALFORMED_STRUCTURED_DATA',observation:observation.id});}}
- if(observation.format==='WEB'){const found=extractHtml(body,observation);all.candidates.push(...found.candidates);all.unresolved.push(...found.unresolved);if(found.coverage)all.coverage.push(found.coverage);all.limited||=found.limited;all.nodes+=found.nodes;}
+ if(observation.format==='WEB'){const found=extractHtml(body,observation,providerAuthorityBinding);all.candidates.push(...found.candidates);all.unresolved.push(...found.unresolved);if(found.coverage)all.coverage.push(found.coverage);all.limited||=found.limited;all.nodes+=found.nodes;}
  return all;
 }
 
@@ -101,7 +101,7 @@ export function discoverSubscriptionServices({researchTarget,providerAuthorityBi
  for(const observation of observations.slice(0,bound.observations)){
   if(!observationValid(observation,providerAuthorityBinding)){unresolved.push({name:null,reason:'AUTHORITATIVE_PROVIDER_OBSERVATION_REQUIRED',observation:observation?.id??null});continue;}
   const size=Buffer.byteLength(observation.body);if(bytes+size>bound.bytes){limited=true;continue;}bytes+=size;used.push(observation.id);
-  const found=extractObservation(observation,bound);limited||=found.limited;coverage.push(...found.coverage.map(row=>({...row,observation:observation.id,url:observation.url,sha256:observation.sha256})));
+  const found=extractObservation(observation,bound,providerAuthorityBinding);limited||=found.limited;coverage.push(...found.coverage.map(row=>({...row,observation:observation.id,url:observation.url,sha256:observation.sha256})));
   unresolved.push(...found.unresolved);
   for(const candidate of found.candidates){const key=canonical([candidate.identity.name,candidate.identity.type,candidate.identity.locator,candidate.subscription.locator,observation.id]);if(seenCandidates.has(key))continue;seenCandidates.add(key);if(seenCandidates.size>bound.candidates){limited=true;break;}const admission=admitSubscriptionService({candidate,observation,researchTarget:target,providerAuthorityBinding});if(admission.status==='ADMITTED')admissions.push(admission);else unresolved.push({name:candidate.identity.name,reason:admission.reason,observation:observation.id});}
  }

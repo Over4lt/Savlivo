@@ -46,3 +46,38 @@ test('adversarial 12: navigation labels and navigation-contained cards are exclu
 test('adversarial 13: support and resource headings cannot become Services without identity relationships',()=>{const body='<main><section><h2>Training Resources</h2><p>Subscription support €5 / month</p></section><section><h2>Everything You Need</h2></section></main>';assert.deepEqual(discovery(body).services,[]);});
 test('adversarial 14: malformed structured data does not create a Service',()=>{const body='<script type="application/ld+json">{"@type":"Service",bad}</script><main><h2>Compare Plans</h2><p>€5 / month</p></main>';assert.deepEqual(discovery(body).services,[]);});
 test('adversarial 15: conflicting page product identities fail closed',()=>{const body=ordinaryPage.replace('content="Orbit Subscription Plans"','content="Pulse Subscription Plans"');assert.deepEqual(page(body).services,[]);assert.deepEqual(discovery(body).services,[]);});
+
+const presented=({name='Aurora',title=`${name} | Personal finance app subscription`,description=`${name} provides consumers access to its budgeting application.`,body='' }={})=>`<html><head><title>${title}</title><meta property="og:title" content="${title}"><meta name="description" content="${description}"><meta property="og:description" content="${description}"></head><body>${body}</body></html>`;
+
+test('ordinary source-bound product presentation yields app membership sibling and distinct multi-Service candidates',()=>{
+ const app=discovery(presented()),membership=discovery(presented({name:'Northstar Club',title:'Northstar Club | Consumer membership service',description:'Northstar Club offers members access to its digital membership product.'})),sibling=discovery('<html><head><title>Cloudbox | Personal storage app</title><meta property="og:title" content="Cloudbox | Personal storage app"></head><body><main><h1>Cloudbox</h1><section><p>Cloudbox is a consumer subscription software application for personal files.</p></section></main></body></html>'),multiple=discovery('<main><section><h2>Orbit</h2><p>Northstar Digital offers Orbit, a consumer subscription app for personal reading.</p></section><section><h2>Pulse</h2><p>Northstar Digital provides Pulse, a consumer membership service for audio.</p></section></main>');
+ assert.deepEqual(app.services.map(row=>[row.serviceName,row.identityType,row.provenance.relationship]),[['Aurora','SoftwareApplication','EXPLICIT_SUBSCRIPTION']]);
+ assert.deepEqual(membership.services.map(row=>[row.serviceName,row.provenance.relationship]),[['Northstar Club','EXPLICIT_MEMBERSHIP']]);
+ assert.deepEqual(sibling.services.map(row=>[row.serviceName,row.identityType]),[['Cloudbox','SoftwareApplication']]);
+ assert.deepEqual(multiple.services.map(row=>row.serviceName),['Orbit','Pulse']);assert.equal(new Set(multiple.services.map(row=>row.serviceId)).size,2);
+ for(const result of [app,membership,sibling,multiple])for(const service of result.services){assert.equal(service.provenance.extractionMechanism,'NATIVE_HTML');assert.equal(service.provenance.sourceUrl,url);assert.equal(service.provenance.providerObservation,'provider');assert.equal(service.providerBinding.host,host);}
+});
+
+test('ordinary presentation fails closed across weak conflicting third-party and ambiguous shapes',()=>{
+ const cases=[
+  ['generic subscribe CTA','<main><a href="/join">Subscribe now</a></main>'],
+  ['newsletter subscription',presented({name:'Daily Brief',title:'Daily Brief | Newsletter subscription',description:'Daily Brief delivers a daily newsletter.'})],
+  ['magazine title',presented({name:'Science Weekly',title:'Science Weekly | Magazine subscription',description:'Science Weekly publishes articles every week.'})],
+  ['FAQ heading','<main><h2>Subscription FAQ</h2><p>How subscriptions work.</p></main>'],
+  ['navigation heading','<nav><h2>Membership</h2><a href="/join">Join</a></nav>'],
+  ['plan name alone','<article><h2>Premium</h2><p>Premium is a consumer subscription plan.</p></article>'],
+  ['provider merchandise','<section><h2>Aurora Shirt</h2><p>Aurora Shirt is a merchandise product available for purchase.</p></section>'],
+  ['retailer',presented({name:'Shopzone',title:'Shopzone | Acme app subscription',description:'Shopzone sells Acme subscriptions as a retailer.'})],
+  ['third-party mention',presented({name:'ReviewHub',title:'ReviewHub | Acme app subscription',description:'ReviewHub reviews the Acme application.'})],
+  ['generic account CTA','<main><h1>Account</h1><a href="/login">Log in to manage subscription</a></main>'],
+  ['price card without Service','<article><h2>Gold</h2><p>EUR 9.99 per month.</p></article>'],
+  ['conflicting product identities',presented().replace('content="Aurora | Personal finance app subscription"','content="Pulse | Personal finance app subscription"')],
+  ['ambiguous multi-product','<section><h2>Orbit</h2><h2>Pulse</h2><p>One of these products is a consumer subscription app.</p></section>'],
+  ['external link only','<main><a href="https://external.example/plans">Subscription plans</a></main>'],
+  ['marketing heading','<main><h1>Unlimited Possibilities</h1><p>Everything you love in one place.</p></main>'],
+  ['trial wording','<main><h2>Start today</h2><p>Try free for 30 days, then renew.</p></main>'],
+  ['structured vocabulary noise','<script type="application/ld+json">{"@type":"Organization","description":"subscription app membership service"}</script><main>Welcome</main>'],
+  ['unbound third-party component','<section><h2>Acme</h2><p>Acme is a consumer subscription app for personal reading.</p></section>'],
+ ];
+ assert.equal(cases.length,18);for(const [label,body]of cases){assert.deepEqual(page(body).services,[],label);assert.deepEqual(discovery(body).services,[],label);}
+});

@@ -1,6 +1,7 @@
-// Small deterministic interpretation of ordinary subscription pages.  The
-// structural unit is a page identity with a sibling set of plan cards; headings
-// and money elsewhere on the page are not promoted into Services or offerings.
+// Small deterministic interpretation of ordinary subscription pages. A
+// Service may come from a coherent page/component product presentation or a
+// page identity with sibling plan cards; headings and money alone are never
+// promoted into Services or offerings.
 import {digest} from './model.mjs';
 
 const voids=new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
@@ -47,14 +48,14 @@ function fieldRows(parsed){
  for(const node of parsed.nodes){
   if(node.hidden)continue;
   if(node.tag==='title'){const value=parsed.text(node);if(value)rows.push({kind:'TITLE',value,node,start:node.openEnd,end:node.contentEnd});}
-  if(node.tag==='meta'&&['title','description'].includes(node.attrs.name?.toLowerCase())||node.tag==='meta'&&['og:title','og:description'].includes(node.attrs.property?.toLowerCase())){
+  if(node.tag==='meta'&&['title','description','application-name'].includes(node.attrs.name?.toLowerCase())||node.tag==='meta'&&['og:title','og:description','og:site_name'].includes(node.attrs.property?.toLowerCase())){
    const value=normalized(node.attrs.content??'');if(value){const raw=parsed.body.slice(node.start,node.openEnd),at=raw.indexOf(node.attrs.content);rows.push({kind:(node.attrs.name??node.attrs.property).toUpperCase(),value,node,start:at<0?node.start:node.start+at,end:at<0?node.openEnd:node.start+at+node.attrs.content.length});}
   }
  }
  return rows;
 }
 
-function pageIdentities(parsed,hasPlanSet){
+function planPageIdentities(parsed,hasPlanSet){
  if(!hasPlanSet)return [];
  const fields=fieldRows(parsed),claims=[];
  for(const row of fields){const match=row.value.match(/(?:^|[|–—:]\s*)([\p{L}\p{N}][\p{L}\p{N}&'’.+ -]{1,118}?)\s+(subscriptions?|memberships?)\b/iu);if(!match)continue;const name=normalized(match[1].split(/\s+[|–—]\s+/u).at(-1));if(!name||name.length>120)continue;const local=row.value.indexOf(match[1])+match[1].lastIndexOf(name),relationAt=row.value.toLocaleLowerCase('en').indexOf(match[2].toLocaleLowerCase('en'));claims.push({name,type:/\bapp(?:lication)?\b/iu.test(name)?'SoftwareApplication':'Service',identity:locator(parsed.body,row.start+Math.max(0,local),row.start+Math.max(0,local)+name.length),subscription:{kind:/membership/iu.test(match[2])?'EXPLICIT_MEMBERSHIP':'EXPLICIT_SUBSCRIPTION',locator:locator(parsed.body,row.start+relationAt,row.start+relationAt+match[2].length)},field:row.kind});}
@@ -64,6 +65,51 @@ function pageIdentities(parsed,hasPlanSet){
   if(new Set(rows.map(r=>r.field)).size>=2||corroborated)identities.push({...rows[0],support:[...new Set([...rows.map(r=>r.field),...(corroborated?['PAGE_IDENTITY_CORROBORATION']:[])])]});
  }
  return identities.length===1?identities:[];
+}
+
+const relationshipWord=/\b(subscriptions?|memberships?)\b/iu;
+const productWord=/\b(?:app(?:lication)?|membership|platform|product|service|software)\b/iu;
+const descriptiveProductWord=/\b(?:access|app(?:lication)?|library|magazines?|membership|newspapers?|platform|product|service|software)\b/iu;
+const providerPredicate=/\b(?:is|offers?|provides?|gives?|delivers?|lets?|helps?|brings?|makes?|transforms?|connects?)\b/iu;
+const genericName=/^(?:plans?|pricing|subscriptions?|memberships?|premium|pro|plus|basic|free|monthly|annual|yearly|account|login)$/iu;
+const peripheralName=/\b(?:support|help(?: center)?|login|account|authentication|billing portal|article|blog)\b/iu;
+const escaped=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const uniqueRow=rows=>{const values=new Map();for(const row of rows)values.set(comparable(row.value),row);return values.size===1?[...values.values()][0]:null;};
+const exactLocator=(parsed,row,value)=>{const raw=parsed.body.slice(row.start,row.end),match=new RegExp(escaped(value),'iu').exec(raw);return match?locator(parsed.body,row.start+match.index,row.start+match.index+match[0].length):null;};
+const relationLocator=(parsed,row)=>{const raw=parsed.body.slice(row.start,row.end),match=relationshipWord.exec(raw);return match?{kind:/membership/iu.test(match[0])?'EXPLICIT_MEMBERSHIP':'EXPLICIT_SUBSCRIPTION',locator:locator(parsed.body,row.start+match.index,row.start+match.index+match[0].length)}:null;};
+const sourceProductClaim=(value,providerName,name,{description=false,requireProvider=false}={})=>{
+ const relationship=description?descriptiveProductWord:relationshipWord;if(!relationship.test(value)||(description?true:productWord.test(value))===false)return false;
+ if((!requireProvider||comparable(providerName??'')===comparable(name))&&new RegExp('^'+escaped(name)+'(?:\\s|[,.:;—-])','iu').test(value)&&providerPredicate.test(value))return true;
+ return !!providerName&&new RegExp('^'+escaped(providerName)+'(?:\\s|[,.:;—-]).*\\b(?:creates?|develops?|makes?|offers?|operates?|provides?|publishes?)\\b[^.]{0,120}\\b'+escaped(name)+'\\b','iu').test(value);
+};
+function presentationName(title,siteIdentity){
+ if(siteIdentity)return siteIdentity.value;
+ const separated=title.value.match(/^(.{2,120}?)\s*(?:[|·–—:]\s*)/u)?.[1],suffix=title.value.match(/^(.{2,120}?)\s+(?:(?:consumer|digital|online|personal)\s+)?(?:(?:app(?:lication)?|platform|service|software)\s+)?(?:subscription|membership)(?:\s+(?:app|plans?|service))?$/iu)?.[1];
+ return normalized(separated??suffix??'');
+}
+function pagePresentationIdentity(parsed,providerName){
+ const fields=fieldRows(parsed),titles=fields.filter(row=>row.kind==='TITLE'),openGraphTitles=fields.filter(row=>row.kind==='OG:TITLE'),descriptions=fields.filter(row=>['DESCRIPTION','OG:DESCRIPTION'].includes(row.kind)),siteRows=fields.filter(row=>['APPLICATION-NAME','OG:SITE_NAME'].includes(row.kind)),title=uniqueRow(titles),openGraphTitle=uniqueRow(openGraphTitles),siteIdentity=siteRows.length?uniqueRow(siteRows):null;
+ if(!title||!openGraphTitle||comparable(title.value)!==comparable(openGraphTitle.value)||(siteRows.length&&!siteIdentity))return null;
+ const name=presentationName(title,siteIdentity);if(!name||name.length<2||name.length>120||genericName.test(name)||peripheralName.test(name)||!exactWord(title.value,name)||!exactWord(openGraphTitle.value,name))return null;
+ if(siteIdentity&&comparable(siteIdentity.value)!==comparable(name))return null;
+ const description=descriptions.length?uniqueRow(descriptions):null;if(descriptions.length&&!description)return null;
+ const metadataSupport=description&&sourceProductClaim(description.value,providerName,name,{description:true}),headings=parsed.nodes.filter(node=>node.tag==='h1'&&!node.hidden&&comparable(parsed.text(node))===comparable(name)),bodySupport=parsed.segments.find(row=>exactWord(row.text,name)&&sourceProductClaim(row.text,providerName,name)),relationRows=[title,openGraphTitle,...descriptions,...(bodySupport?[{...bodySupport,value:bodySupport.text}]:[])].filter(row=>relationshipWord.test(row.value)&&productWord.test(row.value));
+ if(!relationRows.length||(!metadataSupport&&!(headings.length===1&&bodySupport)))return null;
+ const identity=exactLocator(parsed,siteIdentity??title,name),subscription=relationLocator(parsed,relationRows[0]);if(!identity||!subscription)return null;
+ const material=[title.value,openGraphTitle.value,description?.value??'',bodySupport?.text??''].join(' '),type=/\b(?:app(?:lication)?|software)\b/iu.test(material)?'SoftwareApplication':'Service';
+ return {name,type,identity,subscription,support:['PAGE_TITLE','OPEN_GRAPH_TITLE',...(metadataSupport?['PRODUCT_DESCRIPTION']:['PAGE_IDENTITY_CORROBORATION'])]};
+}
+
+function componentIdentities(parsed,providerName){
+ const found=[];
+ for(const node of parsed.nodes){if(node.hidden||node.tag!=='section'||ancestors(node).some(parent=>peripheral.has(parent.tag)))continue;
+  const headings=parsed.nodes.filter(row=>/^h[1-3]$/.test(row.tag)&&!row.hidden&&row.start>=node.openEnd&&row.end<=node.contentEnd&&!ancestors(row).some(parent=>parent!==node&&['article','section'].includes(parent.tag))),names=[...new Set(headings.map(row=>parsed.text(row)).filter(Boolean))];if(names.length!==1)continue;
+  const name=names[0];if(name.length<2||name.length>120||genericName.test(name)||peripheralName.test(name))continue;
+  const relationship=parsed.within(node).find(row=>exactWord(row.text,name)&&sourceProductClaim(row.text,providerName,name,{requireProvider:true}));if(!relationship)continue;
+  const raw=parsed.body.slice(relationship.start,relationship.end),match=relationshipWord.exec(raw);if(!match)continue;const type=/\b(?:app(?:lication)?|software)\b/iu.test(relationship.text)?'SoftwareApplication':'Service';
+  found.push({name,type,identity:locator(parsed.body,headings[0].openEnd,headings[0].contentEnd),subscription:{kind:/membership/iu.test(match[0])?'EXPLICIT_MEMBERSHIP':'EXPLICIT_SUBSCRIPTION',locator:locator(parsed.body,relationship.start+match.index,relationship.start+match.index+match[0].length)},support:['COMPONENT_IDENTITY','COMPONENT_PRODUCT_RELATIONSHIP'],range:node.end-node.start});
+ }
+ const byName=new Map();for(const row of found.sort((a,b)=>a.range-b.range))if(!byName.has(comparable(row.name)))byName.set(comparable(row.name),row);return [...byName.values()].map(({range,...row})=>row);
 }
 
 const symbolCurrency=new Map([['€','EUR'],['£','GBP'],['¥','JPY'],['CA$','CAD'],['A$','AUD'],['US$','USD']]);
@@ -101,7 +147,7 @@ function enrichFromProse(parsed,offerings){
  }
 }
 
-export function interpretSubscriptionPage({body,url}){
- if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),services=pageIdentities(parsed,cards.length>0),offerings=cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges}));enrichFromProse(parsed,offerings);
+export function interpretSubscriptionPage({body,url,providerName=null}){
+ if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges}));enrichFromProse(parsed,offerings);
  return {services,offerings,limited:parsed.limited};
 }
