@@ -78,6 +78,6 @@ export function rememberProviderSeedResource({root,researchTarget,providerAuthor
 
 export function loadProviderSeedResources({root,researchTarget}){
  let directory,target;try{directory=rootPath(root);target=createResearchTarget(researchTarget);if(target.targetKind!==researchTargetKinds.PROVIDER_OR_BRAND_SEED)throw Error('PROVIDER_SEED_TARGET_REQUIRED');}catch(error){return {resources:[],rejected:true,reason:error.message};}
- try{const resources=[];for(const row of readStore(directory).resources){if(canonical(row.researchTarget)!==canonical(target))continue;const binding=revalidate(directory,target,row);resources.push({record:structuredClone(row),providerAuthorityBinding:binding,acquisition:{route:row.resource.acquisitionRoute,url:row.resource.url,reacquisition:'REQUIRED'}});}return {resources,rejected:false,meaning:providerSeedResourceMemoryContract.meaning};}
+ try{const resources=[];for(const row of readStore(directory).resources){if(canonical(row.researchTarget)!==canonical(target))continue;const authorityObservation={...structuredClone(row.authority.proof.observation),body:proofBody(directory,row.authority.proof.bodyReference)},binding=revalidate(directory,target,row);resources.push({record:structuredClone(row),providerAuthorityBinding:binding,authorityObservation,acquisition:{route:row.resource.acquisitionRoute,url:row.resource.url,reacquisition:'REQUIRED'}});}return {resources,rejected:false,meaning:providerSeedResourceMemoryContract.meaning};}
  catch(error){return {resources:[],rejected:true,reason:error.message};}
 }

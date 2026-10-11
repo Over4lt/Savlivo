@@ -9,8 +9,8 @@ import {evaluateProviderSourceTruth} from './provider-source-v3.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 function autonomousAuthority(target,page){
  const requested=autonomousProviderAuthorityDecision(target,page.requestedUrl??page.url),final=autonomousProviderAuthorityDecision(target,page.url);
- if(!requested||!final||requested.authority.hostname!==final.authority.hostname||page.providerAuthority?.provenance!=='V3_AUTONOMOUS_CANDIDATE_REVIEW'||canonical(page.providerAuthority.binding)!==canonical(final.providerAuthorityBinding))return null;
- return {status:'CONFIGURED_REVIEWED',hostname:final.authority.hostname,provider:target.serviceName,sourceType:'OFFICIAL_PROVIDER',sourceUrl:final.url,checkedAt:page.checkedAt??page.capturedAt??page.sourceIntegrity?.checkedAt??new Date().toISOString(),autonomousProviderAuthority:{provenance:'V3_AUTONOMOUS_CANDIDATE_REVIEW',binding:structuredClone(final.providerAuthorityBinding)}};
+ if(!requested||!final||requested.authority.hostname!==final.authority.hostname||page.providerAuthority?.provenance!==final.authority.reference.kind||canonical(page.providerAuthority.binding)!==canonical(final.providerAuthorityBinding))return null;
+ return {status:'CONFIGURED_REVIEWED',hostname:final.authority.hostname,provider:target.serviceName,sourceType:'OFFICIAL_PROVIDER',sourceUrl:final.url,checkedAt:page.checkedAt??page.capturedAt??page.sourceIntegrity?.checkedAt??new Date().toISOString(),autonomousProviderAuthority:{provenance:final.authority.reference.kind,binding:structuredClone(final.providerAuthorityBinding)}};
 }
 export function validateDirectProviderPage({target,page,directory}){
  const projected=autonomousAuthority(target,page),authority=projected??page.authority;

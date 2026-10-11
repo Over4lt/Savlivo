@@ -24,6 +24,7 @@ import {reviewV2CandidateAuthority} from '../../research-v3/v2-candidate-authori
 import {autonomousProviderAuthorityDecision,hasProviderRoutingAuthority,installRunScopedV3ProviderAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {loadHybridProviderResources,recordHybridProviderResourceFailure} from './hybrid-provider-resource-memory.mjs';
 import {providerResourceRelevance,targetMarketPathHint,providerRoutingSnapshot,summarizeProviderRoutingProgress,recordProviderRoutingProgress} from './provider-resource-routing.mjs';
+import {rehydrateProviderSeedAuthorityHandoff} from './provider-seed-authority-handoff.mjs';
 import {authorityAcquisitionRelevance,authorityAcquisitionTiers,candidateAuthorityRouting,candidateIdentityPriority,candidateOriginKind,candidateRelevant,compareCandidateAuthorityRows} from './candidate-authority-routing.mjs';
 export {candidateRelevant,serviceDomainHint,serviceIdentityTokens} from './candidate-authority-routing.mjs';
 export const openWebBounds=Object.freeze({managementReserveOnly:0,services:78,searches:50,reads:80,acquisitions:30,perServiceSearches:5,perServiceReads:8,perServiceAcquisitions:3,leadsPerService:40,linksPerPage:80,bytesPerPage:2097152});
@@ -72,12 +73,13 @@ export function destinationDiscoveryNeeded(t,bounds,usage){
 // Identity metadata is complete even when the acquisition campaign is bounded.
 export const catalogIdentityMetadata=(catalog,previous=[])=>[...new Map([...previous,...catalog].map(t=>[t.service,{service:t.service,serviceName:t.serviceName}])).values()];
 export class OpenWebResearch {
- constructor(directory,targets,bounds=openWebBounds,catalog=targets,{providerResourceMemoryRoot=null,memoryNow=new Date().toISOString()}={}){
+ constructor(directory,targets,bounds=openWebBounds,catalog=targets,{providerResourceMemoryRoot=null,providerSeedAuthorityRoot=null,memoryNow=new Date().toISOString()}={}){
   this.directory=directory;this.bounds={...openWebBounds,...bounds};for(const [k,v]of Object.entries(this.bounds))if(!(k in openWebBounds)||!Number.isSafeInteger(v)||v<0||v>(k==='managementReserveOnly'?1:openWebBounds[k]))throw Error('INVALID_DISCOVERY_BOUND:'+k);
   fs.mkdirSync(directory,{recursive:true});this.file=directory+'/state.json';const existing=fs.existsSync(this.file);this.state=existing?JSON.parse(fs.readFileSync(this.file)): {version:1,catalog:catalogIdentityMetadata(catalog),targets:targets.map(t=>({...t,gaps:t.gaps??commercialFields,queries:[],reads:[],leads:[],decisions:[],blockedOrigins:t.blockedOrigins??[],verified:[]})),usage:{searches:0,reads:0,acquisitions:0},cache:{},pending:null};
   for(const t of this.state.targets){
    revalidateTargetAdmission(t);
    rehydrateRetainedProviderAuthority(directory,t);
+  if(providerSeedAuthorityRoot&&t.providerSeedAuthorityHandoff)rehydrateProviderSeedAuthorityHandoff({root:providerSeedAuthorityRoot,target:t,handoff:t.providerSeedAuthorityHandoff});
   if(providerResourceMemoryRoot){const memory=loadHybridProviderResources({root:providerResourceMemoryRoot,target:t,now:memoryNow});t.hybridProviderResourceMemory={rejected:memory.rejected,reason:memory.reason??null,resourceIds:memory.resources.map(item=>item.record.id),skipped:memory.skipped??[],meaning:memory.meaning??null};for(const item of memory.resources){installRunScopedV3ProviderAuthority(t,item.authorityReview);const row=item.record;if(!(t.urls??=[]).includes(row.resource.url))t.urls.push(row.resource.url);if(!(t.knownCommercialUrls??=[]).includes(row.resource.url))t.knownCommercialUrls.push(row.resource.url);this.add(t,{url:row.resource.url,title:t.serviceName+' remembered provider resource',rank:-1,routingRole:row.resource.role,from:{method:'HYBRID_PROVIDER_RESOURCE_MEMORY',resourceId:row.id},routingMemoryOnly:true});}}
   }
   this.state.catalog=catalogIdentityMetadata(catalog,this.state.catalog??[]);if(!existing)for(const t of this.state.targets)for(const url of t.urls??[])if(providerRoutingAuthority(t,url))this.add(t,{url,title:t.serviceName+' official provider',rank:0,from:{method:'REVIEWED_PROVIDER_DESTINATION'}});if(targets.length>this.bounds.services)throw Error('SERVICE_BOUND');this.save();
@@ -114,9 +116,9 @@ r.catalogServiceLeads=(this.state.catalog??this.state.targets).filter(x=>x.servi
  recordAuthority(target,url,decision){const t=this.target(target);t.decisions.push({url,...decision});this.event('AUTHORITY_REVIEW',{target,url,decision});this.save();}
 }
 // Existing runner can supply an approved search bridge. No Bing RSS fallback.
-export async function runOpenWebResearch({directory,targets,search,read,classify,acquire,consumeProvider,bounds,catalog,maxActions=Infinity,onSourceObservation,diagnostics,providerResourceMemoryRoot=null,memoryNow=new Date().toISOString()}){
+export async function runOpenWebResearch({directory,targets,search,read,classify,acquire,consumeProvider,bounds,catalog,maxActions=Infinity,onSourceObservation,diagnostics,providerResourceMemoryRoot=null,providerSeedAuthorityRoot=null,memoryNow=new Date().toISOString()}){
  if(!(maxActions===Infinity||Number.isInteger(maxActions)&&maxActions>0))throw Error('INVALID_ACTION_STEP_BOUND');
- if(typeof search!=='function'||typeof read!=='function')throw Error('OPEN_WEB_TRANSPORT_REQUIRED');const memoryOptions={providerResourceMemoryRoot,memoryNow},session=diagnostics?diagnostics.sync('NATIVE_SESSION_INITIALIZE',()=>new OpenWebResearch(directory,targets,bounds,catalog,memoryOptions)):new OpenWebResearch(directory,targets,bounds,catalog,memoryOptions);
+ if(typeof search!=='function'||typeof read!=='function')throw Error('OPEN_WEB_TRANSPORT_REQUIRED');const memoryOptions={providerResourceMemoryRoot,providerSeedAuthorityRoot,memoryNow},session=diagnostics?diagnostics.sync('NATIVE_SESSION_INITIALIZE',()=>new OpenWebResearch(directory,targets,bounds,catalog,memoryOptions)):new OpenWebResearch(directory,targets,bounds,catalog,memoryOptions);
  if(diagnostics){const save=session.save.bind(session);session.save=()=>diagnostics.sync('NATIVE_CHECKPOINT_WRITE',save);}
  const interpret=fn=>diagnostics?diagnostics.sync('CATALOG_INTERPRETATION',fn):fn();
  let executed=0;for(let a=session.next();a.type!=='COMPLETE';a=session.next()){
@@ -159,7 +161,7 @@ export async function runOpenWebResearch({directory,targets,search,read,classify
   if(review.providerAuthorityBinding){installRunScopedV3ProviderAuthority(t,review);if(!(t.urls??=[]).includes(page.url))t.urls.push(page.url);session.refreshNavigation(t,page,body);}
   session.recordAuthority(t.id,a.url,{eligible:!!review.providerAuthorityBinding,reason:review.providerAuthorityBinding?'V3_AUTONOMOUS_FIRST_PARTY_PRESENTATION':review.reason,providerAuthorityBinding:review.providerAuthorityBinding,candidateObservation:review.candidateObservation?{id:review.candidateObservation.id,kind:review.candidateObservation.kind,url:review.candidateObservation.url,sha256:review.candidateObservation.sha256}:null});
  }
- const providerPage=a.type==='READ'?t.reads.at(-1):null,requestedRouting=providerPage&&!a.candidateAuthorityReview?providerRoutingAuthority(t,a.url):null,finalRouting=providerPage?providerRoutingAuthority(t,providerPage.url??a.url):null,autonomousProviderSource=requestedRouting?.provenance==='V3_AUTONOMOUS_CANDIDATE_REVIEW'&&finalRouting?.provenance==='V3_AUTONOMOUS_CANDIDATE_REVIEW'&&requestedRouting.host===finalRouting.host;
+ const providerPage=a.type==='READ'?t.reads.at(-1):null,requestedRouting=providerPage&&!a.candidateAuthorityReview?providerRoutingAuthority(t,a.url):null,finalRouting=providerPage?providerRoutingAuthority(t,providerPage.url??a.url):null,sourceBoundProvenance=new Set(['V3_AUTONOMOUS_CANDIDATE_REVIEW','SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY']),autonomousProviderSource=sourceBoundProvenance.has(requestedRouting?.provenance)&&requestedRouting?.provenance===finalRouting?.provenance&&requestedRouting.host===finalRouting.host;
  if(autonomousProviderSource){const page=providerPage,routing=requestedRouting;page.researchRole='PROVIDER_SOURCE';page.providerAuthority={provenance:routing.provenance,binding:routing.binding};session.event('V3_PROVIDER_SOURCE_RETAINED',{target:t.id,url:a.url,bodyHash:page.bodyHash,binding:routing.binding});session.save();}
  if(a.type==='READ'&&!a.candidateAuthorityReview&&(autonomousProviderSource||classify)){const page=t.reads.at(-1),authority=autonomousProviderSource?autonomousProviderAuthorityDecision(t,page.url??a.url):(page.outcome==='OK'||providerAccessGap(page))?await classify({target:t,page,directory}):{eligible:false,reason:page.failure?.code??'PAGE_NOT_ACQUIRED'};session.recordAuthority(t.id,a.url,authority);
  let direct=null;
