@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reviewCandidateAuthority,structuredExactOriginBounds} from './provider-authority-review.mjs';
+import {reviewCandidateAuthority,reviewCandidateAuthorityWithDiagnostic,structuredExactOriginBounds} from './provider-authority-review.mjs';
 import {runTarget,offlineCapabilities} from './runner.mjs';
 import {checkpoint,digest,providerBound} from './model.mjs';
 import {evaluate} from './truth.mjs';
@@ -207,6 +207,38 @@ test('structured JSON-LD byte depth and total-node bounds fail closed',()=>{
     const deep=jsonLd({'@type':'Organization',name,url:'https://aurora.example',nested});
     const excessive=jsonLd({'@context':'https://schema.org','@graph':[{'@type':'Organization',name,url:'https://aurora.example'},...Array.from({length:structuredExactOriginBounds.nodes},()=>({}))]});
     for(const body of [oversized,deep,excessive])assert.equal(review(body),null);
+});
+
+test('diagnostic wrapper is semantically differential and bounded across the existing authority mechanisms',()=>{
+    const direct=jsonLd({'@type':'Organization',name,url:'https://aurora.example'}),alternate=jsonLd({'@type':'Organization',name:'Aurora Holdings',alternateName:name,url:'https://aurora.example'}),legal=jsonLd({'@type':'Corporation',name:'Aurora Holdings',legalName:name,url:'https://aurora.example'}),related=jsonLd({'@type':'Service',name,provider:{'@type':'Organization',name:'Aurora Holdings',url:'https://aurora.example'}}),rows=[owned,direct,alternate,legal,related,'<main>Unrelated directory</main>'];
+    for(const body of rows){
+        const oldBinding=review(body),result=reviewCandidateAuthorityWithDiagnostic(observation(body),objective);
+        assert.deepEqual(result.binding,oldBinding);assert.equal(result.diagnostic.version,1);assert(result.diagnostic.mechanisms.length<=5);assert(Buffer.byteLength(JSON.stringify(result.diagnostic))<1400);
+        assert.equal(result.diagnostic.decision,oldBinding?'ACCEPTED':'UNRESOLVED');
+    }
+    assert.equal(reviewCandidateAuthorityWithDiagnostic(observation(direct),objective).diagnostic.mechanisms[0].reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY');
+    assert.equal(reviewCandidateAuthorityWithDiagnostic(observation(alternate),objective).diagnostic.mechanisms[0].reason,'STRUCTURED_EXACT_ORIGIN_ALTERNATE_IDENTITY');
+    assert.equal(reviewCandidateAuthorityWithDiagnostic(observation(legal),objective).diagnostic.mechanisms[0].reason,'STRUCTURED_EXACT_ORIGIN_LEGAL_IDENTITY');
+    assert.equal(reviewCandidateAuthorityWithDiagnostic(observation(related),objective).diagnostic.mechanisms[0].reason,'STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY');
+    assert.equal(reviewCandidateAuthorityWithDiagnostic(observation(owned),objective).diagnostic.mechanisms[0].reason,'FIRST_PARTY_PRESENTATION');
+});
+
+test('typed diagnostics distinguish deterministic refusal classes without changing null outcomes',()=>{
+    const mechanism=(body,name)=>reviewCandidateAuthorityWithDiagnostic(observation(body),objective).diagnostic.mechanisms.find(row=>row.mechanism===name),provider=(id,providerName='Aurora Holdings')=>({'@id':id,'@type':'Organization',name:providerName,url:'https://aurora.example'});
+    const rows=[
+        [`<link rel="canonical" href="https://other.example/membership">${structured}`,'STRUCTURED_DIRECT_IDENTITY','CANONICAL_HOST_CONFLICT'],
+        ['<script type="application/ld+json">{"@type":"Organization",</script>','STRUCTURED_DIRECT_IDENTITY','STRUCTURED_DATA_MALFORMED_OR_BOUNDED'],
+        [jsonLd({'@type':'Organization',name:'Other Provider',url:'https://aurora.example'}),'STRUCTURED_DIRECT_IDENTITY','REQUESTED_IDENTITY_MISMATCH'],
+        [jsonLd({'@graph':[{'@type':'Service',name,provider:{'@id':'#missing'}}]}),'STRUCTURED_TYPED_RELATIONSHIP','DANGLING_RELATIONSHIP_TARGET'],
+        [`${jsonLd({'@type':'Service',name,provider:{'@id':'#provider'}})}${jsonLd(provider('#provider'))}`,'STRUCTURED_TYPED_RELATIONSHIP','CROSS_SCRIPT_RELATIONSHIP_NOT_ADMISSIBLE'],
+        [jsonLd({'@graph':[{'@type':'Service',name,provider:[{'@id':'#one'},{'@id':'#two'}]},provider('#one','One Holdings'),provider('#two','Two Holdings')]}),'STRUCTURED_TYPED_RELATIONSHIP','MULTIPLE_CONFLICTING_PROVIDER_IDENTITIES'],
+    ];
+    for(const [body,kind,reason]of rows){const result=reviewCandidateAuthorityWithDiagnostic(observation(body),objective);assert.equal(result.binding,null);assert.equal(mechanism(body,kind).reason,reason);}
+    const nonAffiliated=`<main>We operate ${name} membership. We are not affiliated with ${name}.</main><footer>© ${name} 2026</footer>`,nonAffiliation=reviewCandidateAuthorityWithDiagnostic(observation(nonAffiliated),objective);assert.equal(nonAffiliation.binding,null);assert.equal(mechanism(nonAffiliated,'FIRST_PARTY_PROSE').reason,'NON_AFFILIATION_OR_THIRD_PARTY_EXCLUSION');
+    const coLocated=jsonLd({'@graph':[{'@type':'Brand',name},{'@type':'Organization',name:'Marketplace',url:'https://aurora.example'}]}),retailer=jsonLd({'@type':'Product',name:'Listed item',brand:{'@type':'Brand',name}}),article=jsonLd({'@type':'Article',publisher:{'@type':'Organization',name,url:'https://aurora.example'}});
+    for(const body of [coLocated,retailer,article]){const result=reviewCandidateAuthorityWithDiagnostic(observation(body),objective);assert.equal(result.binding,null);assert.equal(result.diagnostic.reason,'NO_ACCEPTED_PROVIDER_PROOF');}
+    const precondition=reviewCandidateAuthorityWithDiagnostic(observation(owned,{truncated:true}),objective);assert.equal(precondition.binding,null);assert.equal(precondition.diagnostic.reason,'OBSERVATION_PRECONDITION_FAILED');
+    const hostMismatch=reviewCandidateAuthorityWithDiagnostic(observation(owned,{url:'https://other.example/'}),objective);assert.equal(hostMismatch.binding,null);assert.equal(hostMismatch.diagnostic.reason,'CANDIDATE_HOST_MISMATCH');
 });
 
 test('policy, integrity, completeness and final exact-host prerequisites fail closed',()=>{

@@ -4,7 +4,7 @@ import {normalizeFrontierUrl} from '../research-v2/live/source-frontier.mjs';
 import {navigationParametersSafe} from './discovery-authority.mjs';
 import {digest,normalizeUrl} from './model.mjs';
 import {createResearchTarget,researchTargetKinds,serviceObjectiveForResearchTarget} from './research-target.mjs';
-import {reviewProviderSeedAuthority} from './provider-authority-review.mjs';
+import {reviewProviderSeedAuthority,reviewProviderSeedAuthorityWithDiagnostic} from './provider-authority-review.mjs';
 
 export const bootstrapBounds=Object.freeze({searches:2,candidates:12});
 const identity=value=>String(value).normalize('NFKC').replace(/\s+/gu,' ').trim().toLocaleLowerCase('en').replace(/\s+/gu,'-');
@@ -66,6 +66,13 @@ export function reviewProviderSeedCandidate(discovery,observation){
     const target=createResearchTarget(discovery.researchTarget);
     if(target.targetKind!==researchTargetKinds.PROVIDER_OR_BRAND_SEED)throw Error('PROVIDER_SEED_TARGET_REQUIRED');
     return reviewProviderSeedAuthority(observation,target,{candidateHosts:discovery.candidateHosts});
+}
+
+export function reviewProviderSeedCandidateWithDiagnostic(discovery,observation){
+    if(discovery?.status!=='CANDIDATE_HOSTS_FOUND'||!discovery.researchTarget||!Array.isArray(discovery.candidateHosts)||!discovery.candidateHosts.length)throw Error('CANDIDATE_DISCOVERY_REQUIRED');
+    const target=createResearchTarget(discovery.researchTarget);
+    if(target.targetKind!==researchTargetKinds.PROVIDER_OR_BRAND_SEED)throw Error('PROVIDER_SEED_TARGET_REQUIRED');
+    return reviewProviderSeedAuthorityWithDiagnostic(observation,target,{candidateHosts:discovery.candidateHosts});
 }
 
 export function researchInputFromCandidates(discovery,{permissions={DIRECT:true,TAVILY:true},bounds,semantic={mode:'LIVE'},planning}={}) {

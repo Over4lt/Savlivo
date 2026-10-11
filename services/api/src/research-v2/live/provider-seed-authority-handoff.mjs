@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {canonical,digest} from '../../research-v3/model.mjs';
-import {reviewProviderSeedAuthority} from '../../research-v3/provider-authority-review.mjs';
+import {reviewProviderSeedAuthority,reviewProviderSeedAuthorityWithDiagnostic} from '../../research-v3/provider-authority-review.mjs';
 import {rehydrateSubscriptionService} from '../../research-v3/subscription-service-admission.mjs';
 import {installRunScopedProviderSeedAuthority} from './provider-routing-authority.mjs';
 
@@ -21,6 +21,16 @@ export function restoreProviderSeedObservation(root,metadata,reference){
  if(!/^provider-seed-evidence\/bodies\/[a-f0-9]{64}\.txt$/.test(reference?.path??'')||reference.sha256!==metadata?.sha256)throw Error('PROVIDER_SEED_HANDOFF_SOURCE_INVALID');
  const base=path.join(path.resolve(root),'provider-seed-evidence','bodies'),file=path.resolve(root,reference.path);if(!file.startsWith(base+path.sep)||!fs.existsSync(file)||fs.lstatSync(file).isSymbolicLink())throw Error('PROVIDER_SEED_HANDOFF_SOURCE_INVALID');
  const body=fs.readFileSync(file,'utf8');if(digest(body)!==reference.sha256)throw Error('PROVIDER_SEED_HANDOFF_SOURCE_INVALID');return {...structuredClone(metadata),body};
+}
+
+export function restoreProviderSeedCandidateReview(root,review){
+ if(typeof review?.observation!=='string'||review.observationMetadata?.id!==review.observation||review.observationMetadata?.sha256!==review.bodySha256||review.bodyReference?.sha256!==review.bodySha256)throw Error('PROVIDER_SEED_CANDIDATE_REVIEW_INVALID');
+ return restoreProviderSeedObservation(root,review.observationMetadata,review.bodyReference);
+}
+
+export function replayProviderSeedCandidateReview({root,review,researchTarget,candidateHosts}){
+ const observation=restoreProviderSeedCandidateReview(root,review);
+ return reviewProviderSeedAuthorityWithDiagnostic(observation,researchTarget,{candidateHosts});
 }
 
 export function createProviderSeedAuthorityHandoff({root,researchTarget,providerAuthorityBinding,service,authorityObservation,providerObservation}){

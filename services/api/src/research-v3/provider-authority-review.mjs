@@ -223,12 +223,125 @@ function reviewAuthoritySubject(observation,{name,candidateHosts}) {
     return {host,url,observation:o.id,bodySha256:o.sha256,reason:structured.reason,providerIdentity:structured.providerIdentity,locators:structured.locators};
 }
 
+const diagnosticRow=(mechanism,outcome,reason)=>({mechanism,outcome,...(reason?{reason}:{})});
+const structuredMarker=body=>/<script\b[^>]*\btype\s*=\s*(?:"application\/ld\+json"|'application\/ld\+json'|application\/ld\+json)[^>]*>/iu.test(body);
+const crossHostCanonical=(parsed,url)=>parsed.canonicals.some(href=>{try{return new URL(href,url).hostname!==new URL(url).hostname;}catch{return false;}});
+const groupKinds=group=>typeRows(group).map(row=>row.value);
+const organizationGroup=group=>groupKinds(group).some(organizationType);
+
+function directStructuredDiagnostic(body,url,name,parsed){
+    if(!parsed)return diagnosticRow('STRUCTURED_DIRECT_IDENTITY','INVALID',structuredMarker(body)?'STRUCTURED_DATA_MALFORMED_OR_BOUNDED':'NO_STRUCTURED_DATA');
+    if(!parsed.scripts.length)return diagnosticRow('STRUCTURED_DIRECT_IDENTITY','NO_MATCH','NO_STRUCTURED_DATA');
+    if(crossHostCanonical(parsed,url))return diagnosticRow('STRUCTURED_DIRECT_IDENTITY','CONFLICT','CANONICAL_HOST_CONFLICT');
+    if(structuredExactOrigin(body,url,name))return diagnosticRow('STRUCTURED_DIRECT_IDENTITY','ACCEPTED','STRUCTURED_EXACT_ORIGIN_IDENTITY');
+    const groups=groupsFor(parsed.scripts,{crossScript:true});
+    if(!groups)return diagnosticRow('STRUCTURED_DIRECT_IDENTITY','INVALID','STRUCTURED_DATA_INVALID');
+    const organizations=groups.filter(organizationGroup),target=identity(name);
+    if(!organizations.length)return diagnosticRow('STRUCTURED_DIRECT_IDENTITY','NO_MATCH','NO_EXACT_ORIGIN_ORGANIZATION');
+    let requested=false,hostConflict=false,invalid=false;
+    for(const group of organizations){
+        const names=rowsFor(group,'name'),alternate=rowsFor(group,'alternateName'),legal=rowsFor(group,'legalName');
+        if([...names,...alternate,...legal].some(row=>identity(row.value)===target))requested=true;
+        const provider=exactOriginOrganization(group,url);
+        if(provider.status==='INVALID'){
+            invalid=true;
+            const urls=rowsFor(group,'url');
+            if(urls.some(row=>{const normalized=normalizeUrl(row.value,url);return normalized&&new URL(normalized).hostname!==new URL(url).hostname;}))hostConflict=true;
+        }
+    }
+    if(hostConflict)return diagnosticRow('STRUCTURED_DIRECT_IDENTITY','CONFLICT','ORGANIZATION_HOST_CONFLICT');
+    if(requested&&invalid)return diagnosticRow('STRUCTURED_DIRECT_IDENTITY','INVALID','EXACT_ORIGIN_ORGANIZATION_INVALID');
+    return diagnosticRow('STRUCTURED_DIRECT_IDENTITY','NO_MATCH',requested?'NO_EXACT_ORIGIN_ORGANIZATION':'REQUESTED_IDENTITY_MISMATCH');
+}
+
+function relationshipStructuredDiagnostic(body,url,name,parsed){
+    if(!parsed)return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','INVALID',structuredMarker(body)?'STRUCTURED_DATA_MALFORMED_OR_BOUNDED':'NO_STRUCTURED_DATA');
+    if(!parsed.scripts.length)return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','NO_MATCH','NO_STRUCTURED_DATA');
+    if(crossHostCanonical(parsed,url))return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','CONFLICT','CANONICAL_HOST_CONFLICT');
+    if(structuredIdentityRelationship(body,url,name))return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','ACCEPTED','STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY');
+    const target=identity(name),globalIds=new Set(),scripts=[];
+    for(const script of parsed.scripts){
+        const groups=groupsFor([script]);if(!groups)return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','INVALID','STRUCTURED_DATA_INVALID');
+        scripts.push(groups);for(const group of groups)if(group.id)globalIds.add(group.id);
+    }
+    let sawRequested=false,sawRelationship=false,dangling=false,crossScript=false,invalid=false,hostConflict=false;
+    const inspectTarget=(raw,byId)=>{
+        const rows=Array.isArray(raw)?raw:[raw];
+        for(const value of rows){
+            if(!object(value)){invalid=true;continue;}
+            const keys=Object.keys(value);
+            if(keys.length===1&&keys[0]==='@id'&&typeof value['@id']==='string'&&!byId.has(value['@id'])){
+                if(globalIds.has(value['@id']))crossScript=true;else dangling=true;
+            }
+        }
+    };
+    const providerStatus=(group,required=false)=>{
+        const provider=exactOriginOrganization(group,url);
+        if(provider.status==='MATCH')return provider.key;
+        if(required&&provider.status==='INVALID'){
+            invalid=true;
+            const urls=rowsFor(group,'url');
+            if(urls.some(row=>{const normalized=normalizeUrl(row.value,url);return normalized&&new URL(normalized).hostname!==new URL(url).hostname;}))hostConflict=true;
+        }
+        return null;
+    };
+    const providerKeys=new Set();
+    for(const groups of scripts){
+        const byId=new Map(groups.filter(group=>group.id).map(group=>[group.id,group]));
+        for(const group of groups){
+            const provider=providerStatus(group);
+            if(provider)for(const row of group.rows)if(Object.hasOwn(row.value,'brand')){
+                sawRelationship=true;inspectTarget(row.value.brand,byId);
+                const targets=relationshipTargets(row,'brand',byId);if(targets===null){invalid=true;continue;}
+                for(const relation of targets){const brand=exactTypedIdentity(relation.group,'Brand',target);if(brand.status==='MATCH'){sawRequested=true;providerKeys.add(provider);}else if(brand.status==='INVALID')invalid=true;}
+            }
+            const shapes=[['Service',['provider','publisher']],['SoftwareApplication',['provider','publisher']],['WebSite',['publisher']],['Product',['manufacturer']]];
+            for(const [type,predicates]of shapes){
+                const requested=exactTypedIdentity(group,type,target);if(requested.status==='INVALID'){invalid=true;continue;}if(requested.status!=='MATCH')continue;sawRequested=true;
+                for(const row of group.rows)for(const predicate of predicates)if(Object.hasOwn(row.value,predicate)){
+                    sawRelationship=true;inspectTarget(row.value[predicate],byId);
+                    const targets=relationshipTargets(row,predicate,byId);if(targets===null){invalid=true;continue;}
+                    for(const relation of targets){const key=providerStatus(relation.group,true);if(key)providerKeys.add(key);}
+                }
+            }
+        }
+    }
+    if(providerKeys.size>1)return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','CONFLICT','MULTIPLE_CONFLICTING_PROVIDER_IDENTITIES');
+    if(crossScript)return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','INVALID','CROSS_SCRIPT_RELATIONSHIP_NOT_ADMISSIBLE');
+    if(dangling)return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','INVALID','DANGLING_RELATIONSHIP_TARGET');
+    if(hostConflict)return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','CONFLICT','ORGANIZATION_HOST_CONFLICT');
+    if(invalid)return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','INVALID','TYPED_RELATIONSHIP_INVALID');
+    return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','NO_MATCH',sawRequested&&sawRelationship?'NO_EXACT_ORIGIN_ORGANIZATION':sawRequested?'TYPED_RELATIONSHIP_NO_MATCH':'REQUESTED_IDENTITY_MISMATCH');
+}
+
+function authorityDiagnostic(observation,{name,candidateHosts},binding){
+    const acceptedReason=binding?.proof?.reason??binding?.reason??null;
+    if(acceptedReason){
+        const mechanism=acceptedReason==='FIRST_PARTY_PRESENTATION'?'FIRST_PARTY_PROSE':acceptedReason==='STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY'?'STRUCTURED_TYPED_RELATIONSHIP':'STRUCTURED_DIRECT_IDENTITY';
+        return {version:1,decision:'ACCEPTED',stage:'FINAL',reason:'ACCEPTED_PROVIDER_PROOF',mechanisms:[diagnosticRow(mechanism,'ACCEPTED',acceptedReason)]};
+    }
+    const o=observation,body=o?.body;
+    if(o?.kind!=='CANDIDATE'||o.authority!=='UNREVIEWED_CANDIDATE'||o.outcome!=='OK'||o.truncated||o.completeness!=='COMPLETE'||typeof body!=='string'||!body.trim()||o.sha256!==digest(body)||o.context?.representation!=='CANDIDATE_PAGE'||o.format!=='WEB'||!Number.isInteger(o.httpStatus)||o.httpStatus<200||o.httpStatus>=300||!Array.isArray(o.access)||!o.access.length||o.access.some(a=>a.decision!=='ALLOWED'))return {version:1,decision:'UNRESOLVED',stage:'OBSERVATION',reason:'OBSERVATION_PRECONDITION_FAILED',mechanisms:[diagnosticRow('OBSERVATION','INVALID','OBSERVATION_PRECONDITION_FAILED')]};
+    const url=normalizeUrl(o.url);
+    if(!url||url!==o.url||!candidateHosts.includes(new URL(url).hostname))return {version:1,decision:'UNRESOLVED',stage:'CANDIDATE_HOST',reason:'CANDIDATE_HOST_MISMATCH',mechanisms:[diagnosticRow('OBSERVATION','PASS'),diagnosticRow('CANDIDATE_HOST','INVALID','CANDIDATE_HOST_MISMATCH')]};
+    name=name?.trim();if(!name||name.length<4||name.length>100)return {version:1,decision:'UNRESOLVED',stage:'REQUESTED_IDENTITY',reason:'REQUESTED_IDENTITY_INVALID',mechanisms:[diagnosticRow('OBSERVATION','PASS'),diagnosticRow('CANDIDATE_HOST','PASS'),diagnosticRow('REQUESTED_IDENTITY','INVALID','REQUESTED_IDENTITY_INVALID')]};
+    const nonAffiliation=/\b(?:not affiliated with|unaffiliated with|independent of|unofficial|third.party (?:seller|reseller|review))\b/iu.test(body),presentations=[...body.matchAll(/\b(?:we\s+(?:provide|operate|develop|publish|offer|create)|our)\b[^<>"\r\n]{0,190}/giu)],thirdParty=presentations.some(match=>/\b(?:review|comparison|article|news|guide|resell|reseller|stock|distribut|third.party|sell)\b/iu.test(match[0])),prose=nonAffiliation?diagnosticRow('FIRST_PARTY_PROSE','EXCLUDED','NON_AFFILIATION_OR_THIRD_PARTY_EXCLUSION'):thirdParty?diagnosticRow('FIRST_PARTY_PROSE','EXCLUDED','THIRD_PARTY_PRESENTATION_EXCLUDED'):diagnosticRow('FIRST_PARTY_PROSE','NO_MATCH','PROSE_RELATIONSHIP_NO_MATCH');
+    if(nonAffiliation)return {version:1,decision:'UNRESOLVED',stage:'FINAL',reason:'PROVIDER_PROOF_REJECTED',mechanisms:[diagnosticRow('OBSERVATION','PASS'),diagnosticRow('CANDIDATE_HOST','PASS'),prose,diagnosticRow('STRUCTURED_DIRECT_IDENTITY','NOT_EVALUATED'),diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','NOT_EVALUATED')]};
+    const parsed=structuredDocument(body),direct=directStructuredDiagnostic(body,url,name,parsed),relationship=relationshipStructuredDiagnostic(body,url,name,parsed),conflict=[direct,relationship].some(row=>row.outcome==='CONFLICT'||row.outcome==='INVALID');
+    return {version:1,decision:'UNRESOLVED',stage:'FINAL',reason:conflict?'PROVIDER_PROOF_REJECTED':'NO_ACCEPTED_PROVIDER_PROOF',mechanisms:[diagnosticRow('OBSERVATION','PASS'),diagnosticRow('CANDIDATE_HOST','PASS'),prose,direct,relationship]};
+}
+
 const bindingBase=review=>({host:review.host,kind:'AUTONOMOUS_FIRST_PARTY_PRESENTATION',reason:review.reason,scope:'EXACT_HOST_PROVIDER_SOURCING',sourceRole:'CANDIDATE_PAGE',url:review.url,observation:review.observation,bodySha256:review.bodySha256,locators:review.locators});
 
 export function reviewCandidateAuthority(observation,objective) {
     const name=objective?.serviceName?.trim(),review=reviewAuthoritySubject(observation,{name,candidateHosts:objective?.candidateHosts??[]});
     if(!review)return null;
     return {...bindingBase(review),serviceId:objective.serviceId,serviceName:name};
+}
+
+export function reviewCandidateAuthorityWithDiagnostic(observation,objective) {
+    const binding=reviewCandidateAuthority(observation,objective),name=objective?.serviceName?.trim();
+    return {binding,diagnostic:authorityDiagnostic(observation,{name,candidateHosts:objective?.candidateHosts??[]},binding)};
 }
 
 export function reviewProviderSeedAuthority(observation,researchTarget,{candidateHosts=[]}={}) {
@@ -239,4 +352,9 @@ export function reviewProviderSeedAuthority(observation,researchTarget,{candidat
     if(!review?.providerIdentity)return null;
     const proof=bindingBase(review);
     return {contractVersion:1,researchTarget:structuredClone(target),providerIdentity:{...review.providerIdentity,source:{observation:review.observation,bodySha256:review.bodySha256,url:review.url,locators:structuredClone(review.locators)}},host:review.host,proof};
+}
+
+export function reviewProviderSeedAuthorityWithDiagnostic(observation,researchTarget,{candidateHosts=[]}={}) {
+    const target=createResearchTarget(researchTarget),binding=reviewProviderSeedAuthority(observation,target,{candidateHosts});
+    return {binding,diagnostic:authorityDiagnostic(observation,{name:target.seedName,candidateHosts},binding)};
 }

@@ -7,6 +7,7 @@ import {PublicNetworkError} from '../../research-v1/public-network.mjs';
 import {digest} from '../../research-v3/model.mjs';
 import {providerOrBrandResearchTarget} from '../../research-v3/research-target.mjs';
 import {evaluateDirectProviderTruth,validateDirectProviderPage} from '../live/direct-provider-evidence.mjs';
+import {replayProviderSeedCandidateReview,restoreProviderSeedCandidateReview} from '../live/provider-seed-authority-handoff.mjs';
 import {providerRoutingAuthority} from '../live/provider-routing-authority.mjs';
 import {createV2RobotsPublicAdapter} from '../live/robots-policy.mjs';
 import {initializeAdaptiveState,runAdaptiveCampaign} from './adaptive-campaign.mjs';
@@ -105,7 +106,48 @@ test('provider-seed routing independently reacquires a regional redirect before 
 test('aggregate candidate bytes remain bounded and every read receives only remaining allowance',async t=>{
  const directory=temp(t),allowances=[],urls=Array.from({length:4},(_,index)=>`https://pebble-${index}.example/`),factory=async({stage})=>{assert.equal(stage,'PROVIDER_SEED');return {search:async()=>({results:urls.map(url=>({url}))}),read:async({url,maxBytes})=>{allowances.push(maxBytes);return page(url,'xx');}};};
  const result=await runProviderSeedCampaign({directory,researchTarget:providerOrBrandResearchTarget({seedName:'Pebble',targetMarket:market}),createAdapters:factory,limits:{reads:4,bytes:8}});
- assert.deepEqual(allowances,[8,6,4,2]);assert.equal(result.usage.bytes,8);assert(result.usage.bytes<=8);assert.deepEqual(result.candidateReviews.map(row=>row.status),['UNRESOLVED','UNRESOLVED','UNRESOLVED','UNRESOLVED']);assert.deepEqual(result.termination,{kind:'BUDGET_LIMITED',reason:'PROVIDER_AUTHORITY_BYTE_BOUND'});
+ assert.deepEqual(allowances,[8,6,4,2]);assert.equal(result.usage.bytes,8);assert(result.usage.bytes<=8);assert.deepEqual(result.candidateReviews.map(row=>row.status),['UNRESOLVED','UNRESOLVED','UNRESOLVED','UNRESOLVED']);assert(result.candidateReviews.every(row=>row.bodyReference&&row.observationMetadata));const bodies=fs.readdirSync(path.join(directory,'provider-seed-evidence','bodies')).map(name=>fs.statSync(path.join(directory,'provider-seed-evidence','bodies',name)).size);assert(bodies.reduce((sum,size)=>sum+size,0)<=result.usage.bytes);assert.deepEqual(result.termination,{kind:'BUDGET_LIMITED',reason:'PROVIDER_AUTHORITY_BYTE_BOUND'});
+});
+
+test('complete unresolved authority evidence persists, restarts and replays offline without reacquisition',async t=>{
+ const directory=temp(t),url='https://unresolved-provider.example/',body='<html><main>Generic directory with no provider relationship.</main></html>',calls=[];
+ const factory=async()=>({search:async()=>({results:[{url}]}),read:async()=>{calls.push(url);return page(url,body);}}),input={directory,researchTarget:providerOrBrandResearchTarget({seedName:'Unresolved Provider',targetMarket:market}),createAdapters:factory,limits:{reads:1}};
+ const first=await runProviderSeedCampaign(input),review=first.candidateReviews[0],candidateHosts=first.discovery.candidateHosts;
+ assert.equal(first.providerAuthorityBinding,null);assert.deepEqual(first.termination,{kind:'UNRESOLVED',reason:'PROVIDER_AUTHORITY_READ_BOUND'});assert.equal(first.lifecycle,null);assert.equal(review.status,'UNRESOLVED');assert.equal(review.observationMetadata.id,review.observation);assert.equal(review.observationMetadata.sha256,review.bodySha256);assert.equal(review.bodyReference.sha256,review.bodySha256);assert.equal(review.authorityDiagnostic.version,1);assert.equal(review.authorityDiagnostic.decision,'UNRESOLVED');
+ const restored=restoreProviderSeedCandidateReview(directory,review);assert.equal(restored.body,body);assert.equal(digest(restored.body),review.bodySha256);
+ const replayed=replayProviderSeedCandidateReview({root:directory,review,researchTarget:input.researchTarget,candidateHosts});assert.equal(replayed.binding,null);assert.deepEqual(replayed.diagnostic,review.authorityDiagnostic);
+ const before=calls.length,resumed=await runProviderSeedCampaign(input);assert.equal(calls.length,before);assert.deepEqual(resumed.candidateReviews,first.candidateReviews);assert.equal(resumed.providerAuthorityBinding,null);
+ const checkpoint=JSON.parse(fs.readFileSync(path.join(directory,'provider-seed-state.json'),'utf8'));assert.deepEqual(checkpoint.candidateReviews[0],review);
+});
+
+test('established authority reuses one retained candidate reference and replays the same binding',async t=>{
+ const directory=temp(t),result=await runProviderSeedCampaign({directory,researchTarget:researchTarget(),createAdapters:adapters({names:[]})}),review=result.candidateReviews.find(row=>row.status==='ESTABLISHED');
+ assert(review);assert.deepEqual(review.bodyReference,result.authorityProof.bodyReference);assert.deepEqual(review.observationMetadata,result.authorityProof.observation);
+ const authorityFile=path.join(directory,review.bodyReference.path);assert.equal(fs.existsSync(authorityFile),true);assert.equal(digest(fs.readFileSync(authorityFile,'utf8')),review.bodySha256);
+ const replayed=replayProviderSeedCandidateReview({root:directory,review,researchTarget:result.researchTarget,candidateHosts:result.discovery.candidateHosts});assert.deepEqual(replayed.binding,result.providerAuthorityBinding);assert.deepEqual(replayed.diagnostic,review.authorityDiagnostic);
+ assert.equal(fs.readdirSync(path.dirname(authorityFile)).filter(name=>name===path.basename(authorityFile)).length,1);
+});
+
+test('retained unresolved candidate evidence fails closed for tampering missing references and metadata substitution',async t=>{
+ const directory=temp(t),url='https://audit-source.example/',body='<main>Unrelated complete candidate</main>',factory=async()=>({search:async()=>({results:[{url}]}),read:async()=>page(url,body)}),result=await runProviderSeedCampaign({directory,researchTarget:providerOrBrandResearchTarget({seedName:'Audit Source',targetMarket:market}),createAdapters:factory,limits:{reads:1}}),review=result.candidateReviews[0],file=path.join(directory,review.bodyReference.path),original=fs.readFileSync(file,'utf8');
+ fs.writeFileSync(file,original+'tampered');assert.throws(()=>restoreProviderSeedCandidateReview(directory,review),/PROVIDER_SEED_HANDOFF_SOURCE_INVALID/);fs.writeFileSync(file,original);
+ const wrongReference=structuredClone(review);wrongReference.bodyReference.path='provider-seed-evidence/bodies/'+'0'.repeat(64)+'.txt';assert.throws(()=>restoreProviderSeedCandidateReview(directory,wrongReference),/PROVIDER_SEED_HANDOFF_SOURCE_INVALID/);
+ const wrongMetadata=structuredClone(review);wrongMetadata.observationMetadata.sha256='0'.repeat(64);assert.throws(()=>restoreProviderSeedCandidateReview(directory,wrongMetadata),/PROVIDER_SEED_CANDIDATE_REVIEW_INVALID/);
+ fs.unlinkSync(file);assert.throws(()=>restoreProviderSeedCandidateReview(directory,review),/PROVIDER_SEED_HANDOFF_SOURCE_INVALID/);
+});
+
+test('routing-only partial failed denied and oversized candidate reads retain no authoritative body',async t=>{
+ const cases=[
+  ['routing',url=>({url:'https://regional.example/',redirects:['https://regional.example/'],outcome:'ROUTING_ONLY',httpStatus:302,contentType:null,accessDecisions:[{decision:'ALLOWED'}],redirectStop:{kind:'CROSS_HOST_REDIRECT_STOP',requestedUrl:url,requestedHost:new URL(url).hostname,sourceUrl:url,sourceHost:new URL(url).hostname,destinationUrl:'https://regional.example/',destinationHost:'regional.example',redirectChain:[url,'https://regional.example/'],navigationDepth:1,httpStatus:302}})],
+  ['truncated',url=>({...page(url,'partial'),truncated:true})],
+  ['failed',url=>({url,requestedUrl:url,outcome:'UNRESOLVED',httpStatus:503,contentType:'text/html',truncated:false,body:'',accessDecisions:[{decision:'ALLOWED'}]})],
+  ['denied',url=>({...page(url,'denied'),accessDecisions:[{decision:'DISALLOWED'}]})],
+  ['oversized',url=>({url,requestedUrl:url,outcome:'UNRESOLVED',httpStatus:null,contentType:null,truncated:false,bodyDiagnostic:{version:1,stage:'DECLARED_LENGTH',limit:10,receivedBytes:0,declaredBytes:20,contentType:'text/html',encoding:'identity'},failure:{code:'RESPONSE_TOO_LARGE'}})],
+ ];
+ for(const [label,response]of cases){
+  const directory=path.join(temp(t),label),url=`https://${label}.example/`,factory=async()=>({search:async()=>({results:[{url}]}),read:async()=>response(url)});await runProviderSeedCampaign({directory,researchTarget:providerOrBrandResearchTarget({seedName:'Abstract Provider',targetMarket:market}),createAdapters:factory,limits:{reads:1,bytes:10}});
+  assert.equal(fs.existsSync(path.join(directory,'provider-seed-evidence','bodies')),false,label);
+ }
 });
 
 test('oversized final candidate cannot create complete evidence and restart preserves exhausted bytes',async t=>{
