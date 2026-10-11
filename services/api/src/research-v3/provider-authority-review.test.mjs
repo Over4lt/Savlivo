@@ -19,8 +19,9 @@ const structuredReview=(value,{serviceName=name,candidateUrl=url}={})=>{const bo
 const robots={url:`https://${host}/robots.txt`,transport:'DIRECT',status:404,contentType:'text/plain',body:''};
 const fixture=(body=owned,bounds={actions:2,acquisitions:2,searches:0,modelCalls:0})=>({objective,permissions:{DIRECT:true},bounds,fixtures:[robots,{url,transport:'DIRECT',body}]});
 const execute=(input,extra={})=>runTarget({input,capabilities:offlineCapabilities(input),interpret:interpretBillingFixture,...extra});
-const providerSeed=(seedName,body,{candidateUrl=url}={})=>reviewProviderSeedAuthority(observation(body,{url:candidateUrl}),providerOrBrandResearchTarget({seedName,targetMarket:'DE'}),{candidateHosts:[new URL(candidateUrl).hostname]});
+const providerSeed=(seedName,body,{candidateUrl=url,observationExtra={}}={})=>reviewProviderSeedAuthority(observation(body,{url:candidateUrl,...observationExtra}),providerOrBrandResearchTarget({seedName,targetMarket:'DE'}),{candidateHosts:[new URL(candidateUrl).hostname]});
 const coherentProvider=(presentation,{legalName=null,providerUrl=url,canonical=providerUrl}={})=>`<link rel="canonical" href="${canonical}">${jsonLd({'@type':'Organization',name:presentation,...(legalName?{legalName}:{}),url:providerUrl})}${jsonLd({'@type':'WebSite',name:presentation,url:providerUrl})}`;
+const presentationPage=({presentation='Acme',candidateUrl='https://acme.example/',title=`${presentation} | Unlimited reading`,openGraphTitle=title,description=`${presentation} gives members unlimited access to magazines and newspapers.`,canonical=candidateUrl,openGraphUrl=candidateUrl,siteIdentity=null,applicationName=null,type='website',extraHead='',body='<main>Member access</main>'}={})=>`<html><head>${title===null?'':`<title>${title}</title>`}${openGraphTitle===null?'':`<meta property="og:title" content="${openGraphTitle}">`}${canonical===null?'':`<link rel="canonical" href="${canonical}">`}${openGraphUrl===null?'':`<meta property="og:url" content="${openGraphUrl}">`}${description===null?'':`<meta name="description" content="${description}"><meta property="og:description" content="${description}">`}${siteIdentity===null?'':`<meta property="og:site_name" content="${siteIdentity}">`}${applicationName===null?'':`<meta name="application-name" content="${applicationName}">`}${type===null?'':`<meta property="og:type" content="${type}">`}${extraHead}</head><body>${body}</body></html>`;
 
 test('first-party homepage and product presentation admit only the exact candidate host with audited spans',()=>{
     for(const body of [owned,product]){
@@ -80,6 +81,45 @@ test('provider seed research preserves exact source identity and resolves one co
     assert.equal(expanded.researchTarget.seedName,'Acme');
     assert.deepEqual(expanded.resolution,{mechanism:'SOURCE_PRESENTATION_SINGLE_TOKEN_EXPANSION',originalSeed:'Acme',sourceProviderPresentation:'Acme Digital',legalIdentity:'Acme Digital GmbH',authoritativeHost:host});
     assert.equal(expanded.proof.reason,'STRUCTURED_EXACT_ORIGIN_PROVIDER_SEED_RESOLUTION');
+});
+
+test('provider seed accepts exact-host first-party document presentation without structured data',()=>{
+    const exact=providerSeed('Acme',presentationPage(),{candidateUrl:'https://acme.example/'});
+    assert.equal(exact?.providerIdentity.presentationName,'Acme');assert.equal(exact.proof.reason,'EXACT_HOST_FIRST_PARTY_DOCUMENT_PRESENTATION');assert.equal(exact.proof.scope,'EXACT_HOST_PROVIDER_SOURCING');assert.equal(exact.host,'acme.example');assert.equal(exact.resolution.mechanism,'NORMALIZED_SOURCE_IDENTITY');
+    assert.equal(exact.providerIdentity.source.locators.documentPresentation.selfReferences[0].normalizedUrl,'https://acme.example/');
+
+    const expandedBody=presentationPage({presentation:'Northstar Digital',candidateUrl:'https://northstar.example/',title:'Northstar Digital | Project workspace',description:'Northstar Digital provides members access to one productivity platform.',siteIdentity:'Northstar Digital'}),expanded=providerSeed('Northstar',expandedBody,{candidateUrl:'https://northstar.example/'});
+    assert.equal(expanded?.providerIdentity.presentationName,'Northstar Digital');assert.equal(expanded.resolution.mechanism,'SOURCE_PRESENTATION_SINGLE_TOKEN_EXPANSION');assert.equal(expanded.proof.reason,'EXACT_HOST_FIRST_PARTY_DOCUMENT_PRESENTATION');
+
+    const applicationBody=presentationPage({presentation:'Cloudbox',candidateUrl:'https://cloudbox.example/app',title:'Cloudbox — Personal cloud storage',description:'Cloudbox offers members secure storage and software access.',applicationName:'Cloudbox',body:'<section><h1>Store files on every device</h1></section>'}),application=providerSeed('Cloudbox',applicationBody,{candidateUrl:'https://cloudbox.example/app'});
+    assert.equal(application?.providerIdentity.presentationName,'Cloudbox');assert.equal(application.host,'cloudbox.example');assert.equal(application.proof.reason,'EXACT_HOST_FIRST_PARTY_DOCUMENT_PRESENTATION');
+});
+
+test('first-party document presentation fails closed across twenty generalized adversarial shapes',()=>{
+    const good=presentationPage(),thirdParty=(overrides={})=>presentationPage({title:'Acme Review | Independent Review',openGraphTitle:'Acme Review | Independent Review',description:'Acme review compares subscription services for readers.',siteIdentity:'Independent Review',...overrides}),rows=[
+        ['search snippet','<main>Search result: Acme official subscription site</main>',{}],
+        ['hostname resemblance',presentationPage({presentation:'Other Media',candidateUrl:'https://acme-news.example/',title:'Other Media | News',description:'Other Media provides members access to news.',siteIdentity:'Other Media'}),{candidateUrl:'https://acme-news.example/'}],
+        ['title alone','<html><head><title>Acme</title></head><body></body></html>',{}],
+        ['logo alone','<html><head><link rel="canonical" href="https://acme.example/"></head><body><img alt="Acme" src="logo.svg"></body></html>',{}],
+        ['third-party review',thirdParty(),{}],
+        ['retailer',presentationPage({title:'Acme Store | Retailer',openGraphTitle:'Acme Store | Retailer',description:'Acme Store sells subscription products as a retailer.',siteIdentity:'Acme Store'}),{}],
+        ['article',presentationPage({type:'article'}),{}],
+        ['social profile',presentationPage({type:'profile',title:'Acme | Social Network',openGraphTitle:'Acme | Social Network',description:'Acme is a profile on a social network.'}),{}],
+        ['parked domain',presentationPage({description:'Acme is a parked domain available for sale.'}),{}],
+        ['ambiguous landing',presentationPage({description:'Welcome to Acme.'}),{}],
+        ['conflicting title and og',presentationPage({openGraphTitle:'Other Provider | Unlimited reading'}),{}],
+        ['conflicting canonical pair',presentationPage({extraHead:'<link rel="canonical" href="https://other.example/">'}),{}],
+        ['cross-host canonical',presentationPage({canonical:'https://other.example/'}),{}],
+        ['malformed metadata','<html><head><title>Acme | Unlimited reading</title><meta property="og:title"><link rel="canonical" href="https://acme.example/"><meta name="description" content="Acme gives members unlimited access."></head></html>',{}],
+        ['competing provider identities',presentationPage({siteIdentity:'Other Provider'}),{}],
+        ['unrelated operator',presentationPage({title:'Daily Publisher | Acme report',openGraphTitle:'Daily Publisher | Acme report',description:'Daily Publisher publishes news about Acme.',siteIdentity:'Daily Publisher',type:'website'}),{}],
+        ['ordinary link','<html><head><title>Directory</title></head><body><a href="https://acme.example/">Acme</a></body></html>',{}],
+        ['redirect-only observation',good,{observationExtra:{outcome:'REDIRECTED'}}],
+        ['partial observation',good,{observationExtra:{truncated:true,completeness:'INCOMPLETE'}}],
+        ['stale cross-campaign shape',good,{observationExtra:{authority:'REVIEWED_PROVIDER',context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'PROVIDER_PAGE'}}}],
+    ];
+    assert.equal(rows.length,20);
+    for(const [label,body,options]of rows)assert.equal(providerSeed('Acme',body,{candidateUrl:'https://acme.example/',...options}),null,label);
 });
 
 test('provider seed resolution creates only routing authority and invents no Service or verified fact',()=>{

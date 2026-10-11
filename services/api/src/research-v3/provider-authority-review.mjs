@@ -78,6 +78,7 @@ const sourcesFor=rows=>[...new Map(rows.map(row=>[row.source.offset,row.source])
 const providerKey=group=>group.id?'id:'+group.id:'node:'+group.rows[0].source.offset+':'+group.rows[0].path;
 const researchIdentity=value=>typeof value==='string'?(value.normalize('NFKC').toLocaleLowerCase('en').match(/[\p{L}\p{N}]+/gu)??[]):[];
 const legalSuffixes=new Set(['ag','as','asa','ab','bv','co','company','corp','corporation','gmbh','inc','incorporated','limited','llc','llp','ltd','nv','oy','plc','sarl','sas']);
+const presentationMetadataBounds=Object.freeze({headBytes:256*1024,tags:128,valueBytes:4096});
 
 function groupsFor(scripts,{crossScript=false}={}){
     const groups=[],byId=new Map();
@@ -130,6 +131,75 @@ function providerSeedRelation(seed,presentation){
     if(!requested.length||!source.length||requested.join(' ')===source.join(' '))return requested.length&&source.length?{mechanism:'NORMALIZED_SOURCE_IDENTITY'}:null;
     if(source.length!==requested.length+1||requested.some((token,index)=>token!==source[index]))return null;
     return {mechanism:'SOURCE_PRESENTATION_SINGLE_TOKEN_EXPANSION'};
+}
+
+const decodeMetadata=value=>value.replace(/&(?:amp|quot|apos|lt|gt);|&#(?:x[0-9a-f]+|[0-9]+);/giu,entity=>{
+    const named={amp:'&',quot:'"',apos:"'",lt:'<',gt:'>'},key=entity.slice(1,-1).toLowerCase();
+    if(Object.hasOwn(named,key))return named[key];
+    const number=key[0]==='#'?(key[1]==='x'?Number.parseInt(key.slice(2),16):Number.parseInt(key.slice(1),10)):NaN;
+    return Number.isSafeInteger(number)&&number>0&&number<=0x10ffff?String.fromCodePoint(number):entity;
+});
+const metadataText=value=>decodeMetadata(value.replace(/<[^>]*>/gu,' ')).normalize('NFKC').trim().replace(/\s+/gu,' ');
+const located=(body,start,end)=>({start,end,quote:body.slice(start,end),sha256:digest(body.slice(start,end))});
+const oneValue=rows=>{
+    const grouped=new Map();for(const row of rows){const key=identity(row.value);if(key)grouped.set(key,row);}
+    return grouped.size===1?[...grouped.values()][0]:null;
+};
+const presentationInTitle=(title,presentation)=>{
+    const value=metadataText(title),name=escape(metadataText(presentation));
+    return new RegExp('^(?:'+name+')(?:\\s*(?:[|:·–—-])\\s*|$)','iu').test(value)||new RegExp('(?:^|\\s*(?:[|:·–—-])\\s*)'+name+'$','iu').test(value);
+};
+const thirdPartyPresentation=/\b(?:comparison|directory|fan\s+page|marketplace|news|profile|resell(?:er)?|retail(?:er)?|review|social\s+network|unaffiliated|unofficial)\b/iu;
+const providerProductRelationship=(description,presentation)=>{
+    const value=metadataText(description),name=escape(metadataText(presentation));
+    if(!new RegExp('^'+name+'(?:\\s|[,.:;—-])','iu').test(value))return false;
+    if(thirdPartyPresentation.test(value))return false;
+    return /\b(?:is|offers?|provides?|gives?|delivers?|lets?|helps?|brings?|makes?|transforms?|connects?)\b/iu.test(value)&&/\b(?:access|app|application|classes|content|library|magazines?|members?|membership|monthly|newspapers?|platform|price|product|reading|service|software|storage|streaming|subscription|yearly)\b/iu.test(value);
+};
+
+function firstPartyDocumentPresentation(body,url,seed){
+    if(structuredMarker(body))return {status:'NO_MATCH',reason:'STRUCTURED_REPRESENTATION_PRESENT'};
+    const head=/<head\b(?:[^>"']|"[^"]*"|'[^']*')*>([\s\S]*?)<\/head\s*>/iu.exec(body);
+    if(!head)return {status:'NO_MATCH',reason:'DOCUMENT_HEAD_ABSENT'};
+    const headStart=head.index+head[0].indexOf('>')+1,source=head[1];
+    if(Buffer.byteLength(source)>presentationMetadataBounds.headBytes)return {status:'INVALID',reason:'DOCUMENT_METADATA_BOUNDED'};
+    const rows={title:[],openGraphTitle:[],siteIdentity:[],description:[],openGraphDescription:[],selfUrl:[],type:[]};let tags=0,malformed=false;
+    for(const match of source.matchAll(/<title\b[^>]*>[\s\S]*?<\/title\s*>|<(?:meta|link)\b(?:[^>"']|"[^"]*"|'[^']*')*>/giu)){
+        if(++tags>presentationMetadataBounds.tags)return {status:'INVALID',reason:'DOCUMENT_METADATA_BOUNDED'};
+        const start=headStart+match.index,end=start+match[0].length,locator=located(body,start,end);
+        if(/^<title\b/iu.test(match[0])){
+            const value=metadataText(match[0].replace(/^<title\b[^>]*>|<\/title\s*>$/giu,''));
+            if(!value||Buffer.byteLength(value)>presentationMetadataBounds.valueBytes)malformed=true;else rows.title.push({value,locator});continue;
+        }
+        const a=attrs(match[0]),key=(a.property??a.name??'').trim().toLowerCase(),content=a.content;
+        if(/^<link\b/iu.test(match[0])){
+            if((a.rel??'').split(/\s+/u).some(value=>value.toLowerCase()==='canonical')){
+                if(!a.href||Buffer.byteLength(a.href)>presentationMetadataBounds.valueBytes)malformed=true;else rows.selfUrl.push({value:a.href,kind:'canonical',locator});
+            }
+            continue;
+        }
+        const field=key==='og:title'?'openGraphTitle':key==='og:site_name'||key==='application-name'?'siteIdentity':key==='description'?'description':key==='og:description'?'openGraphDescription':key==='og:url'?'selfUrl':key==='og:type'?'type':null;
+        if(!field)continue;
+        if(typeof content!=='string'||!content.trim()||Buffer.byteLength(content)>presentationMetadataBounds.valueBytes){malformed=true;continue;}
+        rows[field].push({value:metadataText(content),...(field==='selfUrl'?{kind:'openGraphUrl'}:{}),locator});
+    }
+    if(malformed)return {status:'INVALID',reason:'DOCUMENT_METADATA_MALFORMED'};
+    const title=oneValue(rows.title),openGraphTitle=oneValue(rows.openGraphTitle),siteIdentity=rows.siteIdentity.length?oneValue(rows.siteIdentity):null,description=rows.description.length?oneValue(rows.description):null,openGraphDescription=rows.openGraphDescription.length?oneValue(rows.openGraphDescription):null,type=rows.type.length?oneValue(rows.type):null;
+    if((rows.title.length&&!title)||(rows.openGraphTitle.length&&!openGraphTitle)||(rows.siteIdentity.length&&!siteIdentity)||(rows.description.length&&!description)||(rows.openGraphDescription.length&&!openGraphDescription)||(rows.type.length&&!type))return {status:'CONFLICT',reason:'DOCUMENT_IDENTITY_CONFLICT'};
+    if(!title||!openGraphTitle||identity(title.value)!==identity(openGraphTitle.value))return {status:'NO_MATCH',reason:'DOCUMENT_TITLE_CORROBORATION_REQUIRED'};
+    if(type&&identity(type.value)!=='website')return {status:'NO_MATCH',reason:'DOCUMENT_PRESENTATION_TYPE_EXCLUDED'};
+    if(!rows.selfUrl.length)return {status:'NO_MATCH',reason:'EXACT_HOST_SELF_REFERENCE_REQUIRED'};
+    const host=new URL(url).hostname,normalizedSelf=[];
+    for(const row of rows.selfUrl){const normalized=normalizeUrl(row.value,url);if(!normalized)return {status:'INVALID',reason:'DOCUMENT_SELF_REFERENCE_INVALID'};if(new URL(normalized).hostname!==host)return {status:'CONFLICT',reason:'DOCUMENT_SELF_REFERENCE_HOST_CONFLICT'};normalizedSelf.push({...row,normalized});}
+    const presentation=siteIdentity?.value??metadataText(seed),relation=providerSeedRelation(seed,presentation);
+    if(!relation)return {status:'NO_MATCH',reason:'SOURCE_PRESENTATION_SEED_RELATION_UNRESOLVED'};
+    if(!presentationInTitle(title.value,presentation)||!presentationInTitle(openGraphTitle.value,presentation))return {status:'CONFLICT',reason:'DOCUMENT_TITLE_IDENTITY_CONFLICT'};
+    const descriptions=[description,openGraphDescription].filter(Boolean);
+    if(!descriptions.length||descriptions.some(row=>!providerProductRelationship(row.value,presentation)))return {status:'NO_MATCH',reason:'DOCUMENT_PRODUCT_RELATIONSHIP_REQUIRED'};
+    if(description&&openGraphDescription&&identity(description.value)!==identity(openGraphDescription.value))return {status:'CONFLICT',reason:'DOCUMENT_DESCRIPTION_CONFLICT'};
+    const combined=[title.value,openGraphTitle.value,...descriptions.map(row=>row.value)].join(' ');
+    if(thirdPartyPresentation.test(combined))return {status:'NO_MATCH',reason:'THIRD_PARTY_DOCUMENT_PRESENTATION_EXCLUDED'};
+    return {status:'ACCEPTED',reason:'EXACT_HOST_FIRST_PARTY_DOCUMENT_PRESENTATION',providerIdentity:{presentationName:presentation,legalName:null},resolution:{mechanism:relation.mechanism,originalSeed:seed,sourceProviderPresentation:presentation,legalIdentity:null,authoritativeHost:host},locators:{documentPresentation:{title:title.locator,openGraphTitle:openGraphTitle.locator,siteIdentity:siteIdentity?.locator??null,descriptions:descriptions.map(row=>row.locator),selfReferences:normalizedSelf.map(row=>({kind:row.kind,normalizedUrl:row.normalized,source:row.locator}))}}};
 }
 
 function sourceEstablishedProviderForSeed(body,url,seed){
@@ -381,10 +451,10 @@ function relationshipStructuredDiagnostic(body,url,name,parsed){
     return diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','NO_MATCH',sawRequested&&sawRelationship?'NO_EXACT_ORIGIN_ORGANIZATION':sawRequested?'TYPED_RELATIONSHIP_NO_MATCH':'REQUESTED_IDENTITY_MISMATCH');
 }
 
-function authorityDiagnostic(observation,{name,candidateHosts},binding){
+function authorityDiagnostic(observation,{name,candidateHosts,providerSeed=false},binding){
     const acceptedReason=binding?.proof?.reason??binding?.reason??null;
     if(acceptedReason){
-        const mechanism=acceptedReason==='FIRST_PARTY_PRESENTATION'?'FIRST_PARTY_PROSE':acceptedReason==='STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY'?'STRUCTURED_TYPED_RELATIONSHIP':'STRUCTURED_DIRECT_IDENTITY';
+        const mechanism=acceptedReason==='FIRST_PARTY_PRESENTATION'?'FIRST_PARTY_PROSE':acceptedReason==='EXACT_HOST_FIRST_PARTY_DOCUMENT_PRESENTATION'?'FIRST_PARTY_DOCUMENT_PRESENTATION':acceptedReason==='STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY'?'STRUCTURED_TYPED_RELATIONSHIP':'STRUCTURED_DIRECT_IDENTITY';
         return {version:1,decision:'ACCEPTED',stage:'FINAL',reason:'ACCEPTED_PROVIDER_PROOF',mechanisms:[diagnosticRow(mechanism,'ACCEPTED',acceptedReason)]};
     }
     const o=observation,body=o?.body;
@@ -393,9 +463,9 @@ function authorityDiagnostic(observation,{name,candidateHosts},binding){
     if(!url||url!==o.url||!candidateHosts.includes(new URL(url).hostname))return {version:1,decision:'UNRESOLVED',stage:'CANDIDATE_HOST',reason:'CANDIDATE_HOST_MISMATCH',mechanisms:[diagnosticRow('OBSERVATION','PASS'),diagnosticRow('CANDIDATE_HOST','INVALID','CANDIDATE_HOST_MISMATCH')]};
     name=name?.trim();if(!name||name.length<4||name.length>100)return {version:1,decision:'UNRESOLVED',stage:'REQUESTED_IDENTITY',reason:'REQUESTED_IDENTITY_INVALID',mechanisms:[diagnosticRow('OBSERVATION','PASS'),diagnosticRow('CANDIDATE_HOST','PASS'),diagnosticRow('REQUESTED_IDENTITY','INVALID','REQUESTED_IDENTITY_INVALID')]};
     const nonAffiliation=/\b(?:not affiliated with|unaffiliated with|independent of|unofficial|third.party (?:seller|reseller|review))\b/iu.test(body),presentations=[...body.matchAll(/\b(?:we\s+(?:provide|operate|develop|publish|offer|create)|our)\b[^<>"\r\n]{0,190}/giu)],thirdParty=presentations.some(match=>/\b(?:review|comparison|article|news|guide|resell|reseller|stock|distribut|third.party|sell)\b/iu.test(match[0])),prose=nonAffiliation?diagnosticRow('FIRST_PARTY_PROSE','EXCLUDED','NON_AFFILIATION_OR_THIRD_PARTY_EXCLUSION'):thirdParty?diagnosticRow('FIRST_PARTY_PROSE','EXCLUDED','THIRD_PARTY_PRESENTATION_EXCLUDED'):diagnosticRow('FIRST_PARTY_PROSE','NO_MATCH','PROSE_RELATIONSHIP_NO_MATCH');
-    if(nonAffiliation)return {version:1,decision:'UNRESOLVED',stage:'FINAL',reason:'PROVIDER_PROOF_REJECTED',mechanisms:[diagnosticRow('OBSERVATION','PASS'),diagnosticRow('CANDIDATE_HOST','PASS'),prose,diagnosticRow('STRUCTURED_DIRECT_IDENTITY','NOT_EVALUATED'),diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','NOT_EVALUATED')]};
-    const parsed=structuredDocument(body),direct=directStructuredDiagnostic(body,url,name,parsed),relationship=relationshipStructuredDiagnostic(body,url,name,parsed),conflict=[direct,relationship].some(row=>row.outcome==='CONFLICT'||row.outcome==='INVALID');
-    return {version:1,decision:'UNRESOLVED',stage:'FINAL',reason:conflict?'PROVIDER_PROOF_REJECTED':'NO_ACCEPTED_PROVIDER_PROOF',mechanisms:[diagnosticRow('OBSERVATION','PASS'),diagnosticRow('CANDIDATE_HOST','PASS'),prose,direct,relationship]};
+    if(nonAffiliation)return {version:1,decision:'UNRESOLVED',stage:'FINAL',reason:'PROVIDER_PROOF_REJECTED',mechanisms:[diagnosticRow('OBSERVATION','PASS'),diagnosticRow('CANDIDATE_HOST','PASS'),prose,...(providerSeed?[diagnosticRow('FIRST_PARTY_DOCUMENT_PRESENTATION','NOT_EVALUATED')]:[]),diagnosticRow('STRUCTURED_DIRECT_IDENTITY','NOT_EVALUATED'),diagnosticRow('STRUCTURED_TYPED_RELATIONSHIP','NOT_EVALUATED')]};
+    const presentationAssessment=providerSeed?firstPartyDocumentPresentation(body,url,name):null,presentation=presentationAssessment?diagnosticRow('FIRST_PARTY_DOCUMENT_PRESENTATION',presentationAssessment.status,presentationAssessment.reason):null,parsed=structuredDocument(body),direct=directStructuredDiagnostic(body,url,name,parsed),relationship=relationshipStructuredDiagnostic(body,url,name,parsed),conflict=[presentation,direct,relationship].filter(Boolean).some(row=>row.outcome==='CONFLICT'||row.outcome==='INVALID');
+    return {version:1,decision:'UNRESOLVED',stage:'FINAL',reason:conflict?'PROVIDER_PROOF_REJECTED':'NO_ACCEPTED_PROVIDER_PROOF',mechanisms:[diagnosticRow('OBSERVATION','PASS'),diagnosticRow('CANDIDATE_HOST','PASS'),prose,...(presentation?[presentation]:[]),direct,relationship]};
 }
 
 const bindingBase=review=>({host:review.host,kind:'AUTONOMOUS_FIRST_PARTY_PRESENTATION',reason:review.reason,scope:'EXACT_HOST_PROVIDER_SOURCING',sourceRole:'CANDIDATE_PAGE',url:review.url,observation:review.observation,bodySha256:review.bodySha256,locators:review.locators});
@@ -418,7 +488,7 @@ export function reviewProviderSeedAuthority(observation,researchTarget,{candidat
     let review=reviewAuthoritySubject(observation,{name:target.seedName,candidateHosts});
     if(!review){
         const o=observation,source=authorityObservationSource(o,candidateHosts),admissible=source&&target.seedName.length>=4&&target.seedName.length<=100&&!/\b(?:not affiliated with|unaffiliated with|independent of|unofficial|third.party (?:seller|reseller|review))\b/iu.test(source.body);
-        const resolved=admissible?sourceEstablishedProviderForSeed(source.body,source.url,target.seedName):null,url=source?.url;
+        const structuredResolution=admissible?sourceEstablishedProviderForSeed(source.body,source.url,target.seedName):null,presentationResolution=admissible&&!structuredResolution?firstPartyDocumentPresentation(source.body,source.url,target.seedName):null,resolved=structuredResolution??(presentationResolution?.status==='ACCEPTED'?presentationResolution:null),url=source?.url;
         if(resolved)review={host:new URL(url).hostname,url,observation:o.id,bodySha256:o.sha256,...resolved};
     }
     if(!review?.providerIdentity)return null;
@@ -428,5 +498,5 @@ export function reviewProviderSeedAuthority(observation,researchTarget,{candidat
 
 export function reviewProviderSeedAuthorityWithDiagnostic(observation,researchTarget,{candidateHosts=[]}={}) {
     const target=createResearchTarget(researchTarget),binding=reviewProviderSeedAuthority(observation,target,{candidateHosts});
-    return {binding,diagnostic:authorityDiagnostic(observation,{name:target.seedName,candidateHosts},binding)};
+    return {binding,diagnostic:authorityDiagnostic(observation,{name:target.seedName,candidateHosts,providerSeed:true},binding)};
 }
