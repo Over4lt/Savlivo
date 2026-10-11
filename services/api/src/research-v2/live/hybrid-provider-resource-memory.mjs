@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {canonical,digest,normalizeUrl} from '../../research-v3/model.mjs';
 import {validatedV3ProviderAuthorityBinding} from './provider-routing-authority.mjs';
+import {providerSeedCampaignState} from '../../research-v3/research-target.mjs';
 
 export const hybridProviderResourceMemoryContract=Object.freeze({
  contractVersion:1,
@@ -111,4 +112,21 @@ export function recordHybridProviderResourceFailure({root,target,resourceId,outc
  if(!row||row.service.id!==target.service||row.service.name!==target.serviceName||row.market!==target.market)throw Error('HYBRID_RESOURCE_SCOPE_MISMATCH');reviewForRecord(directory,target,row);
  if(row.resource.lastAttempt&&Date.parse(now)<Date.parse(row.resource.lastAttempt))throw Error('HYBRID_RESOURCE_FAILURE_NON_MONOTONIC');
  row.resource.failures++;row.resource.lastAttempt=now;row.resource.lastOutcome=outcome;const days=Math.min(30,2**Math.min(row.resource.failures,5));row.resource.nextRetryAt=new Date(Date.parse(now)+days*86400000).toISOString();assertRecord(row);atomic(storeFile(directory),state);return structuredClone(row);
+}
+
+// Phase-1 representation for routing from a source-bound ProviderBinding before
+// any consumer Service exists. Persistence/replay remains deliberately outside
+// this phase; the record contains no Truth and always requires fresh acquisition.
+export function providerScopedRoutingRecord({researchTarget,providerAuthorityBinding,url,role='SERVICE_DISCOVERY',acquisitionRoute='DIRECT',observedAt}){
+ const state=providerSeedCampaignState(researchTarget,{providerAuthorityBinding}),normalized=normalizeUrl(url);
+ if(!normalized||new URL(normalized).hostname!==providerAuthorityBinding.host||role!=='SERVICE_DISCOVERY'||!routes.has(acquisitionRoute)||!validTime(observedAt))throw Error('PROVIDER_RESOURCE_SCOPE_INVALID');
+ return {
+  contractVersion:1,
+  id:'hybrid-provider-resource:'+digest(['PROVIDER',state.researchTarget.seedName,state.researchTarget.targetMarket,providerAuthorityBinding.host,normalized,role]),
+  scope:'PROVIDER',researchTarget:structuredClone(state.researchTarget),service:null,host:providerAuthorityBinding.host,
+  authority:{provenance:'V3_AUTONOMOUS_CANDIDATE_REVIEW',binding:structuredClone(providerAuthorityBinding)},
+  resource:{url:normalized,role,acquisitionRoute,observedAt,reacquisition:'REQUIRED'},
+  marketContext:{targetMarket:state.researchTarget.targetMarket,availabilityEstablished:false},
+  meaning:hybridProviderResourceMemoryContract.meaning
+ };
 }

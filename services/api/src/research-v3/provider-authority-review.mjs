@@ -1,6 +1,7 @@
-// A candidate page can grant sourcing authority only by presenting the
-// requested service as the page publisher's own offering. This is not Truth.
+// A candidate page can grant sourcing authority only through a source-bound
+// requested identity and exact-origin provider presentation. This is not Truth.
 import {digest,normalizeUrl} from './model.mjs';
+import {createResearchTarget,researchTargetKinds} from './research-target.mjs';
 
 const escape=value=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 const span=(body,match)=>({start:match.index,end:match.index+match[0].length,quote:match[0],sha256:digest(match[0])});
@@ -67,7 +68,7 @@ function structuredExactOrigin(body,url,name){
     }
     if(invalid||!claims.length||new Set(claims.map(row=>new URL(row.normalized).hostname)).size!==1||new URL(claims[0].normalized).hostname!==host)return null;
     const claim=claims[0],sources=[...new Map(claim.groupRows.map(row=>[row.source.offset,row.source])).values()].map(source=>({start:source.offset,end:source.end,sha256:source.sha256}));
-    return {reason:'STRUCTURED_EXACT_ORIGIN_IDENTITY',locators:{structuredSources:sources,representation:{id:claim.id,jsonPointers:{types:claim.typeRows.map(row=>row.path),names:claim.nameRows.map(row=>row.path),url:claim.path},normalizedUrl:claim.normalized}}};
+    return {reason:'STRUCTURED_EXACT_ORIGIN_IDENTITY',providerIdentity:{presentationName:claim.nameRows[0].value,legalName:null},locators:{structuredSources:sources,representation:{id:claim.id,jsonPointers:{types:claim.typeRows.map(row=>row.path),names:claim.nameRows.map(row=>row.path),url:claim.path},normalizedUrl:claim.normalized}}};
 }
 
 const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -129,7 +130,7 @@ function relationshipTargets(row,predicate,byId){
 
 function relatedRepresentation({requested,relationship,provider}){
     const rows=[...requested.group.rows,...provider.group.rows],sources=sourcesFor(rows);
-    return {reason:'STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY',providerKey:provider.key,sortKey:[relationship.predicate,relationship.path,requested.group.id??requested.group.rows[0].path].join('\n'),locators:{structuredSources:sources,representation:{requestedIdentity:{id:requested.group.id,type:requested.type,jsonPointers:{types:requested.typeRows.map(row=>row.path),names:requested.nameRows.map(row=>row.path)}},relationship:{predicate:relationship.predicate,jsonPointer:relationship.path,targetId:relationship.targetId,referencePointer:relationship.reference},providerOrganization:{id:provider.group.id,jsonPointers:{types:provider.typeRows.map(row=>row.path),names:provider.nameRows.map(row=>row.path),urls:provider.urlRows.map(row=>row.path)},normalizedUrls:provider.urlRows.map(row=>row.normalized)}}}};
+    return {reason:'STRUCTURED_EXACT_ORIGIN_RELATED_IDENTITY',providerIdentity:{presentationName:provider.nameRows[0].value,legalName:null},providerKey:provider.key,sortKey:[relationship.predicate,relationship.path,requested.group.id??requested.group.rows[0].path].join('\n'),locators:{structuredSources:sources,representation:{requestedIdentity:{id:requested.group.id,type:requested.type,jsonPointers:{types:requested.typeRows.map(row=>row.path),names:requested.nameRows.map(row=>row.path)}},relationship:{predicate:relationship.predicate,jsonPointer:relationship.path,targetId:relationship.targetId,referencePointer:relationship.reference},providerOrganization:{id:provider.group.id,jsonPointers:{types:provider.typeRows.map(row=>row.path),names:provider.nameRows.map(row=>row.path),urls:provider.urlRows.map(row=>row.path)},normalizedUrls:provider.urlRows.map(row=>row.normalized)}}}};
 }
 
 function structuredIdentityRelationship(body,url,name){
@@ -149,7 +150,7 @@ function structuredIdentityRelationship(body,url,name){
         const provider=exactOriginOrganization(group,url);if(provider.status!=='MATCH')return null;
         if(exactName)continue;
         const requested=alternate.length?{property:'alternateName',rows:alternate,reason:'STRUCTURED_EXACT_ORIGIN_ALTERNATE_IDENTITY'}:{property:'legalName',rows:legal,reason:'STRUCTURED_EXACT_ORIGIN_LEGAL_IDENTITY'};
-        proofs.push({reason:requested.reason,providerKey:provider.key,sortKey:requested.property,locators:{structuredSources:sourcesFor(group.rows),representation:{id:group.id,jsonPointers:{types:provider.typeRows.map(row=>row.path),providerNames:provider.nameRows.map(row=>row.path),requestedIdentity:requested.rows.map(row=>row.path),urls:provider.urlRows.map(row=>row.path)},requestedIdentity:{property:requested.property,values:requested.rows.map(row=>row.value)},normalizedUrls:provider.urlRows.map(row=>row.normalized)}}});
+        proofs.push({reason:requested.reason,providerIdentity:{presentationName:provider.nameRows[0].value,legalName:requested.property==='legalName'?requested.rows[0].value:null},providerKey:provider.key,sortKey:requested.property,locators:{structuredSources:sourcesFor(group.rows),representation:{id:group.id,jsonPointers:{types:provider.typeRows.map(row=>row.path),providerNames:provider.nameRows.map(row=>row.path),requestedIdentity:requested.rows.map(row=>row.path),urls:provider.urlRows.map(row=>row.path)},requestedIdentity:{property:requested.property,values:requested.rows.map(row=>row.value)},normalizedUrls:provider.urlRows.map(row=>row.normalized)}}});
     }
 
     // Relationship references are intentionally same-script only. Embedded
@@ -185,12 +186,12 @@ function structuredIdentityRelationship(body,url,name){
     const {providerKey:_providerKey,sortKey:_sortKey,...proof}=proofs[0];return proof;
 }
 
-export function reviewCandidateAuthority(observation,objective) {
+function reviewAuthoritySubject(observation,{name,candidateHosts}) {
     const o=observation,body=o?.body;
     if(o?.kind!=='CANDIDATE'||o.authority!=='UNREVIEWED_CANDIDATE'||o.outcome!=='OK'||o.truncated||o.completeness!=='COMPLETE'||typeof body!=='string'||!body.trim()||o.sha256!==digest(body)||o.context?.representation!=='CANDIDATE_PAGE'||o.format!=='WEB'||!Number.isInteger(o.httpStatus)||o.httpStatus<200||o.httpStatus>=300||!Array.isArray(o.access)||!o.access.length||o.access.some(a=>a.decision!=='ALLOWED'))return null;
     const url=normalizeUrl(o.url);
-    if(!url||url!==o.url||!(objective.candidateHosts??[]).includes(new URL(url).hostname))return null;
-    const name=objective.serviceName?.trim();
+    if(!url||url!==o.url||!candidateHosts.includes(new URL(url).hostname))return null;
+    name=name?.trim();
     if(!name||name.length<4||name.length>100)return null;
     const service=new RegExp('(?<![\\p{L}\\p{N}])'+name.split(/\s+/u).map(escape).join('\\s+')+'(?![\\p{L}\\p{N}])','iu');
     const publisherName=new RegExp('^(?:©|&copy;|\\\\u00a9)\\s*'+name.split(/\s+/u).map(escape).join('\\s+')+'(?![\\p{L}\\p{N}])','iu');
@@ -204,19 +205,38 @@ export function reviewCandidateAuthority(observation,objective) {
     // service/product. Selling, reviewing, or listing another's item is not it.
     const presentations=[...body.matchAll(/\b(?:we\s+(?:provide|operate|develop|publish|offer|create)|our)\b[^<>"\r\n]{0,190}/giu)];
     const firstPerson=presentations.find(match=>service.test(match[0])&&/\b(?:service|membership|app|platform|product|software|library|classes|content|subscription)\b/iu.test(match[0])&&!/\b(?:review|comparison|article|news|guide|resell|reseller|stock|distribut|third.party|sell)\b/iu.test(match[0]));
+    const publisherIdentity=match=>match?.[0]?.match(/^(?:©|&copy;|\\u00a9)\s*([^\d<"\\]{2,80}?)\s+\d{4}\b/iu)?.[1]?.trim()??null;
     let publisher=firstPerson?publishers.find(match=>publisherName.test(match[0])):null;
-    let relation=publisher?firstPerson:null;
+    let relation=publisher?firstPerson:null,providerName=publisherIdentity(publisher);
     if(!relation)for(const candidate of publishers){
-        const operator=candidate[0].match(/^(?:©|&copy;)\s*([^\d<"\\]{2,80}?)\s+\d{4}\b/iu)?.[1]?.trim();
+        const operator=publisherIdentity(candidate);
         if(operator){
             const identity=escape(operator),product=name.split(/\s+/u).map(escape).join('\\s+');
             const statement=new RegExp('(?:'+identity+'\\s+(?:operates|provides|offers|governs|develops|publishes)\\s+'+product+'|'+product+'\\s+is\\s+(?:operated|provided|offered|governed|developed|published)\\s+by\\s+'+identity+')(?![\\p{L}\\p{N}])','iu');
             const match=statement.exec(body);
-            if(match){publisher=candidate;relation=match;break;}
+            if(match){publisher=candidate;relation=match;providerName=operator;break;}
         }
     }
     const host=new URL(url).hostname;
-    if(relation)return {host,kind:'AUTONOMOUS_FIRST_PARTY_PRESENTATION',reason:'FIRST_PARTY_PRESENTATION',scope:'EXACT_HOST_PROVIDER_SOURCING',sourceRole:'CANDIDATE_PAGE',serviceId:objective.serviceId,serviceName:name,url,observation:o.id,bodySha256:o.sha256,locators:{publisher:span(body,publisher),relation:span(body,relation)}};
+    if(relation)return {host,url,observation:o.id,bodySha256:o.sha256,reason:'FIRST_PARTY_PRESENTATION',providerIdentity:providerName?{presentationName:providerName,legalName:null}:null,locators:{publisher:span(body,publisher),relation:span(body,relation)}};
     const structured=structuredExactOrigin(body,url,name)??structuredIdentityRelationship(body,url,name);if(!structured)return null;
-    return {host,kind:'AUTONOMOUS_FIRST_PARTY_PRESENTATION',reason:structured.reason,scope:'EXACT_HOST_PROVIDER_SOURCING',sourceRole:'CANDIDATE_PAGE',serviceId:objective.serviceId,serviceName:name,url,observation:o.id,bodySha256:o.sha256,locators:structured.locators};
+    return {host,url,observation:o.id,bodySha256:o.sha256,reason:structured.reason,providerIdentity:structured.providerIdentity,locators:structured.locators};
+}
+
+const bindingBase=review=>({host:review.host,kind:'AUTONOMOUS_FIRST_PARTY_PRESENTATION',reason:review.reason,scope:'EXACT_HOST_PROVIDER_SOURCING',sourceRole:'CANDIDATE_PAGE',url:review.url,observation:review.observation,bodySha256:review.bodySha256,locators:review.locators});
+
+export function reviewCandidateAuthority(observation,objective) {
+    const name=objective?.serviceName?.trim(),review=reviewAuthoritySubject(observation,{name,candidateHosts:objective?.candidateHosts??[]});
+    if(!review)return null;
+    return {...bindingBase(review),serviceId:objective.serviceId,serviceName:name};
+}
+
+export function reviewProviderSeedAuthority(observation,researchTarget,{candidateHosts=[]}={}) {
+    const target=createResearchTarget(researchTarget);
+    if(target.targetKind!==researchTargetKinds.PROVIDER_OR_BRAND_SEED)throw Error('PROVIDER_SEED_TARGET_REQUIRED');
+    if(!Array.isArray(candidateHosts)||!candidateHosts.length||candidateHosts.some(host=>typeof host!=='string'||!host))throw Error('CANDIDATE_HOSTS_REQUIRED');
+    const review=reviewAuthoritySubject(observation,{name:target.seedName,candidateHosts});
+    if(!review?.providerIdentity)return null;
+    const proof=bindingBase(review);
+    return {contractVersion:1,researchTarget:structuredClone(target),providerIdentity:{...review.providerIdentity,source:{observation:review.observation,bodySha256:review.bodySha256,url:review.url,locators:structuredClone(review.locators)}},host:review.host,proof};
 }
