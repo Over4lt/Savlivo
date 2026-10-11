@@ -70,6 +70,20 @@ export function orderProviderSeedAuthorityCandidates(researchTarget,candidates,{
  return independent?[independent,...rows.filter(row=>row!==independent)]:rows;
 }
 
+export function admitProviderSeedAuthorityCandidate({researchTarget,candidates,candidate,limit,reviewedCandidateIds=[]}){
+ if(!Array.isArray(candidates)||!Number.isSafeInteger(limit)||limit<0||candidates.length>limit)throw Error('INVALID_PROVIDER_SEED_FRONTIER');
+ const url=normalizeUrl(candidate?.url);if(!url)throw Error('INVALID_PROVIDER_SEED_CANDIDATE');
+ if(candidates.some(row=>row.candidateId===candidate.candidateId||normalizeUrl(row.url)===url))return {status:'REJECTED',reason:'REDIRECT_DESTINATION_DUPLICATE',candidates};
+ if(candidates.length<limit)return {status:'ADMITTED',reason:'REDIRECT_DESTINATION_ENQUEUED',candidates:[...candidates,candidate],candidate};
+ const protectedIds=new Set(reviewedCandidateIds);for(const row of candidates)if(row.parentCandidateId)protectedIds.add(row.parentCandidateId);
+ const replaceable=candidates.map((row,index)=>({candidate:row,index,routing:providerSeedCandidateRouting(researchTarget,row,candidates,index)})).filter(row=>!protectedIds.has(row.candidate.candidateId)).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing)),weakest=replaceable.at(-1);
+ if(!weakest)return {status:'REJECTED',reason:'PROVIDER_CANDIDATE_DESTINATION_BOUND',candidates};
+ const incoming=providerSeedCandidateRouting(researchTarget,candidate,[...candidates,candidate],candidate.insertionOrder??candidates.length),comparison=compareProviderSeedAuthorityRows(incoming,weakest.routing);
+ if(comparison>=0)return {status:'REJECTED',reason:'PROVIDER_CANDIDATE_DESTINATION_BOUND',candidates,weakestCandidateId:weakest.candidate.candidateId,comparison};
+ const next=[...candidates];next[weakest.index]=candidate;
+ return {status:'REPLACED',reason:'STRONGER_CANDIDATE_REPLACEMENT',candidates:next,candidate,evictedCandidate:weakest.candidate,comparison};
+}
+
 const normalizedChain=(parent,page,finalUrl)=>{
  const values=[...(parent?.redirectChain??[]),parent?.url,...(Array.isArray(page?.redirects)?page.redirects:[]),finalUrl].map(value=>normalizeUrl(value)).filter(Boolean),seen=new Set(),chain=[];
  for(const value of values)if(!seen.has(value)){seen.add(value);chain.push(value);}
