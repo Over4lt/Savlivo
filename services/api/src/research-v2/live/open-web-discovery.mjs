@@ -28,6 +28,7 @@ import {rehydrateProviderSeedAuthorityHandoff} from './provider-seed-authority-h
 import {authorityAcquisitionRelevance,authorityAcquisitionTiers,candidateAuthorityRouting,candidateIdentityPriority,candidateOriginKind,candidateRelevant,compareCandidateAuthorityRows} from './candidate-authority-routing.mjs';
 export {candidateRelevant,serviceDomainHint,serviceIdentityTokens} from './candidate-authority-routing.mjs';
 export const openWebBounds=Object.freeze({managementReserveOnly:0,services:78,searches:50,reads:80,acquisitions:30,perServiceSearches:5,perServiceReads:8,perServiceAcquisitions:3,leadsPerService:40,linksPerPage:80,bytes:2097152,bytesPerPage:2097152});
+const openWebMaximumBounds=Object.freeze({...openWebBounds,perServiceSearches:8,perServiceReads:24,perServiceAcquisitions:8,bytes:16*1024*1024,bytesPerPage:16*1024*1024});
 export function retainedPriceReview(directory,target){
  if(!directory||!fs.existsSync(directory))return null;
  const output=fs.readdirSync(directory).filter(n=>/^interpretation-\d+$/.test(n)).sort().at(-1);
@@ -130,7 +131,7 @@ export function destinationDiscoveryNeeded(t,bounds,usage){
 export const catalogIdentityMetadata=(catalog,previous=[])=>[...new Map([...previous,...catalog].map(t=>[t.service,{service:t.service,serviceName:t.serviceName}])).values()];
 export class OpenWebResearch {
  constructor(directory,targets,bounds=openWebBounds,catalog=targets,{providerResourceMemoryRoot=null,providerSeedAuthorityRoot=null,memoryNow=new Date().toISOString()}={}){
-  this.directory=directory;this.bounds={...openWebBounds,...bounds};for(const [k,v]of Object.entries(this.bounds))if(!(k in openWebBounds)||!Number.isSafeInteger(v)||v<0||v>(k==='managementReserveOnly'?1:openWebBounds[k]))throw Error('INVALID_DISCOVERY_BOUND:'+k);
+  this.directory=directory;this.bounds={...openWebBounds,...bounds};for(const [k,v]of Object.entries(this.bounds))if(!(k in openWebMaximumBounds)||!Number.isSafeInteger(v)||v<0||v>(k==='managementReserveOnly'?1:openWebMaximumBounds[k]))throw Error('INVALID_DISCOVERY_BOUND:'+k);
   fs.mkdirSync(directory,{recursive:true});this.file=directory+'/state.json';const existing=fs.existsSync(this.file);this.state=existing?JSON.parse(fs.readFileSync(this.file)): {version:1,catalog:catalogIdentityMetadata(catalog),targets:targets.map(t=>({...t,gaps:t.gaps??commercialFields,queries:[],reads:[],leads:[],decisions:[],blockedOrigins:t.blockedOrigins??[],verified:[]})),usage:{searches:0,reads:0,acquisitions:0,bytes:0},cache:{},pending:null};this.state.usage.bytes??=0;
   for(const t of this.state.targets){
    revalidateTargetAdmission(t);

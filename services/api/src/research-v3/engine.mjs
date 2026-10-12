@@ -440,10 +440,9 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
             try {
                 decision = await reasoner(structuredClone({ workingModel:k.workingModel,objective: k.objective, truth: initial, destinations: k.destinations, observations: k.observations.map(({ body, candidates, renderedArtifacts, renderedOverviews, visualEvidence, domSnapshot, ...o }) => o), actions: offered.actions, attempts: k.attempts, permissions:k.permissions, bounds:k.bounds, usage:k.usage }));
             }
-            catch {
-                stop(k, 'REASONER_FAILED');
-                await persist(k, save);
-                return k;
+            catch (error) {
+                k.trace.push({event:'REASONER_FALLBACK',reason:'REASONER_FAILED',message:error instanceof Error?error.message:'UNKNOWN_REASONER_FAILURE'});
+                decision = {};
             }
             if (!decision || typeof decision !== 'object')
                 decision = {};

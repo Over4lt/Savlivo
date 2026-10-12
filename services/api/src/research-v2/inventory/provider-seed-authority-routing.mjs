@@ -9,6 +9,16 @@ const safe=value=>{const normalized=normalizeUrl(value);if(!normalized)return nu
 const weakPath=/(?:^|[\/_-])(?:auth|account|accounts|billing|checkout|login|pay|payment)(?:[\/_-]|$)/iu;
 const genericLabel=/^(?:app-?store|community|directory|encyclopedia|forum|magazin(?:e)?|marketplace|news|social|wiki)/iu;
 const positiveObjectiveRelevance=candidate=>Number.isFinite(candidate?.objectiveRelevance)&&candidate.objectiveRelevance>0?candidate.objectiveRelevance:0;
+const observedObjectiveCapability=candidate=>{
+ const text=String(candidate?.label??candidate?.discoveryContext?.title??'').normalize('NFKC').replace(/\s+/gu,' ').trim();
+ if(!text)return 0;
+ const intent=candidate?.objectiveIntent;
+ if(intent==='SUBSCRIPTION_PRICE'&&/\b(?:subscriptions?|plans?|memberships?|pricing|premium|offers?)\b/iu.test(text))return 16;
+ if(intent==='ACCOUNT_LOGIN'&&/\b(?:login|sign\s*in|accounts?)\b/iu.test(text))return 16;
+ if(intent==='SUBSCRIPTION_MANAGEMENT'&&/\b(?:manage(?:ment)?|billing|subscriptions?|memberships?)\b/iu.test(text))return 16;
+ if(intent==='CANCELLATION'&&/\b(?:cancel|cancellation|subscriptions?|memberships?)\b/iu.test(text))return 16;
+ return 0;
+};
 
 // A redirect or source-bound navigation is still pursuing the parent's
 // unresolved research objective. This projects scheduling intent only; it
@@ -74,7 +84,7 @@ const fallbackSafetyTier=candidate=>({GENERAL:0,GENERIC_THIRD_PARTY:1,AUTH_OR_PA
 
 export function providerSeedCandidateRouting(researchTarget,candidate,candidates=[],index=0,authorityGap={}){
  const url=safe(candidate?.url),affinity=providerSeedHostnameAffinity(researchTarget,candidate),originKind=candidate?.originKind??'SEARCH',parent=candidates.find(row=>row.candidateId===candidate?.parentCandidateId),parentAffinity=parent?providerSeedHostnameAffinity(researchTarget,parent):0;
- const redirectStrong=originKind==='REDIRECT_DESTINATION'&&affinity>0&&affinity>=parentAffinity,semanticObjectiveRelevance=positiveObjectiveRelevance(candidate),legacyObjectiveScore=Number.isFinite(candidate?.score)?candidate.score:0,authorityCapability=observedAuthorityEvidenceCapability(candidate);
+ const redirectStrong=originKind==='REDIRECT_DESTINATION'&&affinity>0&&affinity>=parentAffinity,semanticObjectiveRelevance=positiveObjectiveRelevance(candidate),legacyObjectiveScore=Number.isFinite(candidate?.score)?candidate.score:0,authorityCapability=observedAuthorityEvidenceCapability(candidate),objectiveProgressValue=['SOURCE_BOUND_CONTINUATION','REDIRECT_DESTINATION'].includes(originKind)?observedObjectiveCapability(candidate):Math.max(semanticObjectiveRelevance,legacyObjectiveScore);
  return {
   objective:providerSeedAuthorityRoutingObjective,
   executable:url!==null&&candidate?.executable!==false,
@@ -82,6 +92,7 @@ export function providerSeedCandidateRouting(researchTarget,candidate,candidates
   hostnameAffinity:affinity,
   destinationClass:providerSeedDestinationClass(candidate),
   objectiveScore:Math.max(semanticObjectiveRelevance,legacyObjectiveScore),
+  objectiveProgressValue,
   authorityEvidenceCapability:authorityCapability,
   fallbackSafetyTier:fallbackSafetyTier(candidate),
   redirectStrength:originKind==='REDIRECT_DESTINATION'?(redirectStrong?'EQUAL_OR_STRONGER_PROVIDER_AFFINITY':'WEAKER_OR_GENERIC_REDIRECT'):'INDEPENDENT_DISCOVERY',

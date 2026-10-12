@@ -33,11 +33,42 @@ test('price objective candidate beats a generic root by objective progress value
  assert.equal(rows[0].candidateId,pricing.candidateId);assert.equal(rows[0].routing.objectiveScore,8);
 });
 
-test('poor first search receives one justified objective refinement',async t=>{
+test('poor objective-first search receives one justified provider refinement',async t=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'progress-refinement-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));let searches=0;
  const exact='https://northstar.example/';
  const result=await runProviderSeedCampaign({directory:root,researchTarget:target,limits:{reads:1,searches:2},capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},createAdapters:async()=>({search:async()=>({results:++searches===1?[{url:'https://encyclopedia.example/northstar',title:'Northstar reference'}]:[{url:exact,title:'Northstar subscription plans'}]}),read:async({url})=>page(url,providerBody(url))})});
- assert.equal(searches,2);assert.equal(result.discovery.searches[1].kind,'OBJECTIVE_RESOURCE');assert.equal(result.providerAuthorityBinding.host,'northstar.example');
+ assert.equal(searches,2);assert.equal(result.discovery.searches[0].kind,'OBJECTIVE_RESOURCE');assert.equal(result.discovery.searches[1].kind,'GENERIC_PROVIDER');assert.equal(result.providerAuthorityBinding.host,'northstar.example');
+});
+
+test('one objective search goes directly to the useful provider resource',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'progress-direct-objective-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));let searches=0,reads=0;const pricing='https://northstar.example/memberships';
+ const result=await runProviderSeedCampaign({directory:root,researchTarget:target,profile:'STRESS',limits:{reads:1,searches:2},capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},createAdapters:async()=>({search:async()=>{searches++;return {results:[{url:pricing,title:'Northstar subscription memberships pricing'}]};},read:async({url})=>{reads++;return page(url,providerBody(url));}})});
+ assert.equal(searches,1);assert.equal(reads,1);assert.equal(result.discovery.searches[0].kind,'OBJECTIVE_RESOURCE');assert.equal(result.candidateReviews[0].url,pricing);assert.equal(result.providerAuthorityBinding.host,'northstar.example');
+});
+
+test('late authority reuses the earlier objective page without reacquisition',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'progress-late-authority-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const pricing='https://northstar.example/memberships',terms='https://northstar.example/terms';let searches=0;const reads=[];
+ const offer={'@type':'SoftwareApplication',name:'Northstar',description:'Consumer subscription service',offers:{'@type':'OfferCatalog',name:'Membership plans',itemListElement:[{'@type':'Offer',name:'Monthly',priceSpecification:{'@type':'UnitPriceSpecification',price:12,priceCurrency:'EUR',billingDuration:'P1M',eligibleRegion:'DE'}}]}},pricingBody=`<script type="application/ld+json">${JSON.stringify({'@graph':[offer],subscriptionServiceCatalog:{scope:'PROVIDER_SUBSCRIPTION_SERVICES',coverage:'COMPLETE',serviceIds:['northstar']}})}</script><a href="/terms">Legal terms</a>`,termsBody=providerBody(terms);
+ const result=await runProviderSeedCampaign({directory:root,researchTarget:target,profile:'STRESS',limits:{reads:2,searches:1},capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},createAdapters:async()=>({search:async()=>{searches++;return {results:[{url:pricing,title:'Northstar subscription memberships pricing'}]};},read:async({url})=>{reads.push(url);return page(url,url===pricing?pricingBody:termsBody);}})});
+ assert.equal(searches,1);assert.deepEqual(reads,[pricing,terms]);assert.equal(result.providerAuthorityBinding.host,'northstar.example');assert.equal(result.providerResourceReviews[0].status,'REUSED_CURRENT_CAMPAIGN');assert.equal(result.providerResourceReviews[0].url,pricing);assert.equal(result.providerResourceReviews[0].networkRequests,0);assert.deepEqual(result.discoveredServices.map(row=>row.serviceId),['northstar']);
+});
+
+test('third-party observations cannot turn their own legal navigation into the provider authority objective',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'progress-third-party-owner-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const article='https://magazine.example/northstar-pricing',privacy='https://magazine.example/privacy';const reads=[];
+ const result=await runProviderSeedCampaign({directory:root,researchTarget:target,profile:'STRESS',limits:{reads:2,searches:1},capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},createAdapters:async()=>({search:async()=>({results:[{url:article,title:'Northstar subscription pricing review'}]}),read:async({url})=>{reads.push(url);return page(url,`<article>Independent review</article><a href="${privacy}">Privacy policy</a>`);}})});
+ assert.deepEqual(reads,[article]);assert.equal(result.providerAuthorityBinding,null);assert.equal(result.discovery.candidates.some(row=>row.url===privacy),false);assert.equal(result.termination.reason,'PROVIDER_AUTHORITY_UNRESOLVED');
+});
+
+test('production profile has shared headroom that the intentional stress profile withholds',async t=>{
+ const make=async(profile,directory)=>{const first='https://northstar.example/memberships',terms='https://northstar.example/terms';return runProviderSeedCampaign({directory,researchTarget:target,profile,limits:profile==='STRESS'?{reads:1,searches:1}:{reads:2,searches:1},capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},createAdapters:async()=>({search:async()=>({results:[{url:first,title:'Northstar subscription pricing'}]}),read:async({url})=>page(url,url===first?`<main>Membership choices</main><a href="${terms}">Legal terms</a>`:providerBody(url))})});};
+ const stressRoot=fs.mkdtempSync(path.join(os.tmpdir(),'progress-stress-')),productionRoot=fs.mkdtempSync(path.join(os.tmpdir(),'progress-production-'));t.after(()=>{fs.rmSync(stressRoot,{recursive:true,force:true});fs.rmSync(productionRoot,{recursive:true,force:true});});const stress=await make('STRESS',stressRoot),production=await make('PRODUCTION',productionRoot);
+ assert.equal(stress.providerAuthorityBinding,null);assert.equal(stress.termination.reason,'PROVIDER_AUTHORITY_READ_BOUND');assert.equal(production.providerAuthorityBinding.host,'northstar.example');assert.equal(production.providerAuthorityBinding.proof.reason,'STRUCTURED_EXACT_ORIGIN_IDENTITY');
+});
+
+test('reasoner failure falls back to deterministic ranking while a native action remains',async()=>{
+ const objective={kind:'PRICE',serviceId:'northstar',serviceName:'Northstar',providerHosts:['provider.example'],markets:['DE'],seeds:['https://provider.example/plans']},url=objective.seeds[0],knowledge=createKnowledge({objective,permissions:{DIRECT:true}});addDestination(knowledge,{url,depth:0,needs:pricePropositions,grounding:{kind:'PROVIDER_ROOT',host:'provider.example'}});
+ const result=await runResearch({knowledge,objective,permissions:{DIRECT:true},reasoner:async()=>{throw Error('MODEL_OFFLINE');},capabilities:{DIRECT:action=>({url:action.url,context:action.context,outcome:'OK',body:JSON.stringify({serviceId:'northstar',offers:[{id:'monthly',amount:12,currency:'EUR',cadence:'MONTHLY',billingCadence:'MONTHLY',consumer:true,relationship:'SUBSCRIPTION',role:'ORDINARY',market:'DE'}]})})}});
+ assert.notEqual(result.stop.reason,'REASONER_FAILED');assert.equal(result.usage.actions,1);assert.equal(result.observations.length,1);assert(result.trace.some(row=>row.event==='REASONER_FALLBACK'));assert(result.trace.some(row=>row.event==='RESEARCH_DECISION'&&row.snapshot.rankingOrigin==='ENGINE_FALLBACK'));
 });
 
 test('wrong or unresolved country observation leaves source-bound market action useful',()=>{

@@ -6,7 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import {digest} from '../../research-v3/model.mjs';
 import {providerOrBrandResearchTarget} from '../../research-v3/research-target.mjs';
-import {runProviderSeedCampaign} from './provider-seed-campaign.mjs';
+import {runProviderSeedCampaign as runProviderSeedCampaignRaw} from './provider-seed-campaign.mjs';
+
+const runProviderSeedCampaign=input=>runProviderSeedCampaignRaw({...input,profile:input.profile??'STRESS'});
 
 const market='DE';
 const temp=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'cold-seed-authority-handoff-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return root;};
@@ -26,7 +28,7 @@ test('invalid standalone presentation still researches the exact plausible provi
  const original=result.candidateReviews.find(row=>row.url===candidate);
  assert.equal(original.authorityDiagnostic.mechanisms.find(row=>row.mechanism==='FIRST_PARTY_DOCUMENT_PRESENTATION').outcome,'INVALID');
  assert.equal(original.authorityDiagnostic.mechanisms.some(row=>row.outcome==='CONFLICT'),false);
- assert.deepEqual(calls.map(row=>row.type+':'+(row.url??row.query)),['SEARCH:Leafread official site','READ:'+candidate,'SEARCH:Leafread offers.leafread.example official terms','READ:'+termsUrl]);
+ assert.deepEqual(calls.map(row=>row.type+':'+(row.url??row.query)),['SEARCH:Leafread subscription plans membership pricing Germany','READ:'+candidate,'SEARCH:Leafread offers.leafread.example official terms','READ:'+termsUrl]);
  assert.equal(result.authorityResearch.length,1);
  assert.equal(result.authorityResearch[0].trigger,'EXACT_UNRESOLVED_PROVIDER_CANDIDATE');
  assert.equal(result.authorityResearch[0].url,candidate);
@@ -61,10 +63,10 @@ test('incomplete exact provider root uses objective discovery without giving thi
  });
  const result=await runProviderSeedCampaign({directory:temp(t),researchTarget:providerOrBrandResearchTarget({seedName:name,targetMarket:market}),createAdapters,capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false}});
  assert.deepEqual(calls.filter(row=>row.type==='READ').map(row=>row.url),[candidate,termsUrl]);
- assert.deepEqual(calls.filter(row=>row.type==='SEARCH').map(row=>row.query),['Cinemora official site','Cinemora subscription plans membership pricing Germany']);
+ assert.deepEqual(calls.filter(row=>row.type==='SEARCH').map(row=>row.query),['Cinemora subscription plans membership pricing Germany','Cinemora official site']);
  assert.equal(result.authorityResearch,undefined);
  assert.equal(result.providerAuthorityBinding.host,'watch.cinemora.example');
- assert.equal(result.discovery.candidates.some(row=>row.url===termsUrl&&row.originKind==='OBJECTIVE_SEARCH'),true);
+ assert.equal(result.discovery.candidates.some(row=>row.url===termsUrl&&row.originKind==='SEARCH'),true);
  assert.equal(calls.some(row=>row.url===evidence||row.url===locale),false);
  assert.equal(result.candidateReviews.some(row=>row.host==='encyclopedia.example'&&row.status==='ESTABLISHED'),false);
  assert.equal(result.candidateReviews.some(row=>row.host==='de.encyclopedia.example'&&row.status==='ESTABLISHED'),false);

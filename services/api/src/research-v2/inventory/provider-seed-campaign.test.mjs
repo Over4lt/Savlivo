@@ -12,7 +12,9 @@ import {autonomousProviderAuthorityDecision,providerRoutingAuthority} from '../l
 import {admittedDiscoveryCandidate} from '../live/tavily-discovery.mjs';
 import {createV2RobotsPublicAdapter} from '../live/robots-policy.mjs';
 import {initializeAdaptiveState,runAdaptiveCampaign} from './adaptive-campaign.mjs';
-import {providerSeedCampaignBounds,runProviderSeedCampaign} from './provider-seed-campaign.mjs';
+import {providerSeedCampaignBounds,runProviderSeedCampaign as runProviderSeedCampaignRaw} from './provider-seed-campaign.mjs';
+
+const runProviderSeedCampaign=input=>runProviderSeedCampaignRaw({...input,profile:input.profile??'STRESS'});
 
 const host='northstar.example',candidateUrl=`https://${host}/`,catalogUrl=`https://${host}/catalog`,market='DE';
 const researchTarget=()=>providerOrBrandResearchTarget({seedName:'Northstar',targetMarket:market});

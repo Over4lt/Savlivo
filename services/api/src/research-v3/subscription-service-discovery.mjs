@@ -6,7 +6,9 @@ import {createResearchTarget,knownServiceResearchTarget,providerSeedCampaignStat
 import {interpretSubscriptionPage} from './subscription-page.mjs';
 
 export const providerResearchByteCapacity=2*1024*1024;
-export const subscriptionServiceDiscoveryBounds=Object.freeze({actions:16,acquisitions:8,navigationDepth:4,observations:8,candidates:32,bytes:providerResearchByteCapacity,nodes:4096,depth:24});
+export const subscriptionServiceDiscoveryStressBounds=Object.freeze({actions:16,acquisitions:8,navigationDepth:4,observations:8,candidates:32,bytes:providerResearchByteCapacity,nodes:4096,depth:24});
+export const subscriptionServiceDiscoveryProductionBounds=Object.freeze({actions:512,acquisitions:16,navigationDepth:8,observations:16,candidates:64,bytes:16*1024*1024,nodes:16384,depth:48});
+export const subscriptionServiceDiscoveryBounds=subscriptionServiceDiscoveryStressBounds;
 export const subscriptionServiceDiscoveryStates=Object.freeze(['SERVICE_FOUND_MORE_POSSIBLE','SERVICE_DISCOVERY_EXHAUSTED','SERVICE_DISCOVERY_UNRESOLVED']);
 const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
 const types=value=>(Array.isArray(value)?value:[value]).filter(row=>typeof row==='string').map(row=>row.split('/').at(-1));
@@ -88,16 +90,16 @@ function extractObservation(observation,bounds,providerAuthorityBinding){
  return all;
 }
 
-function limits(bounds){const value={...subscriptionServiceDiscoveryBounds,...bounds};for(const [key,n]of Object.entries(value)){const minimum=key==='navigationDepth'?0:1;if(!(key in subscriptionServiceDiscoveryBounds)||!Number.isSafeInteger(n)||n<minimum||n>subscriptionServiceDiscoveryBounds[key])throw Error('SERVICE_DISCOVERY_BOUND_INVALID');}return value;}
+function limits(bounds,profile){const ceiling=profile==='PRODUCTION'?subscriptionServiceDiscoveryProductionBounds:profile==='STRESS'?subscriptionServiceDiscoveryStressBounds:null;if(!ceiling)throw Error('SERVICE_DISCOVERY_PROFILE_INVALID');const value={...ceiling,...bounds};for(const [key,n]of Object.entries(value)){const minimum=key==='navigationDepth'?0:1;if(!(key in ceiling)||!Number.isSafeInteger(n)||n<minimum||n>ceiling[key])throw Error('SERVICE_DISCOVERY_BOUND_INVALID');}return value;}
 function observationValid(observation,binding){const url=normalizeUrl(observation?.url);return observation?.kind==='PROVIDER'&&!observation.semantic&&observation.outcome==='OK'&&!observation.truncated&&observation.completeness==='COMPLETE'&&typeof observation.body==='string'&&digest(observation.body)===observation.sha256&&url===observation.url&&new URL(url).hostname===binding.host;}
 function boundedAcquisitionUsage(state,observations){
  const fallback={actions:observations.length,acquisitions:observations.length,navigationDepth:0},usage={...fallback,...state};
  if(Object.keys(usage).some(key=>!['actions','acquisitions','navigationDepth'].includes(key))||Object.values(usage).some(value=>!Number.isSafeInteger(value)||value<0))throw Error('SERVICE_DISCOVERY_ACQUISITION_STATE_INVALID');return usage;
 }
 
-export function discoverSubscriptionServices({researchTarget,providerAuthorityBinding,observations,bounds={},acquisitionState=null}){
+export function discoverSubscriptionServices({researchTarget,providerAuthorityBinding,observations,bounds={},acquisitionState=null,profile='STRESS'}){
  const target=createResearchTarget(researchTarget);if(target.targetKind!==researchTargetKinds.PROVIDER_OR_BRAND_SEED)throw Error('PROVIDER_SEED_TARGET_REQUIRED');providerSeedCampaignState(target,{providerAuthorityBinding});
- if(!Array.isArray(observations))throw Error('PROVIDER_OBSERVATIONS_REQUIRED');const bound=limits(bounds),acquisition=boundedAcquisitionUsage(acquisitionState,observations),admissions=[],unresolved=[],coverage=[],used=[],seenCandidates=new Set();let bytes=0,limited=observations.length>bound.observations||acquisition.actions>bound.actions||acquisition.acquisitions>bound.acquisitions||acquisition.navigationDepth>bound.navigationDepth;
+ if(!Array.isArray(observations))throw Error('PROVIDER_OBSERVATIONS_REQUIRED');const bound=limits(bounds,profile),acquisition=boundedAcquisitionUsage(acquisitionState,observations),admissions=[],unresolved=[],coverage=[],used=[],seenCandidates=new Set();let bytes=0,limited=observations.length>bound.observations||acquisition.actions>bound.actions||acquisition.acquisitions>bound.acquisitions||acquisition.navigationDepth>bound.navigationDepth;
  for(const observation of observations.slice(0,bound.observations)){
   if(!observationValid(observation,providerAuthorityBinding)){unresolved.push({name:null,reason:'AUTHORITATIVE_PROVIDER_OBSERVATION_REQUIRED',observation:observation?.id??null});continue;}
   const size=Buffer.byteLength(observation.body);if(bytes+size>bound.bytes){limited=true;continue;}bytes+=size;used.push(observation.id);
