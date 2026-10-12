@@ -32,7 +32,8 @@ export function providerSeedHostnameAffinity(researchTarget,candidate){
  }
  const kind=providerSeedDestinationClass(candidate);
  if(kind==='PUBLIC_SECTOR_OR_LOCALITY')score=Math.max(0,score-2);
- if(kind==='GENERIC_THIRD_PARTY'||kind==='AUTH_OR_PAYMENT')score=0;
+ const objectiveAccountRoute=kind==='AUTH_OR_PAYMENT'&&candidate?.originKind==='OBJECTIVE_SEARCH'&&Number(candidate?.objectiveRelevance)>0&&['ACCOUNT_LOGIN','SUBSCRIPTION_MANAGEMENT','CANCELLATION'].includes(candidate?.objectiveIntent);
+ if(kind==='GENERIC_THIRD_PARTY'||kind==='AUTH_OR_PAYMENT'&&!objectiveAccountRoute)score=0;
  return score;
 }
 

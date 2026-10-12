@@ -52,7 +52,7 @@ test('explicit conflicting provider presentation cannot trigger or gain provider
  assert.equal(result.providerAuthorityBinding,null);
 });
 
-test('third-party source continuations cannot steal an existing exact provider authority target',async t=>{
+test('incomplete exact provider root uses objective discovery without giving third parties authority',async t=>{
  const name='Cinemora',candidate='https://watch.cinemora.example/',evidence='https://encyclopedia.example/cinemora',locale='https://de.encyclopedia.example/cinemora',termsUrl='https://watch.cinemora.example/legal/terms',calls=[];let searches=0,candidateReads=0;
  const evidenceBody=`<html><body><main>Independent reference page.</main><a href="${locale}">Deutsch</a><a href="${candidate}">${name} official site</a></body></html>`;
  const createAdapters=async()=>({
@@ -60,16 +60,15 @@ test('third-party source continuations cannot steal an existing exact provider a
   read:async({url})=>{calls.push({type:'READ',url});if(url===candidate&&candidateReads++===0)return incomplete(url);if(url===candidate)return page(url,'<html><head><title>'+name+'</title></head><body>Subscription service.</body></html>');if(url===evidence)return page(url,evidenceBody);if(url===termsUrl)return page(url,terms(name,url));assert.fail('unexpected read: '+url);}
  });
  const result=await runProviderSeedCampaign({directory:temp(t),researchTarget:providerOrBrandResearchTarget({seedName:name,targetMarket:market}),createAdapters,capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false}});
- assert.deepEqual(calls.filter(row=>row.type==='READ').map(row=>row.url),[candidate,evidence,candidate,termsUrl]);
- assert.equal(result.authorityResearch.length,1);
- assert.equal(result.authorityResearch[0].url,candidate);
- assert.equal(result.authorityResearch[0].query,'Cinemora watch.cinemora.example official terms');
+ assert.deepEqual(calls.filter(row=>row.type==='READ').map(row=>row.url),[candidate,termsUrl]);
+ assert.deepEqual(calls.filter(row=>row.type==='SEARCH').map(row=>row.query),['Cinemora official site','Cinemora subscription plans membership pricing Germany']);
+ assert.equal(result.authorityResearch,undefined);
  assert.equal(result.providerAuthorityBinding.host,'watch.cinemora.example');
- assert.equal(result.discovery.candidates.some(row=>row.url===locale&&row.originKind==='SOURCE_BOUND_CONTINUATION'),true);
- assert.equal(calls.some(row=>row.url===locale),false);
+ assert.equal(result.discovery.candidates.some(row=>row.url===termsUrl&&row.originKind==='OBJECTIVE_SEARCH'),true);
+ assert.equal(calls.some(row=>row.url===evidence||row.url===locale),false);
  assert.equal(result.candidateReviews.some(row=>row.host==='encyclopedia.example'&&row.status==='ESTABLISHED'),false);
  assert.equal(result.candidateReviews.some(row=>row.host==='de.encyclopedia.example'&&row.status==='ESTABLISHED'),false);
  assert.equal(result.discovery.candidates.filter(row=>row.host.endsWith('encyclopedia.example')).every(row=>row.truthAuthority==='NONE'),true);
  assert.equal(result.usage.searches,2);
- assert.equal(result.usage.reads,4);
+ assert.equal(result.usage.reads,2);
 });
