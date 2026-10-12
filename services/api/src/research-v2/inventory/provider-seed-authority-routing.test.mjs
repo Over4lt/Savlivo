@@ -46,9 +46,14 @@ test('strong redirect may preempt weak fallback; generic auth/payment redirect c
  assert.equal(ranked[0].candidateId,independent.candidateId);assert.equal(providerSeedCandidateRouting(target,auth,[parent,auth]).destinationClass,'AUTH_OR_PAYMENT');
 });
 
-test('equal-affinity independent candidate wins the final read over a redirect branch',()=>{
+test('equal-affinity safe redirect keeps its provenance order when one read remains',()=>{
  const parent=candidate('https://northstar.example/start',0),redirect=providerSeedRedirectCandidate({researchTarget:target,parent,page:page('https://de.northstar.example/about'),candidates:[parent],navigationDepthLimit:3,insertionOrder:2}).candidate,independent=candidate('https://northstar-labs.example/about',1),rows=orderProviderSeedAuthorityCandidates(target,[redirect,independent],{remainingReads:1});
- assert.equal(rows[0].candidateId,independent.candidateId);assert.equal(rows[0].routing.hostnameAffinity,rows[1].routing.hostnameAffinity);
+ assert.equal(rows[0].candidateId,redirect.candidateId);assert.equal(rows[0].routing.hostnameAffinity,rows[1].routing.hostnameAffinity);assert.equal(Object.hasOwn(rows[0].routing,'branchPreference'),false);assert.deepEqual(orderProviderSeedAuthorityCandidates(target,[redirect,independent],{remainingReads:2}).map(row=>row.candidateId),rows.map(row=>row.candidateId));
+});
+
+test('source-bound objective score refreshes equal-affinity ordering without granting authority',()=>{
+ const unrelated=candidate('https://northstar-labs.example/about',0),continuation=candidate('https://de.northstar.example/subscription',1,{candidateId:'source-bound',originKind:'SOURCE_BOUND_CONTINUATION',score:20,source:{observation:'candidate-observation',bodySha256:'body-hash',start:10,end:20,sha256:'span-hash'}}),rows=ordered([unrelated,continuation]);
+ assert.equal(rows[0].candidateId,continuation.candidateId);assert.equal(rows[0].routing.objectiveScore,20);assert.equal(rows[0].truthAuthority,'NONE');assert.equal(Object.hasOwn(rows[0],'providerAuthorityBinding'),false);
 });
 
 test('adaptive frontier admits below K, shrinks after attempt, grows later, and never deletes history',()=>{

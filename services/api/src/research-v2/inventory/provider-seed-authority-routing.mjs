@@ -50,8 +50,8 @@ export function providerSeedCandidateRouting(researchTarget,candidate,candidates
   executable:url!==null&&candidate?.executable!==false,
   hostnameAffinity:affinity,
   destinationClass:providerSeedDestinationClass(candidate),
+  objectiveScore:Number.isFinite(candidate?.score)?candidate.score:0,
   authorityResourceTier:authorityResourceTier(candidate),
-  branchPreference:originKind==='REDIRECT_DESTINATION'?(redirectStrong?1:2):0,
   redirectStrength:originKind==='REDIRECT_DESTINATION'?(redirectStrong?'EQUAL_OR_STRONGER_PROVIDER_AFFINITY':'WEAKER_OR_GENERIC_REDIRECT'):'INDEPENDENT_DISCOVERY',
   originKind,
   searchIndex:Number.isSafeInteger(candidate?.searchIndex)?candidate.searchIndex:Number.MAX_SAFE_INTEGER,
@@ -61,13 +61,10 @@ export function providerSeedCandidateRouting(researchTarget,candidate,candidates
  };
 }
 
-export const compareProviderSeedAuthorityRows=(a,b)=>Number(b.executable)-Number(a.executable)||b.hostnameAffinity-a.hostnameAffinity||a.authorityResourceTier-b.authorityResourceTier||a.branchPreference-b.branchPreference||a.searchIndex-b.searchIndex||a.searchRank-b.searchRank||a.insertionOrder-b.insertionOrder||a.url.localeCompare(b.url);
+export const compareProviderSeedAuthorityRows=(a,b)=>Number(b.executable)-Number(a.executable)||b.hostnameAffinity-a.hostnameAffinity||b.objectiveScore-a.objectiveScore||a.authorityResourceTier-b.authorityResourceTier||a.searchIndex-b.searchIndex||a.searchRank-b.searchRank||a.insertionOrder-b.insertionOrder||a.url.localeCompare(b.url);
 
-export function orderProviderSeedAuthorityCandidates(researchTarget,candidates,{reviewedCandidateIds=[],remainingReads=Infinity}={}){
- const reviewed=new Set(reviewedCandidateIds),rows=candidates.map((candidate,index)=>({...candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,candidates,index)})).filter(row=>!reviewed.has(row.candidateId)&&row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing));
- if(remainingReads!==1||rows[0]?.originKind!=='REDIRECT_DESTINATION')return rows;
- const independent=rows.find(row=>row.originKind!=='REDIRECT_DESTINATION'&&row.routing.hostnameAffinity>=rows[0].routing.hostnameAffinity);
- return independent?[independent,...rows.filter(row=>row!==independent)]:rows;
+export function orderProviderSeedAuthorityCandidates(researchTarget,candidates,{reviewedCandidateIds=[]}={}){
+ const reviewed=new Set(reviewedCandidateIds);return candidates.map((candidate,index)=>({...candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,candidates,index)})).filter(row=>!reviewed.has(row.candidateId)&&row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing));
 }
 
 export function refreshProviderSeedAuthorityFrontier({researchTarget,candidates,activeCandidateIds,newCandidates=[],limit,ineligibleCandidateIds=[],deactivateCandidateIds=[]}){
