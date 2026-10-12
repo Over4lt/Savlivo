@@ -9,7 +9,7 @@ import {categoryIntent} from './research-planner.mjs';
 import {sourceLinks} from './source-frontier-links.mjs';
 import {normalizeFrontierUrl,semanticReasons} from './source-frontier.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
-import {providerResourceRelevance} from './provider-resource-routing.mjs';
+import {providerResourceRelevance,providerResourceLocaleHint} from './provider-resource-routing.mjs';
 const norm=s=>{try{s=decodeURIComponent(s);}catch{}return String(s).normalize('NFKD').replace(/\p{M}/gu,'').normalize('NFC').toLowerCase();};
 const commercial=/(?:^|[^\p{L}\p{N}])(?:pricing|prices?|plans?|memberships?|subscribe|subscriptions?|premium|personal|individual|checkout|buy|join|packages?|tariffs?|pris|priser|abonnement(?:en|s)?|abonnemang|medlemskap|medlemskab|kjop|pakker|preise?|tarife?|mitgliedschaft|abo|pakete|prijzen|lidmaatschap|prix|tarifs?|offres|precios?|planes|suscripci[oó]n(?:es)?|membresia|precos?|planos|assinatura|subscricao|adesao|prezzi|piani|abbonament[oi]|iscriviti|cennik|cena|ceny|abonament|subskrypcja|pakiety|cenik|predplatne|clenstvi|tarify|fiyat(?:lar)?|uyelik|abonelik|paketler)(?:$|[^\p{L}\p{N}])|料金|価格|プラン|入会|月額|サブスクリプション|가격|요금|멤버십|구독|价格|定价|套餐|会员|订阅|開通|开通|ราคา|สมัครสมาชิก/iu;
 export const reviewedNavigationHost=(t,url)=>!!providerRoutingAuthority(t,url);
@@ -30,9 +30,7 @@ export function navigationRank(t,lead,needs=null){
  return p==='/'?30:20;
 }
 export function navigationLocale(t,lead){
- const u=new URL(lead.url),locale=(typeof lead.locale==='string'?lead.locale:'').match(/^[a-z]{2,3}[-_]([a-z]{2})$/i)?.[1]?.toUpperCase(),region=u.pathname.match(/^\/[a-z]{2,3}-([a-z]{2})(?:\/|$)/i)?.[1]?.toUpperCase();
- // Language-only /de/ is not proof of a German market; keep unknown rather than guess.
- const hint=locale??region;return {region:hint??null,compatibility:hint?(hint===t.market?'TARGET':'FOREIGN'):'UNKNOWN'};
+ return providerResourceLocaleHint(t,lead.url,lead);
 }
 export function providerNavigation(t,body,base,{width=2,depth=0,maxBytes=2097152,maxLinks=2000}={}){
  const maxDepth=[1,2].includes(t.smartResearch?.version)?Math.min(3,Math.max(1,t.smartResearch.navigationDepth??3)):1;

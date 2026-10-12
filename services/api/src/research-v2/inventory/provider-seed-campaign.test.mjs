@@ -56,7 +56,7 @@ function adapters({names=['Orbit'],complete=true,calls=[],memoryRead=false}={}){
 const bindingUrl=()=>candidateUrl;
 
 test('adversarial 16-17: source-bound Service authority crosses with real provenance while fabricated provenance fails',async t=>{
- const result=await runProviderSeedCampaign({directory:temp(t),researchTarget:researchTarget(),createAdapters:adapters({names:['Orbit']})}),current=result.adaptive.targets[result.children[0].targetId],decision=autonomousProviderAuthorityDecision(current,candidateUrl);
+ const result=await runProviderSeedCampaign({directory:temp(t),researchTarget:researchTarget(),createAdapters:adapters({names:['Orbit']}),capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false}}),current=result.adaptive.targets[result.children[0].targetId],decision=autonomousProviderAuthorityDecision(current,candidateUrl);
  assert.equal(providerRoutingAuthority(current,candidateUrl).provenance,'SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY');assert.equal(decision.authority.reference.kind,'SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY');assert.equal(admittedDiscoveryCandidate({url:candidateUrl,authority:decision},current).url,candidateUrl);
  const fabricated=structuredClone(decision);fabricated.authority.reference.kind='V3_AUTONOMOUS_CANDIDATE_REVIEW';assert.throws(()=>admittedDiscoveryCandidate({url:candidateUrl,authority:fabricated},current),/DISCOVERY_AUTHORITY_URL_MISMATCH/);
 });

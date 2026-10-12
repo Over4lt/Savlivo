@@ -25,6 +25,7 @@ import {autonomousProviderAuthorityDecision,hasProviderRoutingAuthority,installR
 import {loadHybridProviderResources,recordHybridProviderResourceFailure} from './hybrid-provider-resource-memory.mjs';
 import {providerResourceRelevance,targetMarketPathHint,providerRoutingSnapshot,summarizeProviderRoutingProgress,recordProviderRoutingProgress} from './provider-resource-routing.mjs';
 import {rehydrateProviderSeedAuthorityHandoff} from './provider-seed-authority-handoff.mjs';
+import {establishProviderSeedCandidateServiceContext} from './provider-source-v3.mjs';
 import {authorityAcquisitionRelevance,authorityAcquisitionTiers,candidateAuthorityRouting,candidateIdentityPriority,candidateOriginKind,candidateRelevant,compareCandidateAuthorityRows} from './candidate-authority-routing.mjs';
 export {candidateRelevant,serviceDomainHint,serviceIdentityTokens} from './candidate-authority-routing.mjs';
 export const openWebBounds=Object.freeze({managementReserveOnly:0,services:78,searches:50,reads:80,acquisitions:30,perServiceSearches:5,perServiceReads:8,perServiceAcquisitions:3,leadsPerService:40,linksPerPage:80,bytes:2097152,bytesPerPage:2097152});
@@ -90,7 +91,7 @@ export function rehydrateRetainedProviderAuthority(directory,target){
 // this campaign. This is a validated handoff/projection, not another read.
 export async function reuseProviderSeedCampaignEvidence({directory,target,providerSeedRoot,consumeProvider}){
  if(!providerSeedRoot||!target.providerSeedAuthorityHandoff)return {reused:false};
- const restored=rehydrateProviderSeedAuthorityHandoff({root:providerSeedRoot,target,handoff:target.providerSeedAuthorityHandoff}),observations=restored.providerObservations??[restored.providerObservation],campaign=sha(path.resolve(providerSeedRoot)),results=[];
+ const restored=rehydrateProviderSeedAuthorityHandoff({root:providerSeedRoot,target,handoff:target.providerSeedAuthorityHandoff}),observations=restored.providerObservations??[restored.providerObservation],campaign=sha(path.resolve(providerSeedRoot)),results=[];establishProviderSeedCandidateServiceContext({target,providerAuthorityBinding:restored.providerAuthorityBinding,observations});
  const addLead=lead=>{const url=safe(lead?.url);if(!url||!providerRoutingAuthority(target,url)&&lead.sourceBoundCandidate!==true||(target.leads??=[]).some(row=>navigationKey(row.url)===navigationKey(url)))return;target.leads.push({...lead,url,evidenceStatus:'DISCOVERY_LEAD_ONLY',authoritative:false});};
  for(const observation of observations){
   const key=[observation.id,observation.url,observation.sha256].join(':');if((target.currentCampaignEvidenceReuses??[]).includes(key)){results.push({reused:false,alreadyApplied:true,key});continue;}

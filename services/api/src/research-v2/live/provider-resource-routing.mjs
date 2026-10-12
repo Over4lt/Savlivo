@@ -25,6 +25,7 @@ function intent(t,lead){
 
 export function providerResourceRelevance(t,lead,objective=providerStageRoutingObjective(t)){
  const authority=lead?.url&&providerRoutingAuthority(t,lead.url);if(!objective||!authority)return {tier:3,role:'OUTSIDE_PROVIDER_OBJECTIVE',signals:[]};
+ const anchor=t.providerSeedCandidateServiceContext?.objectiveResource?.url;if(anchor&&normalized(anchor)===normalized(lead.url))return {tier:0,role:'OBJECTIVE_RESOURCE_ANCHOR',signals:['RETAINED_PROVIDER_SEED_OBJECTIVE_RESOURCE'],objectiveAnchor:true};
  const text=leadText(lead),need=objective===providerRoutingObjectives.PRICE_EVIDENCE?priceNeedRelevance(t,lead.url,text):null;
  if(objective===providerRoutingObjectives.MARKET_PROOF){const relevant=/country|region|market|availability|terms|legal|membership|subscription|bedingungen/iu.test(new URL(lead.url).pathname+' '+text);return {tier:relevant?0:2,role:relevant?'MARKET_PROOF':'GENERAL_PROVIDER',signals:relevant?['MARKET_PROOF_RELEVANCE']:[]};}
  const signals=[];if(lead.priceEntryIntent)signals.push('PRICE_ENTRY_INTENT');if(strongRoles.has(lead.routingRole))signals.push('RESOURCE_ROLE_'+lead.routingRole);const classified=intent(t,lead);if(classified?.candidate)signals.push('PRICE_INTENT');if(need)signals.push(need.reason);
@@ -37,6 +38,13 @@ export function providerResourceRelevance(t,lead,objective=providerStageRoutingO
 export function targetMarketPathHint(t,url){
  let segments;try{segments=new URL(url).pathname.split('/').filter(Boolean).map(decodeURIComponent);}catch{return false;}
  return segments.some(segment=>segment.toUpperCase()===t.market||new RegExp('^[a-z]{2,3}[-_]'+t.market+'$','i').test(segment));
+}
+
+// Locale path hints affect ordering only. They never establish market Truth.
+export function providerResourceLocaleHint(t,url,lead=null){
+ let segments;try{segments=new URL(url).pathname.split('/').filter(Boolean).map(segment=>decodeURIComponent(segment).toLowerCase());}catch{return {region:null,compatibility:'UNKNOWN'};}
+ const explicit=String(lead?.locale??'').match(/^[a-z]{2,3}[-_]([a-z]{2})$/i)?.[1]?.toUpperCase()??segments[0]?.match(/^[a-z]{2,3}[-_]([a-z]{2})$/i)?.[1]?.toUpperCase()??(segments.length>1&&/^[a-z]{2,3}$/.test(segments[0])&&/^[a-z]{2}$/.test(segments[1])?segments[1].toUpperCase():null);
+ return {region:explicit,compatibility:explicit?(explicit===t.market?'TARGET':'FOREIGN'):'UNKNOWN'};
 }
 
 function recordFor(t,lead){const hash=lead?.from?.bodyHash;if(!hash)return null;return (t.providerRoutingProgress??[]).find(row=>row.parentBodyHash===hash);}
