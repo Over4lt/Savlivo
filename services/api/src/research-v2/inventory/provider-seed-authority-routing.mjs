@@ -9,6 +9,16 @@ const safe=value=>{const normalized=normalizeUrl(value);if(!normalized)return nu
 const identityPath=/(?:^|[\/_-])(?:about(?:-us)?|company|corporate|contact(?:-us)?|imprint|impressum|legal|privacy|terms(?:-of-service)?|who-we-are)(?:[\/_-]|$)/iu;
 const weakPath=/(?:^|[\/_-])(?:auth|account|accounts|billing|checkout|login|pay|payment)(?:[\/_-]|$)/iu;
 const genericLabel=/^(?:app-?store|community|directory|encyclopedia|forum|magazin(?:e)?|marketplace|news|social|wiki)/iu;
+const positiveObjectiveRelevance=candidate=>Number.isFinite(candidate?.objectiveRelevance)&&candidate.objectiveRelevance>0?candidate.objectiveRelevance:0;
+
+// A redirect or source-bound navigation is still pursuing the parent's
+// unresolved research objective. This projects scheduling intent only; it
+// deliberately cannot project provider authority, Truth, or factual claims.
+export function providerSeedObjectiveContinuation(parent,candidate={}){
+ const objectiveIntent=typeof parent?.objectiveIntent==='string'&&parent.objectiveIntent?parent.objectiveIntent:null,parentRelevance=positiveObjectiveRelevance(parent);
+ if(!objectiveIntent||!parentRelevance)return {};
+ return {objectiveIntent,objectiveRelevance:Math.max(parentRelevance,positiveObjectiveRelevance(candidate))};
+}
 
 export function providerSeedTokens(researchTarget){return [...new Set(words(researchTarget?.seedName))];}
 
@@ -32,7 +42,8 @@ export function providerSeedHostnameAffinity(researchTarget,candidate){
  }
  const kind=providerSeedDestinationClass(candidate);
  if(kind==='PUBLIC_SECTOR_OR_LOCALITY')score=Math.max(0,score-2);
- const objectiveAccountRoute=kind==='AUTH_OR_PAYMENT'&&candidate?.originKind==='OBJECTIVE_SEARCH'&&Number(candidate?.objectiveRelevance)>0&&['ACCOUNT_LOGIN','SUBSCRIPTION_MANAGEMENT','CANCELLATION'].includes(candidate?.objectiveIntent);
+ const exactObjectiveRoute=candidate?.originKind==='OBJECTIVE_SEARCH'||(['REDIRECT_DESTINATION','SOURCE_BOUND_CONTINUATION'].includes(candidate?.originKind)&&typeof candidate?.parentCandidateId==='string');
+ const objectiveAccountRoute=kind==='AUTH_OR_PAYMENT'&&exactObjectiveRoute&&positiveObjectiveRelevance(candidate)>0&&['ACCOUNT_LOGIN','SUBSCRIPTION_MANAGEMENT','CANCELLATION'].includes(candidate?.objectiveIntent);
  if(kind==='GENERIC_THIRD_PARTY'||kind==='AUTH_OR_PAYMENT'&&!objectiveAccountRoute)score=0;
  return score;
 }
@@ -45,13 +56,13 @@ function authorityResourceTier(candidate){
 
 export function providerSeedCandidateRouting(researchTarget,candidate,candidates=[],index=0){
  const url=safe(candidate?.url),affinity=providerSeedHostnameAffinity(researchTarget,candidate),originKind=candidate?.originKind??'SEARCH',parent=candidates.find(row=>row.candidateId===candidate?.parentCandidateId),parentAffinity=parent?providerSeedHostnameAffinity(researchTarget,parent):0;
- const redirectStrong=originKind==='REDIRECT_DESTINATION'&&affinity>0&&affinity>=parentAffinity;
+ const redirectStrong=originKind==='REDIRECT_DESTINATION'&&affinity>0&&affinity>=parentAffinity,semanticObjectiveRelevance=positiveObjectiveRelevance(candidate),legacyObjectiveScore=Number.isFinite(candidate?.score)?candidate.score:0;
  return {
   objective:providerSeedAuthorityRoutingObjective,
   executable:url!==null&&candidate?.executable!==false,
   hostnameAffinity:affinity,
   destinationClass:providerSeedDestinationClass(candidate),
-  objectiveScore:Number.isFinite(candidate?.score)?candidate.score:0,
+  objectiveScore:Math.max(semanticObjectiveRelevance,legacyObjectiveScore),
   authorityResourceTier:authorityResourceTier(candidate),
   redirectStrength:originKind==='REDIRECT_DESTINATION'?(redirectStrong?'EQUAL_OR_STRONGER_PROVIDER_AFFINITY':'WEAKER_OR_GENERIC_REDIRECT'):'INDEPENDENT_DISCOVERY',
   originKind,
@@ -72,13 +83,18 @@ export function refreshProviderSeedAuthorityFrontier({researchTarget,candidates,
  if(!Array.isArray(candidates)||!Array.isArray(newCandidates)||!Array.isArray(ineligibleCandidateIds)||!Array.isArray(deactivateCandidateIds)||!Number.isSafeInteger(limit)||limit<0||newCandidates.length>limit)throw Error('INVALID_PROVIDER_SEED_FRONTIER');
  const history=[...candidates],byId=new Map(),byUrl=new Map();
  for(const row of history){const url=normalizeUrl(row?.url);if(typeof row?.candidateId!=='string'||!url||byId.has(row.candidateId)||byUrl.has(url))throw Error('INVALID_PROVIDER_SEED_HISTORY');byId.set(row.candidateId,row);byUrl.set(url,row);}
- const rejectedCandidates=[],discoveredIds=[];
- for(const candidate of newCandidates){const url=normalizeUrl(candidate?.url),sameId=byId.get(candidate?.candidateId),sameUrl=url&&byUrl.get(url);if(typeof candidate?.candidateId!=='string'||!url)throw Error('INVALID_PROVIDER_SEED_CANDIDATE');if(sameId||sameUrl){rejectedCandidates.push({candidateId:candidate.candidateId,reason:'REDIRECT_DESTINATION_DUPLICATE',existingCandidateId:(sameId??sameUrl).candidateId});continue;}history.push(candidate);byId.set(candidate.candidateId,candidate);byUrl.set(url,candidate);discoveredIds.push(candidate.candidateId);}
+ const rejectedCandidates=[],discoveredIds=[],updatedIds=[];
+ for(const candidate of newCandidates){
+  const url=normalizeUrl(candidate?.url),sameId=byId.get(candidate?.candidateId),sameUrl=url&&byUrl.get(url);if(typeof candidate?.candidateId!=='string'||!url)throw Error('INVALID_PROVIDER_SEED_CANDIDATE');
+  const exactContinuation=sameId&&sameId===sameUrl&&['REDIRECT_DESTINATION','SOURCE_BOUND_CONTINUATION'].includes(candidate.originKind)&&typeof candidate.parentCandidateId==='string'&&positiveObjectiveRelevance(candidate)>positiveObjectiveRelevance(sameId);
+  if(exactContinuation){const index=history.findIndex(row=>row.candidateId===sameId.candidateId);history[index]=candidate;byId.set(candidate.candidateId,candidate);byUrl.set(url,candidate);updatedIds.push(candidate.candidateId);continue;}
+  if(sameId||sameUrl){rejectedCandidates.push({candidateId:candidate.candidateId,reason:'REDIRECT_DESTINATION_DUPLICATE',existingCandidateId:(sameId??sameUrl).candidateId});continue;}history.push(candidate);byId.set(candidate.candidateId,candidate);byUrl.set(url,candidate);discoveredIds.push(candidate.candidateId);
+ }
  const reconstruct=activeCandidateIds===undefined;if(!reconstruct&&(!Array.isArray(activeCandidateIds)||new Set(activeCandidateIds).size!==activeCandidateIds.length||activeCandidateIds.some(id=>!byId.has(id))))throw Error('INVALID_PROVIDER_SEED_ACTIVE_FRONTIER');
- const ineligible=new Set(ineligibleCandidateIds),deactivate=new Set(deactivateCandidateIds),prior=reconstruct?history.map(row=>row.candidateId):[...activeCandidateIds],pool=[...new Set([...prior,...discoveredIds])],rows=pool.map(id=>byId.get(id)).filter(row=>row&&!ineligible.has(row.candidateId)).map((candidate,index)=>({candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,history,index)})).filter(row=>row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing)),selected=rows.slice(0,limit).map(row=>row.candidate.candidateId),active=selected.filter(id=>!deactivate.has(id));
+ const ineligible=new Set(ineligibleCandidateIds),deactivate=new Set(deactivateCandidateIds),prior=reconstruct?history.map(row=>row.candidateId):[...activeCandidateIds],pool=[...new Set([...prior,...discoveredIds,...updatedIds])],rows=pool.map(id=>byId.get(id)).filter(row=>row&&!ineligible.has(row.candidateId)).map((candidate,index)=>({candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,history,index)})).filter(row=>row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing)),selected=rows.slice(0,limit).map(row=>row.candidate.candidateId),active=selected.filter(id=>!deactivate.has(id));
  const selectedSet=new Set(selected),activeSet=new Set(active),deactivatedIds=prior.filter(id=>!activeSet.has(id)&&(deactivate.has(id)||ineligible.has(id))),displacedIds=prior.filter(id=>!selectedSet.has(id)&&!ineligible.has(id)&&!deactivate.has(id)),admittedIds=discoveredIds.filter(id=>activeSet.has(id));
  for(const id of discoveredIds)if(!activeSet.has(id))rejectedCandidates.push({candidateId:id,reason:'PROVIDER_CANDIDATE_DESTINATION_BOUND'});
- return {candidates:history,activeCandidateIds:active,admittedIds,displacedIds,deactivatedIds,rejectedCandidates,reconstructed:reconstruct};
+ return {candidates:history,activeCandidateIds:active,admittedIds,updatedIds,displacedIds,deactivatedIds,rejectedCandidates,reconstructed:reconstruct};
 }
 
 const normalizedChain=(parent,page,finalUrl)=>{
@@ -96,7 +112,7 @@ export function providerSeedRedirectCandidate({researchTarget,parent,page,candid
  const access=page?.accessDecisions??[];if(!access.length||access.some(row=>row.decision!=='ALLOWED'))return {candidate:null,reason:'REDIRECT_ACCESS_NOT_ALLOWED'};
  const depth=(parent?.navigationDepth??0)+1;if(depth>navigationDepthLimit)return {candidate:null,reason:'REDIRECT_NAVIGATION_DEPTH_BOUND'};
  const ancestors=new Set([...(parent?.redirectChain??[]),parent.url].map(value=>normalizeUrl(value)).filter(Boolean));if(ancestors.has(final.href))return {candidate:null,reason:'REDIRECT_LOOP'};
- if(candidates.some(row=>normalizeUrl(row.url)===final.href))return {candidate:null,reason:'REDIRECT_DESTINATION_DUPLICATE'};
- const candidate={candidateId:'provider-seed-redirect:'+digest([parent.candidateId,final.href,depth]),url:final.href,host:final.hostname,truthAuthority:'NONE',originKind:'REDIRECT_DESTINATION',parentCandidateId:parent.candidateId,parentRequestedUrl:requested.href,parentRequestedHost:requested.hostname,redirectChain:normalizedChain(parent,page,final.href),finalUrl:final.href,finalHost:final.hostname,discoveryProvenance:{searchIndex:parent.searchIndex,resultIndex:parent.resultIndex,searchRank:parent.searchRank},searchIndex:parent.searchIndex,resultIndex:parent.resultIndex,searchRank:parent.searchRank,navigationDepth:depth,insertionOrder};
+ const existing=candidates.find(row=>normalizeUrl(row.url)===final.href),objective=providerSeedObjectiveContinuation(parent,existing);if(existing&&!objective.objectiveIntent)return {candidate:null,reason:'REDIRECT_DESTINATION_DUPLICATE'};
+ const candidate={candidateId:existing?.candidateId??'provider-seed-redirect:'+digest([parent.candidateId,final.href,depth]),url:final.href,host:final.hostname,truthAuthority:'NONE',originKind:'REDIRECT_DESTINATION',parentCandidateId:parent.candidateId,parentRequestedUrl:requested.href,parentRequestedHost:requested.hostname,redirectChain:normalizedChain(parent,page,final.href),finalUrl:final.href,finalHost:final.hostname,...objective,discoveryProvenance:{searchIndex:parent.searchIndex,resultIndex:parent.resultIndex,searchRank:parent.searchRank},searchIndex:parent.searchIndex,resultIndex:parent.resultIndex,searchRank:parent.searchRank,navigationDepth:depth,insertionOrder};
  return {candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,[...candidates,candidate],insertionOrder)};
 }

@@ -15,7 +15,7 @@ import {digest,normalizeUrl} from '../../research-v3/model.mjs';
 import {diverseCandidates,extractNavigation} from '../../research-v3/discovery.mjs';
 import {priceIntent} from '../intelligence/price-entry-intent.mjs';
 import {createProviderSeedAuthorityHandoff,retainProviderSeedObservation,restoreProviderSeedObservation} from '../live/provider-seed-authority-handoff.mjs';
-import {refreshProviderSeedAuthorityFrontier,orderProviderSeedAuthorityCandidates,providerSeedCandidateRouting,providerSeedRedirectCandidate,providerSeedTokens} from './provider-seed-authority-routing.mjs';
+import {refreshProviderSeedAuthorityFrontier,orderProviderSeedAuthorityCandidates,providerSeedCandidateRouting,providerSeedObjectiveContinuation,providerSeedRedirectCandidate,providerSeedTokens} from './provider-seed-authority-routing.mjs';
 import {runOpenWebResearch} from '../live/open-web-discovery.mjs';
 import {reviewV2CandidateAuthority} from '../../research-v3/v2-candidate-authority-adapter.mjs';
 
@@ -50,7 +50,7 @@ function providerSeedContinuationCandidates(state,target,parent,source,b){
  const depth=(parent.navigationDepth??0)+1;if(depth>b.navigationDepth)return [];
  const objective={kind:'SERVICE_QUALIFICATION',serviceId:'provider-seed-'+digest([target.seedName,target.targetMarket]).slice(0,24),serviceName:target.seedName,providerHosts:[],candidateHosts:[...new Set(state.discovery.candidateHosts)],providerNamespaces:[],markets:[target.targetMarket],seeds:[source.url]},extracted=extractNavigation(source,objective,['PROVIDER_AUTHORITY']).candidates;
  const insertion=Math.max(-1,...state.discovery.candidates.map(row=>Number.isSafeInteger(row.insertionOrder)?row.insertionOrder:-1))+1;
- return diverseCandidates(extracted,b.candidateDestinations).map((candidate,index)=>({...candidate,candidateId:'provider-seed-continuation:'+candidate.id,host:new URL(candidate.url).hostname,truthAuthority:'NONE',originKind:'SOURCE_BOUND_CONTINUATION',parentCandidateId:parent.candidateId,parentObservation:source.id,discoveryProvenance:{searchIndex:parent.searchIndex,resultIndex:parent.resultIndex,searchRank:parent.searchRank},searchIndex:parent.searchIndex,resultIndex:parent.resultIndex,searchRank:parent.searchRank,navigationDepth:depth,insertionOrder:insertion+index}));
+ return diverseCandidates(extracted,b.candidateDestinations).map((candidate,index)=>({...candidate,...providerSeedObjectiveContinuation(parent,candidate),candidateId:'provider-seed-continuation:'+candidate.id,host:new URL(candidate.url).hostname,truthAuthority:'NONE',originKind:'SOURCE_BOUND_CONTINUATION',parentCandidateId:parent.candidateId,parentObservation:source.id,discoveryProvenance:{searchIndex:parent.searchIndex,resultIndex:parent.resultIndex,searchRank:parent.searchRank},searchIndex:parent.searchIndex,resultIndex:parent.resultIndex,searchRank:parent.searchRank,navigationDepth:depth,insertionOrder:insertion+index}));
 }
 function observation(page,{kind,id,binding=null}){
  const body=pageBody(page),url=normalizeUrl(page?.url??page?.requestedUrl),requested=normalizeUrl(page?.requestedUrl??page?.url),sha256=page?.sourceIntegrity?.sha256??page?.bodyHash??(typeof body==='string'?digest(body):null),access=page?.accessDecisions??[];
