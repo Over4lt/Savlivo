@@ -1,4 +1,4 @@
-import { actionIdentity, addDestination, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound, materializeAuthority, promoteCandidateHost } from './model.mjs';
+import { actionIdentity, addDestination, admitSourceBoundCandidateHost, canonical, checkpoint, context, createKnowledge, digest, markLimit, normalizeUrl, providerBound, materializeAuthority, promoteCandidateHost } from './model.mjs';
 import {reviewCandidateAuthority} from './provider-authority-review.mjs';
 import {targetOutcome} from './evidence-targets.mjs';
 import {diagnoseGaps,gapInspectionActions,inspectGapSource,gapTermination} from './research-gaps.mjs';
@@ -141,9 +141,10 @@ export function availableActions(k, adapters = {}, extra = []) {
     // Finish the initial candidate-host breadth pass before following links on
     // an attempted host, including when one candidate gains provider authority.
     // A failed attempt counts, so a blocked host cannot monopolize the budget.
-    if((k.objective.candidateHosts??[]).length){
+    const initialCandidateHosts=k.initialCandidateHosts??k.objective.candidateHosts??[];
+    if(initialCandidateHosts.length){
         const attempted=new Set(k.attempts.filter(row=>row.action.kind==='ACQUIRE').map(row=>new URL(row.action.url).hostname));
-        const unattempted=new Set(k.objective.candidateHosts.filter(host=>!attempted.has(host)));
+        const unattempted=new Set(initialCandidateHosts.filter(host=>!attempted.has(host)));
         const breadth=actions.filter(a=>a.kind==='ACQUIRE'&&unattempted.has(new URL(a.url).hostname));
         if(breadth.length)return {truth,evaluated,actions:breadth};
     }
@@ -169,7 +170,8 @@ function stop(k, reason, details = {}) {
     k.trace.push({ event: 'STOP', ...k.stop,usage:structuredClone(k.usage),bounds:k.bounds });
     return k;
 }
-async function accept(k, a, response, interpret, navigate, save) {
+async function accept(k, a, response, interpret, navigate, capabilities, save) {
+    const truthBefore=evaluate(k);
     if (!response || typeof response !== 'object')
         throw Error('CAPABILITY_RESPONSE_REQUIRED');
     if (response.accounting) {
@@ -250,7 +252,7 @@ async function accept(k, a, response, interpret, navigate, save) {
     if(k.destinations.find(d=>d.url===a.url)?.discovery?.resource==='SITEMAP') {
         k.navigationResources??=[];k.navigationResources.push(o);
         const plan=extractSitemap(o,k.objective,researchTruth(k,evaluate(k)).needs.map(n=>n.proposition));
-        const navigation=admitNavigation(k,o,a,plan,'SITEMAP_ENTRY');
+        const navigation=admitNavigation(k,o,a,plan,'SITEMAP_ENTRY',capabilities);
         return {kind:'NAVIGATION_RESOURCE',id:o.id,url,sha256:o.sha256,bytes,navigation};
     }
     k.observations.push(o);
@@ -336,20 +338,29 @@ async function accept(k, a, response, interpret, navigate, save) {
         if(web) {
             const plan=extractNavigation(o,k.objective,current);
             o.navigation=plan.candidates.map((c,index)=>({...c,index}));
-            if(navigate&&o.navigation.length) {
+            const truthAfter=evaluate(k);
+            if(navigate&&navigationAdviceEligible(k,plan,truthBefore,truthAfter)) {
                 // Advisory bounded source-owned references. No new hrefs or truth fields are honored.
                 try {
                     const rows=diverseCandidates(o.navigation,discoveryCapacity.advisoryCandidates);
-                    const advice=await boundedNavigationAdvice(navigate,rows,evaluate(k).needs,discoveryCapacity.advisoryMs);
+                    k.usage.navigationAdviceCalls=(k.usage.navigationAdviceCalls??0)+1;k.usage.modelCalls++;
+                    k.trace.push({event:'NAVIGATION_ADVICE_CALL_RESERVED',observation:o.id,bodySha256:o.sha256,candidateIds:rows.map(c=>c.id),modelCalls:k.usage.modelCalls,advisoryCalls:k.usage.navigationAdviceCalls,truthAuthority:'NONE'});
+                    await persist(k,save);
+                    const exposed=rows.map(c=>({...c,sourceText:o.body.slice(Math.max(0,c.source.start-256),Math.min(o.body.length,c.source.end+256)).slice(0,1024)}));
+                    const advice=await boundedNavigationAdvice(navigate,exposed,evaluate(k).needs,{observation:{id:o.id,url:o.url,sha256:o.sha256},objective:k.objective,attempts:k.attempts.slice(-16),remaining:{actions:k.bounds.actions-k.usage.actions,acquisitions:k.bounds.acquisitions-k.usage.acquisitions,modelCalls:k.bounds.modelCalls-k.usage.modelCalls}},discoveryCapacity.advisoryMs);
                     if(!Array.isArray(advice))throw Error('INVALID_NAVIGATION_RESULT');
                     const promoted=[];
                     for(const p of advice.slice(0,discoveryCapacity.advisoryCandidates)) {
                         if(!p||typeof p!=='object')continue;
                         const c=rows.find(c=>p.candidateId?c.id===p.candidateId:c.index===p.index);
-                        if(!c||!Array.isArray(p.needs)||!p.needs.some(n=>current.includes(n)))continue;
+                        const requested=Array.isArray(p.needIds)?p.needIds:Array.isArray(p.needs)?p.needs:[];
+                        const needed=evaluate(k).needs.filter(n=>requested.includes(n.id)||requested.includes(n.proposition));
+                        const invented=['url','host','price','amount','currency','offering','provider','authority','market','truthState','catalog'].some(key=>Object.hasOwn(p,key));
+                        const sourceReferences=Array.isArray(p.sourceReferences)?p.sourceReferences:null,expectedReference=c&&c.id+':'+c.source.sha256;
+                        if(!c||!needed.length||invented||sourceReferences&&(sourceReferences.length!==1||sourceReferences[0]!==expectedReference)||!candidateSourceIntact(o,c))continue;
                         // The index resolves into the complete candidate plan, never an invented URL.
                         const target=plan.candidates[c.index];
-                        if(['PRICING','PRODUCT','SUPPORT','ACCOUNT','CONTENT','LOCALE','STATE','UNKNOWN'].includes(p.role))target.research={role:p.role,origin:'BOUNDED_SOURCE_ID_ADVICE',source:c.source,stateIntent:['MONTHLY_PAYMENT','NON_MONTHLY_PAYMENT','UNKNOWN'].includes(p.stateIntent)?p.stateIntent:'UNKNOWN',uncertain:true,truthAuthority:'NONE'};
+                        if(['PRICING','PRODUCT','SUPPORT','ACCOUNT','CONTENT','LOCALE','STATE','UNKNOWN'].includes(p.role))target.research={role:p.role,origin:'BOUNDED_SOURCE_ID_ADVICE',source:c.source,needIds:needed.map(n=>n.id),stateIntent:['MONTHLY_PAYMENT','NON_MONTHLY_PAYMENT','UNKNOWN'].includes(p.stateIntent)?p.stateIntent:'UNKNOWN',uncertain:true,truthAuthority:'NONE'};
                         target.score=Math.min(20,target.score+4);promoted.push(target.id);
                     }
                     plan.candidates.sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));
@@ -358,7 +369,7 @@ async function accept(k, a, response, interpret, navigate, save) {
                     k.trace.push({event:'NAVIGATION_ADVICE_UNAVAILABLE',observation:o.id,code:/^RESEARCH_[A-Z_]+$/.test(error?.message??'')?error.message:'ADVISORY_FAILED_NATIVE_FRONTIER_PRESERVED',status,purpose:'RESEARCH_ONLY',modelCalls:k.usage.modelCalls,requestBytes:error?.v3Diagnostics?.requestBytes??null,diagnostics:error?.v3Diagnostics??null});
                 }
             }
-            navigation.push(...admitNavigation(k,o,a,plan,'PROVIDER_LINK'));
+            navigation.push(...admitNavigation(k,o,a,plan,'PROVIDER_LINK',capabilities));
         } else {
             // Existing source-bound structured fixtures keep their explicit needs contract.
             const links=readSource(o)?.links??[];
@@ -381,8 +392,12 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
     k.usage.sitemapAcquisitions??=0;
     k.navigationResources??=[];
     k.usage.modelCalls??=0;
+    k.usage.navigationAdviceCalls??=0;
     k.usage.renderedActions??=0;
     k.bounds.modelCalls??=12;
+    k.initialCandidateHosts??=[...(k.objective.candidateHosts??[])];
+    k.sourceBoundCandidateRoutes??=[];
+    for(const route of k.sourceBoundCandidateRoutes)capabilities.admitSourceBoundCandidateHost?.(route.host);
     if (k.stop)
         return k;
     if (!k.trace.length)
@@ -523,7 +538,7 @@ export async function runResearch({ knowledge, objective, permissions, bounds, c
                 } catch(error) {observation={...observation,status:'UNAVAILABLE'};k.trace.push({event:'RENDERED_ACQUISITION_UNAVAILABLE',action:a.id,code:/^[A-Z][A-Z0-9_]{0,80}$/.test(error?.message??'')?error.message:'RENDERED_CAPABILITY_UNAVAILABLE',truthAuthority:'NONE'});}
             }
             else {const response = await capabilities[route(a)](structuredClone(a), { maxBytes: k.bounds.bytes - k.usage.bytes, maxDecodedBytes:(k.bounds.decodedBytes??acquisition.objectiveDecodedBytes)-(k.usage.decodedBytes??0), maxAcquisitionMs:(k.bounds.acquisitionMs??acquisition.objectiveAcquisitionMs)-(k.usage.acquisitionMs??0), maxResults: k.bounds.candidateDestinations, maxRequests:(k.bounds.networkRequests??96)-(k.usage.networkRequests??0) });
-            observation = await accept(k, a, response, interpret, navigate, save);}
+            observation = await accept(k, a, response, interpret, navigate, capabilities, save);}
             const after = evaluate(k);
             refreshCatalog(k,after);
             const nextGaps=diagnoseGaps(k,after),priorIds=new Set(k.gapState.gaps.map(g=>g.id)),nextIds=new Set(nextGaps.gaps.map(g=>g.id));
@@ -626,11 +641,13 @@ async function understandUnits(k,o,interpret,save,reinspection=false,selectedUni
     }
 }
 
-function admitNavigation(k,o,a,plan,kind) {
+function admitNavigation(k,o,a,plan,kind,capabilities) {
     if(plan.limited)markLimit(k,'discoveryExtraction');
     const depth=(k.destinations.find(d=>d.url===a.url)?.depth??0)+1;
     const rows=[];
     for(const c of diverseCandidates(plan.candidates,k.bounds.candidateDestinations)) {
+        const admitted=admitSourceBoundCandidateHost(k,o,c);
+        if(admitted&&!providerBound(k.objective,c.url))capabilities.admitSourceBoundCandidateHost?.(new URL(c.url).hostname);
         rows.push({candidate:c.id,url:c.url,result:addDestination(k,{url:c.url,depth,needs:c.needs,grounding:{kind,observation:o.id,source:c.source,candidate:c.id},discovery:c})});
     }
     if(plan.candidates.length>k.bounds.candidateDestinations)markLimit(k,'candidateDestinations');
@@ -638,11 +655,20 @@ function admitNavigation(k,o,a,plan,kind) {
     return rows;
 }
 
-async function boundedNavigationAdvice(navigate,rows,needs,deadlineMs=discoveryCapacity.advisoryMs) {
+function candidateSourceIntact(o,c){const s=c?.source;return s?.observation===o.id&&s.bodySha256===o.sha256&&Number.isSafeInteger(s.start)&&Number.isSafeInteger(s.end)&&s.start>=0&&s.end<=o.body.length&&s.start<s.end&&s.sha256===digest(o.body.slice(s.start,s.end));}
+function navigationAdviceEligible(k,plan,before,after){
+    if(!plan.candidates.length||k.usage.modelCalls>=k.bounds.modelCalls||(k.usage.navigationAdviceCalls??0)>=4)return false;
+    const attempted=new Set(k.attempts.filter(row=>row.action.kind==='ACQUIRE').map(row=>row.action.url));
+    const rows=plan.candidates.filter(c=>!attempted.has(c.url));if(rows.length<2)return false;
+    const top=rows[0].score,tied=rows.filter(c=>c.score===top);if(tied.length<2)return false;
+    if(changes(before,after).some(row=>row.to?.state==='ESTABLISHED'&&/:?(?:PRICE_AMOUNT|CURRENCY|MONTHLY_SUBSCRIPTION|TARGET_MARKET)$/.test(row.id)))return false;
+    return true;
+}
+async function boundedNavigationAdvice(navigate,rows,needs,context,deadlineMs=discoveryCapacity.advisoryMs) {
     let timer;
     try {
         return await Promise.race([
-            Promise.resolve().then(()=>navigate(structuredClone(rows),structuredClone(needs))),
+            Promise.resolve().then(()=>navigate(structuredClone(rows),structuredClone(needs),structuredClone(context))),
             new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('NAVIGATION_ADVICE_DEADLINE')),deadlineMs);})
         ]);
     } finally {clearTimeout(timer);}

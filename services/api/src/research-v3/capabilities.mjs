@@ -28,8 +28,10 @@ function budget(limits) {
 export function createCapabilities({objective,permissions={},network={},tavily={},decodo={},clock=()=>new Date().toISOString(),timeoutMs,acquisitionTimeoutMs=timeoutMs===undefined?cap.acquisitionMs:Math.min(180000,timeoutMs*6),timing=systemTiming}={}) {
  if(!Number.isSafeInteger(acquisitionTimeoutMs)||acquisitionTimeoutMs<1||acquisitionTimeoutMs>600000||timeoutMs!==undefined&&(!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>90000))throw fault('INVALID_TIMEOUT');
  validateNamespaces(objective);
+ const runtimeCandidateHosts=new Set(objective.candidateHosts??[]);
  const journeys=new Map();
- const check=(url,requested)=>{if(!normalizeUrl(url)||!researchRouted(objective,url)||candidateRouted(objective,requested)&&new URL(url).hostname!==new URL(requested).hostname)throw fault('PROVIDER_BOUNDARY');};
+ const dynamicallyRouted=url=>{const normalized=normalizeUrl(url);return !!normalized&&runtimeCandidateHosts.has(new URL(normalized).hostname);};
+ const check=(url,requested)=>{if(!normalizeUrl(url)||!researchRouted(objective,url)&&!dynamicallyRouted(url)||(candidateRouted(objective,requested)||dynamicallyRouted(requested))&&new URL(url).hostname!==new URL(requested).hostname)throw fault('PROVIDER_BOUNDARY');};
  async function acquire(action,limits,geo) {
   const account=budget(limits),access=[],controller=new AbortController(),ledger=[],redirects=[],navigationDocuments=[],operations=[],secretTokens=[],attemptId=randomBytes(12).toString('hex'),started=timing.now();let lastFailure=null,stage='SETUP',status=null,finalUrl=action.url;
   const acquisitionDeadline=Math.min(acquisitionTimeoutMs,limits.maxAcquisitionMs??acquisitionTimeoutMs);
@@ -153,7 +155,7 @@ export function createCapabilities({objective,permissions={},network={},tavily={
    return {...base,url:finalUrl,httpStatus:status??ledger.filter(x=>x.purpose==='PROVIDER').at(-1)?.httpStatus??null,outcome:policy?'POLICY_BLOCKED':'ERROR',policyScope:'URL',transport,accounting:account.result(),...details(),...(policy?{}:{failure:{kind:capacity?'CAPACITY':'ACQUISITION',stage,...lastFailure,code,classification:failureClass(code)}})};
   }finally{timing.clear(timer);limits.signal?.removeEventListener('abort',explicitAbort);controller.abort('COMPLETED');}
  }
-    const capabilities={};
+    const capabilities={admitSourceBoundCandidateHost(host){if(typeof host!=='string'||!normalizeUrl('https://'+host+'/')||new URL('https://'+host+'/').hostname!==host||runtimeCandidateHosts.size>=12&&!runtimeCandidateHosts.has(host))throw fault('PROVIDER_BOUNDARY');runtimeCandidateHosts.add(host);return true;}};
     if(permissions.DIRECT)capabilities.DIRECT=(a,l)=>acquire(a,l,false);
     if(permissions.DECODO)capabilities.DECODO=(a,l)=>acquire(a,l,true);
     if(permissions.TAVILY) capabilities.TAVILY=async(action,limits)=>{
@@ -162,7 +164,7 @@ export function createCapabilities({objective,permissions={},network={},tavily={
             if(typeof tavily.apiKey!=='string'||!tavily.apiKey)throw fault('TAVILY_CONFIGURATION_REQUIRED');
             if(action.query.includes(tavily.apiKey))throw fault('INVALID_DISCOVERY_QUERY');
             account.request();
-            const res=await (tavily.fetchImpl??fetch)('https://api.tavily.com/search',{method:'POST',redirect:'error',signal:AbortSignal.timeout(timeoutMs??cap.geographyRequestMs),headers:{'Content-Type':'application/json',Authorization:'Bearer '+tavily.apiKey},body:JSON.stringify({query:action.query,include_domains:[...new Set([...objective.providerHosts,...(objective.candidateHosts??[]),...(objective.providerNamespaces??[]).map(s=>s.domain)])],max_results:Math.min(8,limits.maxResults),include_answer:false,include_raw_content:false,include_images:false,search_depth:'basic'})});
+            const res=await (tavily.fetchImpl??fetch)('https://api.tavily.com/search',{method:'POST',redirect:'error',signal:AbortSignal.timeout(timeoutMs??cap.geographyRequestMs),headers:{'Content-Type':'application/json',Authorization:'Bearer '+tavily.apiKey},body:JSON.stringify({query:action.query,include_domains:[...new Set([...objective.providerHosts,...runtimeCandidateHosts,...(objective.providerNamespaces??[]).map(s=>s.domain)])],max_results:Math.min(8,limits.maxResults),include_answer:false,include_raw_content:false,include_images:false,search_depth:'basic'})});
             if(!res.ok)throw fault('TAVILY_HTTP_UNAVAILABLE');
             const reader=res.body.getReader(), chunks=[];
             try {for(;;){const {done,value}=await reader.read();if(done)break;account.bytes(value.byteLength);chunks.push(Buffer.from(value));}}finally{await reader.cancel().catch(()=>{});}

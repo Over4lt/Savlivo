@@ -88,14 +88,15 @@ test('Tavily destination enters provider acquisition; snippet price never enters
     assert.equal(limited.result.truth.prices.JP.propositions.PRICE_AMOUNT.state,'UNRESOLVED');
 });
 
-test('provider navigation: relevant link followed, irrelevant/external links rejected, no crawl',async()=>{
+test('provider navigation follows the objective link and retains an external source destination as candidate-only',async()=>{
     const i=input({permissions:{DIRECT:true},objective:{...input().objective,seeds:[home]}});
     const intro=page('Welcome to Orchard Club.',`<a href="/news">News</a><a href="/plans">Membership plans</a><a href="https://elsewhere.example/">Subscribe elsewhere</a>`);
     const {result,knowledge}=await execute({input:i,pages:{UNBOUND:{[home]:intro,[price]:enough()}}});
     assert.ok(result.trace.some(t=>t.event==='OBSERVATION'&&t.evaluations?.established));
     assert.deepEqual(knowledge.observations.slice(0,firstEstablishedUsage(result).acquisitions).map(o=>o.url),[home,price]);
-    assert.equal(knowledge.destinations.length,3); // Broad advisory frontier retains news without acquiring it.
+    assert.equal(knowledge.destinations.length,4); // Broad frontier retains news and the exact external candidate without authority.
     assert.equal(knowledge.destinations[1].grounding.kind,'PROVIDER_LINK');
+    assert.ok(knowledge.sourceBoundCandidateRoutes.some(row=>row.host==='elsewhere.example'&&row.truthAuthority==='NONE'));
 });
 
 test('navigation intelligence can classify an observed non-keyword anchor, never invent its URL',async()=>{

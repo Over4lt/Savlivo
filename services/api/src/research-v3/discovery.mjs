@@ -10,9 +10,14 @@ const decode=s=>String(s).replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);
 const attrs=s=>Object.fromEntries([...s.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g)].map(m=>[m[1].toLowerCase(),decode(m[2]??m[3]??m[4])]));
 const label=s=>decode(s.replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim().slice(0,discoveryCapacity.label);
 const assets=/\.(?:png|jpe?g|gif|svg|webp|ico|woff2?|css|js|mp[34]|zip|exe)(?:$|\?)/i;
-function safeCandidate(raw,base,objective) {
+function safeCandidate(raw,base,objective,{sourceBoundExternal=false}={}) {
     const url=normalizeUrl(decode(raw),base);
-    if(!url||!researchRouted(objective,url)||assets.test(new URL(url).pathname))return null;
+    if(!url||assets.test(new URL(url).pathname))return null;
+    const routed=researchRouted(objective,url);
+    // An explicit absolute HTTPS destination in retained source may be
+    // investigated as a candidate. Relative URLs and provider-controlled base
+    // elements cannot manufacture permission for another host.
+    if(!routed&&(!sourceBoundExternal||!/^https:\/\//i.test(decode(raw))))return null;
     const u=new URL(url);
     if(!navigationParametersSafe(url))return null;
     // A redirect-shaped query does not authorize an otherwise unreviewed destination.
@@ -40,15 +45,21 @@ export function rankCandidate(c,objective) {
     const region=c.locale?.match(/-([a-z]{2})$/i)?.[1]?.toUpperCase();
     if(region&&objective.markets.includes(region))score+=3;
     else if(region)score-=1;
+    // URL locale structure is useful research routing metadata only. It never
+    // establishes market applicability or enters Truth.
+    const routeTokens=(new URL(c.url).hostname+'.'+new URL(c.url).pathname).split(/[^a-z0-9]+/i).filter(Boolean).map(x=>x.toUpperCase());
+    const marketRoute=objective.markets.some(m=>routeTokens.includes(m));
+    if(marketRoute)score+=9;
     return Math.max(1,Math.min(20,score));
 }
 export function extractNavigation(o,objective,needs) {
     if(o.outcome!=='OK'||o.truncated||o.completeness==='INCOMPLETE'||o.sha256!==digest(o.body))return {candidates:[],limited:false};
     const body=o.body,candidates=[],stack=[],sourceHashes=new Map(),base=documentBase(o);let tokens=0,limited=base.limited,jsonScripts=0;
+    const sourceBoundExternalKinds=new Set(['ANCHOR','ALTERNATE','STRUCTURED_NAVIGATION','LOCALE_OPTION','GET_FORM','PROVIDER_STATE']);
     const add=(raw,kind,start,end,extra={})=>{
         if(candidates.length>=discoveryCapacity.extracted){limited=true;return;}
         if(base.limited&&!/^https:\/\//i.test(raw))return;
-        const url=safeCandidate(raw,base.url??o.url,objective);if(!url)return;
+        const url=safeCandidate(raw,base.url??o.url,objective,{sourceBoundExternal:sourceBoundExternalKinds.has(kind)});if(!url)return;
         if(base.invalid&&!/^https:\/\//i.test(raw))return;
         const spanKey=start+':'+end;
         if(!sourceHashes.has(spanKey))sourceHashes.set(spanKey,digest(body.slice(start,end)));

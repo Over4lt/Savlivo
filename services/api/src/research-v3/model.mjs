@@ -58,7 +58,7 @@ export function createKnowledge({ objective, permissions = {}, bounds = {} }) {
     validateNamespaces(o);
     if((o.candidateHosts??[]).length>12||new Set(o.candidateHosts??[]).size!==(o.candidateHosts??[]).length||(o.candidateHosts??[]).some(h=>typeof h!=='string'||!normalizeUrl('https://'+h+'/')||new URL('https://'+h+'/').hostname!==h||navigationOwned(o,'https://'+h+'/')))
         throw Error('INVALID_CANDIDATE_HOST');
-    const k = { version: 1, objective: o, permissions: Object.fromEntries(['DIRECT', 'TAVILY', 'DECODO', 'RENDERED'].map(p => [p, permissions[p] === true])), bounds: b, destinations: [], navigationResources: [], authorityBindings: [], observations: [], attempts: [], decisions: [], trace: [], policyBlocks: [], limitsHit: [], usage: { actions: 0, searches: 0, acquisitions: 0, countryAcquisitions: 0, renderedActions: 0, bytes: 0, decodedBytes: 0, retainedBytes: 0, acquisitionMs: 0, sitemapAcquisitions: 0, plannerCalls: 0, networkRequests: 0, modelCalls: 0 }, pending: null, stop: null };
+    const k = { version: 1, objective: o, initialCandidateHosts:[...(o.candidateHosts??[])], sourceBoundCandidateRoutes:[], permissions: Object.fromEntries(['DIRECT', 'TAVILY', 'DECODO', 'RENDERED'].map(p => [p, permissions[p] === true])), bounds: b, destinations: [], navigationResources: [], authorityBindings: [], observations: [], attempts: [], decisions: [], trace: [], policyBlocks: [], limitsHit: [], usage: { actions: 0, searches: 0, acquisitions: 0, countryAcquisitions: 0, renderedActions: 0, navigationAdviceCalls:0, bytes: 0, decodedBytes: 0, retainedBytes: 0, acquisitionMs: 0, sitemapAcquisitions: 0, plannerCalls: 0, networkRequests: 0, modelCalls: 0 }, pending: null, stop: null };
     for (const url of o.seeds)
         addDestination(k, { url, depth: 0, needs: o.kind === 'PRICE' ? pricePropositions : servicePropositions, grounding: { kind: candidateRouted(o,url) ? 'CANDIDATE_SEED' : 'OPERATOR_SEED' } });
     return k;
@@ -105,6 +105,24 @@ export function addDestination(k, { url, depth, needs, grounding, discovery }) {
 }
 export function markLimit(k, name) {
     if (!k.limitsHit.includes(name)) k.limitsHit.push(name);
+}
+
+// A retained source may authorize bounded investigation of the exact observed
+// destination. This is research permission only and never an authority grant.
+export function admitSourceBoundCandidateHost(k,observation,candidate) {
+    const normalized=normalizeUrl(candidate?.url),source=candidate?.source;
+    if(!normalized||researchRouted(k.objective,normalized))return !!normalized;
+    if(!observation||observation.outcome!=='OK'||observation.truncated||observation.completeness==='INCOMPLETE'||observation.sha256!==digest(observation.body))return false;
+    if(source?.observation!==observation.id||source.bodySha256!==observation.sha256||!Number.isSafeInteger(source.start)||!Number.isSafeInteger(source.end)||source.start<0||source.end>observation.body.length||source.start>=source.end||source.sha256!==digest(observation.body.slice(source.start,source.end)))return false;
+    const host=new URL(normalized).hostname;
+    if(k.objective.providerHosts.includes(host))return true;
+    k.objective.candidateHosts??=[];
+    if(k.objective.candidateHosts.length>=12){markLimit(k,'sourceBoundCandidateHosts');return false;}
+    k.objective.candidateHosts.push(host);k.objective.candidateHosts.sort();
+    k.sourceBoundCandidateRoutes??=[];
+    k.sourceBoundCandidateRoutes.push({host,url:normalized,parentObservation:observation.id,parentUrl:observation.url,parentSha256:observation.sha256,source:structuredClone(source),candidate:candidate.id,truthAuthority:'NONE'});
+    k.trace.push({event:'SOURCE_BOUND_CANDIDATE_HOST_ADMITTED',host,url:normalized,parentObservation:observation.id,parentSha256:observation.sha256,candidate:candidate.id,source:structuredClone(source),truthAuthority:'NONE'});
+    return true;
 }
 export function checkpoint(k) {
     const payload = structuredClone(k);

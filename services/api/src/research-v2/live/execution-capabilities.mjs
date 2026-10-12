@@ -6,19 +6,19 @@ import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-r
 import {navigationKey,navigationRank} from './provider-navigation.mjs';
 export const executionBounds=Object.freeze({managementReserveOnly:0,perServiceReads:4,perServiceSearches:2,perServiceAcquisitions:2,reads:80,searches:40,acquisitions:30,bytes:2*1024*1024,bytesPerPage:2*1024*1024});
 export function resourceKey(url){const u=new URL(url),m=u.pathname.match(/^\/hc\/[^/]+\/(articles|sections)\/(\d+)/),app=u.pathname.match(/^\/([a-z]{2})\/app\/[^/]+\/(id\d+)/);return m?u.origin+'/'+m[1]+'/'+m[2]:app?u.origin+'/'+app[1]+'/'+app[2]:navigationKey(u.href);}
-export function destinationReadAllowed(t,lead,bounds=executionBounds){const reviewed=providerRoutingAuthority(t,lead.url),count=(t.reads??[]).filter(r=>new URL(r.requestedUrl).origin===new URL(lead.url).origin).length;return (!hasProviderRoutingAuthority(t)||reviewed)&&count<(reviewed&&navigationRank(t,lead)<=15?bounds.perServiceReads:2);}
+export function destinationReadAllowed(t,lead,bounds=executionBounds,{candidateAuthorityReview=false}={}){const reviewed=providerRoutingAuthority(t,lead.url),sourceBoundCandidate=candidateAuthorityReview&&lead.sourceBoundCandidate===true,count=(t.reads??[]).filter(r=>new URL(r.requestedUrl).origin===new URL(lead.url).origin).length;return (!hasProviderRoutingAuthority(t)||reviewed||sourceBoundCandidate)&&count<(reviewed&&navigationRank(t,lead)<=15?bounds.perServiceReads:sourceBoundCandidate?1:2);}
 export function executableAction(t,action,{bounds=executionBounds,usage={reads:0,searches:0,acquisitions:0,bytes:0},available={direct:true,discovery:true,decodo:true}}={}){
  if(t.capabilities)available={direct:available.direct!==false&&t.capabilities.direct,discovery:available.discovery!==false&&t.capabilities.tavily,decodo:available.decodo!==false&&t.capabilities.decodo};
  const no=reason=>({executable:false,reason}),yes=()=>({executable:true,reason:'CAPABILITY_AND_BUDGET_ALLOWED'}),route=action.route;
  if(route==='REUSE_RETAINED')return yes();
- if(route==='AUTHORITY_DISCOVERY'&&action.url)return executableAction(t,{route:'DIRECT',url:action.url},{bounds,usage,available});
+ if(route==='AUTHORITY_DISCOVERY'&&action.url)return executableAction(t,{route:'DIRECT',url:action.url,candidateAuthorityReview:true},{bounds,usage,available});
  if(route==='DIRECT'){
  if(bounds.managementReserveOnly===1){const lead=(t.leads??[]).find(l=>l.url===action.url),m=managementInformation(t,action.url,lead?.label??lead?.title??'');if(t.researchObjective!=='CATALOG_ONLY'||!m.strongManagement||m.missing.join('|')!=='WEB_MANAGEMENT')return no('MANAGEMENT_RESERVE_DESTINATION_REQUIRED');}
  if(available.direct===false)return no('DIRECT_DISABLED');if(usage.bytes>=bounds.bytes||bounds.bytesPerPage===0)return no('BYTE_BUDGET_EXHAUSTED');if((t.reads??[]).length>=bounds.perServiceReads||usage.reads>=bounds.reads)return no('DIRECT_BUDGET_EXHAUSTED');
  let url;try{url=new URL(action.url);}catch{return no('INVALID_URL');}const l=(t.leads??[]).find(l=>navigationKey(l.url)===navigationKey(url.href))??{url:url.href};
  if((l.navigationDepth??0)>Math.min(3,t.smartResearch?.navigationDepth??3))return no('NAVIGATION_DEPTH_EXHAUSTED');
  if((t.blockedOrigins??[]).includes(url.origin))return no('PROVIDER_ACCESS_POLICY_STOP');
- if(!destinationReadAllowed(t,l,bounds))return no('DESTINATION_OR_ORIGIN_LIMIT');
+ if(!destinationReadAllowed(t,l,bounds,{candidateAuthorityReview:action.candidateAuthorityReview===true}))return no('DESTINATION_OR_ORIGIN_LIMIT');
  if((t.reads??[]).some(r=>resourceKey(r.requestedUrl)===resourceKey(url.href)||resourceKey(r.url??r.requestedUrl)===resourceKey(url.href)))return no('EQUIVALENT_RESOURCE_ALREADY_READ');
  if((t.reads??[]).some(r=>r.outcome==='ACCESS_CONTROL_STOP'&&new URL(r.requestedUrl).pathname===url.pathname))return no('ACCESS_CONTROL_PATH_STOP');return yes();
  }

@@ -9,10 +9,11 @@ import {interpretWeb} from './source.mjs';
 import {createCapabilities} from './capabilities.mjs';
 import {createReasoner} from './reasoner.mjs';
 import {candidateRouted,navigationOwned} from './discovery-authority.mjs';
-import {restore,checkpoint,createKnowledge,addDestination,pricePropositions,servicePropositions,canonical} from './model.mjs';
+import {restore,checkpoint,createKnowledge,addDestination,pricePropositions,servicePropositions,canonical,digest,normalizeUrl} from './model.mjs';
 import {reviewCandidateAuthority} from './provider-authority-review.mjs';
 import {createLiveSemanticInterpreter,isLiveSemanticInterpreter} from './live-semantic.mjs';
 import {createLiveVisualInterpreter} from './live-visual.mjs';
+import {createLiveNavigationAdvisor} from './live-navigation-advice.mjs';
 import {createPlaywrightRenderedCapability} from './browser-render.mjs';
 
 function validResearchScope(input) {
@@ -39,9 +40,16 @@ export async function runTarget({input,capabilities,reasoner,navigate,interpret,
             hosts.add(binding.host);
         }
         if(restoredObjective.providerHosts.some(h=>!navigationOwned(objective,'https://'+h+'/')&&!hosts.has(h))||[...hosts].some(h=>!restoredObjective.providerHosts.includes(h)))throw Error('RESUME_OBJECTIVE_MISMATCH');
-        if(canonical(restoredObjective.candidateHosts??[])!==canonical((objective.candidateHosts??[]).filter(h=>!hosts.has(h))))throw Error('RESUME_OBJECTIVE_MISMATCH');
+        const sourceBoundHosts=new Set();
+        for(const route of knowledge.sourceBoundCandidateRoutes??[]){
+            const url=normalizeUrl(route.url),observation=knowledge.observations.find(row=>row.id===route.parentObservation),source=route.source,destination=knowledge.destinations.find(row=>row.url===url&&row.grounding?.candidate===route.candidate&&row.grounding?.observation===observation?.id);
+            if(route.truthAuthority!=='NONE'||!url||new URL(url).hostname!==route.host||route.parentUrl!==observation?.url||route.parentSha256!==observation?.sha256||observation?.outcome!=='OK'||observation.truncated||observation.completeness==='INCOMPLETE'||observation.sha256!==digest(observation.body)||source?.observation!==observation.id||source.bodySha256!==observation.sha256||!Number.isSafeInteger(source.start)||!Number.isSafeInteger(source.end)||source.start<0||source.end>observation.body.length||source.start>=source.end||source.sha256!==digest(observation.body.slice(source.start,source.end))||!destination)throw Error('RESUME_OBJECTIVE_MISMATCH');
+            sourceBoundHosts.add(route.host);
+        }
+        const expectedCandidates=[...new Set([...(objective.candidateHosts??[]),...sourceBoundHosts])].filter(h=>!hosts.has(h)).sort();
+        if(canonical([...(restoredObjective.candidateHosts??[])].sort())!==canonical(expectedCandidates))throw Error('RESUME_OBJECTIVE_MISMATCH');
         restoredObjective.providerHosts=[...objective.providerHosts];
-        if(objective.candidateHosts)restoredObjective.candidateHosts=[...objective.candidateHosts];
+        if(objective.candidateHosts)restoredObjective.candidateHosts=[...objective.candidateHosts];else delete restoredObjective.candidateHosts;
         if(JSON.stringify(restoredObjective)!==JSON.stringify({...objective,seeds:objective.seeds??[]}))throw Error('RESUME_OBJECTIVE_MISMATCH');
     }
     if(knowledge&&knowledge.semanticAdapter&&JSON.stringify(knowledge.semanticAdapter)!==JSON.stringify(interpret.semanticAdapter??{mode:'LEGACY_STATIC'}))throw Error('RESUME_SEMANTIC_ADAPTER_MISMATCH');
@@ -100,7 +108,8 @@ export async function prepareLive(input,{env=process.env,client,fetchImpl}={}) {
         capabilities.RENDERED=createPlaywrightRenderedCapability({chromium,proxyFor:context=>({server:'http://gate.decodo.com:7000',username:'user-'+env.DECODO_USERNAME+'-country-'+context.networkGeography.toLowerCase()+'-session-'+randomBytes(16).toString('hex'),password:env.DECODO_PASSWORD})});
         interpretVisual=createLiveVisualInterpreter({env,timeoutMs:input.rendered.timeoutMs??90000,maxOutputTokens:input.rendered.maxOutputTokens??12000});
     }
-    return {interpret,interpretVisual,capabilities};
+    const navigate=createLiveNavigationAdvisor({env,fetchImpl,timeoutMs:1000,maxOutputTokens:1024});
+    return {interpret,interpretVisual,navigate,capabilities};
 }
 async function main() {
     const [mode,file,...flags]=process.argv.slice(2);

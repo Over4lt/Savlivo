@@ -113,7 +113,8 @@ test('inert declared structured navigation, accessible label, options and GET fo
     const body='<script type="application/ld+json">{"@type":"SiteNavigationElement","name":"契約","url":"/choice"}</script><a href="/screen" aria-label="Abonnement"><img alt="Other"></a><option value="/local" lang="fr-FR">FR</option><form method="get" action="/lookup" aria-label="Search"></form><form method="post" action="/pay"></form><script type="application/json">{"apiUrl":"/invented","url":"/also-invented"}</script>';
     const p=extract(body);assert.equal(p.candidates.length,6);assert.ok(p.candidates.every(c=>c.source.sha256===digest(body.slice(c.source.start,c.source.end))));assert.equal(p.candidates.find(c=>c.url.endsWith('/screen')).label,'Abonnement');assert.ok(p.candidates.find(c=>c.kind==='STRUCTURED_NAVIGATION').source.pointer!==undefined);
 });
-for(const url of ['http://provider.example/plans','https://attacker.example/plans','https://provider.example.attacker.example/plans','javascript:alert(1)','https://127.0.0.1/plans','/go?next=https%3A%2F%2Fattacker.example%2F'])test('unsafe/unreviewed navigation '+url,()=>assert.equal(extract(`<a href="${url}">Plans</a>`).candidates.length,0));
+for(const url of ['http://provider.example/plans','javascript:alert(1)','https://127.0.0.1/plans','/go?next=https%3A%2F%2Fattacker.example%2F'])test('unsafe navigation '+url,()=>assert.equal(extract(`<a href="${url}">Plans</a>`).candidates.length,0));
+test('explicit external source destination is candidate routing only',()=>{const rows=extract('<a href="https://country.example/plans">Germany</a>').candidates;assert.equal(rows.length,1);assert.equal(rows[0].authority,null);assert.equal(rows[0].signals.discoveryOnly,true);});
 test('source integrity or incomplete observation cannot yield navigation',()=>{for(const changes of [{sha256:'forged'},{truncated:true},{completeness:'INCOMPLETE'},{outcome:'ERROR'}])assert.deepEqual(extractNavigation(observation('<a href="/plans">Plans</a>',changes),objective(),pricePropositions).candidates,[]);});
 const namespace={domain:'provider.example',reviewed:true,scope:'OWNED_DNS_NAMESPACE',reference:'operator-owned-namespace-review'};
 test('reviewed namespace covers www/localized/product/support hosts, not sibling domains',()=>{
@@ -144,7 +145,7 @@ test('advisory selection cannot invent href, assert truth or mutate permissions'
     const r=await site({[home]:html('','<nav><a href="/surface">契約</a></nav>'),[home+'surface']:html('Client shell')},{},{navigate:(rows,needs)=>{rows[0].url=home+'invented';needs.length=0;return [{candidateId:'forged',url:price,needs:pricePropositions,truthState:'ESTABLISHED'},{candidateId:rows[0].id,needs:pricePropositions,amount:1080,currency:'JPY',market:'JP'}];}});
     assert.equal(r.result.truth.established,false);assert.equal(r.knowledge.destinations.some(d=>d.url===home+'invented'),false);assert.equal(amounts(r).PRICE_AMOUNT.state,'UNRESOLVED');
 });
-test('advisory dependency failure preserves native navigation',async()=>{const r=await site({[home]:html('','<nav><a href="/surface">契約</a></nav>'),[home+'surface']:sufficient()},{},{navigate:async()=>{throw Error('offline model unavailable');}});assert.equal(r.result.truth.established,true);assert.ok(r.knowledge.trace.some(t=>t.event==='NAVIGATION_ADVICE_UNAVAILABLE'));});
+test('advisory dependency failure preserves native navigation',async()=>{const r=await site({[home]:html('','<nav><a href="/surface">契約</a><a href="/other">契約</a></nav>'),[home+'surface']:sufficient(),[home+'other']:html('Other')},{},{navigate:async()=>{throw Error('offline model unavailable');}});assert.equal(r.result.truth.established,true);assert.ok(r.knowledge.trace.some(t=>t.event==='NAVIGATION_ADVICE_UNAVAILABLE'));});
 for(const discovery of [{kind:'SEARCH',label:'JPY 1080 monthly JP',score:20},{kind:'SITEMAP_ENTRY',label:'plans',locale:'ja-JP',score:20},{kind:'MODEL_ADVICE',label:'verified',score:20}])test('identical admitted source/evidence truth invariant despite '+discovery.kind,async()=>{
     const r=await site({[home]:sufficient()}),before=evaluate(r.knowledge),k=restore(checkpoint(r.knowledge));k.destinations[0].discovery=discovery;k.destinations[0].grounding={kind:'DISCOVERY_RESULT',snippet:'JPY 1 monthly'};k.trace.push({event:'UNTRUSTED_ADVICE',established:true});assert.deepEqual(evaluate(k),before);assert.equal(evaluate(k).prices.JP.propositions.PRICE_AMOUNT.value,1400);
 });
@@ -187,7 +188,7 @@ test('faithful semantic SDK price path remains unchanged after provider navigati
     assert.deepEqual(evaluate(restore(checkpoint(result.knowledge))),result.result.truth);assert.equal(firstEstablishedUsage(result.result).searches,0);
 });
 test('advisory hook deadline falls back to a bounded native frontier',async()=>{
-    const r=await site({[home]:html('','<nav><a href="/surface">契約</a></nav>'),[home+'surface']:sufficient()},{},{navigate:()=>new Promise(()=>{})});
+    const r=await site({[home]:html('','<nav><a href="/surface">契約</a><a href="/other">契約</a></nav>'),[home+'surface']:sufficient(),[home+'other']:html('Other')},{},{navigate:()=>new Promise(()=>{})});
     assert.equal(r.result.truth.established,true);assert.ok(r.knowledge.trace.some(t=>t.event==='NAVIGATION_ADVICE_UNAVAILABLE'));
 });
 test('malformed capability interpretation does not trigger discovery failover or expose exception text',async()=>{

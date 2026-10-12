@@ -5,6 +5,7 @@ import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.
 import {evaluate} from '../../research-v3/truth.mjs';
 import {refreshCatalog} from '../../research-v3/subscription-catalog.mjs';
 import {digest} from '../../research-v3/model.mjs';
+import {extractNavigation} from '../../research-v3/discovery.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 
 const allowedAccessFields=new Set(['decision','reason','boundary','httpStatus','rule']);
@@ -22,8 +23,9 @@ export function evaluateProviderSourceTruth({target,retained,acquisition,observa
  const contentType=String(retained.contentType??'text/html').split(';')[0].trim().toLowerCase();
  const accessDecisions=retained.accessDecisions.map(row=>Object.fromEntries(Object.entries(row).filter(([key,value])=>allowedAccessFields.has(key)&&value!==undefined)));
  const observation=adaptV2CurrentSource({contractVersion:1,observationId,target:{service:target.service,serviceName:target.serviceName,market:target.market},page:{url,requestedUrl:retained.requestedUrl??url,outcome:'OK',httpStatus:retained.httpStatus,contentType,bodyHash:retained.bodyHash,sourceIntegrity:{sha256:retained.sourceIntegrity.sha256},rawSource:{text:retained.rawSource.text},accessDecisions},providerAuthority:{status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,url)},acquisition},objective);
- const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},truth=evaluate(knowledge),catalog=refreshCatalog(knowledge,truth);
- return {v3Observation:compactObservation(observation),v3Truth:truth,v3Catalog:structuredClone(catalog)};
+ const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},truth=evaluate(knowledge),catalog=refreshCatalog(knowledge,truth),navigation=observation.format==='WEB'?extractNavigation(observation,objective,truth.needs.map(row=>row.proposition)):{candidates:[],limited:false};
+ const v3Continuations=navigation.candidates.map(row=>({id:row.id,url:row.url,kind:row.kind,label:row.label,locale:row.locale,context:row.context,score:row.score,needs:row.needs,authority:row.authority,source:structuredClone(row.source),state:row.state??null,signals:structuredClone(row.signals),truthAuthority:'NONE'}));
+ return {v3Observation:{...compactObservation(observation),continuationCount:v3Continuations.length,continuationLimited:navigation.limited},v3Truth:truth,v3Catalog:structuredClone(catalog),v3Continuations};
 }
 
 function canonicalCountrySource({target,sourceCheck,attempt}){
