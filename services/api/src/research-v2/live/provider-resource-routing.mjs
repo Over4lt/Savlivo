@@ -9,6 +9,7 @@ export const providerRoutingObjectives=Object.freeze({OFFERING_DISCOVERY:'PRICE_
 const normalized=u=>{try{const x=new URL(u);x.hash='';return x.href;}catch{return null;}};
 const leadText=lead=>lead?.label??lead?.title??'';
 const strongRoles=new Set(['PRICING','PLAN_CATALOG']);
+const objectiveLead=(t,url)=>(t.providerSeedCandidateServiceContext?.objectiveLeads??[]).find(row=>normalized(row.url)===normalized(url));
 
 // Planning metadata only. This objective cannot establish authority or Truth.
 export function providerStageRoutingObjective(t){
@@ -25,8 +26,9 @@ function intent(t,lead){
 
 export function providerResourceRelevance(t,lead,objective=providerStageRoutingObjective(t)){
  const authority=lead?.url&&providerRoutingAuthority(t,lead.url);if(!objective||!authority)return {tier:3,role:'OUTSIDE_PROVIDER_OBJECTIVE',signals:[]};
- const anchor=t.providerSeedCandidateServiceContext?.objectiveResource?.url;if(anchor&&normalized(anchor)===normalized(lead.url))return {tier:0,role:'OBJECTIVE_RESOURCE_ANCHOR',signals:['RETAINED_PROVIDER_SEED_OBJECTIVE_RESOURCE'],objectiveAnchor:true};
- const text=leadText(lead),need=objective===providerRoutingObjectives.PRICE_EVIDENCE?priceNeedRelevance(t,lead.url,text):null;
+ const anchor=t.providerSeedCandidateServiceContext?.objectiveResource?.url,retainedLead=objectiveLead(t,lead.url),isAnchor=!!anchor&&normalized(anchor)===normalized(lead.url),text=leadText(lead)||(retainedLead?.title??''),need=objective===providerRoutingObjectives.PRICE_EVIDENCE?priceNeedRelevance(t,lead.url,text):null;
+ if(retainedLead&&retainedLead.acquisitionStatus!=='ATTEMPTED'&&(retainedLead.objectiveCapability==='COMMERCIAL_OBJECTIVE'||Number(retainedLead.objectiveProgressValue)>0))return {tier:0,role:isAnchor?'OBJECTIVE_RESOURCE_ANCHOR':'OBJECTIVE_RESOURCE_LEAD',signals:['RETAINED_PROVIDER_SEED_OBJECTIVE_LEAD'],objectiveAnchor:isAnchor};
+ if(isAnchor&&!t.providerSeedCandidateServiceContext?.objectiveLeads)return {tier:0,role:'OBJECTIVE_RESOURCE_ANCHOR',signals:['RETAINED_PROVIDER_SEED_OBJECTIVE_RESOURCE'],objectiveAnchor:true};
  if(objective===providerRoutingObjectives.MARKET_PROOF){const relevant=/country|region|market|availability|terms|legal|membership|subscription|bedingungen/iu.test(new URL(lead.url).pathname+' '+text);return {tier:relevant?0:2,role:relevant?'MARKET_PROOF':'GENERAL_PROVIDER',signals:relevant?['MARKET_PROOF_RELEVANCE']:[]};}
  const signals=[];if(lead.priceEntryIntent)signals.push('PRICE_ENTRY_INTENT');if(strongRoles.has(lead.routingRole))signals.push('RESOURCE_ROLE_'+lead.routingRole);const classified=intent(t,lead);if(classified?.candidate)signals.push('PRICE_INTENT');if(need)signals.push(need.reason);
  if(signals.length)return {tier:0,role:lead.routingRole??(need?'PRICE_EVIDENCE':'PRICE_OR_PLAN_ENTRY'),signals};
