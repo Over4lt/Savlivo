@@ -54,12 +54,21 @@ function authorityResourceTier(candidate){
  return url.pathname==='/'||identityPath.test(url.pathname)?0:1;
 }
 
-export function providerSeedCandidateRouting(researchTarget,candidate,candidates=[],index=0){
+const diagnosticNeedsAuthorityEvidence=diagnostic=>diagnostic?.decision==='UNRESOLVED'&&(diagnostic.mechanisms??[]).some(row=>['FIRST_PARTY_PROSE','FIRST_PARTY_DOCUMENT_PRESENTATION','STRUCTURED_DIRECT_IDENTITY','STRUCTURED_TYPED_RELATIONSHIP'].includes(row.mechanism)&&['NO_MATCH','INVALID'].includes(row.outcome));
+function authorityGapOrder(candidate,{authorityTargetHost=null,authorityDiagnostic=null}={}){
+ const url=safe(candidate?.url);if(!url||!authorityTargetHost||!diagnosticNeedsAuthorityEvidence(authorityDiagnostic))return 0;
+ const target=String(authorityTargetHost).toLowerCase(),explicit=String(candidate?.authorityEvidenceFor??'').toLowerCase()===target&&candidate?.sourceBoundCandidate===true&&candidate?.source?.observation;
+ if(url.hostname.toLowerCase()===target||explicit)return url.hostname.toLowerCase()===target&&url.pathname==='/'&&!url.search?0:authorityResourceTier(candidate)+1;
+ return providerSeedDestinationClass(candidate)==='GENERIC_THIRD_PARTY'?4:3;
+}
+
+export function providerSeedCandidateRouting(researchTarget,candidate,candidates=[],index=0,authorityGap={}){
  const url=safe(candidate?.url),affinity=providerSeedHostnameAffinity(researchTarget,candidate),originKind=candidate?.originKind??'SEARCH',parent=candidates.find(row=>row.candidateId===candidate?.parentCandidateId),parentAffinity=parent?providerSeedHostnameAffinity(researchTarget,parent):0;
  const redirectStrong=originKind==='REDIRECT_DESTINATION'&&affinity>0&&affinity>=parentAffinity,semanticObjectiveRelevance=positiveObjectiveRelevance(candidate),legacyObjectiveScore=Number.isFinite(candidate?.score)?candidate.score:0;
  return {
   objective:providerSeedAuthorityRoutingObjective,
   executable:url!==null&&candidate?.executable!==false,
+  authorityGapOrder:authorityGapOrder(candidate,authorityGap),
   hostnameAffinity:affinity,
   destinationClass:providerSeedDestinationClass(candidate),
   objectiveScore:Math.max(semanticObjectiveRelevance,legacyObjectiveScore),
@@ -73,13 +82,13 @@ export function providerSeedCandidateRouting(researchTarget,candidate,candidates
  };
 }
 
-export const compareProviderSeedAuthorityRows=(a,b)=>Number(b.executable)-Number(a.executable)||b.hostnameAffinity-a.hostnameAffinity||b.objectiveScore-a.objectiveScore||a.authorityResourceTier-b.authorityResourceTier||a.searchIndex-b.searchIndex||a.searchRank-b.searchRank||a.insertionOrder-b.insertionOrder||a.url.localeCompare(b.url);
+export const compareProviderSeedAuthorityRows=(a,b)=>Number(b.executable)-Number(a.executable)||a.authorityGapOrder-b.authorityGapOrder||b.hostnameAffinity-a.hostnameAffinity||b.objectiveScore-a.objectiveScore||a.authorityResourceTier-b.authorityResourceTier||a.searchIndex-b.searchIndex||a.searchRank-b.searchRank||a.insertionOrder-b.insertionOrder||a.url.localeCompare(b.url);
 
-export function orderProviderSeedAuthorityCandidates(researchTarget,candidates,{reviewedCandidateIds=[]}={}){
- const reviewed=new Set(reviewedCandidateIds);return candidates.map((candidate,index)=>({...candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,candidates,index)})).filter(row=>!reviewed.has(row.candidateId)&&row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing));
+export function orderProviderSeedAuthorityCandidates(researchTarget,candidates,{reviewedCandidateIds=[],authorityGap={}}={}){
+ const reviewed=new Set(reviewedCandidateIds);return candidates.map((candidate,index)=>({...candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,candidates,index,authorityGap)})).filter(row=>!reviewed.has(row.candidateId)&&row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing));
 }
 
-export function refreshProviderSeedAuthorityFrontier({researchTarget,candidates,activeCandidateIds,newCandidates=[],limit,ineligibleCandidateIds=[],deactivateCandidateIds=[]}){
+export function refreshProviderSeedAuthorityFrontier({researchTarget,candidates,activeCandidateIds,newCandidates=[],limit,ineligibleCandidateIds=[],deactivateCandidateIds=[],authorityGap={}}){
  if(!Array.isArray(candidates)||!Array.isArray(newCandidates)||!Array.isArray(ineligibleCandidateIds)||!Array.isArray(deactivateCandidateIds)||!Number.isSafeInteger(limit)||limit<0||newCandidates.length>limit)throw Error('INVALID_PROVIDER_SEED_FRONTIER');
  const history=[...candidates],byId=new Map(),byUrl=new Map();
  for(const row of history){const url=normalizeUrl(row?.url);if(typeof row?.candidateId!=='string'||!url||byId.has(row.candidateId)||byUrl.has(url))throw Error('INVALID_PROVIDER_SEED_HISTORY');byId.set(row.candidateId,row);byUrl.set(url,row);}
@@ -91,7 +100,7 @@ export function refreshProviderSeedAuthorityFrontier({researchTarget,candidates,
   if(sameId||sameUrl){rejectedCandidates.push({candidateId:candidate.candidateId,reason:'REDIRECT_DESTINATION_DUPLICATE',existingCandidateId:(sameId??sameUrl).candidateId});continue;}history.push(candidate);byId.set(candidate.candidateId,candidate);byUrl.set(url,candidate);discoveredIds.push(candidate.candidateId);
  }
  const reconstruct=activeCandidateIds===undefined;if(!reconstruct&&(!Array.isArray(activeCandidateIds)||new Set(activeCandidateIds).size!==activeCandidateIds.length||activeCandidateIds.some(id=>!byId.has(id))))throw Error('INVALID_PROVIDER_SEED_ACTIVE_FRONTIER');
- const ineligible=new Set(ineligibleCandidateIds),deactivate=new Set(deactivateCandidateIds),prior=reconstruct?history.map(row=>row.candidateId):[...activeCandidateIds],pool=[...new Set([...prior,...discoveredIds,...updatedIds])],rows=pool.map(id=>byId.get(id)).filter(row=>row&&!ineligible.has(row.candidateId)).map((candidate,index)=>({candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,history,index)})).filter(row=>row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing)),selected=rows.slice(0,limit).map(row=>row.candidate.candidateId),active=selected.filter(id=>!deactivate.has(id));
+ const ineligible=new Set(ineligibleCandidateIds),deactivate=new Set(deactivateCandidateIds),prior=reconstruct?history.map(row=>row.candidateId):[...activeCandidateIds],pool=[...new Set([...prior,...discoveredIds,...updatedIds])],rows=pool.map(id=>byId.get(id)).filter(row=>row&&!ineligible.has(row.candidateId)).map((candidate,index)=>({candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,history,index,authorityGap)})).filter(row=>row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing)),selected=rows.slice(0,limit).map(row=>row.candidate.candidateId),active=selected.filter(id=>!deactivate.has(id));
  const selectedSet=new Set(selected),activeSet=new Set(active),deactivatedIds=prior.filter(id=>!activeSet.has(id)&&(deactivate.has(id)||ineligible.has(id))),displacedIds=prior.filter(id=>!selectedSet.has(id)&&!ineligible.has(id)&&!deactivate.has(id)),admittedIds=discoveredIds.filter(id=>activeSet.has(id));
  for(const id of discoveredIds)if(!activeSet.has(id))rejectedCandidates.push({candidateId:id,reason:'PROVIDER_CANDIDATE_DESTINATION_BOUND'});
  return {candidates:history,activeCandidateIds:active,admittedIds,updatedIds,displacedIds,deactivatedIds,rejectedCandidates,reconstructed:reconstruct};
