@@ -7,6 +7,7 @@ import {refreshCatalog} from '../../research-v3/subscription-catalog.mjs';
 import {digest} from '../../research-v3/model.mjs';
 import {extractNavigation} from '../../research-v3/discovery.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
+import {discoverSubscriptionServices} from '../../research-v3/subscription-service-discovery.mjs';
 
 const allowedAccessFields=new Set(['decision','reason','boundary','httpStatus','rule']);
 const hex=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
@@ -17,15 +18,22 @@ function compactObservation(observation){
  return {id:observation.id,kind:observation.kind,url:observation.url,sha256:observation.sha256,context:observation.context,candidateCount:observation.candidates.length,nativeStructuredFacts:observation.nativeStructured?.facts?.length??0};
 }
 
+function providerSeedServiceUnderstanding({target,retained,observationId,contentType,accessDecisions}){
+ const researchTarget=target.providerSeedResearchTarget,routing=researchTarget&&providerRoutingAuthority(target,retained.url);if(!researchTarget||!routing?.binding)return null;
+ const body=retained.rawSource.text,observation={id:observationId+'-service',kind:'PROVIDER',authority:'REVIEWED_PROVIDER',url:retained.url,context:{transport:retained.networkGeography&&retained.networkGeography!=='UNBOUND'?'DECODO':'DIRECT',networkGeography:retained.networkGeography??'UNBOUND',representation:'PROVIDER_PAGE'},outcome:'OK',truncated:false,completeness:'COMPLETE',format:contentType.includes('json')?'JSON':'WEB',contentType,httpStatus:retained.httpStatus,access:accessDecisions,body,sha256:digest(body)},discovery=discoverSubscriptionServices({researchTarget,providerAuthorityBinding:routing.binding,observations:[observation]});
+ const service=discovery.services[0]??null;return {status:service?'CANDIDATE_SERVICE_UNDERSTOOD':'SERVICE_UNRESOLVED',service:service?{serviceId:service.serviceId,serviceName:service.serviceName,identityType:service.identityType,provenance:structuredClone(service.provenance)}:null,unresolved:structuredClone(discovery.unresolved),sourceObservation:observation.id};
+}
+
 export function evaluateProviderSourceTruth({target,retained,acquisition,observationId}){
  if(retained.truncated===true||retained.completeness==='INCOMPLETE')fail('PROVIDER_SOURCE_INCOMPLETE');
- const url=retained.url,host=new URL(url).hostname,objective={kind:'PRICE',serviceId:target.service,serviceName:target.serviceName,providerHosts:[host],markets:[target.market],seeds:[url]};
+ const url=retained.url,host=new URL(url).hostname;
  const contentType=String(retained.contentType??'text/html').split(';')[0].trim().toLowerCase();
  const accessDecisions=retained.accessDecisions.map(row=>Object.fromEntries(Object.entries(row).filter(([key,value])=>allowedAccessFields.has(key)&&value!==undefined)));
- const observation=adaptV2CurrentSource({contractVersion:1,observationId,target:{service:target.service,serviceName:target.serviceName,market:target.market},page:{url,requestedUrl:retained.requestedUrl??url,outcome:'OK',httpStatus:retained.httpStatus,contentType,bodyHash:retained.bodyHash,sourceIntegrity:{sha256:retained.sourceIntegrity.sha256},rawSource:{text:retained.rawSource.text},accessDecisions},providerAuthority:{status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,url)},acquisition},objective);
+ const serviceUnderstanding=providerSeedServiceUnderstanding({target,retained,observationId,contentType,accessDecisions}),serviceName=serviceUnderstanding?.service?.serviceName??target.serviceName,objective={kind:'PRICE',serviceId:target.service,serviceName,providerHosts:[host],markets:[target.market],seeds:[url]};
+ const observation=adaptV2CurrentSource({contractVersion:1,observationId,target:{service:target.service,serviceName,market:target.market},page:{url,requestedUrl:retained.requestedUrl??url,outcome:'OK',httpStatus:retained.httpStatus,contentType,bodyHash:retained.bodyHash,sourceIntegrity:{sha256:retained.sourceIntegrity.sha256},rawSource:{text:retained.rawSource.text},accessDecisions},providerAuthority:{status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,url)},acquisition},objective);
  const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},truth=evaluate(knowledge),catalog=refreshCatalog(knowledge,truth),navigation=observation.format==='WEB'?extractNavigation(observation,objective,truth.needs.map(row=>row.proposition)):{candidates:[],limited:false};
  const v3Continuations=navigation.candidates.map(row=>({id:row.id,url:row.url,kind:row.kind,label:row.label,locale:row.locale,context:row.context,score:row.score,needs:row.needs,authority:row.authority,source:structuredClone(row.source),state:row.state??null,signals:structuredClone(row.signals),truthAuthority:'NONE'}));
- return {v3Observation:{...compactObservation(observation),continuationCount:v3Continuations.length,continuationLimited:navigation.limited},v3Truth:truth,v3Catalog:structuredClone(catalog),v3Continuations};
+ return {v3Observation:{...compactObservation(observation),continuationCount:v3Continuations.length,continuationLimited:navigation.limited},v3ServiceUnderstanding:serviceUnderstanding,v3Truth:truth,v3Catalog:structuredClone(catalog),v3Continuations};
 }
 
 function canonicalCountrySource({target,sourceCheck,attempt}){

@@ -1,6 +1,6 @@
 // Run-scoped routing permission. Historical reviewed authority remains distinct
 // from autonomous V3 exact-host authority; neither is market or Truth evidence.
-import {canonical,normalizeUrl} from '../../research-v3/model.mjs';
+import {canonical,digest,normalizeUrl} from '../../research-v3/model.mjs';
 import {reviewCandidateAuthority,reviewDelegatedCandidateAuthority,reviewProviderSeedAuthority} from '../../research-v3/provider-authority-review.mjs';
 import {rehydrateSubscriptionService} from '../../research-v3/subscription-service-admission.mjs';
 
@@ -33,8 +33,10 @@ export function installRunScopedV3ProviderAuthority(target,review){
 }
 
 export function installRunScopedProviderSeedAuthority(target,review){
- const binding=review?.providerAuthorityBinding,expected=reviewProviderSeedAuthority(review?.authorityObservation,review?.researchTarget,{candidateHosts:[binding?.host]}),admission=rehydrateSubscriptionService({admission:{status:'ADMITTED',service:review?.service},observation:review?.providerObservation,researchTarget:review?.researchTarget,providerAuthorityBinding:binding});
- if(review?.contractVersion!==1||!expected||canonical(expected)!==canonical(binding)||admission.status!=='ADMITTED'||admission.service.serviceId!==target.service||admission.service.serviceName!==target.serviceName)throw Error('PROVIDER_SEED_HANDOFF_REQUIRED');
+ const binding=review?.providerAuthorityBinding,expected=reviewProviderSeedAuthority(review?.authorityObservation,review?.researchTarget,{candidateHosts:[binding?.host]});let valid=false;
+ if(review?.contractVersion===1){const admission=rehydrateSubscriptionService({admission:{status:'ADMITTED',service:review?.service},observation:review?.providerObservation,researchTarget:review?.researchTarget,providerAuthorityBinding:binding});valid=admission.status==='ADMITTED'&&admission.service.serviceId===target.service&&admission.service.serviceName===target.serviceName;}
+ if(review?.contractVersion===2){const observations=review.providerObservations;valid=review.candidateService?.serviceId===target.service&&review.candidateService?.serviceName===target.serviceName&&Array.isArray(observations)&&observations.length>0&&observations.every(observation=>observation?.kind==='PROVIDER'&&observation.outcome==='OK'&&!observation.truncated&&observation.completeness==='COMPLETE'&&digest(observation.body)===observation.sha256&&new URL(observation.url).hostname===binding?.host);}
+ if(!valid||!expected||canonical(expected)!==canonical(binding))throw Error('PROVIDER_SEED_HANDOFF_REQUIRED');
  const records=providerSeed.get(target)??[];if(!records.some(row=>canonical(row.providerAuthorityBinding)===canonical(binding)))records.push(structuredClone(review));providerSeed.set(target,records);return structuredClone(binding);
 }
 
@@ -48,7 +50,7 @@ export function providerRoutingAuthority(target,url){
    return {provenance:'V3_AUTONOMOUS_CANDIDATE_REVIEW',host,binding:structuredClone(binding)};
   }
  }
- for(const record of providerSeed.get(target)??[]){const binding=record.providerAuthorityBinding,expected=reviewProviderSeedAuthority(record.authorityObservation,record.researchTarget,{candidateHosts:[host]}),admission=rehydrateSubscriptionService({admission:{status:'ADMITTED',service:record.service},observation:record.providerObservation,researchTarget:record.researchTarget,providerAuthorityBinding:binding});if(binding?.host===host&&expected&&canonical(expected)===canonical(binding)&&admission.status==='ADMITTED'&&admission.service.serviceId===target.service)return {provenance:'SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY',host,binding:structuredClone(binding)};}
+ for(const record of providerSeed.get(target)??[]){const binding=record.providerAuthorityBinding,expected=reviewProviderSeedAuthority(record.authorityObservation,record.researchTarget,{candidateHosts:[host]});let valid=false;if(record.contractVersion===1){const admission=rehydrateSubscriptionService({admission:{status:'ADMITTED',service:record.service},observation:record.providerObservation,researchTarget:record.researchTarget,providerAuthorityBinding:binding});valid=admission.status==='ADMITTED'&&admission.service.serviceId===target.service;}else if(record.contractVersion===2)valid=record.candidateService?.serviceId===target.service&&record.candidateService?.serviceName===target.serviceName&&record.providerObservations?.some(observation=>observation.kind==='PROVIDER'&&observation.outcome==='OK'&&!observation.truncated&&observation.completeness==='COMPLETE'&&digest(observation.body)===observation.sha256&&new URL(observation.url).hostname===host);if(binding?.host===host&&expected&&canonical(expected)===canonical(binding)&&valid)return {provenance:'SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY',host,binding:structuredClone(binding)};}
  return null;
 }
 

@@ -40,11 +40,32 @@ export function createProviderSeedAuthorityHandoff({root,researchTarget,provider
  return {contractVersion:1,researchTarget:structuredClone(researchTarget),providerAuthorityBinding:structuredClone(providerAuthorityBinding),service:structuredClone(service),authorityProof:{observation:publicObservation(authorityObservation),bodyReference:authorityReference},serviceProof:{observation:publicObservation(providerObservation),bodyReference:providerReference}};
 }
 
+// Production research handoff. Candidate service identity is scheduling metadata;
+// it is deliberately not a Service admission or a Truth claim.
+export function createProviderSeedResearchHandoff({root,researchTarget,providerAuthorityBinding,candidateService,authorityObservation,providerObservations}){
+ const reviewed=reviewProviderSeedAuthority(authorityObservation,researchTarget,{candidateHosts:[providerAuthorityBinding?.host]});
+ if(!reviewed||canonical(reviewed)!==canonical(providerAuthorityBinding))throw Error('PROVIDER_SEED_HANDOFF_AUTHORITY_INVALID');
+ if(!candidateService?.serviceId||!candidateService?.serviceName||!Array.isArray(providerObservations)||!providerObservations.length)throw Error('PROVIDER_SEED_RESEARCH_HANDOFF_INVALID');
+ const evidence=providerObservations.map(observation=>{
+  if(observation?.kind!=='PROVIDER'||observation.outcome!=='OK'||observation.truncated||observation.completeness!=='COMPLETE'||digest(observation.body)!==observation.sha256||new URL(observation.url).hostname!==providerAuthorityBinding.host)throw Error('PROVIDER_SEED_RESEARCH_HANDOFF_INVALID');
+  return {observation:publicObservation(observation),bodyReference:retainProviderSeedObservation(root,observation)};
+ });
+ return {contractVersion:2,researchTarget:structuredClone(researchTarget),providerAuthorityBinding:structuredClone(providerAuthorityBinding),candidateService:structuredClone(candidateService),authorityProof:{observation:publicObservation(authorityObservation),bodyReference:retainProviderSeedObservation(root,authorityObservation)},providerEvidence:evidence};
+}
+
 export function rehydrateProviderSeedAuthorityHandoff({root,target,handoff}){
- if(handoff?.contractVersion!==1||handoff.service?.serviceId!==target.service||handoff.service?.serviceName!==target.serviceName||handoff.researchTarget?.targetMarket!==target.market)throw Error('PROVIDER_SEED_HANDOFF_INVALID');
- const authorityObservation=restoreProviderSeedObservation(root,handoff.authorityProof?.observation,handoff.authorityProof?.bodyReference),providerObservation=restoreProviderSeedObservation(root,handoff.serviceProof?.observation,handoff.serviceProof?.bodyReference);
+ if(![1,2].includes(handoff?.contractVersion)||handoff.researchTarget?.targetMarket!==target.market)throw Error('PROVIDER_SEED_HANDOFF_INVALID');
+ const authorityObservation=restoreProviderSeedObservation(root,handoff.authorityProof?.observation,handoff.authorityProof?.bodyReference);
  const binding=reviewProviderSeedAuthority(authorityObservation,handoff.researchTarget,{candidateHosts:[handoff.providerAuthorityBinding?.host]});if(!binding||canonical(binding)!==canonical(handoff.providerAuthorityBinding))throw Error('PROVIDER_SEED_HANDOFF_AUTHORITY_INVALID');
- const admission=rehydrateSubscriptionService({admission:{status:'ADMITTED',service:handoff.service},observation:providerObservation,researchTarget:handoff.researchTarget,providerAuthorityBinding:binding});if(admission.status!=='ADMITTED'||canonical(admission.service)!==canonical(handoff.service))throw Error('PROVIDER_SEED_HANDOFF_SERVICE_INVALID');
- installRunScopedProviderSeedAuthority(target,{contractVersion:1,researchTarget:handoff.researchTarget,providerAuthorityBinding:binding,service:admission.service,authorityObservation,providerObservation});
- return {providerAuthorityBinding:binding,service:admission.service,authorityObservation,providerObservation};
+ if(handoff.contractVersion===1){
+  if(handoff.service?.serviceId!==target.service||handoff.service?.serviceName!==target.serviceName)throw Error('PROVIDER_SEED_HANDOFF_INVALID');
+  const providerObservation=restoreProviderSeedObservation(root,handoff.serviceProof?.observation,handoff.serviceProof?.bodyReference),admission=rehydrateSubscriptionService({admission:{status:'ADMITTED',service:handoff.service},observation:providerObservation,researchTarget:handoff.researchTarget,providerAuthorityBinding:binding});if(admission.status!=='ADMITTED'||canonical(admission.service)!==canonical(handoff.service))throw Error('PROVIDER_SEED_HANDOFF_SERVICE_INVALID');
+  installRunScopedProviderSeedAuthority(target,{contractVersion:1,researchTarget:handoff.researchTarget,providerAuthorityBinding:binding,service:admission.service,authorityObservation,providerObservation});
+  return {providerAuthorityBinding:binding,service:admission.service,authorityObservation,providerObservation,providerObservations:[providerObservation]};
+ }
+ if(handoff.candidateService?.serviceId!==target.service||handoff.candidateService?.serviceName!==target.serviceName||!Array.isArray(handoff.providerEvidence)||!handoff.providerEvidence.length)throw Error('PROVIDER_SEED_RESEARCH_HANDOFF_INVALID');
+ const providerObservations=handoff.providerEvidence.map(row=>restoreProviderSeedObservation(root,row.observation,row.bodyReference));
+ if(providerObservations.some(observation=>observation.kind!=='PROVIDER'||observation.outcome!=='OK'||observation.truncated||observation.completeness!=='COMPLETE'||digest(observation.body)!==observation.sha256||new URL(observation.url).hostname!==binding.host))throw Error('PROVIDER_SEED_RESEARCH_HANDOFF_INVALID');
+ const review={contractVersion:2,researchTarget:handoff.researchTarget,providerAuthorityBinding:binding,candidateService:handoff.candidateService,authorityObservation,providerObservations};installRunScopedProviderSeedAuthority(target,review);
+ return {providerAuthorityBinding:binding,candidateService:structuredClone(handoff.candidateService),authorityObservation,providerObservation:providerObservations[0],providerObservations};
 }

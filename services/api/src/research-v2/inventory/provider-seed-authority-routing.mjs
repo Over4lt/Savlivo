@@ -6,6 +6,12 @@ export const providerSeedAuthorityRoutingObjective='PROVIDER_SEED_AUTHORITY_ACQU
 
 const words=value=>String(value??'').normalize('NFKD').replace(/\p{M}/gu,'').normalize('NFC').toLowerCase().match(/[\p{L}\p{N}]{3,}/gu)??[];
 const safe=value=>{const normalized=normalizeUrl(value);if(!normalized)return null;try{return new URL(normalized);}catch{return null;}};
+const commonCountrySecondLevel=new Set(['ac','co','com','edu','gov','net','org']);
+function registrableLabel(hostname){
+ const labels=String(hostname??'').toLowerCase().replace(/^www\./u,'').split('.').filter(Boolean);if(!labels.length)return '';
+ const suffixLabels=labels.length>2&&labels.at(-1).length===2&&commonCountrySecondLevel.has(labels.at(-2))?2:1;
+ return labels.at(-(suffixLabels+1))??labels[0];
+}
 const weakPath=/(?:^|[\/_-])(?:auth|account|accounts|billing|checkout|login|pay|payment)(?:[\/_-]|$)/iu;
 const genericLabel=/^(?:app-?store|community|directory|encyclopedia|forum|magazin(?:e)?|marketplace|news|social|wiki)/iu;
 const positiveObjectiveRelevance=candidate=>Number.isFinite(candidate?.objectiveRelevance)&&candidate.objectiveRelevance>0?candidate.objectiveRelevance:0;
@@ -29,7 +35,10 @@ export function providerSeedObjectiveContinuation(parent,candidate={}){
  return {objectiveIntent,objectiveRelevance:Math.max(parentRelevance,positiveObjectiveRelevance(candidate))};
 }
 
-export function providerSeedTokens(researchTarget){return [...new Set(words(researchTarget?.seedName))];}
+export function providerSeedTokens(researchTarget){
+ const seed=String(researchTarget?.seedName??'').trim().toLowerCase(),domain=/^(?:[\p{L}\p{N}-]+\.)+[\p{L}]{2,}$/u.test(seed.replace(/^www\./u,''));
+ return [...new Set(domain?words(registrableLabel(seed)):words(seed))];
+}
 
 export function providerSeedDestinationClass(candidate){
  const url=safe(candidate?.url);if(!url)return 'INVALID';
@@ -42,7 +51,7 @@ export function providerSeedDestinationClass(candidate){
 
 export function providerSeedHostnameAffinity(researchTarget,candidate){
  const url=safe(candidate?.url),tokens=providerSeedTokens(researchTarget);if(!url||!tokens.length)return 0;
- const labels=url.hostname.toLowerCase().replace(/^www\./u,'').split('.'),registrable=labels.at(-2)??labels[0],all=labels.flatMap(words);
+ const labels=url.hostname.toLowerCase().replace(/^www\./u,'').split('.'),registrable=registrableLabel(url.hostname),all=labels.slice(0,labels.indexOf(registrable)+1).flatMap(words);
  let score=0;
  for(const token of tokens){
   if(registrable===token||all.includes(token))score=Math.max(score,3);

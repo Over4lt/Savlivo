@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {providerOrBrandResearchTarget} from '../../research-v3/research-target.mjs';
-import {compareProviderSeedAuthorityRows,observedAuthorityEvidenceCapability,orderProviderSeedAuthorityCandidates,providerSeedCandidateRouting,providerSeedRedirectCandidate,refreshProviderSeedAuthorityFrontier} from './provider-seed-authority-routing.mjs';
+import {compareProviderSeedAuthorityRows,observedAuthorityEvidenceCapability,orderProviderSeedAuthorityCandidates,providerSeedCandidateRouting,providerSeedHostnameAffinity,providerSeedRedirectCandidate,refreshProviderSeedAuthorityFrontier} from './provider-seed-authority-routing.mjs';
 
 const target=providerOrBrandResearchTarget({seedName:'Northstar',targetMarket:'DE'});
 const candidate=(url,index,extra={})=>({candidateId:'candidate-'+index,url,host:new URL(url).hostname,originKind:'SEARCH',searchIndex:0,resultIndex:index,searchRank:index,insertionOrder:index,navigationDepth:0,truthAuthority:'NONE',...extra});
@@ -13,6 +13,19 @@ test('provider affinity routes ahead of generic categories while every weak cand
  assert.equal(result[0].url,'https://northstar-fitness.example/about');
  assert.deepEqual(new Set(result.map(row=>row.candidateId)),new Set(rows.map(row=>row.candidateId)));
  assert.equal(result.at(-1).routing.objective,'PROVIDER_SEED_AUTHORITY_ACQUISITION');
+});
+
+test('shared public suffixes provide no provider identity affinity',()=>{
+ const cases=[
+  ['Cinema.com','https://unrelated.com/',0,'https://cinema.com/',3],
+  ['Example.co.uk','https://reseller.co.uk/',0,'https://www.example.co.uk/',3],
+  ['Brand.ai','https://unrelated.ai/',0,'https://brand.ai/',3]
+ ];
+ for(const [seed,unrelated,unrelatedAffinity,provider,providerAffinity] of cases){
+  const researchTarget={targetKind:'PROVIDER_OR_BRAND_SEED',seedName:seed,targetMarket:'DE'};
+  assert.equal(providerSeedHostnameAffinity(researchTarget,{url:unrelated}),unrelatedAffinity);
+  assert.equal(providerSeedHostnameAffinity(researchTarget,{url:provider}),providerAffinity);
+ }
 });
 
 test('routing metadata grants no authority, preserves search provenance, and stable ties are deterministic',()=>{
