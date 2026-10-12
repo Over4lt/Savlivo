@@ -5,7 +5,7 @@ import {priceNeedsStop,priceNeedRelevance,researchablePriceNeeds} from '../intel
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {catalogObjective,capabilityDestination} from '../intelligence/login-manage.mjs';
 import {retainedSuccesses} from './retained-success.mjs';
-import {executableAction,exhaustedExecutionBudget} from './execution-capabilities.mjs';
+import {directAcquisitionReads,executableAction,exhaustedExecutionBudget} from './execution-capabilities.mjs';
 import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {providerStageRoutingObjective,providerResourceRelevance,providerBranchPreference} from './provider-resource-routing.mjs';
 import {authorityAcquisitionObjective,candidateAuthorityRouting,orderCandidateAuthorityRows} from './candidate-authority-routing.mjs';
@@ -43,7 +43,7 @@ export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionCon
 function candidateAuthorityFrontier(t,urls,executionContext,knowledge){
  const attempted=new Set([...(t.reads??[]).flatMap(r=>[r.requestedUrl,r.url]),...(knowledge?.attempts??[]).flatMap(a=>[a.url,a.finalUrl])].map(norm).filter(Boolean));
  const blocked=new Set(knowledge?.blockedOrigins??t.blockedOrigins??[]);
- const rows=[...new Set(urls)].map((url,index)=>{const normalized=norm(url);if(!normalized||attempted.has(normalized)||blocked.has(new URL(normalized).origin))return null;const lead=(t.leads??[]).find(l=>norm(l.url)===normalized)??{url:normalized,originKind:'SEED',frontierOrder:index},capability=executableAction(t,{route:'DIRECT',url:normalized},executionContext);return {url:normalized,index,lead,...candidateAuthorityRouting(t,lead,index),capability};}).filter(Boolean),remainingReads=Math.min((executionContext?.bounds?.perServiceReads??Infinity)-(t.reads?.length??0),(executionContext?.bounds?.reads??Infinity)-(executionContext?.usage?.reads??0));
+ const rows=[...new Set(urls)].map((url,index)=>{const normalized=norm(url);if(!normalized||attempted.has(normalized)||blocked.has(new URL(normalized).origin))return null;const lead=(t.leads??[]).find(l=>norm(l.url)===normalized)??{url:normalized,originKind:'SEED',frontierOrder:index},capability=executableAction(t,{route:'DIRECT',url:normalized},executionContext);return {url:normalized,index,lead,...candidateAuthorityRouting(t,lead,index),capability};}).filter(Boolean),remainingReads=Math.min((executionContext?.bounds?.perServiceReads??Infinity)-directAcquisitionReads(t).length,(executionContext?.bounds?.reads??Infinity)-(executionContext?.usage?.reads??0));
  return {objective:authorityAcquisitionObjective,candidates:orderCandidateAuthorityRows(rows.filter(row=>row.capability.executable),{remainingReads}),budgetBlocked:orderCandidateAuthorityRows(rows.filter(row=>exhaustedExecutionBudget(row.capability)),{remainingReads})};
 }
 function sourceBoundCandidateFrontier(t,executionContext,knowledge){

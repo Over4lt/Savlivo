@@ -12,12 +12,12 @@ import fs from 'node:fs';import path from 'node:path';import {createHash} from '
 import {atomic,recoverInterrupted} from './expansion-campaign.mjs';
 import {runOpenWebResearch,destinationDiscoveryNeeded,rankPlannerLeads,rehydrateRetainedProviderAuthority,reuseProviderSeedCampaignEvidence} from '../live/open-web-discovery.mjs';
 import {planResearch} from '../live/research-planner.mjs';
-import {executableAction,executionBounds,resourceKey,exhaustedExecutionBudget} from '../live/execution-capabilities.mjs';
+import {directAcquisitionReads,executableAction,executionBounds,resourceKey,exhaustedExecutionBudget} from '../live/execution-capabilities.mjs';
 import {navigationRank} from '../live/provider-navigation.mjs';
 import {rehydrateProviderSeedAuthorityHandoff} from '../live/provider-seed-authority-handoff.mjs';
 const hash=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 export const adaptiveBounds=Object.freeze({reads:4,searches:2,acquisitions:2,retainedReviews:32,turns:512,bytes:2*1024*1024});
-const counts=t=>({reads:t.reads?.filter(row=>!row.sameCampaignEvidenceReuse).length??0,searches:t.queries?.length??0,acquisitions:t.decisions?.filter(d=>d.acquisitionReserved).length??0,retainedReviews:t.retainedReviews?.length??0,bytes:(t.reads??[]).filter(row=>!row.sameCampaignEvidenceReuse).reduce((sum,row)=>sum+(row.acquisitionBytes??0),0)+(t.acquisitionOutcomes??[]).reduce((sum,row)=>sum+(row.acquisitionBytes??0),0)});
+const counts=t=>{const reads=directAcquisitionReads(t);return {reads:reads.length,searches:t.queries?.length??0,acquisitions:t.decisions?.filter(d=>d.acquisitionReserved).length??0,retainedReviews:t.retainedReviews?.length??0,bytes:reads.reduce((sum,row)=>sum+(row.acquisitionBytes??0),0)+(t.acquisitionOutcomes??[]).reduce((sum,row)=>sum+(row.acquisitionBytes??0),0)};};
 const initialTarget=t=>({...t,adaptiveExecution:true,researchObjective:t.researchObjective??'SERVICE_COVERAGE',gaps:t.gaps??['plan','amount','currency','cadence','priceRole','ownership','market'],reads:t.reads??[],queries:t.queries??[],decisions:t.decisions??[],verified:t.verified??[],blockedOrigins:t.blockedOrigins??[],leads:t.leads?.length?t.leads:(t.urls??[]).map(url=>({url,title:t.serviceName+' official provider',rank:0,navigationPriority:navigationRank(t,{url})}))});
 const zeroUsage=()=>({actions:0,reads:0,searches:0,acquisitions:0,retainedReviews:0,bytes:0});
 function campaignOptions(budgetScope,initialUsage){
