@@ -1,4 +1,5 @@
 import {normalizeFrontierUrl} from './source-frontier.mjs';
+import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 
 // Acquisition scheduling only. This objective and every signal below are
 // non-authoritative and cannot establish provider identity, ownership or Truth.
@@ -47,6 +48,21 @@ export function candidateAuthorityRouting(t,lead,index=0){
 }
 
 export const compareCandidateAuthorityRows=(a,b)=>a.authorityRelevanceTier-b.authorityRelevanceTier||a.branchPreference-b.branchPreference||a.searchRank-b.searchRank||a.childOrder-b.childOrder||a.insertionOrder-b.insertionOrder||a.url.localeCompare(b.url);
+
+export function unresolvedAuthorityDestination(t){
+ const rows=(t.reads??[]).filter(row=>row.researchRole==='CANDIDATE_AUTHORITY_SOURCE'&&row.v3AuthorityReview?.status==='UNRESOLVED_PROVIDER_IDENTITY'&&!providerRoutingAuthority(t,row.url??row.requestedUrl)&&row.outcome==='OK'&&row.truncated!==true&&row.bodyHash&&row.sourceIntegrity?.sha256===row.bodyHash).map(row=>({row,lead:(t.leads??[]).find(lead=>[row.requestedUrl,row.url].map(url=>safe(url)?.href).includes(safe(lead.url)?.href))})).filter(item=>item.lead&&!item.lead.authorityEvidenceFor);
+ return rows.at(-1)??null;
+}
+
+export function authorityEvidenceQuery(t,item=unresolvedAuthorityDestination(t)){
+ if(!item)return null;const host=new URL(item.row.url??item.row.requestedUrl).hostname;
+ return [t.serviceName??t.service,host,'official terms'].filter(Boolean).join(' ');
+}
+
+export function authorityEvidenceLeads(t,item=unresolvedAuthorityDestination(t)){
+ if(!item)return [];const destination=new URL(item.row.url??item.row.requestedUrl).hostname;
+ return (t.leads??[]).filter(lead=>lead.authorityEvidenceFor===destination);
+}
 
 export function orderCandidateAuthorityRows(rows,{remainingReads=Infinity}={}){
  const ordered=[...rows].sort(compareCandidateAuthorityRows);

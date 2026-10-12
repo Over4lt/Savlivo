@@ -360,6 +360,34 @@ function reviewAuthoritySubject(observation,{name,candidateHosts}) {
     return {host,url,observation:o.id,bodySha256:o.sha256,reason:structured.reason,providerIdentity:structured.providerIdentity,locators:structured.locators};
 }
 
+// A retained authoritative provider source may designate one exact destination
+// for a bounded research function. The destination must still present a
+// compatible first-party identity. This composes two acquired sources; neither
+// the discovery result nor the link alone grants authority.
+function exactDesignation(observation,destinationUrl,designation){
+    let sourceHost;try{sourceHost=new URL(observation?.url).hostname;}catch{return null;}
+    const source=authorityObservationSource(observation,[sourceHost]);
+    if(!source||!object(designation)||!Number.isSafeInteger(designation.start)||!Number.isSafeInteger(designation.end)||designation.start<0||designation.start>=designation.end||designation.end>source.body.length)return null;
+    const raw=source.body.slice(designation.start,designation.end);
+    if(digest(raw)!==designation.sha256)return null;
+    const linked=normalizeUrl(designation.url,source.url),destination=normalizeUrl(destinationUrl);
+    if(!linked||!destination||new URL(linked).hostname!==new URL(destination).hostname)return null;
+    const context=[designation.label,new URL(linked).pathname,new URL(source.url).pathname].filter(Boolean).join(' '),market=/^[A-Z]{2}$/.test(designation.market??'')?designation.market:null;
+    const boundedScope=designation.kind==='V3_SOURCE_BOUND_CONTINUATION'||/\b(?:about|country|legal|membership|offer|plan|pricing|privacy|region|service|subscription|terms)\b/iu.test(context)||market&&new RegExp('(?:^|[^A-Z])'+market+'(?:[^A-Z]|$)','iu').test(context);
+    if(!boundedScope)return null;
+    return {linked,destination,source,raw};
+}
+
+export function reviewDelegatedCandidateAuthority(candidateObservation,objective,{authorityObservation,designation}={}){
+    const name=objective?.serviceName?.trim(),candidate=authorityObservationSource(candidateObservation,objective?.candidateHosts??[]);
+    if(!candidate||!name||name.length<4||name.length>100)return null;
+    const exact=exactDesignation(authorityObservation,candidate.url,designation);if(!exact)return null;
+    const presentation=firstPartyDocumentPresentation(candidate.body,candidate.url,name);
+    if(presentation?.status!=='ACCEPTED')return null;
+    const host=new URL(candidate.url).hostname,sourceHost=new URL(exact.source.url).hostname;
+    return {host,kind:'AUTONOMOUS_SOURCE_BOUND_DELEGATION',reason:'SOURCE_BOUND_EXACT_DESTINATION_DELEGATION',scope:'EXACT_HOST_PROVIDER_SOURCING',sourceRole:'COMPOSED_CANDIDATE_EVIDENCE',url:candidate.url,observation:candidateObservation.id,bodySha256:candidateObservation.sha256,serviceId:objective.serviceId,serviceName:name,providerIdentity:presentation.providerIdentity,locators:{destination:presentation.locators,designation:{kind:designation.kind,sourceObservation:authorityObservation.id,sourceUrl:authorityObservation.url,sourceBodySha256:authorityObservation.sha256,start:designation.start,end:designation.end,sha256:designation.sha256,url:exact.linked,label:designation.label??null,market:designation.market??null,delegatorHost:sourceHost}}};
+}
+
 const diagnosticRow=(mechanism,outcome,reason)=>({mechanism,outcome,...(reason?{reason}:{})});
 const structuredMarker=body=>/<script\b[^>]*\btype\s*=\s*(?:"application\/ld\+json"|'application\/ld\+json'|application\/ld\+json)[^>]*>/iu.test(body);
 const crossHostCanonical=(parsed,url)=>parsed.canonicals.some(href=>{try{return new URL(href,url).hostname!==new URL(url).hostname;}catch{return false;}});
