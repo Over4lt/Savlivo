@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reviewCandidateAuthority,reviewCandidateAuthorityWithDiagnostic,reviewProviderSeedAuthority,structuredExactOriginBounds} from './provider-authority-review.mjs';
+import {reviewCandidateAuthority,reviewCandidateAuthorityWithDiagnostic,reviewDelegatedCandidateAuthority,reviewProviderSeedAuthority,structuredExactOriginBounds} from './provider-authority-review.mjs';
 import {providerOrBrandResearchTarget,providerSeedCampaignState} from './research-target.mjs';
 import {runTarget,offlineCapabilities} from './runner.mjs';
 import {checkpoint,digest,providerBound} from './model.mjs';
@@ -22,6 +22,7 @@ const execute=(input,extra={})=>runTarget({input,capabilities:offlineCapabilitie
 const providerSeed=(seedName,body,{candidateUrl=url,observationExtra={}}={})=>reviewProviderSeedAuthority(observation(body,{url:candidateUrl,...observationExtra}),providerOrBrandResearchTarget({seedName,targetMarket:'DE'}),{candidateHosts:[new URL(candidateUrl).hostname]});
 const coherentProvider=(presentation,{legalName=null,providerUrl=url,canonical=providerUrl}={})=>`<link rel="canonical" href="${canonical}">${jsonLd({'@type':'Organization',name:presentation,...(legalName?{legalName}:{}),url:providerUrl})}${jsonLd({'@type':'WebSite',name:presentation,url:providerUrl})}`;
 const presentationPage=({presentation='Acme',candidateUrl='https://acme.example/',title=`${presentation} | Unlimited reading`,openGraphTitle=title,description=`${presentation} gives members unlimited access to magazines and newspapers.`,canonical=candidateUrl,openGraphUrl=candidateUrl,siteIdentity=null,applicationName=null,type='website',extraHead='',body='<main>Member access</main>'}={})=>`<html><head>${title===null?'':`<title>${title}</title>`}${openGraphTitle===null?'':`<meta property="og:title" content="${openGraphTitle}">`}${canonical===null?'':`<link rel="canonical" href="${canonical}">`}${openGraphUrl===null?'':`<meta property="og:url" content="${openGraphUrl}">`}${description===null?'':`<meta name="description" content="${description}"><meta property="og:description" content="${description}">`}${siteIdentity===null?'':`<meta property="og:site_name" content="${siteIdentity}">`}${applicationName===null?'':`<meta name="application-name" content="${applicationName}">`}${type===null?'':`<meta property="og:type" content="${type}">`}${extraHead}</head><body>${body}</body></html>`;
+const legalRelationshipPage=({seed='Lumen',candidateUrl='https://lumen.example/terms',operator='Lumen DE GmbH',contactHost=new URL(candidateUrl).hostname,heading=`${seed} TERMS & CONDITIONS`,relationship=`Welcome to ${seed}. We provide our subscribers with access to films. These Terms are subject to change at ${seed}'s sole discretion.`,extra='',link=''}={})=>`<html><head><link rel="canonical" href="${candidateUrl}"><title>${seed}</title></head><body><h1>${heading}</h1><section>${relationship}</section><section>Finally, deliver notices to ${seed}'s Designated Copyright Agent: legal [at] ${contactHost} ${operator}</section>${link}${extra}</body></html>`;
 
 test('first-party homepage and product presentation admit only the exact candidate host with audited spans',()=>{
     for(const body of [owned,product]){
@@ -93,6 +94,31 @@ test('provider seed accepts exact-host first-party document presentation without
 
     const applicationBody=presentationPage({presentation:'Cloudbox',candidateUrl:'https://cloudbox.example/app',title:'Cloudbox — Personal cloud storage',description:'Cloudbox offers members secure storage and software access.',applicationName:'Cloudbox',body:'<section><h1>Store files on every device</h1></section>'}),application=providerSeed('Cloudbox',applicationBody,{candidateUrl:'https://cloudbox.example/app'});
     assert.equal(application?.providerIdentity.presentationName,'Cloudbox');assert.equal(application.host,'cloudbox.example');assert.equal(application.proof.reason,'EXACT_HOST_FIRST_PARTY_DOCUMENT_PRESENTATION');
+});
+
+test('exact-host first-party legal relationship reuses bounded presentation authority',()=>{
+    const candidateUrl='https://lumen.example/terms',body=legalRelationshipPage({candidateUrl}),binding=providerSeed('Lumen',body,{candidateUrl});
+    assert.equal(binding?.host,'lumen.example');assert.equal(binding.proof.kind,'AUTONOMOUS_FIRST_PARTY_PRESENTATION');assert.equal(binding.proof.reason,'FIRST_PARTY_PRESENTATION');assert.equal(binding.providerIdentity.presentationName,'Lumen');assert.equal(binding.providerIdentity.legalName,'Lumen DE GmbH');assert.equal(binding.proof.scope,'EXACT_HOST_PROVIDER_SOURCING');
+    for(const locator of Object.values(binding.proof.locators)){assert.equal(body.slice(locator.start,locator.end),locator.quote);assert.equal(digest(locator.quote),locator.sha256);}
+});
+
+test('explicit legal relationship does not broaden exact-host authority and existing bounded delegation remains explicit',()=>{
+    const sourceUrl='https://lumen.example/terms',destinationUrl='https://billing.lumen.example/plans',anchor=`<a href="${destinationUrl}">Membership plans</a>`,sourceBody=legalRelationshipPage({candidateUrl:sourceUrl,link:anchor}),sourceObservation=observation(sourceBody,{url:sourceUrl}),destinationBody=presentationPage({presentation:'Lumen',candidateUrl:destinationUrl}),candidateObservation=observation(destinationBody,{url:destinationUrl}),start=sourceBody.indexOf(anchor),designation={kind:'V3_SOURCE_BOUND_CONTINUATION',start,end:start+anchor.length,sha256:digest(anchor),url:destinationUrl,label:'Membership plans'},delegated=reviewDelegatedCandidateAuthority(candidateObservation,{...objective,serviceId:'lumen',serviceName:'Lumen',candidateHosts:['billing.lumen.example']},{authorityObservation:sourceObservation,designation});
+    assert.equal(providerSeed('Lumen',sourceBody,{candidateUrl:sourceUrl}).host,'lumen.example');assert.equal(delegated?.host,'billing.lumen.example');assert.equal(reviewDelegatedCandidateAuthority(candidateObservation,{...objective,serviceId:'lumen',serviceName:'Lumen',candidateHosts:['billing.lumen.example']},{authorityObservation:sourceObservation}),null,'ordinary cross-domain link without explicit designation grants nothing');
+});
+
+test('first-party legal relationship fails closed for phishing same-brand reseller third-party and generic legal shapes',()=>{
+    const candidateUrl='https://lumen.example/terms',rows=[
+        ['phishing lookalike',`<html><head><link rel="canonical" href="${candidateUrl}"><title>Lumen</title></head><body><h1>Lumen</h1><img alt="Lumen logo"></body></html>`],
+        ['unrelated same-brand operator',legalRelationshipPage({candidateUrl,operator:'Lumen Plumbing LLC'})],
+        ['reseller',legalRelationshipPage({candidateUrl,operator:'Gear Shop LLC',relationship:'Welcome to Gear Shop. We sell Lumen subscriptions supplied by another provider.'})],
+        ['social',`<html><head><link rel="canonical" href="${candidateUrl}"><title>Lumen</title></head><body>Lumen profile on Social Network</body></html>`],
+        ['app store',`<html><head><link rel="canonical" href="${candidateUrl}"><title>Lumen</title></head><body>Download Lumen from App Store</body></html>`],
+        ['encyclopedia',`<html><head><link rel="canonical" href="${candidateUrl}"><title>Lumen</title></head><body>Lumen is an encyclopedia article.</body></html>`],
+        ['generic legal mention',`<html><head><link rel="canonical" href="${candidateUrl}"><title>Legal</title></head><body><h1>Terms</h1><p>Lumen is mentioned here.</p></body></html>`],
+        ['cross-host canonical',legalRelationshipPage({candidateUrl:'https://other.example/terms',contactHost:'lumen.example'})],
+    ];
+    for(const [label,body]of rows)assert.equal(providerSeed('Lumen',body,{candidateUrl}),null,label);
 });
 
 test('first-party document presentation fails closed across twenty generalized adversarial shapes',()=>{

@@ -202,6 +202,46 @@ function firstPartyDocumentPresentation(body,url,seed){
     return {status:'ACCEPTED',reason:'EXACT_HOST_FIRST_PARTY_DOCUMENT_PRESENTATION',providerIdentity:{presentationName:presentation,legalName:null},resolution:{mechanism:relation.mechanism,originalSeed:seed,sourceProviderPresentation:presentation,legalIdentity:null,authoritativeHost:host},locators:{documentPresentation:{title:title.locator,openGraphTitle:openGraphTitle.locator,siteIdentity:siteIdentity?.locator??null,descriptions:descriptions.map(row=>row.locator),selfReferences:normalizedSelf.map(row=>({kind:row.kind,normalizedUrl:row.normalized,source:row.locator}))}}};
 }
 
+const firstPartyLegalBounds=Object.freeze({bodyBytes:256*1024,sections:96,sectionBytes:16*1024});
+const legalEntitySuffix=/^(?:ag|as|asa|ab|bv|co|company|corp|corporation|gmbh|inc|incorporated|limited|llc|llp|ltd|nv|oy|plc|sarl|sas)$/u;
+function compatibleLegalEntity(seed,value){
+    const requested=researchIdentity(seed),legal=researchIdentity(value);if(!requested.length||legal.length<=requested.length||requested.some((token,index)=>token!==legal[index]))return false;
+    const suffix=legal.at(-1),qualifiers=legal.slice(requested.length,-1);return legalEntitySuffix.test(suffix)&&qualifiers.length<=1&&qualifiers.every(token=>/^[a-z]{2}$/u.test(token));
+}
+
+// An exact-host legal document can express the same first-party relationship
+// as the older footer/prose representation. The proof remains exact-host and
+// byte-located: self-canonical legal terms, an explicit first-person service
+// relationship, and a matching legal operator/contact on the same host.
+function firstPartyLegalSourceRelationship(body,url,seed){
+    if(Buffer.byteLength(body)>firstPartyLegalBounds.bodyBytes||structuredMarker(body))return null;
+    const parsed=structuredDocument(body);if(!parsed||crossHostCanonical(parsed,url))return null;
+    const normalizedUrl=normalizeUrl(url),host=new URL(url).hostname,canonicalRows=[];
+    for(const match of body.matchAll(/<link\b(?:[^>"']|"[^"]*"|'[^']*')*>/giu)){
+        const a=attrs(match[0]);if(!(a.rel??'').split(/\s+/u).some(value=>value.toLowerCase()==='canonical'))continue;
+        const normalized=normalizeUrl(a.href,url);if(!normalized)return null;canonicalRows.push({normalized,locator:span(body,match)});
+    }
+    if(canonicalRows.length!==1||canonicalRows[0].normalized!==normalizedUrl)return null;
+    const titleMatch=/<title\b[^>]*>([\s\S]*?)<\/title\s*>/iu.exec(body);if(!titleMatch||identity(metadataText(titleMatch[1]))!==identity(seed))return null;
+    const headingMatches=[...body.matchAll(/<h1\b[^>]*>[\s\S]*?<\/h1\s*>/giu)].filter(match=>{
+        const text=metadataText(match[0]);return new RegExp('^'+escape(metadataText(seed))+'\\s+terms?\\s*(?:&|and)\\s*conditions$|^'+escape(metadataText(seed))+'\\s+terms?\\s+of\\s+service$','iu').test(text);
+    });
+    if(headingMatches.length!==1)return null;
+    const sections=[];for(const match of body.matchAll(/<section\b[^>]*>[\s\S]*?<\/section\s*>/giu)){
+        if(sections.length>=firstPartyLegalBounds.sections)return null;if(Buffer.byteLength(match[0])>firstPartyLegalBounds.sectionBytes)continue;sections.push({match,text:metadataText(match[0])});
+    }
+    const seedPattern=seed.split(/\s+/u).map(escape).join('\\s+'),possessive=seedPattern+'(?:[\u2019\']s)?\\s+sole',relationship=sections.find(row=>new RegExp('\\bwelcome\\s+to\\s+'+seedPattern+'\\b','iu').test(row.text)&&/\bwe\s+provide\s+our\s+(?:customers|members|subscribers|users)\s+with\s+access\b/iu.test(row.text)&&new RegExp('\\bat\\s+'+possessive+'\\s+discretion\\b','iu').test(row.text));
+    if(!relationship)return null;
+    const agent=new RegExp(seedPattern+'(?:[\u2019\']s|\\s+)\\s*designated\\s+copyright\\s+agent','iu'),mail=new RegExp('(?:@|\\[\\s*at\\s*\\])\\s*'+escape(host.replace(/^www\./u,''))+'\\b','iu');let operator=null;
+    for(const row of sections){
+        if(!agent.test(row.text)||!mail.test(row.text))continue;
+        for(const match of row.text.matchAll(new RegExp('(?<![\\p{L}\\p{N}])'+seedPattern+'(?:\\s+[\\p{L}\\p{N}]{1,40}){0,2}\\s+(?:AG|AS|ASA|AB|BV|Co|Company|Corp|Corporation|GmbH|Inc|Incorporated|Limited|LLC|LLP|Ltd|NV|Oy|PLC|Sarl|SAS)(?![\\p{L}\\p{N}])','giu')))if(compatibleLegalEntity(seed,match[0])){operator={row,legalName:match[0]};break;}
+        if(operator)break;
+    }
+    if(!operator)return null;
+    return {host,url,reason:'FIRST_PARTY_PRESENTATION',providerIdentity:{presentationName:seed,legalName:operator.legalName},locators:{canonical:canonicalRows[0].locator,title:span(body,titleMatch),legalHeading:span(body,headingMatches[0]),relation:span(body,relationship.match),operator:span(body,operator.row.match)}};
+}
+
 function sourceEstablishedProviderForSeed(body,url,seed){
     const parsed=structuredDocument(body);if(!parsed?.scripts.length||crossHostCanonical(parsed,url))return null;
     const groups=groupsFor(parsed.scripts,{crossScript:true});if(!groups)return null;
@@ -356,6 +396,7 @@ function reviewAuthoritySubject(observation,{name,candidateHosts}) {
     }
     const host=new URL(url).hostname;
     if(relation)return {host,url,observation:o.id,bodySha256:o.sha256,reason:'FIRST_PARTY_PRESENTATION',providerIdentity:providerName?{presentationName:providerName,legalName:null}:null,locators:{publisher:span(body,publisher),relation:span(body,relation)}};
+    const legal=firstPartyLegalSourceRelationship(body,url,name);if(legal)return {...legal,observation:o.id,bodySha256:o.sha256};
     const structured=structuredExactOrigin(body,url,name)??structuredIdentityRelationship(body,url,name);if(!structured)return null;
     return {host,url,observation:o.id,bodySha256:o.sha256,reason:structured.reason,providerIdentity:structured.providerIdentity,locators:structured.locators};
 }
