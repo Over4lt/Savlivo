@@ -17,13 +17,25 @@ const candidate=(id,url,extra={})=>({candidateId:id,url,host:new URL(url).hostna
 test('exact target authority evidence wins over an irrelevant locale sibling for the reported gap',()=>{
  const exact=candidate('c1','https://eu.northstar.example/'),locale=candidate('c2','https://de-eu.northstar.example/',{score:20});
  const ordered=orderProviderSeedAuthorityCandidates(target,[locale,exact],{authorityGap:{authorityTargetHost:'eu.northstar.example',authorityDiagnostic:unresolved}});
- assert.equal(ordered[0].url,exact.url);assert.equal(ordered[0].routing.authorityGapOrder,0);assert.equal(ordered[1].routing.authorityGapOrder,3);
+ assert.equal(ordered[0].url,exact.url);assert.equal(ordered[0].routing.authorityGapOrder,3);assert.equal(ordered[1].routing.authorityGapOrder,4);
 });
 
 test('a sibling carrying explicit source-bound evidence for the exact target may win',()=>{
  const exact=candidate('c1','https://eu.northstar.example/catalog',{score:20}),sibling=candidate('c2','https://de-eu.northstar.example/about',{authorityEvidenceFor:'eu.northstar.example',sourceBoundCandidate:true,source:{observation:'observation-1'},score:1});
  const ordered=orderProviderSeedAuthorityCandidates(target,[exact,sibling],{authorityGap:{authorityTargetHost:'eu.northstar.example',authorityDiagnostic:unresolved}});
- assert.equal(ordered[0].url,sibling.url);assert.equal(ordered[0].routing.authorityResourceTier,0);
+ assert.equal(ordered[0].url,sibling.url);assert.equal(ordered[0].routing.authorityGapOrder,0);
+});
+
+test('source-observed legal capability resolves the authority gap before generic identity presentation',()=>{
+ const source={observation:'membership',start:10,end:40},about=candidate('c1','https://northstar.example/one',{label:'About',source,score:20}),legal=candidate('c2','https://northstar.example/two',{label:'Terms and privacy',source,score:1});
+ const ordered=orderProviderSeedAuthorityCandidates(target,[about,legal],{authorityGap:{authorityTargetHost:'northstar.example',authorityDiagnostic:unresolved}});
+ assert.equal(ordered[0].url,legal.url);assert.equal(ordered[0].routing.authorityEvidenceCapability.kind,'LEGAL_OR_OPERATOR_DOCUMENT');
+});
+
+test('explicit operator presentation beats a non-specific terms presentation in reverse case',()=>{
+ const source={observation:'root',start:10,end:40},about=candidate('c1','https://northstar.example/a',{label:'About — operated by Northstar GmbH',source,score:1}),terms=candidate('c2','https://northstar.example/b',{label:'Subscriber terms',source,score:20});
+ const ordered=orderProviderSeedAuthorityCandidates(target,[terms,about],{authorityGap:{authorityTargetHost:'northstar.example',authorityDiagnostic:unresolved}});
+ assert.equal(ordered[0].url,about.url);assert.equal(ordered[0].routing.authorityEvidenceCapability.kind,'EXPLICIT_RELATIONSHIP_PRESENTATION');
 });
 
 const page=(url,body)=>({url,requestedUrl:url,outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,rawSource:{text:body},bodyHash:digest(body),sourceIntegrity:{sha256:digest(body)},accessDecisions:[{decision:'ALLOWED'}]});

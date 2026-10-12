@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {providerOrBrandResearchTarget} from '../../research-v3/research-target.mjs';
-import {compareProviderSeedAuthorityRows,orderProviderSeedAuthorityCandidates,providerSeedCandidateRouting,providerSeedRedirectCandidate,refreshProviderSeedAuthorityFrontier} from './provider-seed-authority-routing.mjs';
+import {compareProviderSeedAuthorityRows,observedAuthorityEvidenceCapability,orderProviderSeedAuthorityCandidates,providerSeedCandidateRouting,providerSeedRedirectCandidate,refreshProviderSeedAuthorityFrontier} from './provider-seed-authority-routing.mjs';
 
 const target=providerOrBrandResearchTarget({seedName:'Northstar',targetMarket:'DE'});
 const candidate=(url,index,extra={})=>({candidateId:'candidate-'+index,url,host:new URL(url).hostname,originKind:'SEARCH',searchIndex:0,resultIndex:index,searchRank:index,insertionOrder:index,navigationDepth:0,truthAuthority:'NONE',...extra});
@@ -21,9 +21,9 @@ test('routing metadata grants no authority, preserves search provenance, and sta
  assert.deepEqual(ordered(JSON.parse(JSON.stringify([first,second]))).map(row=>row.candidateId),rows.map(row=>row.candidateId));
 });
 
-test('identity resources beat commercial-looking paths when hostname affinity is equal',()=>{
- const root=candidate('https://northstar.example/about',1),commercial=candidate('https://northstar.example/buy-subscription-pricing',0),rows=ordered([commercial,root]);
- assert.equal(rows[0].url,root.url);assert.equal(rows[0].routing.hostnameAffinity,rows[1].routing.hostnameAffinity);
+test('authority resource value comes from observed source presentation and not URL path',()=>{
+ const source={observation:'source',start:1,end:12},generic=candidate('https://northstar.example/legal',0,{originKind:'SOURCE_BOUND_CONTINUATION',label:'Explore',source}),operator=candidate('https://northstar.example/explore',1,{originKind:'SOURCE_BOUND_CONTINUATION',label:'Legal operator information',source}),rows=orderProviderSeedAuthorityCandidates(target,[generic,operator],{authorityGap:{authorityTargetHost:'northstar.example',authorityDiagnostic:{decision:'UNRESOLVED',mechanisms:[{mechanism:'FIRST_PARTY_PROSE',outcome:'NO_MATCH'}]}}});
+ assert.equal(rows[0].url,operator.url);assert.equal(rows[0].routing.authorityEvidenceCapability.kind,'EXPLICIT_RELATIONSHIP_PRESENTATION');assert.equal(observedAuthorityEvidenceCapability(generic).kind,'OTHER_PRESENTATION');
 });
 
 test('redirect destination is a bounded provenance-rich candidate and never an authority grant',()=>{

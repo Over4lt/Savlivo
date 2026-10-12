@@ -6,7 +6,6 @@ export const providerSeedAuthorityRoutingObjective='PROVIDER_SEED_AUTHORITY_ACQU
 
 const words=value=>String(value??'').normalize('NFKD').replace(/\p{M}/gu,'').normalize('NFC').toLowerCase().match(/[\p{L}\p{N}]{3,}/gu)??[];
 const safe=value=>{const normalized=normalizeUrl(value);if(!normalized)return null;try{return new URL(normalized);}catch{return null;}};
-const identityPath=/(?:^|[\/_-])(?:about(?:-us)?|company|corporate|contact(?:-us)?|imprint|impressum|legal|privacy|terms(?:-of-service)?|who-we-are)(?:[\/_-]|$)/iu;
 const weakPath=/(?:^|[\/_-])(?:auth|account|accounts|billing|checkout|login|pay|payment)(?:[\/_-]|$)/iu;
 const genericLabel=/^(?:app-?store|community|directory|encyclopedia|forum|magazin(?:e)?|marketplace|news|social|wiki)/iu;
 const positiveObjectiveRelevance=candidate=>Number.isFinite(candidate?.objectiveRelevance)&&candidate.objectiveRelevance>0?candidate.objectiveRelevance:0;
@@ -48,23 +47,34 @@ export function providerSeedHostnameAffinity(researchTarget,candidate){
  return score;
 }
 
-function authorityResourceTier(candidate){
- const url=safe(candidate?.url);if(!url)return 3;
- if(providerSeedDestinationClass(candidate)==='AUTH_OR_PAYMENT')return 2;
- return url.pathname==='/'||identityPath.test(url.pathname)?0:1;
-}
-
 const diagnosticNeedsAuthorityEvidence=diagnostic=>diagnostic?.decision==='UNRESOLVED'&&(diagnostic.mechanisms??[]).some(row=>['FIRST_PARTY_PROSE','FIRST_PARTY_DOCUMENT_PRESENTATION','STRUCTURED_DIRECT_IDENTITY','STRUCTURED_TYPED_RELATIONSHIP'].includes(row.mechanism)&&['NO_MATCH','INVALID'].includes(row.outcome));
+// Research-only capability projection from the source-observed navigation
+// presentation. It does not predict page contents or grant authority. Explicit
+// relationship language is more discriminating than a document-role label;
+// either is more useful for an identity gap than a generic navigation item.
+// URL paths are deliberately excluded so a page name cannot become authority.
+export function observedAuthorityEvidenceCapability(candidate){
+ const sourceBound=candidate?.originKind==='SOURCE_BOUND_CONTINUATION'&&candidate?.source?.observation&&Number.isSafeInteger(candidate.source.start)&&Number.isSafeInteger(candidate.source.end)&&candidate.source.end>candidate.source.start;
+ if(!sourceBound)return {tier:3,kind:'UNOBSERVED_DESTINATION',basis:'No source-bound authority capability observed'};
+ const text=String(candidate.label??'').normalize('NFKC').replace(/\s+/gu,' ').trim();
+ if(!text)return {tier:3,kind:'UNLABELED_NAVIGATION',basis:'Source-bound destination has no observed relationship label'};
+ if(/\b(?:operated|owned|provided|published|managed|offered)\s+by\b|\b(?:legal|company|corporate)\s+(?:identity|operator|owner|information|details)\b/iu.test(text))return {tier:0,kind:'EXPLICIT_RELATIONSHIP_PRESENTATION',basis:'Observed navigation presentation explicitly describes a provider/operator relationship'};
+ if(/\b(?:terms(?:\s+(?:and|&)\s+conditions)?|conditions\s+of\s+use|privacy(?:\s+policy)?|legal(?:\s+(?:notice|information))?|imprint|impressum)\b/iu.test(text))return {tier:1,kind:'LEGAL_OR_OPERATOR_DOCUMENT',basis:'Observed navigation presentation identifies a legal/operator evidence source'};
+ if(/\b(?:about(?:\s+us)?|company|corporate|contact(?:\s+us)?|who\s+we\s+are)\b/iu.test(text))return {tier:2,kind:'IDENTITY_PRESENTATION',basis:'Observed navigation presentation identifies a general provider identity source'};
+ return {tier:3,kind:'OTHER_PRESENTATION',basis:'Observed navigation presentation has no authority relationship capability'};
+}
 function authorityGapOrder(candidate,{authorityTargetHost=null,authorityDiagnostic=null}={}){
  const url=safe(candidate?.url);if(!url||!authorityTargetHost||!diagnosticNeedsAuthorityEvidence(authorityDiagnostic))return 0;
  const target=String(authorityTargetHost).toLowerCase(),explicit=String(candidate?.authorityEvidenceFor??'').toLowerCase()===target&&candidate?.sourceBoundCandidate===true&&candidate?.source?.observation;
- if(url.hostname.toLowerCase()===target||explicit)return url.hostname.toLowerCase()===target&&url.pathname==='/'&&!url.search?0:authorityResourceTier(candidate)+1;
- return providerSeedDestinationClass(candidate)==='GENERIC_THIRD_PARTY'?4:3;
+ if(explicit)return 0;
+ if(url.hostname.toLowerCase()===target)return observedAuthorityEvidenceCapability(candidate).tier;
+ return providerSeedDestinationClass(candidate)==='GENERIC_THIRD_PARTY'?5:4;
 }
+const fallbackSafetyTier=candidate=>({GENERAL:0,GENERIC_THIRD_PARTY:1,AUTH_OR_PAYMENT:2,PUBLIC_SECTOR_OR_LOCALITY:3,INVALID:4})[providerSeedDestinationClass(candidate)]??4;
 
 export function providerSeedCandidateRouting(researchTarget,candidate,candidates=[],index=0,authorityGap={}){
  const url=safe(candidate?.url),affinity=providerSeedHostnameAffinity(researchTarget,candidate),originKind=candidate?.originKind??'SEARCH',parent=candidates.find(row=>row.candidateId===candidate?.parentCandidateId),parentAffinity=parent?providerSeedHostnameAffinity(researchTarget,parent):0;
- const redirectStrong=originKind==='REDIRECT_DESTINATION'&&affinity>0&&affinity>=parentAffinity,semanticObjectiveRelevance=positiveObjectiveRelevance(candidate),legacyObjectiveScore=Number.isFinite(candidate?.score)?candidate.score:0;
+ const redirectStrong=originKind==='REDIRECT_DESTINATION'&&affinity>0&&affinity>=parentAffinity,semanticObjectiveRelevance=positiveObjectiveRelevance(candidate),legacyObjectiveScore=Number.isFinite(candidate?.score)?candidate.score:0,authorityCapability=observedAuthorityEvidenceCapability(candidate);
  return {
   objective:providerSeedAuthorityRoutingObjective,
   executable:url!==null&&candidate?.executable!==false,
@@ -72,7 +82,8 @@ export function providerSeedCandidateRouting(researchTarget,candidate,candidates
   hostnameAffinity:affinity,
   destinationClass:providerSeedDestinationClass(candidate),
   objectiveScore:Math.max(semanticObjectiveRelevance,legacyObjectiveScore),
-  authorityResourceTier:authorityResourceTier(candidate),
+  authorityEvidenceCapability:authorityCapability,
+  fallbackSafetyTier:fallbackSafetyTier(candidate),
   redirectStrength:originKind==='REDIRECT_DESTINATION'?(redirectStrong?'EQUAL_OR_STRONGER_PROVIDER_AFFINITY':'WEAKER_OR_GENERIC_REDIRECT'):'INDEPENDENT_DISCOVERY',
   originKind,
   searchIndex:Number.isSafeInteger(candidate?.searchIndex)?candidate.searchIndex:Number.MAX_SAFE_INTEGER,
@@ -82,7 +93,7 @@ export function providerSeedCandidateRouting(researchTarget,candidate,candidates
  };
 }
 
-export const compareProviderSeedAuthorityRows=(a,b)=>Number(b.executable)-Number(a.executable)||a.authorityGapOrder-b.authorityGapOrder||b.hostnameAffinity-a.hostnameAffinity||b.objectiveScore-a.objectiveScore||a.authorityResourceTier-b.authorityResourceTier||a.searchIndex-b.searchIndex||a.searchRank-b.searchRank||a.insertionOrder-b.insertionOrder||a.url.localeCompare(b.url);
+export const compareProviderSeedAuthorityRows=(a,b)=>Number(b.executable)-Number(a.executable)||a.authorityGapOrder-b.authorityGapOrder||b.hostnameAffinity-a.hostnameAffinity||b.objectiveScore-a.objectiveScore||a.fallbackSafetyTier-b.fallbackSafetyTier||a.searchIndex-b.searchIndex||a.searchRank-b.searchRank||a.insertionOrder-b.insertionOrder||a.url.localeCompare(b.url);
 
 export function orderProviderSeedAuthorityCandidates(researchTarget,candidates,{reviewedCandidateIds=[],authorityGap={}}={}){
  const reviewed=new Set(reviewedCandidateIds);return candidates.map((candidate,index)=>({...candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,candidates,index,authorityGap)})).filter(row=>!reviewed.has(row.candidateId)&&row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing));
