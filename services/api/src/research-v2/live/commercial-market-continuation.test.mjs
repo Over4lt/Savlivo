@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
 import {assessAdaptiveService,initializeAdaptiveState} from '../inventory/adaptive-campaign.mjs';
 import {destinationInformation} from './information-routing.mjs';
 import {executableAction} from './execution-capabilities.mjs';
 import {planResearch} from './research-planner.mjs';
 import {planHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
-import {conditionalCommercialRenderingRequired} from './rendering-diagnosis.mjs';
+import {conditionalCommercialRenderingRequired,activeRenderingNeed,reconcileRenderingNeed} from './rendering-diagnosis.mjs';
+import {runOpenWebResearch} from './open-web-discovery.mjs';
 
 const host='provider.example',membership=`https://${host}/memberships`,terms=`https://${host}/terms`,social='https://social.example/provider',related='https://de.provider-cdn.example/memberships',hash='a'.repeat(64);
 const authority={hostname:host,provider:'Provider',sourceType:'OFFICIAL_PROVIDER',sourceUrl:membership,checkedAt:'2026-10-13T00:00:00.000Z'};
@@ -72,4 +74,26 @@ test('J conditional commercial country bytes preserve the same objective resourc
 
 test('K commercial country insufficiency without a rendering diagnosis remains genuinely exhausted when no alternative exists',()=>{
  const value=target({capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},acquisitionOutcomes:[{url:membership,classification:'COMMERCIAL_FIELDS_INSUFFICIENT',renderingRequired:false,countryV3Evaluation:{status:'EVALUATED',receiptStatus:'HASH_VERIFIED',geoClass:'G1'}}],decisions:[{url:membership,acquisitionReserved:true,route:'DECODO'}]});const plan=planResearch(value);assert.equal(plan.route,'STOP');assert.notEqual(plan.reason,'RENDERING_REQUIRED');
+});
+
+test('stale rendering need is retired when latest V3 needs are satisfied',()=>{
+ const value=target({capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},v3Truth:{established:true,prices:{DE:{propositions:{}}},needs:[]},demonstratedRendering:true,acquisitionOutcomes:[{url:membership,renderingRequired:true,runDirectory:'/retained',sourceHash:hash,transport:'DECODO'}]});
+ const result=reconcileRenderingNeed(value,{required:true,url:membership,runDirectory:'/retained',transport:'DECODO',sourceHash:hash});assert.equal(result.actionable,false);assert.equal(activeRenderingNeed(value),null);assert.notEqual(planResearch(value).route,'PARK_RENDERING');
+});
+
+test('partial Truth keeps only the remaining offering proposition as rendering motivation',()=>{
+ const value=target({capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},v3Truth:{established:true,prices:{DE:{propositions:{}}},needs:[{id:'base:PRICE_AMOUNT',offerId:'base',proposition:'PRICE_AMOUNT',market:'DE',state:'UNRESOLVED'}]},demonstratedRendering:true,acquisitionOutcomes:[{url:membership,renderingRequired:true,runDirectory:'/retained',sourceHash:hash,transport:'DECODO'}]});
+ const result=reconcileRenderingNeed(value,{required:true,url:membership,runDirectory:'/retained',transport:'DECODO',sourceHash:hash}),plan=planResearch(value);assert.deepEqual(result.remainingNeeds,['base:PRICE_AMOUNT']);assert.equal(plan.route,'PARK_RENDERING');assert.deepEqual(plan.renderingNeed.motivatingNeeds.map(row=>row.id),['base:PRICE_AMOUNT']);
+});
+
+test('adaptive scheduler activates a still-material rendered capability',()=>{
+ const value=target({capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},demonstratedRendering:true,renderingNeed:{kind:'RENDERED_REPRESENTATION',url:membership,transport:'DECODO',market:'DE',sourceHash:hash,runDirectory:'/retained',motivatingNeeds:truth().needs}}),assessment=assessAdaptiveService(initializeAdaptiveState({targets:[value],conditionalFollowupTargets:[]}),'provider');
+ assert.equal(assessment.next.plan.route,'PARK_RENDERING');assert.equal(assessment.next.decision,'ACTIVATE');assert.equal(assessment.next.capability.executable,true);
+});
+
+test('PARK_RENDERING resumes the executor on the same resource and then reconciles',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'capability-reconciliation-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));let calls=0;
+ const value=target({capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},demonstratedRendering:true,renderingNeed:{kind:'RENDERED_REPRESENTATION',url:membership,transport:'DECODO',market:'DE',sourceHash:hash,runDirectory:'/retained',motivatingNeeds:truth().needs}});
+ const result=await runOpenWebResearch({directory,targets:[value],maxActions:1,search:async()=>assert.fail('search'),read:async()=>assert.fail('read'),render:async({need})=>{calls++;assert.equal(need.url,membership);assert.equal(need.transport,'DECODO');return {outcome:'OBSERVED',actionId:'rendered',url:membership,renderingRequired:false,v3Observation:observation(membership,'e'.repeat(64),'rendered'),v3Truth:{established:true,prices:{DE:{propositions:{}}},needs:[]},v3Catalog:{state:'CATALOG_UNRESOLVED'}};}}),current=result.targets[0];
+ assert.equal(calls,1);assert.equal(current.renderingOutcomes[0].outcome,'OBSERVED');assert.equal(current.demonstratedRendering,false);assert.equal(current.v3Truth.needs.length,0);
 });

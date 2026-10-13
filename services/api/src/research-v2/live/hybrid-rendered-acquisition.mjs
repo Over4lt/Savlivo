@@ -9,6 +9,8 @@ import {authorityBinding} from '../../research-v3/discovery-authority.mjs';
 import {canonical,digest,context,providerBound} from '../../research-v3/model.mjs';
 import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.mjs';
 import {retainRenderedObservation} from '../../research-v3/rendered-research.mjs';
+import {evaluate} from '../../research-v3/truth.mjs';
+import {refreshCatalog} from '../../research-v3/subscription-catalog.mjs';
 
 export const hybridRenderedLimits=Object.freeze({actions:1,browserActions:1,networkRequests:256,countryActions:1,retries:0,perAttemptNetworkRequests:256});
 export const hybridRenderedContract=Object.freeze({version:1,scheduler:'RESEARCH_V2',executor:'RESEARCH_V3_PLAYWRIGHT',truth:'EXISTING_RESEARCH_V3',authority:'PREEXISTING_EXACT_HOST'});
@@ -58,7 +60,8 @@ function persistArtifacts(directory,action,result,observation,retained) {
 }
 
 export function planHybridRenderedAcquisition(target,{url,transport='DIRECT',executionContext}={}) {
- const plan=planResearch(target,{renderingDemonstrated:true,unreadUrls:url?[url]:undefined,executionContext});
+ const planningTarget=target.renderingNeed?target:{...target,demonstratedRendering:true,renderingNeed:{kind:'RENDERED_REPRESENTATION',url,transport,market:target.market,sourceHash:target.v3Observation?.sha256??null,runDirectory:null,motivatingNeeds:structuredClone(target.v3Truth?.needs??[])}};
+ const plan=planResearch(planningTarget,{renderingDemonstrated:true,unreadUrls:url?[url]:undefined,executionContext});
  if(plan.route!=='PARK_RENDERING'||plan.reason!=='RENDERING_REQUIRED')return {scheduled:false,reason:plan.reason,plan};
  if(target.capabilities?.browser!==true)return {scheduled:false,reason:'BROWSER_DISABLED',plan};
  if(!url||!providerRoutingAuthority(target,url))return {scheduled:false,reason:'EXACT_HOST_AUTHORITY_REQUIRED',plan};
@@ -87,7 +90,8 @@ export async function runHybridRenderedAcquisition({directory,target,objective,p
    const retained=retainRenderedObservation(observation,result);observation.renderedArtifacts=[retained.artifact];observation.renderedOverviews=[retained.overview];observation.domSnapshot=retained.dom;observation.renderedControlRegions=[retained.controlRegions];
    const artifacts=persistArtifacts(directory,action,result,observation,retained),compact={contractVersion:hybridRenderedContract.version,actionId:action.id,outcome:'OBSERVED',url:observation.url,bodySha256:observation.sha256,acquisition,networkSession:{...result.networkSession,ledgerRef:artifacts.refs['request-ledger.json'],ledgerSha256:result.networkSession.ledgerSha256},artifacts,usage:{...journal.usage(),actualNetworkRequests:result.browserLedger.length},freshAt:result.page.acquiredAt};
    journal.append('NETWORK_SETTLED',{actionId:action.id,used:result.browserLedger.length,reserved:limits.perAttemptNetworkRequests});journal.append('ACTION_RESULT',{actionId:action.id,outcome:'OBSERVED',checkpoint:compact});
-   return {...compact,observation,schedule};
+   const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},v3Truth=evaluate(knowledge),v3Catalog=refreshCatalog(knowledge,v3Truth),v3Observation={id:observation.id,kind:observation.kind,url:observation.url,sha256:observation.sha256,context:observation.context,candidateCount:observation.candidates.length,nativeStructuredFacts:observation.nativeStructured?.facts?.length??0};
+   return {...compact,observation,v3Observation,v3Truth,v3Catalog,renderingRequired:false,schedule};
   }catch(error){last=safeCode(error);journal.append('ACTION_RESULT',{actionId:action.id,outcome:'ACQUISITION_FAILED',reason:last});if(attempt===limits.retries||String(error?.message??'').includes('_BOUND'))break;}
   finally{await browser.close?.();}
  }

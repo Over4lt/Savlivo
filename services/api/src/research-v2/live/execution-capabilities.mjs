@@ -2,6 +2,7 @@ import {countryAcquisitionDisposition,targetMarketAcquisition} from './provider-
 import {usableResearchMemory} from './research-memory.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
+import {activeRenderingNeed} from './rendering-diagnosis.mjs';
 // One executable action space for planning and dispatch. No transport or evidence grants.
 import {navigationKey,navigationRank} from './provider-navigation.mjs';
 export const executionBounds=Object.freeze({managementReserveOnly:0,perServiceReads:4,perServiceSearches:2,perServiceAcquisitions:2,reads:80,searches:40,acquisitions:30,bytes:2*1024*1024,bytesPerPage:2*1024*1024});
@@ -17,10 +18,15 @@ export function equivalentCountryAcquisitionAttempted(t,url){
  return !retryable&&(t.decisions??[]).some(row=>row.acquisitionReserved&&resourceKey(row.url)===key);
 }
 export function destinationReadAllowed(t,lead,bounds=executionBounds,{candidateAuthorityReview=false}={}){const reviewed=providerRoutingAuthority(t,lead.url),authorityEvidence=candidateAuthorityReview&&typeof lead.authorityEvidenceFor==='string',sourceBoundCandidate=candidateAuthorityReview&&lead.sourceBoundCandidate===true,objectiveLeadCandidate=candidateAuthorityReview&&lead.providerSeedObjectiveLead===true,boundedAuthorityCandidate=authorityEvidence||sourceBoundCandidate||objectiveLeadCandidate,count=directAcquisitionReads(t).filter(r=>new URL(r.requestedUrl).origin===new URL(lead.url).origin).length;return (!hasProviderRoutingAuthority(t)||reviewed||boundedAuthorityCandidate)&&count<(reviewed&&navigationRank(t,lead)<=15?bounds.perServiceReads:authorityEvidence?2:sourceBoundCandidate||objectiveLeadCandidate?1:2);}
-export function executableAction(t,action,{bounds=executionBounds,usage={reads:0,searches:0,acquisitions:0,bytes:0},available={direct:true,discovery:true,decodo:true}}={}){
- if(t.capabilities)available={direct:available.direct!==false&&t.capabilities.direct,discovery:available.discovery!==false&&t.capabilities.tavily,decodo:available.decodo!==false&&t.capabilities.decodo};
+export function executableAction(t,action,{bounds=executionBounds,usage={reads:0,searches:0,acquisitions:0,bytes:0},available={direct:true,discovery:true,decodo:true,browser:true}}={}){
+ if(t.capabilities)available={direct:available.direct!==false&&t.capabilities.direct,discovery:available.discovery!==false&&t.capabilities.tavily,decodo:available.decodo!==false&&t.capabilities.decodo,browser:available.browser!==false&&t.capabilities.browser};
  const no=reason=>({executable:false,reason}),yes=()=>({executable:true,reason:'CAPABILITY_AND_BUDGET_ALLOWED'}),route=action.route;
  if(route==='REUSE_RETAINED')return yes();
+ if(route==='PARK_RENDERING'){
+  const need=activeRenderingNeed(t);if(!need||need.url!==action.url)return no('RENDERING_NEED_RECONCILED');
+  if(available.browser!==true)return no('BROWSER_DISABLED');if(!providerRoutingAuthority(t,need.url))return no('AUTHORITY_UNRESOLVED');
+  if(usage.acquisitions>=bounds.acquisitions||(t.decisions??[]).filter(row=>row.acquisitionReserved).length>=bounds.perServiceAcquisitions)return no('DECODO_BUDGET_EXHAUSTED');return yes();
+ }
  if(route==='AUTHORITY_DISCOVERY'&&action.url)return executableAction(t,{route:'DIRECT',url:action.url,candidateAuthorityReview:true},{bounds,usage,available});
  if(route==='DIRECT'){
  if(bounds.managementReserveOnly===1){const lead=(t.leads??[]).find(l=>l.url===action.url),m=managementInformation(t,action.url,lead?.label??lead?.title??'');if(t.researchObjective!=='CATALOG_ONLY'||!m.strongManagement||m.missing.join('|')!=='WEB_MANAGEMENT')return no('MANAGEMENT_RESERVE_DESTINATION_REQUIRED');}

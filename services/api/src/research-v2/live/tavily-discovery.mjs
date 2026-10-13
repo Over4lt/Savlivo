@@ -4,9 +4,11 @@ import {interpretDirectProvider,directGeoGap} from './direct-provider-evidence.m
 import {createTavilySearch} from './tavily-search.mjs';
 import {createV2RobotsPublicAdapter} from './robots-policy.mjs';
 import {DiscoveryJournal,officialCandidate} from './online-discovery.mjs';
-import {discoveryInputs,createDiscoveryAcquirer} from './online-discovery-stage.mjs';
+import {discoveryInputs,createDiscoveryAcquirer,retainedParents} from './online-discovery-stage.mjs';
 import {canonical} from '../../research-v3/model.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
+import {runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
+import {activeRenderingNeed} from './rendering-diagnosis.mjs';
 export function admittedDiscoveryCandidate(candidate,target){
  const decision=candidate.authority;
  if(decision?.eligible!==true||!decision.authority?.validated||new URL(decision.url).hostname!==decision.authority.hostname)throw Error('DISCOVERY_AUTHORITY_URL_MISMATCH');
@@ -51,6 +53,14 @@ export async function createTavilyDiscovery({inventory,readKeychain,bounds,cover
     const start=journal.events.length,geo=await acquire({target,candidate:admitted,journal,maxBytes});
     if(journal.events.slice(start).some(e=>e.type==='BOUND_STOP'))return {...geo,classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO',direct};
     return {...geo,channel:independent?'INDEPENDENT_DECODO':'DIRECT_THEN_GEO',routingReason:independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent?{direct}:{})};
+   },
+   async render({target,directory,need=activeRenderingNeed(target)}){
+    if(!need||!need.runDirectory)throw Error('RENDERED_PARENT_REQUIRED');
+    const rows=retainedParents(need.runDirectory,target),raw=rows.find(row=>row.url===need.url&&(!need.sourceHash||row.bodyHash===need.sourceHash));if(!raw)throw Error('RENDERED_PARENT_REQUIRED');
+    const prior=[...(target.providerInterpretations??[]),{v3Observation:target.v3Observation}].reverse().map(row=>row?.v3Observation).find(row=>row?.url===need.url&&row.sha256===raw.bodyHash),parent={id:prior?.id??'render-parent-'+raw.bodyHash.slice(0,24),kind:'PROVIDER',url:raw.url,context:prior?.context??{transport:need.transport,networkGeography:need.transport==='DECODO'?target.market:'UNBOUND',representation:'PROVIDER_PAGE'},outcome:'OK',body:raw.body,sha256:raw.bodyHash};
+    const serviceName=target.providerSeedCandidateServiceContext?.serviceName??target.serviceName,objective={kind:'PRICE',serviceId:target.service,serviceName,providerHosts:[new URL(need.url).hostname],markets:[target.market],seeds:[target.providerSeedCandidateServiceContext?.objectiveResource?.url??need.url]},browser=dependencies.createRenderedBrowser?await dependencies.createRenderedBrowser({target,need}):dependencies.renderedBrowser;
+    if(typeof browser!=='function')throw Error('RENDERED_BROWSER_CONFIGURATION_REQUIRED');
+    return runHybridRenderedAcquisition({directory:directory+'/hybrid-rendered',target:{...target,serviceName},objective,parent,url:need.url,transport:need.transport,browser});
    }
   };
  }};
