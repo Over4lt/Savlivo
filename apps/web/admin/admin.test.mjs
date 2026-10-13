@@ -24,8 +24,14 @@ function harness(fetch, credentials, page={hostname:"localhost",protocol:"http:"
   vm.runInNewContext(source.replace('import("./v2-operations.js")','loadOperations()'),context);return nodes;
 }
 const response=(data,status=200)=>({ok:status===200,status,json:async()=>data});
+const priceCoverage={statusCounts:{SUGGESTED_ONLY:1,VERIFIED_ONLY:1,SUGGESTED_AND_VERIFIED_MATCH:1,SUGGESTED_AND_VERIFIED_CONFLICT:1,NO_PRICE:1},
+  providersWithSuggested:2,plansWithSuggested:3,providersWithVerified:2,plansWithVerified:3,suggestedCoveragePercent:60,verifiedCoveragePercent:60,
+  suggestedVerifiedOverlap:2,suggestedVerifiedConflicts:1,rows:[
+    {serviceSlug:"fixture",planName:"Suggested plan",countryCode:"DE",status:"SUGGESTED_ONLY",suggested:"EUR 15.99",verified:null},
+    {serviceSlug:"fixture",planName:"Conflict plan",countryCode:"DE",status:"SUGGESTED_AND_VERIFIED_CONFLICT",suggested:"EUR 21.99",verified:"EUR 19.99"}
+  ]};
 const overview={markets:[["NO","Norway","NOK"]],collectionEnabled:false,catalogServices:43,newUsers:123456,notes:["<script>bad()</script>"],
-  dataQuality:{selectableMarkets:30,registryRows:364,persistedPrices:[]},serviceDistribution:[],events:[{event:"PRIVATE_EVENT_SENTINEL",count:10,actors:10}],entitlements:[],subscriptions:[]};
+  dataQuality:{selectableMarkets:30,registryRows:364,persistedPrices:[],priceCoverage},serviceDistribution:[],events:[{event:"PRIVATE_EVENT_SENTINEL",count:10,actors:10}],entitlements:[],subscriptions:[]};
 const submit={preventDefault(){}};
 test("Analytics navigation is available after authentication without bypassing disabled reporting",async()=>{
   const requests=[];
@@ -75,6 +81,13 @@ test("admin client uses memory token, uses native passkey, renders data as text,
   assert.ok(texts(nodes.results).includes("<script>bad()</script>")); // Text, never parsed as HTML.
   assert.equal(texts(nodes.results).join(" ").includes("PRIVATE_EVENT_SENTINEL"),false);
   assert.equal(texts(nodes.results).join(" ").includes("123456"),false);
+});
+test("Admin renders Suggested, Verified, match, conflict and no-price coverage observationally",async()=>{
+  const nodes=harness(async url=>response(url.endsWith("authenticate/verify")?{token:"adm_test",expiresInSeconds:900}:{...overview,analyticsV2Enabled:false}));
+  await nodes.login.listeners.submit(submit);
+  const texts=element=>[element.textContent,...element.children.flatMap(texts)];
+  const all=texts(nodes.results).join(" ");
+  for(const value of ["Suggested coverage: 3 plans","Verified coverage: 3 plans","Suggested → Verified overlap: 2","Conflicts: 1","SUGGESTED ONLY","VERIFIED ONLY","SUGGESTED AND VERIFIED MATCH","SUGGESTED AND VERIFIED CONFLICT","NO PRICE","EUR 21.99","EUR 19.99"])assert.ok(all.includes(value),value);
 });
 test("logout clears sensitive view immediately and rejects late dashboard result",async()=>{
   let complete;let reads=0;

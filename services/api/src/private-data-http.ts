@@ -8,7 +8,11 @@ import { recordAnalytics, retentionDays, collectionPolicy } from "./analytics.js
 import { parseAnalyticsEvent } from "../../../packages/contracts/src/analytics.js";
 import { countryCurrencyData } from "../../../packages/contracts/src/markets.js";
 import { verifiedProviderRegistry } from "./pricing-adapters.js";
-import { serviceCatalog } from "../../../packages/contracts/src/catalog.js";
+import { serviceAvailableInMarket, serviceCatalog } from "../../../packages/contracts/src/catalog.js";
+import {summarizeProductPricing} from "../../../packages/contracts/src/product-pricing.js";
+import {mergeProductPlans, projectCatalogProductPlans} from "./product-pricing.js";
+import {suggestedRowsToProductPlans, type SuggestedRow} from "./suggested-pricing-store.js";
+import type {AdapterPrice} from "./pricing-adapters.js";
 
 import {hashSession, authenticatedAdmin, beginRegistration, finishRegistration, beginAuthentication, finishAuthentication, revokeAdminSessions} from "./admin-passkeys.js";
 export {hashSession, authenticatedAdmin} from "./admin-passkeys.js";
@@ -70,12 +74,52 @@ export function dashboardFilters(url: URL): {market: string | null} {
 }
 export async function dashboardData(market: string | null) {
   // This original endpoint remains provider-only. V2 aggregates use a separately gated route.
-  const storedPrices = await pool.query(`SELECT verification,count(*)::int AS prices FROM verified_provider_prices
-    WHERE ($1::text IS NULL OR country_code=$1) GROUP BY verification ORDER BY verification`, [market]);
+  const [storedPrices, suggestedRows, verifiedRows] = await Promise.all([
+    pool.query(`SELECT verification,count(*)::int AS prices FROM verified_provider_prices
+      WHERE ($1::text IS NULL OR country_code=$1) GROUP BY verification ORDER BY verification`, [market]),
+    pool.query(`SELECT suggested_id,origin_suggested_id,plan_identity,service_slug,plan_name,
+      billing_provider_slug,country_code,currency,monthly_price_minor,payment_cadence,provenance,
+      source_url,researched_at,warnings,active FROM suggested_provider_prices
+      WHERE ($1::text IS NULL OR country_code=$1)
+      ORDER BY service_slug,plan_identity,active DESC,researched_at DESC`, [market]),
+    pool.query(`SELECT plan_identity,service_slug,plan_slug,plan_name,billing_provider_slug,
+      country_code,currency,monthly_price_minor,source,source_url,verification,source_count,
+      verified_by_agreement,last_checked_at FROM verified_provider_prices
+      WHERE ($1::text IS NULL OR country_code=$1)
+      ORDER BY service_slug,plan_identity`, [market])
+  ]);
+  const verified = verifiedRows.rows.map((row): AdapterPrice => ({
+    planIdentity: row.plan_identity,
+    serviceSlug: row.service_slug,
+    planSlug: row.plan_slug,
+    planName: row.plan_name,
+    billingProviderSlug: row.billing_provider_slug,
+    countryCode: row.country_code,
+    currency: row.currency,
+    monthlyPriceMinor: row.monthly_price_minor,
+    updatedAt: new Date(row.last_checked_at).toISOString(),
+    source: row.source,
+    sourceUrl: row.source_url,
+    confidence: "official-provider-adapter",
+    priceType: "exact",
+    verification: row.verification,
+    sourceCount: row.source_count,
+    verifiedByAgreement: row.verified_by_agreement
+  }));
+  const productPlans = mergeProductPlans(
+    suggestedRowsToProductPlans(suggestedRows.rows as SuggestedRow[]),
+    projectCatalogProductPlans(verified)
+  );
+  const priceCoverage = summarizeProductPricing(
+    productPlans,
+    serviceCatalog
+      .filter(service => !market || serviceAvailableInMarket(service.slug, market))
+      .map(service => service.slug)
+  );
   return {markets: countryCurrencyData, catalogServices: serviceCatalog.length,
     dataQuality: {selectableMarkets: countryCurrencyData.length, catalogServices: serviceCatalog.length,
       registryRows: Object.entries(verifiedProviderRegistry).filter(([country]) => !market || country === market)
-        .reduce((sum,[,rows]) => sum + rows.length,0), persistedPrices: storedPrices.rows},
+        .reduce((sum,[,rows]) => sum + rows.length,0), persistedPrices: storedPrices.rows, priceCoverage},
     analyticsV2Enabled: reportingEnabled(), market, collectionEnabled: collectionPolicy() !== null, rawRetentionDays: collectionPolicy(),
     disclosureModel: "non-personal-provider-coverage-only",
     notes: ["Only catalog and provider-price coverage is reported. These are not user spending or Savlivo revenue.",

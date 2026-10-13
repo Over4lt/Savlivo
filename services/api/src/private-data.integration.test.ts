@@ -47,14 +47,15 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
     const historyMigration=sql("db/migrations/014_verified_price_observations.sql");
     await pool.query(historyMigration);await pool.query(historyMigration);
     await pool.query(sql("db/migrations/015_admin_passkeys.sql"));await pool.query(sql("db/migrations/015_admin_passkeys.sql"));
+    await pool.query(sql("db/migrations/019_suggested_provider_prices.sql"));await pool.query(sql("db/migrations/019_suggested_provider_prices.sql"));
     for (const [route,currency,verification,count,agreement] of [
       ["direct","NOK","authoritative-provider",1,false],
       ["apple","NOK","multi-source",1,false],
       ["google-play","USD","authoritative-provider",1,false],
       ["carrier","NOK","registry",1,false]
-    ]) await pool.query(`INSERT INTO verified_provider_prices(service_slug,plan_slug,plan_name,billing_provider_slug,
+    ]) await pool.query(`INSERT INTO verified_provider_prices(plan_identity,service_slug,plan_slug,plan_name,billing_provider_slug,
       country_code,currency,monthly_price_minor,source,source_url,verification,source_count,verified_by_agreement)
-      VALUES('spotify','individual','Individual',$1,'NO',$2,12900,'provider','https://www.spotify.com/no/premium/',$3,$4,$5)`,[route,currency,verification,count,agreement]);
+      VALUES('fixture:spotify:no:individual:'||$1,'spotify','individual','Individual',$1,'NO',$2,12900,'provider','https://www.spotify.com/no/premium/',$3,$4,$5)`,[route,currency,verification,count,agreement]);
     const pricesBefore=(await pool.query("SELECT * FROM verified_provider_prices ORDER BY billing_provider_slug")).rows;
     await observeVerifiedPrices();await observeVerifiedPrices();
     assert.equal((await pool.query("SELECT count(*)::int n FROM verified_price_observations")).rows[0].n,1);
@@ -68,6 +69,11 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
     await assert.rejects(observeVerifiedPrices());
     assert.equal((await pool.query("SELECT monthly_price_minor n FROM verified_provider_prices WHERE billing_provider_slug='direct'")).rows[0].n,12900);
     await pool.query("ALTER TABLE unavailable_price_history RENAME TO verified_price_observations");
+    await pool.query(`INSERT INTO suggested_provider_prices(suggested_id,plan_identity,service_slug,plan_name,
+      billing_provider_slug,country_code,currency,monthly_price_minor,payment_cadence,provenance,source_url,
+      researched_at,warnings,active) VALUES
+      ('suggested:spotify','fixture:spotify:no:individual:direct','spotify','Individual','direct','NO','NOK',13900,'MONTHLY_RECURRING','V3_SOURCE_RESEARCH','https://www.spotify.com/no/premium/',now(),'[]',true),
+      ('suggested:fixture','fixture:no:suggested','fixture-service','Suggested plan','direct','NO','NOK',1599,'MONTHLY_RECURRING','GOOGLE_AI_V4',NULL,now(),'["SOURCE_WARNING"]',true)`);
 
     await pool.query("INSERT INTO analytics_actors(user_id) SELECT id FROM users");
     await pool.query(`INSERT INTO analytics_events(actor_id,event,market,platform,expires_at)
@@ -79,6 +85,9 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
     assert.equal("events" in data,false);assert.equal("subscriptions" in data,false);
     assert.equal(JSON.stringify(data).includes("Private manual name"),false);
     assert.equal(JSON.stringify(data).includes("@example.invalid"),false);
+    assert.equal(data.dataQuality.priceCoverage.statusCounts.SUGGESTED_ONLY,2);
+    assert.equal(data.dataQuality.priceCoverage.statusCounts.SUGGESTED_AND_VERIFIED_CONFLICT,1);
+    assert.equal(data.dataQuality.priceCoverage.suggestedVerifiedConflicts,1);
     await pool.query("INSERT INTO admin_roles(user_id,role) VALUES($1,'analytics_reader')",[user]);
     process.env.ADMIN_RP_ID="savlivo.com";process.env.NODE_ENV="test";process.env.ADMIN_ENABLED="true";process.env.ANALYTICS_MAINTENANCE_ENABLED="true";process.env.ADMIN_ALLOWED_ORIGIN="https://savlivo.com";process.env.ADMIN_AUDIT_RETENTION_DAYS="180";
     await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));

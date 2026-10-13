@@ -63,3 +63,4 @@ export interface ActionRecord extends ActionPreview {
 }
 
 export * from "./billing";
+export * from "./product-pricing";

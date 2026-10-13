@@ -42,6 +42,8 @@ import { getProviderRoute } from "./provider-routing.js";
 import {
   getRegionalPricing
 } from "./pricing.js";
+import {withProductPricing} from "./product-pricing.js";
+import {loadSuggestedProductPlans} from "./suggested-pricing-store.js";
 import {
   dispatchDueNotifications,
   registerPushToken,
@@ -235,7 +237,10 @@ const server = http.createServer(async (req, res) => {
       const country = String(url.searchParams.get("country") ?? "US").toUpperCase();
       const refresh = url.searchParams.get("refresh") === "1";
       const pricing = await getRegionalPricing(country, { forceRefresh: refresh });
-      return send(res, 200, pricing);
+      const suggested = pricing.currency
+        ? await loadSuggestedProductPlans(country, pricing.currency)
+        : [];
+      return send(res, 200, withProductPricing(pricing, suggested));
     }
 
     let auth;

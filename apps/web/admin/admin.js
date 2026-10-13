@@ -118,6 +118,13 @@ async function refresh() {
     for(const note of data.notes)paragraph(panel,note);
     paragraph(panel,`Data quality: ${data.dataQuality.selectableMarkets} selectable markets; ${data.dataQuality.registryRows} registry fallbacks in scope.`);
     table("Persisted provider-price records (not user spending)",[["verification","Verification"],["prices","Prices"]],data.dataQuality.persistedPrices);
+    const priceCoverage=data.dataQuality.priceCoverage;
+    if(priceCoverage) {
+      paragraph(panel,`Suggested coverage: ${priceCoverage.plansWithSuggested} plans across ${priceCoverage.providersWithSuggested} providers (${priceCoverage.suggestedCoveragePercent}%). Verified coverage: ${priceCoverage.plansWithVerified} plans across ${priceCoverage.providersWithVerified} providers (${priceCoverage.verifiedCoveragePercent}%).`);
+      paragraph(panel,`Suggested → Verified overlap: ${priceCoverage.suggestedVerifiedOverlap}. Conflicts: ${priceCoverage.suggestedVerifiedConflicts}. Analytics is observational and does not resolve or mutate prices.`);
+      table("Price model coverage",[["status","State"],["count","Plans / unpriced providers"]],Object.entries(priceCoverage.statusCounts).map(([status,count])=>({status:status.replaceAll("_"," "),count})));
+      table("Provider plan price state",[["serviceSlug","Provider"],["planName","Plan"],["countryCode","Market"],["status","State"],["suggested","Suggested"],["verified","Verified"]],priceCoverage.rows);
+    }
     const analyticsHeading=document.createElement("h2");analyticsHeading.id="analytics";analyticsHeading.textContent="Analytics";panel.append(analyticsHeading);
     if(data.analyticsV2Enabled) {
       const analytics=await request(`analytics?range=${encodeURIComponent(analyticsRange)}`);

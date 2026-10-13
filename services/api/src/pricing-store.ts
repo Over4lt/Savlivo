@@ -1,5 +1,6 @@
 import { pool } from "./db.js";
 import type { AdapterPrice } from "./pricing-adapters.js";
+import { catalogPlanIdentity } from "../../../packages/contracts/src/product-pricing.js";
 
 export async function persistVerifiedLivePrices(
   items: AdapterPrice[]
@@ -26,6 +27,7 @@ export async function persistVerifiedLivePrices(
     await pool.query(
       `
         INSERT INTO verified_provider_prices (
+          plan_identity,
           service_slug,
           plan_slug,
           plan_name,
@@ -43,7 +45,7 @@ export async function persistVerifiedLivePrices(
         )
         VALUES (
           $1, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12,
+          $8, $9, $10, $11, $12, $13,
           now(), now()
         )
         ON CONFLICT (
@@ -54,6 +56,11 @@ export async function persistVerifiedLivePrices(
           currency
         )
         DO UPDATE SET
+          plan_identity = CASE
+            WHEN verified_provider_prices.plan_identity LIKE 'catalog:%'
+            THEN EXCLUDED.plan_identity
+            ELSE verified_provider_prices.plan_identity
+          END,
           plan_name = EXCLUDED.plan_name,
           monthly_price_minor =
             EXCLUDED.monthly_price_minor,
@@ -73,6 +80,7 @@ export async function persistVerifiedLivePrices(
           last_checked_at = now()
       `,
       [
+        item.planIdentity ?? catalogPlanIdentity(item),
         item.serviceSlug,
         item.planSlug,
         item.planName,
@@ -104,6 +112,7 @@ export async function loadPersistedVerifiedPrices(
   const result = await pool.query(
     `
       SELECT
+        plan_identity,
         service_slug,
         plan_slug,
         plan_name,
@@ -133,6 +142,7 @@ export async function loadPersistedVerifiedPrices(
   );
 
   return result.rows.map((row: any) => ({
+    planIdentity: row.plan_identity,
     serviceSlug: row.service_slug,
     planSlug: row.plan_slug,
     planName: row.plan_name,

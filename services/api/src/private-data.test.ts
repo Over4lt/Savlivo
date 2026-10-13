@@ -159,10 +159,10 @@ test("dashboard never queries user-derived tables or exposes suppressed measures
   const {privateDataPool}=await import("./private-data-db.js");
   const {dashboardData}=await import("./private-data-http.js");
   const queries:string[]=[];
-  t.mock.method(privateDataPool,"query",async(query:string)=>{queries.push(query);return {rows:[{verification:"authoritative-provider",prices:1}]};});
+  t.mock.method(privateDataPool,"query",async(query:string)=>{queries.push(query);return {rows:query.includes("GROUP BY verification")?[{verification:"authoritative-provider",prices:1}]:[]};});
   const first=await dashboardData("NO");
   assert.deepEqual(await dashboardData("NO"),first);
-  assert.ok(queries.every(query=>query.includes("FROM verified_provider_prices")));
+  assert.ok(queries.every(query=>/FROM (verified|suggested)_provider_prices/.test(query)));
   assert.ok(queries.every(query=>!/(analytics_events|analytics_actors|subscriptions|entitlements|FROM users)/.test(query)));
   for(const key of ["events","subscriptions","entitlements","newUsers","serviceDistribution","days","minimumCohort"])assert.equal(key in first,false);
 });
