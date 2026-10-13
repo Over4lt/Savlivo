@@ -40,9 +40,13 @@ export function evaluateProviderSourceTruth({target,retained,acquisition,observa
  const accessDecisions=retained.accessDecisions.map(row=>Object.fromEntries(Object.entries(row).filter(([key,value])=>allowedAccessFields.has(key)&&value!==undefined)));
  const serviceUnderstanding=providerSeedServiceUnderstanding({target,retained,observationId,contentType,accessDecisions}),serviceName=serviceUnderstanding?.service?.serviceName??target.providerSeedCandidateServiceContext?.serviceName??target.serviceName,objective={kind:'PRICE',serviceId:target.service,serviceName,providerHosts:[host],markets:[target.market],seeds:[target.providerSeedCandidateServiceContext?.objectiveResource?.url??url]};
  const observation=adaptV2CurrentSource({contractVersion:1,observationId,target:{service:target.service,serviceName,market:target.market},page:{url,requestedUrl:retained.requestedUrl??url,outcome:'OK',httpStatus:retained.httpStatus,contentType,bodyHash:retained.bodyHash,sourceIntegrity:{sha256:retained.sourceIntegrity.sha256},rawSource:{text:retained.rawSource.text},accessDecisions},providerAuthority:{status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,url)},acquisition},objective);
- const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},truth=evaluate(knowledge),catalog=refreshCatalog(knowledge,truth),navigation=observation.format==='WEB'?extractNavigation(observation,objective,truth.needs.map(row=>row.proposition)):{candidates:[],limited:false};
- const v3Continuations=navigation.candidates.map(row=>({id:row.id,url:row.url,kind:row.kind,label:row.label,locale:row.locale,context:row.context,score:row.score,needs:row.needs,authority:row.authority,source:structuredClone(row.source),state:row.state??null,signals:structuredClone(row.signals),truthAuthority:'NONE'}));
+ const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},truth=evaluate(knowledge),catalog=refreshCatalog(knowledge,truth),{navigation,v3Continuations}=sourceBoundContinuations(observation,objective,truth);
  return {v3Observation:{...compactObservation(observation),continuationCount:v3Continuations.length,continuationLimited:navigation.limited},v3ServiceUnderstanding:serviceUnderstanding,v3Truth:truth,v3Catalog:structuredClone(catalog),v3Continuations};
+}
+
+export function sourceBoundContinuations(observation,objective,truth){
+ const navigation=observation?.format==='WEB'?extractNavigation(observation,objective,(truth?.needs??[]).map(row=>row.proposition)):{candidates:[],limited:false};
+ return {navigation,v3Continuations:navigation.candidates.map(row=>({id:row.id,url:row.url,kind:row.kind,label:row.label,locale:row.locale,context:row.context,score:row.score,needs:row.needs,authority:row.authority,source:structuredClone(row.source),state:row.state??null,signals:structuredClone(row.signals),truthAuthority:'NONE'}))};
 }
 
 function canonicalCountrySource({target,sourceCheck,attempt}){

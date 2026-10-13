@@ -14,7 +14,7 @@ import {authorityAcquisitionObjective,authorityEvidenceLeads,authorityEvidenceQu
 import {normalizeFrontierUrl,semanticReasons} from './source-frontier.mjs';
 const norm=u=>normalizeFrontierUrl(u).url;
 const commercialGap=t=>pendingMarketProof(t).length>0||!!unresolvedV3TargetNeed(t)||['PRICE_EVIDENCE','MARKET_PROOF'].includes(providerStageRoutingObjective(t));
-function gapCapableLead(t,lead){
+export function gapCapableLead(t,lead){
  if(!commercialGap(t))return true;
  const retained=(t.providerSeedCandidateServiceContext?.objectiveLeads??[]).find(row=>norm(row.url)===norm(lead?.url)),semantic=lead?.url?semanticReasons(norm(lead.url),lead.label??lead.title??'',lead.from?.mechanism??''):null,marketText=(lead?.url??'')+' '+(lead?.label??lead?.title??''),marketState=['COUNTRY','LOCALE','STATE','MARKET'].includes(String(lead?.continuationContext??'').toUpperCase())||semantic?.reasons.includes('PROVIDER_LOCALE_OR_CANONICAL')||/country|region|market|availability|locale|language/iu.test(marketText);
  return retained?.objectiveCapability==='COMMERCIAL_OBJECTIVE'||Number(retained?.objectiveProgressValue)>0||lead?.objectiveCapability==='COMMERCIAL_OBJECTIVE'||Number(lead?.objectiveProgressValue)>0||semantic?.reasons.includes('SUBSCRIPTION_PRODUCT_PRICING')||marketState;
@@ -57,8 +57,8 @@ function candidateAuthorityFrontier(t,urls,executionContext,knowledge){
 }
 function sourceBoundCandidateFrontier(t,executionContext,knowledge){
  const attempted=new Set([...(t.reads??[]).flatMap(r=>[r.requestedUrl,r.url]),...(knowledge?.attempts??[]).flatMap(a=>[a.url,a.finalUrl])].map(norm).filter(Boolean)),blocked=new Set(knowledge?.blockedOrigins??t.blockedOrigins??[]);
- const reads=t.reads??[],rows=(t.leads??[]).map((lead,index)=>{
-  const url=norm(lead.url),source=lead.source,parent=reads.find(read=>norm(read.url??read.requestedUrl)===norm(lead.from?.url)&&read.bodyHash===source?.bodySha256&&read.sourceIntegrity?.sha256===source?.bodySha256);
+ const parents=[...(t.reads??[]).map(read=>({id:null,url:read.url??read.requestedUrl,sha256:read.bodyHash,integrity:read.sourceIntegrity?.sha256})),...(t.sourceBoundContinuationParents??[]).filter(row=>row.accepted===true).map(observation=>({id:observation.id,url:observation.url,sha256:observation.sha256,integrity:observation.sha256}))],rows=(t.leads??[]).map((lead,index)=>{
+  const url=norm(lead.url),source=lead.source,parent=parents.find(row=>norm(row.url)===norm(lead.from?.url)&&row.sha256===source?.bodySha256&&row.integrity===source?.bodySha256&&(!row.id||row.id===source?.observation));
   if(lead.sourceBoundCandidate!==true||lead.truthAuthority!=='NONE'||lead.authoritative!==false||!url||providerRoutingAuthority(t,url)||attempted.has(url)||blocked.has(new URL(url).origin)||!parent||lead.from?.mechanism!=='V3_SOURCE_BOUND_CONTINUATION'||lead.from?.bodyHash!==source?.bodySha256||lead.from?.locator?.sha256!==source?.sha256||source?.observation!==lead.from?.locator?.observation||!Number.isSafeInteger(source?.start)||!Number.isSafeInteger(source?.end)||source.start<0||source.start>=source.end||!gapCapableLead(t,lead))return null;
   const capability=executableAction(t,{route:'AUTHORITY_DISCOVERY',url},executionContext);
   return {url,index,lead,continuationId:lead.continuationId,continuationScore:Number.isFinite(lead.continuationScore)?lead.continuationScore:0,capability,authorityRole:'SOURCE_BOUND_PROVIDER_CANDIDATE',truthAuthority:'NONE'};

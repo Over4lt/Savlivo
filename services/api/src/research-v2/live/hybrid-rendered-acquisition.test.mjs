@@ -95,3 +95,8 @@ test('later refresh has a fresh action session and country receipt while the old
 test('retry budget exhaustion terminates explicitly without unbounded execution',async t=>{
  let calls=0;const browser=async()=>{calls++;throw Error('BROWSER_DOWN');},limits={actions:1,browserActions:1,networkRequests:4,countryActions:1,retries:1,perAttemptNetworkRequests:4},result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DIRECT',browser,limits});assert.equal(calls,1);assert.equal(result.outcome,'ACQUISITION_FAILED');assert.equal(result.reason,'HYBRID_BROWSER_ACTIONS_BOUND');assert.equal(result.bounded,true);
 });
+
+test('C rendered provider observation emits source-bound commercial continuations for the common frontier projection',async t=>{
+ const destination=`https://${host}/memberships`,body=`<html><head><title>${serviceName}</title></head><body><a href="${destination}">Membership pricing</a></body></html>`,fixture=capability({body}),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DIRECT',browser:fixture.browser});
+ assert.equal(result.outcome,'OBSERVED');const continuation=result.v3Continuations.find(row=>row.url===destination);assert(continuation);assert.equal(continuation.truthAuthority,'NONE');assert.equal(continuation.source.observation,result.v3Observation.id);assert.equal(continuation.source.bodySha256,result.v3Observation.sha256);
+});
