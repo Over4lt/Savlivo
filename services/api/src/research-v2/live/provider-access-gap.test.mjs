@@ -4,6 +4,7 @@ import {targetMarketAcquisition,unresolvedV3TargetNeed} from './provider-access-
 import {executableAction,executionBounds} from './execution-capabilities.mjs';
 import {planResearch} from './research-planner.mjs';
 import {acceptV3TruthNeeds,pendingV3MarketProof} from './market-proof-continuation.mjs';
+import {digest} from '../../research-v3/model.mjs';
 
 const url='https://provider.example/resource',hash='a'.repeat(64),authority={hostname:'provider.example',provider:'Fixture',sourceType:'OFFICIAL_PROVIDER',sourceUrl:url,checkedAt:'2026-10-11T00:00:00.000Z'};
 const observation={id:'direct-provider',kind:'PROVIDER',url,sha256:hash,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'PROVIDER_PAGE'}};
@@ -54,3 +55,31 @@ test('later article remains separate from the pricing resource objective',()=>{c
 test('separate Services cannot acquire each other source resources',()=>{const aUrl='https://provider.example/service-a',bUrl='https://provider.example/service-b',aHash='e'.repeat(64),bHash='f'.repeat(64),make=(service,ownUrl,ownHash,otherUrl)=>target({id:`${service}-DE`,service,serviceName:service,urls:[ownUrl,otherUrl],authorities:[{...authority,provider:service,sourceUrl:ownUrl}],reads:[page(ownUrl,ownHash),page(otherUrl,service==='service-a'?bHash:aHash)],providerInterpretations:[direct(ownUrl,ownHash,`${service}-direct`,genericTruth(service))],v3Observation:direct(ownUrl,ownHash,`${service}-direct`,genericTruth(service)).v3Observation,v3Truth:genericTruth(service)}),a=make('service-a',aUrl,aHash,bUrl),b=make('service-b',bUrl,bHash,aUrl);assert(targetMarketAcquisition(a,aUrl));assert.equal(targetMarketAcquisition(a,bUrl),null);assert(targetMarketAcquisition(b,bUrl));assert.equal(targetMarketAcquisition(b,aUrl),null);});
 
 test('multiple generic unresolved resources retain ownership and advance without repetition',()=>{const first='https://provider.example/first',second='https://provider.example/second',firstHash='1'.repeat(64),secondHash='2'.repeat(64),firstRow=direct(first,firstHash,'first-direct',genericTruth('first')),secondRow=direct(second,secondHash,'second-direct',genericTruth('second')),value=target({urls:[first,second],reads:[page(first,firstHash),page(second,secondHash)],providerInterpretations:[firstRow,secondRow],v3Observation:secondRow.v3Observation,v3Truth:secondRow.v3Truth});assert.equal(unresolvedV3TargetNeed(value,first).hash,firstHash);assert.equal(unresolvedV3TargetNeed(value,second).hash,secondHash);assert.equal(planResearch(value).url,first);value.acquisitionOutcomes=[{url:first,classification:'MARKET_UNRESOLVED'}];assert.equal(executableAction(value,{route:'DECODO',url:first}).reason,'EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');assert.equal(planResearch(value).url,second);});
+
+function projectedMarketTarget(){
+ const identity={service:'fixture',market:'DE',plan:'Personal',amount:'12',currency:'EUR',interval:'P1M',scope:{},sourceHash:hash,sourceUrl:url,path:'$/main/section[0]'},objective={key:digest(JSON.stringify(identity)),identity,status:'MARKET_NOT_VERIFIED',missingFact:'MARKET_PROOF',established:['AUTHORITY','IDENTITY','COMMERCIAL_MEANING','VALUE_AND_CADENCE','PROVENANCE']},occurrenceAuthority={...authority,status:'CONFIGURED_REVIEWED',sourceUrl:url};
+ return target({leads:[{url,title:'Personal subscription',rank:0}],providerSeedCandidateServiceContext:{objectiveResource:{url}},providerInterpretations:[direct(url,hash,'projected-owner',genericTruth('projected'))],marketProof:{version:1,meaning:'PLANNING_ONLY_REOPEN_SOURCES_FOR_VERIFICATION',objectives:[objective],sources:[{sha256:hash,occurrences:[{id:'occurrence',service:'fixture',market:'DE',taskId:'fixture-price-DE',url,authority:occurrenceAuthority}]}],leads:[]}});
+}
+
+test('projected Phase 1 market objective keeps its exact Direct owner and schedules country acquisition',()=>{
+ const value=projectedMarketTarget(),objective=pendingV3MarketProof(value,url);assert(objective);assert.equal(objective.identity.plan,'Personal');assert.equal(objective.identity.amount,'12');assert.equal(objective.identity.currency,'EUR');
+ assert.deepEqual(targetMarketAcquisition(value,url)?.marketProofIdentityKeys,[objective.key]);const plan=planResearch(value);assert.equal(plan.route,'DECODO');assert.equal(plan.url,url);assert.equal(plan.reason,'TARGET_MARKET_OBSERVATION_REQUIRED');
+});
+
+test('projected market owner fails closed when any exact source ownership join is changed',()=>{
+ const cases=[
+  ['source hash',value=>{value.marketProof.sources[0].sha256='b'.repeat(64);}],
+  ['occurrence URL',value=>{value.marketProof.sources[0].occurrences[0].url='https://provider.example/other';}],
+  ['service',value=>{value.marketProof.sources[0].occurrences[0].service='other';}],
+  ['market',value=>{value.marketProof.sources[0].occurrences[0].market='NO';}],
+  ['task',value=>{value.marketProof.sources[0].occurrences[0].taskId='other';}],
+  ['authority host',value=>{value.marketProof.sources[0].occurrences[0].authority.hostname='other.example';}],
+  ['Direct owner',value=>{value.providerInterpretations[0].v3Observation.sha256='c'.repeat(64);value.v3Observation.sha256='c'.repeat(64);}],
+  ['read final URL',value=>{value.reads[0].url='https://provider.example/other';}],
+ ];
+ for(const [label,mutate] of cases){const value=projectedMarketTarget();mutate(value);assert.equal(pendingV3MarketProof(value,url),null,label);assert.equal(targetMarketAcquisition(value,url),null,label);}
+});
+
+test('a completed Direct read of the owned market resource does not displace its distinct country action',()=>{
+ const value=projectedMarketTarget(),plan=planResearch(value);assert.equal(value.reads[0].url,url);assert.equal(plan.route,'DECODO');assert.match(executableAction(value,{route:'DIRECT',url}).reason,/EQUIVALENT_RESOURCE_ALREADY_(?:READ|ATTEMPTED)/);assert.equal(executableAction(value,{route:'DECODO',url}).executable,true);
+});

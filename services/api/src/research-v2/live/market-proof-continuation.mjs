@@ -4,6 +4,14 @@ import {digest,normalizeUrl} from '../../research-v3/model.mjs';
 // this controller cannot establish market applicability or pricing eligibility.
 export const pendingMarketProof=t=>(t.marketProof?.objectives??[]).filter(o=>o.status==='MARKET_NOT_VERIFIED');
 export const marketProofContradicted=t=>!!t.marketProof?.objectives?.length&&!pendingMarketProof(t).length&&t.marketProof.objectives.every(o=>o.status==='MARKET_CONTRADICTED');
+function exactProjectedMarketOwner(t,objective,sourceUrl,sourceHash){
+ if(t.marketProof?.meaning!=='PLANNING_ONLY_REOPEN_SOURCES_FOR_VERIFICATION')return false;
+ const identity=objective?.identity,authorityHost=new URL(sourceUrl).hostname;
+ if(identity?.service!==t.service||identity?.market!==t.market||!identity.plan||!(Number(identity.amount)>0)||!identity.currency||!identity.interval||objective.key!==digest(JSON.stringify(identity)))return false;
+ const source=(t.marketProof.sources??[]).find(row=>row.sha256===sourceHash),occurrence=source?.occurrences?.find(row=>row.service===t.service&&row.market===t.market&&row.taskId===t.id&&normalizeUrl(row.url)===sourceUrl);
+ const authority=occurrence?.authority;
+ return authority?.status==='CONFIGURED_REVIEWED'&&authority.hostname===authorityHost&&authority.provider===t.serviceName&&/^OFFICIAL_/.test(authority.sourceType??'')&&normalizeUrl(authority.sourceUrl)===sourceUrl;
+}
 function v3MarketObjective(t,truth,observation){
  const price=truth.prices?.[t.market];
  const need=truth.needs.find(row=>row.proposition==='TARGET_MARKET'&&row.market===t.market&&row.offerId===price?.id&&row.state==='UNRESOLVED');
@@ -13,13 +21,16 @@ function v3MarketObjective(t,truth,observation){
  return {key:digest(identity),identity,status:'MARKET_NOT_VERIFIED',missingFact:'MARKET_PROOF',established:['AUTHORITY','IDENTITY','COMMERCIAL_MEANING','VALUE_AND_CADENCE','PROVENANCE']};
 }
 export function pendingV3MarketProof(t,url=null){
- if(t.marketProof?.meaning!=='V3_TRUTH_NEEDS_PLANNING_ONLY')return null;
+ if(!['V3_TRUTH_NEEDS_PLANNING_ONLY','PLANNING_ONLY_REOPEN_SOURCES_FOR_VERIFICATION'].includes(t.marketProof?.meaning))return null;
  const requested=url&&normalizeUrl(url),actual=pendingMarketProof(t).find(row=>{const source=normalizeUrl(row.identity?.sourceUrl);return source&&(!requested||source===requested);});
  const sourceUrl=normalizeUrl(actual?.identity?.sourceUrl),sourceHash=actual?.identity?.sourceHash;if(!actual||!sourceUrl||!/^[a-f0-9]{64}$/.test(sourceHash??''))return null;
  const rows=[...(t.providerInterpretations??[]),{v3Truth:t.v3Truth,v3Observation:t.v3Observation}],owner=rows.find(row=>{const observation=row?.v3Observation;return row?.v3Truth&&Array.isArray(row.v3Truth.needs)&&observation?.kind==='PROVIDER'&&normalizeUrl(observation.url)===sourceUrl&&observation.sha256===sourceHash;});
  if(!owner)return null;
- const truth=owner.v3Truth,observation=owner.v3Observation,expected=v3MarketObjective(t,truth,observation),page=(t.reads??[]).find(row=>row.bodyHash===sourceHash&&(normalizeUrl(row.url)===sourceUrl||normalizeUrl(row.requestedUrl)===sourceUrl));
- if(!expected||actual.key!==expected.key||JSON.stringify(actual.identity)!==JSON.stringify(expected.identity)||page?.outcome!=='OK'||!page.accessDecisions?.length||page.accessDecisions.some(row=>!['ALLOWED','NO_ROBOTS_POLICY'].includes(row.decision)))return null;
+ const truth=owner.v3Truth,observation=owner.v3Observation,page=(t.reads??[]).find(row=>row.bodyHash===sourceHash&&(normalizeUrl(row.url)===sourceUrl||normalizeUrl(row.requestedUrl)===sourceUrl));
+ if(page?.outcome!=='OK'||normalizeUrl(page.requestedUrl??page.url)!==sourceUrl||normalizeUrl(page.url??page.requestedUrl)!==sourceUrl||!page.accessDecisions?.length||page.accessDecisions.some(row=>!['ALLOWED','NO_ROBOTS_POLICY'].includes(row.decision)))return null;
+ if(t.marketProof.meaning==='V3_TRUTH_NEEDS_PLANNING_ONLY'){
+  const expected=v3MarketObjective(t,truth,observation);if(!expected||actual.key!==expected.key||JSON.stringify(actual.identity)!==JSON.stringify(expected.identity))return null;
+ }else if(!exactProjectedMarketOwner(t,actual,sourceUrl,sourceHash))return null;
  return actual;
 }
 export function acceptV3TruthNeeds(t,outcome){

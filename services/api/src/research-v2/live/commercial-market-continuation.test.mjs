@@ -4,6 +4,8 @@ import {assessAdaptiveService,initializeAdaptiveState} from '../inventory/adapti
 import {destinationInformation} from './information-routing.mjs';
 import {executableAction} from './execution-capabilities.mjs';
 import {planResearch} from './research-planner.mjs';
+import {planHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
+import {conditionalCommercialRenderingRequired} from './rendering-diagnosis.mjs';
 
 const host='provider.example',membership=`https://${host}/memberships`,terms=`https://${host}/terms`,social='https://social.example/provider',related='https://de.provider-cdn.example/memberships',hash='a'.repeat(64);
 const authority={hostname:host,provider:'Provider',sourceType:'OFFICIAL_PROVIDER',sourceUrl:membership,checkedAt:'2026-10-13T00:00:00.000Z'};
@@ -59,4 +61,15 @@ test('H a successful country observation prevents unchanged semantic reacquisiti
 
 test('I market exhaustion occurs only after commercial capability and alternatives are exhausted',()=>{
  const value=target({capabilities:{direct:true,tavily:false,decodo:true,browser:false,groq:false},acquisitionOutcomes:[terminal],decisions:[{url:membership,acquisitionReserved:true,route:'DECODO'}]});const plan=planResearch(value);assert.equal(plan.route,'STOP');assert.notEqual(plan.url,terms);assert.equal(destinationInformation(value,terms).eligible,false);
+});
+
+test('J conditional commercial country bytes preserve the same objective resource for rendered fallback',()=>{
+ const body='<main><section x-show="market === \'de\'">Core 4,99 EUR/Monat</section><section x-show="market === \'us\'">Core 5.99 USD/month</section></main>';
+ assert.equal(conditionalCommercialRenderingRequired(body),true);assert.equal(conditionalCommercialRenderingRequired('<main>Core 4,99 EUR/Monat</main>'),false);
+ const value=target({capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},demonstratedRendering:true,acquisitionOutcomes:[{url:membership,classification:'COMMERCIAL_FIELDS_INSUFFICIENT',renderingRequired:true,countryV3Evaluation:{status:'EVALUATED',receiptStatus:'HASH_VERIFIED',geoClass:'G1'}}],decisions:[{url:membership,acquisitionReserved:true,route:'DECODO'}]});
+ const plan=planResearch(value);assert.equal(plan.route,'PARK_RENDERING');assert.equal(plan.reason,'RENDERING_REQUIRED');const rendered=planHybridRenderedAcquisition(value,{url:membership,transport:'DECODO'});assert.equal(rendered.scheduled,true);assert.equal(rendered.url,membership);assert.equal(rendered.country,'DE');
+});
+
+test('K commercial country insufficiency without a rendering diagnosis remains genuinely exhausted when no alternative exists',()=>{
+ const value=target({capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},acquisitionOutcomes:[{url:membership,classification:'COMMERCIAL_FIELDS_INSUFFICIENT',renderingRequired:false,countryV3Evaluation:{status:'EVALUATED',receiptStatus:'HASH_VERIFIED',geoClass:'G1'}}],decisions:[{url:membership,acquisitionReserved:true,route:'DECODO'}]});const plan=planResearch(value);assert.equal(plan.route,'STOP');assert.notEqual(plan.reason,'RENDERING_REQUIRED');
 });
