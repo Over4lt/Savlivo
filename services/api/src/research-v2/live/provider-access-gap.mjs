@@ -19,6 +19,17 @@ export function acquisitionEscalation({page,alternateRoute=true,targetMarket=nul
  return {eligible:true,primaryFailureReason:'DIRECT_ACCESS_FAILED',acquisitionFailureEvidence:proof,routeBenefit:{kind:'INDEPENDENT_APPROVED_PROXY_TRANSPORT',targetMarket,why:'Permitted original endpoint failed through Direct; alternate transport can change reachability.'}};
 }
 
+// A country request which produced no provider receipt is an acquisition
+// failure, not a semantic observation of the resource. It may remain
+// executable while the existing finite acquisition budget has capacity.
+export function countryAcquisitionDisposition(outcome){
+ if(!outcome)return 'NO_ATTEMPT';
+ if(outcome.classification==='ACQUISITION_FAILED'&&outcome.countryV3Evaluation?.status==='UNRESOLVED'&&outcome.countryV3Evaluation.reason==='COUNTRY_PROVIDER_RECEIPT_UNAVAILABLE')return 'RETRYABLE_ACQUISITION_FAILURE';
+ if(outcome.countryV3Evaluation?.status==='EVALUATED')return 'OBSERVATION_EVALUATED';
+ if(outcome.classification==='ACQUISITION_FAILED')return 'NON_RETRYABLE_ACQUISITION_FAILURE';
+ return 'SEMANTIC_ATTEMPT_COMPLETE';
+}
+
 function directInterpretations(target){return [...(target.providerInterpretations??[]),{url:target.v3Observation?.url,v3Observation:target.v3Observation,v3Truth:target.v3Truth}].filter(row=>row?.v3Observation?.kind==='PROVIDER'&&row.v3Observation.context?.transport==='DIRECT'&&row.v3Observation.context?.networkGeography==='UNBOUND'&&Array.isArray(row.v3Truth?.needs));}
 function directInterpretation(target,url,hash=null){const normalized=url&&normalizeUrl(url);return directInterpretations(target).find(row=>{const observation=row.v3Observation;return (!normalized||normalizeUrl(observation.url)===normalized)&&(!hash||observation.sha256===hash);})??null;}
 export function unresolvedV3TargetNeed(target,url=null){

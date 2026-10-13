@@ -1,4 +1,4 @@
-import {targetMarketAcquisition} from './provider-access-gap.mjs';
+import {countryAcquisitionDisposition,targetMarketAcquisition} from './provider-access-gap.mjs';
 import {usableResearchMemory} from './research-memory.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
@@ -11,6 +11,11 @@ export function alreadyAccountedSameCampaignRead(t,row){
  const key=[marker.observation,row.url,marker.sha256].join(':');return marker.observation===proof.id&&marker.sha256===proof.sha256&&row.url===proof.url&&row.requestedUrl===proof.url&&row.outcome==='OK'&&row.truncated!==true&&row.bodyHash===marker.sha256&&row.sourceIntegrity?.sha256===marker.sha256&&row.bodyFile===`bodies/${marker.sha256}.txt`&&marker.networkRequests===0&&marker.bytes===0&&marker.acquisitions===0&&(t.currentCampaignEvidenceReuses??[]).includes(key)&&row.stale!==true&&!(t.invalidatedEvidence??[]).includes(marker.sha256);
 }
 export const directAcquisitionReads=t=>(t.reads??[]).filter(row=>!alreadyAccountedSameCampaignRead(t,row));
+export function equivalentCountryAcquisitionAttempted(t,url){
+ const key=resourceKey(url),outcomes=(t.acquisitionOutcomes??[]).filter(row=>resourceKey(row.url)===key),retryable=outcomes.length>0&&outcomes.every(row=>countryAcquisitionDisposition(row)==='RETRYABLE_ACQUISITION_FAILURE');
+ if(outcomes.length&&!retryable)return true;
+ return !retryable&&(t.decisions??[]).some(row=>row.acquisitionReserved&&resourceKey(row.url)===key);
+}
 export function destinationReadAllowed(t,lead,bounds=executionBounds,{candidateAuthorityReview=false}={}){const reviewed=providerRoutingAuthority(t,lead.url),authorityEvidence=candidateAuthorityReview&&typeof lead.authorityEvidenceFor==='string',sourceBoundCandidate=candidateAuthorityReview&&lead.sourceBoundCandidate===true,objectiveLeadCandidate=candidateAuthorityReview&&lead.providerSeedObjectiveLead===true,boundedAuthorityCandidate=authorityEvidence||sourceBoundCandidate||objectiveLeadCandidate,count=directAcquisitionReads(t).filter(r=>new URL(r.requestedUrl).origin===new URL(lead.url).origin).length;return (!hasProviderRoutingAuthority(t)||reviewed||boundedAuthorityCandidate)&&count<(reviewed&&navigationRank(t,lead)<=15?bounds.perServiceReads:authorityEvidence?2:sourceBoundCandidate||objectiveLeadCandidate?1:2);}
 export function executableAction(t,action,{bounds=executionBounds,usage={reads:0,searches:0,acquisitions:0,bytes:0},available={direct:true,discovery:true,decodo:true}}={}){
  if(t.capabilities)available={direct:available.direct!==false&&t.capabilities.direct,discovery:available.discovery!==false&&t.capabilities.tavily,decodo:available.decodo!==false&&t.capabilities.decodo};
@@ -39,7 +44,7 @@ export function executableAction(t,action,{bounds=executionBounds,usage={reads:0
   const memory=usableResearchMemory(t);if(memory.rejected)return no('RESEARCH_MEMORY_RECONCILIATION_REQUIRED');
   if([...(t.blockedOrigins??[]),...memory.blockedOrigins].includes(url.origin))return no('PROVIDER_ACCESS_POLICY_STOP');
   const lead=(t.leads??[]).find(l=>l.url===action.url);if((lead?.navigationDepth??0)>Math.min(3,t.smartResearch?.navigationDepth??3))return no('NAVIGATION_DEPTH_EXHAUSTED');
-  const prior=[...(semantic?[]:(t.reads??[]).map(r=>r.requestedUrl)),...(t.acquisitionOutcomes??[]).map(r=>r.url),...(t.decisions??[]).filter(d=>d.acquisitionReserved).map(d=>d.url),...memory.attempts.filter(a=>a.completed&&a.url&&(!semantic||a.route==='DECODO')).map(a=>a.url)];
+  const prior=[...(semantic?[]:(t.reads??[]).map(r=>r.requestedUrl)),...(semantic?(equivalentCountryAcquisitionAttempted(t,url.href)?[url.href]:[]):[...(t.acquisitionOutcomes??[]).map(r=>r.url),...(t.decisions??[]).filter(d=>d.acquisitionReserved).map(d=>d.url)]),...memory.attempts.filter(a=>a.completed&&a.url&&(!semantic||a.route==='DECODO')).map(a=>a.url)];
   if(prior.some(u=>resourceKey(u)===resourceKey(url.href)))return no('EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');
   if((t.decisions??[]).filter(d=>d.acquisitionReserved).length>=bounds.perServiceAcquisitions||usage.acquisitions>=bounds.acquisitions)return no('DECODO_BUDGET_EXHAUSTED');
   return yes();
