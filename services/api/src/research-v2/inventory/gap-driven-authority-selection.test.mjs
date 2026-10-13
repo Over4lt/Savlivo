@@ -8,7 +8,7 @@ import {digest} from '../../research-v3/model.mjs';
 import {providerOrBrandResearchTarget} from '../../research-v3/research-target.mjs';
 import {reviewV2CandidateAuthority} from '../../research-v3/v2-candidate-authority-adapter.mjs';
 import {runProviderSeedCampaign} from './provider-seed-campaign.mjs';
-import {orderProviderSeedAuthorityCandidates} from './provider-seed-authority-routing.mjs';
+import {orderProviderSeedAuthorityCandidates,providerSeedAuthoritySemanticClass} from './provider-seed-authority-routing.mjs';
 
 const unresolved={version:1,decision:'UNRESOLVED',stage:'FINAL',reason:'NO_ACCEPTED_PROVIDER_PROOF',mechanisms:[{mechanism:'OBSERVATION',outcome:'PASS'},{mechanism:'CANDIDATE_HOST',outcome:'PASS'},{mechanism:'STRUCTURED_DIRECT_IDENTITY',outcome:'NO_MATCH',reason:'NO_EXACT_ORIGIN_ORGANIZATION'}]};
 const target=providerOrBrandResearchTarget({seedName:'Northstar',targetMarket:'DE'});
@@ -38,6 +38,16 @@ test('explicit operator presentation beats a non-specific terms presentation in 
  assert.equal(ordered[0].url,about.url);assert.equal(ordered[0].routing.authorityEvidenceCapability.kind,'EXPLICIT_RELATIONSHIP_PRESENTATION');
 });
 
+test('G repeated zero-progress authority presentation class loses priority',()=>{
+ const source={observation:'root',start:10,end:40},about=candidate('c1','https://northstar.example/a',{label:'About',source,score:20}),other=candidate('c2','https://northstar.example/b',{label:'Company',source,score:1}),legal=candidate('c3','https://northstar.example/c',{label:'Legal operator information',source,score:1}),semantic=providerSeedAuthoritySemanticClass(about),ordered=orderProviderSeedAuthorityCandidates(target,[about,other,legal],{authorityGap:{authorityTargetHost:'northstar.example',authorityDiagnostic:unresolved,zeroProgressClasses:{[semantic]:2}}});
+ assert.equal(ordered[0].candidateId,legal.candidateId);assert.equal(ordered.find(row=>row.candidateId===about.candidateId).routing.zeroProgressPenalty,1);
+});
+
+test('H related-host witness is routing evidence only and cannot inherit authority',()=>{
+ const witness=candidate('c1','https://related.northstar.example/relationship',{authorityEvidenceFor:'northstar.example',sourceBoundCandidate:true,source:{observation:'provider-source',start:1,end:20},label:'Northstar provider relationship'}),ordered=orderProviderSeedAuthorityCandidates(target,[witness],{authorityGap:{authorityTargetHost:'northstar.example',authorityDiagnostic:unresolved}});
+ assert.equal(ordered[0].routing.authorityGapOrder,0);assert.equal(ordered[0].truthAuthority,undefined);assert.equal('providerAuthorityBinding' in ordered[0],false);
+});
+
 const page=(url,body)=>({url,requestedUrl:url,outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,rawSource:{text:body},bodyHash:digest(body),sourceIntegrity:{sha256:digest(body)},accessDecisions:[{decision:'ALLOWED'}]});
 const redirect=(requestedUrl,url)=>({url,requestedUrl,outcome:'ROUTING_ONLY',httpStatus:302,contentType:null,truncated:false,redirects:[url],accessDecisions:[{decision:'ALLOWED'}],redirectStop:{kind:'CROSS_HOST_REDIRECT_STOP',requestedUrl,requestedHost:new URL(requestedUrl).hostname,sourceUrl:requestedUrl,sourceHost:new URL(requestedUrl).hostname,destinationUrl:url,destinationHost:new URL(url).hostname,redirectChain:[requestedUrl,url],navigationDepth:1,httpStatus:302}});
 
@@ -55,4 +65,10 @@ test('an already-read routing-only resource is not reacquired during authority e
 test('an unrelated third-party legal-looking source cannot establish provider authority',()=>{
  const url='https://legal-archive.example/northstar/terms',body='<html><head><title>Legal Archive</title><meta property="og:title" content="Legal Archive"></head><body>Northstar terms mirror.</body></html>',review=reviewV2CandidateAuthority({contractVersion:1,observationId:'third-party',target:{service:'northstar',serviceName:'Northstar'},page:{...page(url,body),rawSource:{text:body}}});
  assert.equal(review.providerAuthorityBinding,null);assert.equal(review.candidateObservation.authority,'UNREVIEWED_CANDIDATE');
+});
+
+test('F targeted authority search ends in semantic exhaustion instead of consuming the read ceiling',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'gap-authority-exhausted-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const exact='https://northstar.example/offers';let searches=0,reads=0;
+ const result=await runProviderSeedCampaign({directory:root,researchTarget:target,createAdapters:async()=>({search:async()=>({results:++searches===1?[{url:exact,title:'Northstar subscription offers'}]:[]}),read:async({url})=>{reads++;return page(url,'<html><body>Subscription offers.</body></html>');}}),capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false}});
+ assert.equal(result.providerAuthorityBinding,null);assert.equal(result.termination.reason,'PROVIDER_AUTHORITY_SEMANTIC_EXHAUSTION');assert.equal(result.authorityResearch.length,1);assert.match(result.authorityResearch[0].query,/northstar\.example/);assert.equal(result.authorityResearch[0].progress.outcome,'NO_PROGRESS');assert(reads<4);assert(searches<=2);
 });

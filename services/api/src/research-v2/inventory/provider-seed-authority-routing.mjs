@@ -82,6 +82,23 @@ export function observedAuthorityEvidenceCapability(candidate){
  if(/\b(?:about(?:\s+us)?|company|corporate|contact(?:\s+us)?|who\s+we\s+are)\b/iu.test(text))return {tier:2,kind:'IDENTITY_PRESENTATION',basis:'Observed navigation presentation identifies a general provider identity source'};
  return {tier:3,kind:'OTHER_PRESENTATION',basis:'Observed navigation presentation has no authority relationship capability'};
 }
+
+// Semantic scheduling class only. It groups equivalent authority-oriented
+// destinations so repeated zero-progress reads lose priority without globally
+// blacklisting any page role.
+export function providerSeedAuthoritySemanticClass(candidate){
+ const observed=observedAuthorityEvidenceCapability(candidate);if(observed.tier<3)return observed.kind;
+ const origin=candidate?.originKind??'SEARCH',objective=typeof candidate?.objectiveIntent==='string'?candidate.objectiveIntent:'NO_OBJECTIVE';
+ return [origin,providerSeedDestinationClass(candidate),objective].join(':');
+}
+
+export function summarizeProviderSeedAuthorityProgress({candidate,binding=null,diagnostic=null,continuations=[]}){
+ const useful=(continuations??[]).filter(row=>observedAuthorityEvidenceCapability(row).tier<3),categories=[];
+ if(binding)categories.push('EXACT_HOST_PROVIDER_BINDING');
+ if((diagnostic?.mechanisms??[]).some(row=>row.outcome==='ACCEPTED'))categories.push('ACCEPTED_IDENTITY_OR_RELATIONSHIP');
+ if(useful.length)categories.push('USEFUL_SOURCE_BOUND_AUTHORITY_CONTINUATION');
+ return {version:1,meaning:'ROUTING_ONLY_NOT_AUTHORITY',semanticClass:providerSeedAuthoritySemanticClass(candidate),outcome:categories.length?'PROGRESS':'NO_PROGRESS',categories,usefulContinuationIds:useful.map(row=>row.candidateId)};
+}
 function authorityGapOrder(candidate,{authorityTargetHost=null,authorityDiagnostic=null}={}){
  const url=safe(candidate?.url);if(!url||!authorityTargetHost||!diagnosticNeedsAuthorityEvidence(authorityDiagnostic))return 0;
  const target=String(authorityTargetHost).toLowerCase(),explicit=String(candidate?.authorityEvidenceFor??'').toLowerCase()===target&&candidate?.sourceBoundCandidate===true&&candidate?.source?.observation;
@@ -93,11 +110,14 @@ const fallbackSafetyTier=candidate=>({GENERAL:0,GENERIC_THIRD_PARTY:1,AUTH_OR_PA
 
 export function providerSeedCandidateRouting(researchTarget,candidate,candidates=[],index=0,authorityGap={}){
  const url=safe(candidate?.url),affinity=providerSeedHostnameAffinity(researchTarget,candidate),originKind=candidate?.originKind??'SEARCH',parent=candidates.find(row=>row.candidateId===candidate?.parentCandidateId),parentAffinity=parent?providerSeedHostnameAffinity(researchTarget,parent):0;
- const redirectStrong=originKind==='REDIRECT_DESTINATION'&&affinity>0&&affinity>=parentAffinity,semanticObjectiveRelevance=positiveObjectiveRelevance(candidate),legacyObjectiveScore=Number.isFinite(candidate?.score)?candidate.score:0,authorityCapability=observedAuthorityEvidenceCapability(candidate),objectiveProgressValue=['SOURCE_BOUND_CONTINUATION','REDIRECT_DESTINATION'].includes(originKind)?observedObjectiveCapability(candidate):Math.max(semanticObjectiveRelevance,legacyObjectiveScore);
+ const redirectStrong=originKind==='REDIRECT_DESTINATION'&&affinity>0&&affinity>=parentAffinity,semanticObjectiveRelevance=positiveObjectiveRelevance(candidate),legacyObjectiveScore=Number.isFinite(candidate?.score)?candidate.score:0,authorityCapability=observedAuthorityEvidenceCapability(candidate),semanticClass=providerSeedAuthoritySemanticClass(candidate),zeroProgressCount=Number(authorityGap?.zeroProgressClasses?.[semanticClass]??0),objectiveProgressValue=['SOURCE_BOUND_CONTINUATION','REDIRECT_DESTINATION'].includes(originKind)?observedObjectiveCapability(candidate):Math.max(semanticObjectiveRelevance,legacyObjectiveScore);
  return {
   objective:providerSeedAuthorityRoutingObjective,
   executable:url!==null&&candidate?.executable!==false,
   authorityGapOrder:authorityGapOrder(candidate,authorityGap),
+  authoritySemanticClass:semanticClass,
+  zeroProgressCount,
+  zeroProgressPenalty:zeroProgressCount>=2?1:0,
   hostnameAffinity:affinity,
   destinationClass:providerSeedDestinationClass(candidate),
   objectiveScore:Math.max(semanticObjectiveRelevance,legacyObjectiveScore),
@@ -113,7 +133,7 @@ export function providerSeedCandidateRouting(researchTarget,candidate,candidates
  };
 }
 
-export const compareProviderSeedAuthorityRows=(a,b)=>Number(b.executable)-Number(a.executable)||a.authorityGapOrder-b.authorityGapOrder||b.hostnameAffinity-a.hostnameAffinity||b.objectiveScore-a.objectiveScore||a.fallbackSafetyTier-b.fallbackSafetyTier||a.searchIndex-b.searchIndex||a.searchRank-b.searchRank||a.insertionOrder-b.insertionOrder||a.url.localeCompare(b.url);
+export const compareProviderSeedAuthorityRows=(a,b)=>Number(b.executable)-Number(a.executable)||a.authorityGapOrder-b.authorityGapOrder||a.zeroProgressPenalty-b.zeroProgressPenalty||b.hostnameAffinity-a.hostnameAffinity||b.objectiveScore-a.objectiveScore||a.fallbackSafetyTier-b.fallbackSafetyTier||a.searchIndex-b.searchIndex||a.searchRank-b.searchRank||a.insertionOrder-b.insertionOrder||a.url.localeCompare(b.url);
 
 export function orderProviderSeedAuthorityCandidates(researchTarget,candidates,{reviewedCandidateIds=[],authorityGap={}}={}){
  const reviewed=new Set(reviewedCandidateIds);return candidates.map((candidate,index)=>({...candidate,routing:providerSeedCandidateRouting(researchTarget,candidate,candidates,index,authorityGap)})).filter(row=>!reviewed.has(row.candidateId)&&row.routing.executable).sort((a,b)=>compareProviderSeedAuthorityRows(a.routing,b.routing));

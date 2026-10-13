@@ -5,6 +5,7 @@ import {missingCatalogFields} from '../intelligence/management-targeting.mjs';
 import {researchKnowledge} from './research-memory.mjs';
 import {chooseInformationAction} from './information-routing.mjs';
 import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
+import {targetMarketStateGap} from './provider-resource-routing.mjs';
 // Deterministic planning metadata only. No transport and no evidence grants.
 import {normalizeFrontierUrl} from './source-frontier.mjs';
 export const marketLanguages={NO:'nb',SE:'sv',DK:'da',DE:'de',AT:'de',FR:'fr',BE:'fr',ES:'es',MX:'es',CL:'es',CO:'es',PT:'pt',BR:'pt',IT:'it',NL:'nl',PL:'pl',CZ:'cs',TR:'tr',TH:'th',KR:'ko',JP:'ja',CN:'zh',TW:'zh',HK:'zh',FI:'fi',RO:'ro'};
@@ -18,6 +19,7 @@ export const discoveryQueryIdentity=query=>String(query??'').normalize('NFKC').t
 // Finite semantic families, scoped to the target. Query text is deterministic;
 // historical records without action metadata remain consumed by normalized text.
 export function discoveryActions(t){
+ const marketState=targetMarketStateGap(t);if(marketState){const host=providerRoutingAuthority(t,marketState.resource)?.host,query=[t.serviceName??t.service,t.market,'subscription pricing membership',host?'site:'+host:null].filter(Boolean).join(' ');return [{need:'MARKET_STATE_RESOURCE',family:0,query,key:discoveryQueryIdentity(query)}];}
  const actions=[0,1].map(family=>({family,need:'CONTEXT',query:contextualQuery(t,family)}));
  if(t.smartResearch?.version===2&&t.researchObjective!=='CATALOG_ONLY')for(const need of priceNeedIntents(t))for(const family of [0,1])actions.push({need,family,query:priceNeedQuery(t,family,need)});
  return [...new Map(actions.filter(a=>a.query).map(a=>[discoveryQueryIdentity(a.query),{...a,key:discoveryQueryIdentity(a.query)}])).values()];

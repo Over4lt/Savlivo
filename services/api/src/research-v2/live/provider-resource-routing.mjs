@@ -49,6 +49,31 @@ export function providerResourceLocaleHint(t,url,lead=null){
  return {region:explicit,compatibility:explicit?(explicit===t.market?'TARGET':'FOREIGN'):'UNKNOWN'};
 }
 
+// Planning-only diagnosis. A country-bound observation can still show a
+// provider-owned resource whose explicit locale differs from the objective.
+// This never establishes market applicability or changes Truth.
+export function targetMarketStateGap(t){
+ const unresolved=pendingMarketProof(t).length>0||(t.v3Truth?.needs??[]).some(need=>need?.state==='UNRESOLVED'&&(need.market==null||need.market===t.market)&&['TARGET_MARKET','PRICE_AMOUNT','PRICE_CURRENCY','PRICE_CADENCE','PRICE_ROLE','OFFER_IDENTITY'].includes(need.proposition));
+ if(!unresolved||!/^([A-Z]{2})$/.test(t.market??''))return null;
+ const outcomes=[...(t.acquisitionOutcomes??[])].reverse();
+ for(const outcome of outcomes){
+  if(outcome?.routingReason!=='TARGET_MARKET_OBSERVATION_REQUIRED'&&outcome?.channel!=='DIRECT_THEN_GEO')continue;
+  const interpretation=[...(t.providerInterpretations??[])].reverse().find(row=>normalized(row.url)===normalized(outcome.url)&&row.v3Observation?.context?.transport==='DECODO'&&row.v3Observation?.context?.networkGeography===t.market);
+  if(!interpretation)continue;
+  const locale=providerResourceLocaleHint(t,interpretation.v3Observation.url??outcome.url);
+  if(locale.compatibility!=='FOREIGN')continue;
+  return {version:1,meaning:'PLANNING_ONLY_NOT_EVIDENCE',objective:providerRoutingObjectives.MARKET_PROOF,targetMarket:t.market,observedProviderRegion:locale.region,resource:normalized(interpretation.v3Observation.url??outcome.url),sourceHash:interpretation.v3Observation.sha256??outcome.sourceHash??null,networkGeography:t.market,transport:'DECODO',status:'PROVIDER_STATE_MISMATCH'};
+ }
+ return null;
+}
+
+export function marketStateContinuationValue(t,lead,gap=targetMarketStateGap(t)){
+ if(!gap||!lead?.url||!providerRoutingAuthority(t,lead.url))return {eligible:false,reason:'NO_TARGET_MARKET_STATE_GAP'};
+ const locale=providerResourceLocaleHint(t,lead.url,lead),context=String(lead.continuationContext??'').toUpperCase(),state=lead.continuationState,variant=String(state?.variant??state?.market??state?.region??lead.continuationLocale??'').toUpperCase(),sourceBound=lead.sourceBoundCandidate===true&&lead.from?.mechanism==='V3_SOURCE_BOUND_CONTINUATION'&&lead.source?.observation&&lead.source?.bodySha256===lead.from?.bodyHash;
+ const stateRelevant=['COUNTRY','REGION','LOCALE','MARKET','STATE'].includes(context)||locale.compatibility==='TARGET'||variant===t.market;
+ return {eligible:sourceBound&&stateRelevant&&(locale.compatibility==='TARGET'||variant===t.market),reason:sourceBound&&stateRelevant?'SOURCE_BOUND_TARGET_MARKET_STATE_CONTINUATION':'NOT_TARGET_MARKET_STATE_CONTINUATION',localeCompatibility:locale.compatibility,variant:variant||null};
+}
+
 function recordFor(t,lead){const hash=lead?.from?.bodyHash;if(!hash)return null;return (t.providerRoutingProgress??[]).find(row=>row.parentBodyHash===hash);}
 export function providerBranchPreference(t,lead,relevance=providerResourceRelevance(t,lead)){
  if(relevance.tier===0)return 0;

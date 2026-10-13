@@ -5,8 +5,11 @@ import {digest} from '../../research-v3/model.mjs';
 import {providerOrBrandResearchTarget} from '../../research-v3/research-target.mjs';
 import {establishProviderSeedCandidateServiceContext,evaluateProviderSourceTruth} from './provider-source-v3.mjs';
 import {destinationInformation} from './information-routing.mjs';
-import {planResearch} from './research-planner.mjs';
+import {planResearch,nextDiscoveryQuery} from './research-planner.mjs';
 import {acceptV3TruthNeeds} from './market-proof-continuation.mjs';
+import {targetMarketStateGap,marketStateContinuationValue} from './provider-resource-routing.mjs';
+import {targetMarketAcquisition} from './provider-access-gap.mjs';
+import {executableAction} from './execution-capabilities.mjs';
 
 const market='DE',host='northstar.example',membership=`https://${host}/memberships`,terms=`https://${host}/terms`,researchTarget=providerOrBrandResearchTarget({seedName:'Northstar',targetMarket:market});
 const binding={contractVersion:1,researchTarget,host,providerIdentity:{presentationName:'Northstar GmbH'},proof:{url:terms,scope:'EXACT_HOST_PROVIDER_SOURCING'}};
@@ -63,3 +66,24 @@ test('H SERVICE_UNRESOLVED remains a gap while useful offering and market work c
 test('I true exhaustion stops unresolved when no capability can reduce a gap',()=>{
  const value=target({urls:[],knownCommercialUrls:[],leads:[],capabilities:{direct:false,tavily:false,decodo:false,browser:false,groq:false}}),plan=planResearch(value);assert.equal(plan.route,'STOP');assert.match(plan.reason,/CAPABILITY_DISABLED_TAVILY|DISCOVERY_EXHAUSTED/);assert.equal(value.providerSeedCandidateServiceContext.status,'SERVICE_UNRESOLVED');
 });
+
+const foreignMembership=`https://${host}/en/no/memberships`,targetMembership=`https://${host}/en/de/memberships`,foreignMembershipHash=digest('foreign commercial'),targetMembershipHash=digest('target commercial');
+const unresolvedTargetTruth={prices:{},needs:[{id:'DE:TARGET_MARKET',proposition:'TARGET_MARKET',market:'DE',offerId:'personal',state:'UNRESOLVED'}]};
+const planningObservation=(id,url,sha256,transport,networkGeography)=>({id,kind:'PROVIDER',url,sha256,context:{transport,networkGeography,representation:'PROVIDER_PAGE'}});
+const planningPage=(url,hash)=>({requestedUrl:url,url,outcome:'OK',bodyHash:hash,sourceIntegrity:{sha256:hash},accessDecisions:[{decision:'ALLOWED'}]});
+function targetMarketMismatch({continuation=true,searched=false}={}){
+ const direct=planningObservation('foreign-direct',foreignMembership,foreignMembershipHash,'DIRECT','UNBOUND'),country=planningObservation('foreign-country',foreignMembership,foreignMembershipHash,'DECODO','DE'),source={observation:country.id,bodySha256:country.sha256,start:10,end:30,sha256:digest('Germany memberships')},lead={url:targetMembership,title:'Germany memberships',sourceBoundCandidate:true,truthAuthority:'NONE',authoritative:false,continuationContext:'MARKET',continuationLocale:'de-DE',continuationState:{group:'market-state',variant:'DE',selected:false},from:{url:foreignMembership,bodyHash:country.sha256,locator:source,mechanism:'V3_SOURCE_BOUND_CONTINUATION'},source};
+ return target({urls:continuation?[foreignMembership,targetMembership]:[foreignMembership],knownCommercialUrls:[foreignMembership],leads:continuation?[lead]:[],reads:[planningPage(foreignMembership,foreignMembershipHash)],queries:searched?[{query:`Northstar GmbH DE subscription pricing membership site:${host}`,route:'DISCOVERY',completed:true}]:[],decisions:[{url:foreignMembership,route:'DECODO',acquisitionReserved:true}],capabilities:{direct:true,tavily:true,decodo:true,browser:false,groq:false},v3Truth:structuredClone(unresolvedTargetTruth),providerInterpretations:[{url:foreignMembership,v3Truth:structuredClone(unresolvedTargetTruth),v3Observation:direct},{url:foreignMembership,v3Truth:structuredClone(unresolvedTargetTruth),v3Observation:country}],acquisitionOutcomes:[{url:foreignMembership,classification:'MARKET_UNRESOLVED',channel:'DIRECT_THEN_GEO',routingReason:'TARGET_MARKET_OBSERVATION_REQUIRED',sourceHash:foreignMembershipHash,transport:'DECODO'}]});
+}
+
+test('J target-country transport with a foreign provider state keeps MARKET unresolved',()=>{const value=targetMarketMismatch(),gap=targetMarketStateGap(value);assert.equal(gap.status,'PROVIDER_STATE_MISMATCH');assert.equal(gap.observedProviderRegion,'NO');assert.equal(gap.targetMarket,'DE');assert.equal(value.v3Truth.needs[0].state,'UNRESOLVED');});
+
+test('K source-bound target-region continuation outranks generic discovery',()=>{const value=targetMarketMismatch(),lead=value.leads[0],eligibility=marketStateContinuationValue(value,lead),plan=planResearch(value);assert.equal(eligibility.eligible,true);assert.equal(plan.route,'DIRECT');assert.equal(plan.url,targetMembership);assert.equal(plan.reason,'TARGET_MARKET_STATE_CONTINUATION_AVAILABLE');});
+
+test('L materially changed target-state resource permits a fresh country acquisition',()=>{const value=targetMarketMismatch();value.reads.push(planningPage(targetMembership,targetMembershipHash));value.providerInterpretations.push({url:targetMembership,v3Truth:structuredClone(unresolvedTargetTruth),v3Observation:planningObservation('target-direct',targetMembership,targetMembershipHash,'DIRECT','UNBOUND')});assert(targetMarketAcquisition(value,targetMembership));assert.equal(executableAction(value,{route:'DECODO',url:targetMembership}).executable,true);});
+
+test('M no state continuation exposes one provider-market commercial refinement',()=>{const value=targetMarketMismatch({continuation:false}),query=nextDiscoveryQuery(value),plan=planResearch(value);assert.equal(query,`Northstar GmbH DE subscription pricing membership site:${host}`);assert.equal(plan.route,'DISCOVERY');assert.equal(plan.query,query);});
+
+test('N unchanged resource and provider state cannot repeat country acquisition',()=>{const value=targetMarketMismatch();assert(targetMarketAcquisition(value,foreignMembership));assert.equal(executableAction(value,{route:'DECODO',url:foreignMembership}).reason,'EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');});
+
+test('O exhausted market-state refinement stops cleanly unresolved',()=>{const value=targetMarketMismatch({continuation:false,searched:true}),plan=planResearch(value);assert.equal(targetMarketStateGap(value).status,'PROVIDER_STATE_MISMATCH');assert.equal(plan.route,'STOP');assert.equal(plan.reason,'DISCOVERY_EXHAUSTED');assert.equal(value.v3Truth.needs[0].state,'UNRESOLVED');});
