@@ -185,7 +185,7 @@ export async function mountOperations(parent,request,isCurrent=()=>true,{priceCo
   text(form,'Choose candidates to investigate. Preflight checks the plan; it does not start research.');
   const overview=el('div'),presetsBox=el('div',undefined,'ops-presets'),facetsBox=el('div',undefined,'ops-facets'),browser=el('div'),counts=el('p'),activity=el('p'),result=el('div');
   form.append(overview,presetsBox,facetsBox);const filters={preset:'ALL',markets:[],categories:[],services:null,q:''};
-  let preview=null,model=null,epoch=0,capabilities={direct:summary.capabilityAvailability?.direct?.available===true,tavily:summary.capabilityAvailability?.tavily?.available===true,decodo:false,browser:false,groq:false};
+  let preview=null,model=null,epoch=0,capabilities=availablePermissions(summary.capabilityAvailability);
   const presetButtons=new Map(),facetChecks={markets:[],categories:[]};
   const search=field(form,'Search service or provider name',null,'');search.placeholder='Browse below, or type a name';
   const tools=el('div',undefined,'ops-presets'),filterDescription=el('p');form.append(counts,activity);const selectedDisclosure=disclosure(form,'Selected services');selectedDisclosure.box.append(tools,browser,filterDescription);
