@@ -2,8 +2,7 @@ FROM mcr.microsoft.com/playwright@sha256:68f1c3dca663d0e8331e8af4681b0b315eca7de
 
 ENV NODE_ENV=production \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    SAVLIVO_BROWSER_RUNTIME=LOCAL_CONTAINER
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /opt/render/project/src
 COPY . .
