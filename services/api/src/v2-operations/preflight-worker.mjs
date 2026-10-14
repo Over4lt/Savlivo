@@ -6,7 +6,8 @@ import {operationsDiagnostic} from './diagnostics.mjs';
 try {
  const {config,input,actor,action}=workerData;
  const ops=new Operations(config);
- const result=action==='START'?ops.start(input.token,actor,input.confirmed):ops.preflight(input,actor);
+ const priceResearch=input?.objective==='PRICE_RESEARCH'||action==='START'&&ops.db().preflights.some(row=>row.token===input.token&&row.config?.objective==='PRICE_RESEARCH');if(priceResearch){const {priceResearchChildEnvironment}=await import('./price-research-live.mjs');Object.assign(process.env,await priceResearchChildEnvironment(process.env));}
+ const result=await (action==='START'?ops.start(input.token,actor,input.confirmed):ops.preflight(input,actor));
  parentPort.postMessage({result});
 } catch(error) {
  console.error(JSON.stringify(operationsDiagnostic(error,workerData.action==='START'?'start-worker':'preflight-worker')));

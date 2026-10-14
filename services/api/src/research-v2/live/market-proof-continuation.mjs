@@ -37,6 +37,12 @@ export function acceptV3TruthNeeds(t,outcome){
  const truth=outcome?.v3Truth,observation=outcome?.v3Observation;
  if(!truth||!Array.isArray(truth.needs)||!observation||typeof observation.url!=='string'||!/^[a-f0-9]{64}$/.test(observation.sha256??''))return false;
  t.v3Truth=structuredClone(truth);t.v3Observation=structuredClone(observation);if(outcome.v3Catalog)t.v3Catalog=structuredClone(outcome.v3Catalog);
+ const suggested=(outcome.v3SuggestedCandidates??[]).filter(row=>row?.provenance==='V3_SOURCE_RESEARCH'&&Number.isFinite(row.amount)&&row.amount>0&&/^[A-Z]{3}$/.test(row.currency??'')&&row.paymentCadence==='MONTHLY_RECURRING'&&row.researchEvidence?.acquired===true&&row.researchEvidence.sourceBound===true&&row.researchEvidence.amountBasis==='EXPLICIT'&&row.researchEvidence.cadence==='MONTHLY_RECURRING'&&row.researchEvidence.priceRole==='ORDINARY_RECURRING'&&row.researchEvidence.sourceOwnership==='FIRST_PARTY'&&row.researchEvidence.observationId===observation.id&&row.sourceHash===observation.sha256&&normalizeUrl(row.sourceUrl)===normalizeUrl(observation.url));
+ if(suggested.length){
+  const rows=[...(t.v3SuggestedCandidates??[]),...suggested].map(row=>structuredClone(row)),seen=new Set();
+  t.v3SuggestedCandidates=rows.filter(row=>{const key=digest(row);if(seen.has(key))return false;seen.add(key);return true;}).slice(0,128);
+ }
+ if(outcome.v3ResearchLineage)t.v3ResearchLineage=structuredClone(outcome.v3ResearchLineage);
  const objective=v3MarketObjective(t,truth,observation);if(!objective){if(truth.prices?.[t.market]?.propositions?.TARGET_MARKET?.state==='ESTABLISHED')delete t.marketProof;return true;}
  t.marketProof={version:1,objectives:[objective],sources:[],leads:[],meaning:'V3_TRUTH_NEEDS_PLANNING_ONLY'};
  return true;

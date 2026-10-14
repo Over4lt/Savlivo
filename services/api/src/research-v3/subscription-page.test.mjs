@@ -58,6 +58,21 @@ test('ordinary source-bound product presentation yields app membership sibling a
  for(const result of [app,membership,sibling,multiple])for(const service of result.services){assert.equal(service.provenance.extractionMechanism,'NATIVE_HTML');assert.equal(service.provenance.sourceUrl,url);assert.equal(service.provenance.providerObservation,'provider');assert.equal(service.providerBinding.host,host);}
 });
 
+test('authoritative native plan state reaches semantic admission without duplicate Open Graph title',()=>{
+ const name=binding.providerIdentity.presentationName,plans={props:{pageProps:{subscriptionPlans:[{display_name:'Monthly',price:'9.99',renewal_period:'month'},{display_name:'Annual',price:'99.99',renewal_period:'year'}]}}},body=`<html><head><title>Choose your subscription plan</title><meta name="description" content="Choose the ${name} subscription plan that is right for you."></head><body><script type="application/json">${JSON.stringify(plans)}</script></body></html>`,interpreted=interpretSubscriptionPage({body,url,providerName:name}),found=discovery(body);
+ assert.deepEqual(interpreted.services.map(row=>[row.name,row.support]),[[name,['PAGE_TITLE','PRODUCT_DESCRIPTION','NATIVE_SUBSCRIPTION_PLAN_SET']]]);assert.deepEqual(found.services.map(row=>row.serviceName),[name]);
+});
+
+test('native plan state does not admit weak or ambiguous provider presentation',()=>{
+ const name=binding.providerIdentity.presentationName,plans=`<script type="application/json">${JSON.stringify({subscriptionPlans:[{price:'9.99',renewal_period:'month'}]})}</script>`,cases=[
+  `<title>Choose your subscription plan</title><meta name="description" content="Choose a subscription plan that is right for you.">${plans}`,
+  `<title>Choose your subscription plan</title><meta name="description" content="Choose the ${name} subscription plan."><meta property="og:description" content="A different ${name} membership service.">${plans}`,
+  `<title>Choose your subscription plan</title><meta property="og:title" content="A different product"><meta name="description" content="Choose the ${name} subscription plan.">${plans}`,
+  `<title>Choose your subscription plan</title><meta name="description" content="Choose the ${name} subscription plan.">`
+ ];
+ for(const body of cases){assert.deepEqual(interpretSubscriptionPage({body,url,providerName:name}).services,[]);assert.deepEqual(discovery(body).services,[]);}
+});
+
 test('ordinary presentation fails closed across weak conflicting third-party and ambiguous shapes',()=>{
  const cases=[
   ['generic subscribe CTA','<main><a href="/join">Subscribe now</a></main>'],

@@ -4,6 +4,7 @@ import {executableAction,executionBounds} from './execution-capabilities.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
 import {initializeAdaptiveState,assessAdaptiveService,runAdaptiveCampaign} from '../inventory/adaptive-campaign.mjs';
 import {createTavilyDiscovery} from './tavily-discovery.mjs';
+import {DiscoveryJournal} from './online-discovery.mjs';
 import {recoverInterrupted} from '../inventory/expansion-campaign.mjs';
 const url='https://provider.example/plans';
 const target=(c={})=>({id:'provider-price-DE',service:'provider',serviceName:'Provider',market:'DE',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[url],authorities:[{hostname:'provider.example',provider:'Provider',sourceType:'OFFICIAL_PROVIDER',sourceUrl:url,checkedAt:'2026-01-01T00:00:00.000Z'}],capabilities:{direct:false,tavily:false,decodo:true,browser:false,groq:false,...c}});
@@ -59,6 +60,11 @@ test('actual Decodo binding admits independent reason into existing zero-retry c
  await assert.rejects(adapter.acquire({target:target(),candidate:{url,authority:admitted},route:'DECODO',reason:'DIRECT_PROHIBITED_DECODO_PERMITTED'}),e=>e===marker);assert.equal(children,1);
  const journal=fs.readFileSync(directory+'/open-web-discovery/acquisition-budget/discovery-journal.jsonl','utf8');assert(journal.includes('INDEPENDENT_DECODO_ADMITTED'));assert(!journal.includes('GEO_ESCALATION_ELIGIBLE'));
  await assert.rejects(adapter.acquire({target:target(),candidate:{url,authority:admitted}}),/DISCOVERY_ACQUISITION_FAILURE_PROOF_REQUIRED/);
+});
+test('page reservation exhaustion returns non-hard BUDGET_STOP without another acquisition',async t=>{
+ const directory=dir(t),budgetDirectory=directory+'/open-web-discovery/acquisition-budget',journal=new DiscoveryJournal(budgetDirectory);for(let i=0;i<3;i++)journal.reserve(target().id,'pages');let children=0;
+ const adapter=(await createTavilyDiscovery({inventory:[target()],searchEnabled:false})).bind({dir:directory,runtime:{},bundle:{transport:{},verifier:{url:'https://exit.example/check'}},runLive:async()=>{children++;throw Error('UNEXPECTED_CHILD');}}),result=await adapter.acquire({target:target(),candidate:{url,authority:admitted},route:'DECODO',reason:'DIRECT_PROHIBITED_DECODO_PERMITTED'});
+ assert.deepEqual({classification:result.classification,hardStop:result.hardStop,followUp:result.followUp},{classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO'});assert.equal(children,0);assert.equal(new DiscoveryJournal(budgetDirectory).usage.pages,3);assert.equal(new DiscoveryJournal(budgetDirectory).events.filter(event=>event.type==='BOUND_STOP'&&event.kind==='pages').length,1);
 });
 for(const [scenario,options,ceiling]of [['success',{},'10'],['robots',{robotsDeny:true},'10'],['access',{status:403},'10'],['geo mismatch',{countries:['US']},'10'],['cost ceiling',{},'0.01']])test('independent real Decodo stack: '+scenario,async t=>{
  const {decodoFixture,target:fixtureUrl,at}=await import('../../../../../docs/catalog/global-47/research-v1/decodo-test-fixtures.mjs');

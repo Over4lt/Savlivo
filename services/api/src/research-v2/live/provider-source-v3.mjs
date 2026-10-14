@@ -4,10 +4,12 @@ import {authorityBinding} from '../../research-v3/discovery-authority.mjs';
 import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.mjs';
 import {evaluate} from '../../research-v3/truth.mjs';
 import {refreshCatalog} from '../../research-v3/subscription-catalog.mjs';
-import {digest} from '../../research-v3/model.mjs';
+import {digest,normalizeUrl} from '../../research-v3/model.mjs';
 import {extractNavigation} from '../../research-v3/discovery.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {discoverSubscriptionServices} from '../../research-v3/subscription-service-discovery.mjs';
+import {projectV3SuggestedCandidates} from '../../research-v3/suggested-projection.mjs';
+import {sourceBoundLineageBindings} from '../../research-v3/source-lineage.mjs';
 
 const allowedAccessFields=new Set(['decision','reason','boundary','httpStatus','rule']);
 const hex=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
@@ -39,9 +41,14 @@ export function evaluateProviderSourceTruth({target,retained,acquisition,observa
  const contentType=String(retained.contentType??'text/html').split(';')[0].trim().toLowerCase();
  const accessDecisions=retained.accessDecisions.map(row=>Object.fromEntries(Object.entries(row).filter(([key,value])=>allowedAccessFields.has(key)&&value!==undefined)));
  const serviceUnderstanding=providerSeedServiceUnderstanding({target,retained,observationId,contentType,accessDecisions}),serviceName=serviceUnderstanding?.service?.serviceName??target.providerSeedCandidateServiceContext?.serviceName??target.serviceName,objective={kind:'PRICE',serviceId:target.service,serviceName,providerHosts:[host],markets:[target.market],seeds:[target.providerSeedCandidateServiceContext?.objectiveResource?.url??url]};
- const observation=adaptV2CurrentSource({contractVersion:1,observationId,target:{service:target.service,serviceName,market:target.market},page:{url,requestedUrl:retained.requestedUrl??url,outcome:'OK',httpStatus:retained.httpStatus,contentType,bodyHash:retained.bodyHash,sourceIntegrity:{sha256:retained.sourceIntegrity.sha256},rawSource:{text:retained.rawSource.text},accessDecisions},providerAuthority:{status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,url)},acquisition},objective);
+ const providerAuthority={status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,url)};
+ const observation=adaptV2CurrentSource({contractVersion:1,observationId,target:{service:target.service,serviceName,market:target.market},page:{url,requestedUrl:retained.requestedUrl??url,outcome:'OK',httpStatus:retained.httpStatus,contentType,bodyHash:retained.bodyHash,sourceIntegrity:{sha256:retained.sourceIntegrity.sha256},rawSource:{text:retained.rawSource.text},accessDecisions},providerAuthority,acquisition},objective);
  const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},truth=evaluate(knowledge),catalog=refreshCatalog(knowledge,truth),{navigation,v3Continuations}=sourceBoundContinuations(observation,objective,truth);
- return {v3Observation:{...compactObservation(observation),continuationCount:v3Continuations.length,continuationLimited:navigation.limited},v3ServiceUnderstanding:serviceUnderstanding,v3Truth:truth,v3Catalog:structuredClone(catalog),v3Continuations};
+ const projected=projectV3SuggestedCandidates({observation,objective,targetMarket:target.market,providerAuthority,truth});
+ const researchCandidateLineage=(target.researchCandidateLineage??[]).map(row=>!row.sourceHash&&normalizeUrl(row.sourceUrl)===normalizeUrl(observation.url)?{...row,sourceHash:observation.sha256}:row);
+ const v3ResearchLineage=sourceBoundLineageBindings({handoff:{adaptiveTargetPatch:{researchCandidateLineage}},observation,candidates:projected});
+ const v3SuggestedCandidates=projectV3SuggestedCandidates({observation,objective,targetMarket:target.market,providerAuthority,truth,researchLineage:v3ResearchLineage.bindings});
+ return {v3Observation:{...compactObservation(observation),continuationCount:v3Continuations.length,continuationLimited:navigation.limited},v3ServiceUnderstanding:serviceUnderstanding,v3Truth:truth,v3Catalog:structuredClone(catalog),v3SuggestedCandidates,v3ResearchLineage,v3Continuations};
 }
 
 export function sourceBoundContinuations(observation,objective,truth){

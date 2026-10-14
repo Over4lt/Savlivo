@@ -4,6 +4,7 @@ import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
 import {projectEstablishedV3Offerings,projectTargetV3Result} from './v3-result-projection.mjs';
 import {writeLifecycleDisposition} from './lifecycle-continuation.mjs';
 import {acceptV3TruthNeeds} from '../live/market-proof-continuation.mjs';
+import {digest} from '../../research-v3/model.mjs';
 
 const hash='a'.repeat(64),url='https://provider.example/membership',observationId='provider-observation';
 const reference=(pointer,transport='DECODO')=>({observation:observationId,sha256:hash,pointer,source:{start:10,end:20,sha256:'b'.repeat(64),structuralPath:'/catalog/months/'+pointer.split('/').at(-1),parentPath:'/catalog/months',observation:observationId,sourceHash:hash,nativeStructured:true,admitted:true},...(transport==='DECODO'?{marketContext:{basis:'VERIFIED_COUNTRY_OBSERVATION',country:'NO',verification:'BRACKET_VERIFIED'}}:{})});
@@ -13,6 +14,10 @@ function offer(id,amount,{transport='DECODO',currency='NOK',currencyState='ESTAB
  return {id,market:'NO',conditions:null,propositions:{
   SERVICE_IDENTITY:proposition('ESTABLISHED',true,'/serviceId',transport),PRICE_AMOUNT:proposition(amountState,amount,pointer,transport),CURRENCY:proposition(currencyState,currency,pointer,transport),MONTHLY_CADENCE:proposition('UNRESOLVED',null,pointer,transport),MONTHLY_SUBSCRIPTION:proposition('ESTABLISHED',true,pointer,transport),CONSUMER_SUBSCRIPTION:proposition('ESTABLISHED',true,pointer,transport),TARGET_MARKET:proposition('ESTABLISHED','NO',pointer,transport)
  }};
+}
+function withExactOfferIdentity(row,name,{disagreeingProposition=null}={}){
+ for(const [propositionName,propositionValue]of Object.entries(row.propositions))for(const evidence of propositionValue.evidence??[]){if(propositionName==='SERVICE_IDENTITY')continue;const current=propositionName===disagreeingProposition?'Different Plan':name;evidence.reference.source={...evidence.reference.source,offer:current,offerIdentity:{kind:'SPAN',start:30,end:30+current.length,quote:current,sha256:digest(current)}};}
+ return row;
 }
 function truth(offers=[offer('gold',79.99),offer('platinum',129.99),offer('diamond',199.99)]){
  return {eligibility:{NO:{state:'MONTHLY_SUBSCRIPTION_ESTABLISHED',result:'ELIGIBLE',evidence:[{value:true,reference:reference('/offers/0')}],conflicting:false}},ineligibleMarkets:[],resolved:true,service:{SERVICE_IDENTITY:{state:'ESTABLISHED'},SERVICE_SIZE_100K_PLUS:{state:'UNRESOLVED'},CONSUMER_MONTHLY_SUBSCRIPTION_EXISTS:{state:'ESTABLISHED'},ACCOUNT_LOGIN_EXISTS:{state:'UNRESOLVED'},MEMBERSHIP_MANAGEMENT_EXISTS:{state:'UNRESOLVED'}},accountAccess:{},offers,prices:{NO:{...offers[0],established:true}},needs:[],established:true,admitted:false};
@@ -24,6 +29,16 @@ test('pure projection preserves every independently established offer and source
  const current=target(),before=structuredClone(current),rows=projectEstablishedV3Offerings(current);
  assert.deepEqual(rows.map(row=>row.id),['gold','platinum','diamond']);assert(rows.every(row=>row.established&&row.eligibility.result==='ELIGIBLE'));assert.deepEqual(rows.map(row=>row.ordinaryRecurringPrice.amount),[79.99,129.99,199.99]);
  assert(rows.every(row=>row.source.observationId===observationId&&row.source.bodyHash===hash&&row.source.url===url));assert(rows.every(row=>row.sourceReferences.length>0&&row.sourceReferences.every(ref=>ref.sha256===hash)));assert(rows.every(row=>row.countryContext.country==='NO'&&row.source.context.transport==='DECODO'));assert.deepEqual(current,before,'projection must be pure');
+});
+
+test('exact source-bound offer identity survives established V3 projection',()=>{
+ const rows=projectEstablishedV3Offerings(target({v3Truth:truth([withExactOfferIdentity(offer('core',4.99),'Core'),withExactOfferIdentity(offer('pro',17.99),'Pro')])}));
+ assert.deepEqual(rows.map(row=>[row.name,row.offerIdentity.name,row.offerIdentity.locator.quote]),[['Core','Core','Core'],['Pro','Pro','Pro']]);
+});
+
+test('absent or disagreeing exact offer identity remains unlinked',()=>{
+ const absent=projectEstablishedV3Offerings(target({v3Truth:truth([offer('core',4.99)])}))[0],disagreeing=projectEstablishedV3Offerings(target({v3Truth:truth([withExactOfferIdentity(offer('pro',17.99),'Pro',{disagreeingProposition:'CURRENCY'})])}))[0];
+ assert.equal(absent.name,null);assert.equal(absent.offerIdentity,undefined);assert.equal(disagreeing.name,null);assert.equal(disagreeing.offerIdentity,undefined);
 });
 
 test('offering projection is independent of catalog, admission, exposure, admitted and budget termination',()=>{

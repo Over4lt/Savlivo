@@ -100,6 +100,35 @@ function pagePresentationIdentity(parsed,providerName){
  return {name,type,identity,subscription,support:['PAGE_TITLE','OPEN_GRAPH_TITLE',...(metadataSupport?['PRODUCT_DESCRIPTION']:['PAGE_IDENTITY_CORROBORATION'])]};
 }
 
+function nativeSubscriptionPlanSet(body){
+ let scripts=0,nodes=0;
+ for(const match of body.matchAll(/<script\b([^>]*)>([^]*?)<\/script\s*>/gi)){
+  if(++scripts>32)break;const raw=match[2];
+  if(Buffer.byteLength(raw)>1_000_000||!/\btype\s*=\s*["']application\/(?:ld\+)?json["']/i.test(match[1]))continue;
+  let root;try{root=JSON.parse(raw);}catch{continue;}const stack=[{value:root,depth:0}];
+  while(stack.length&&nodes++<8192){const {value,depth}=stack.pop();if(!value||typeof value!=='object'||depth>32)continue;
+   for(const [key,child]of Object.entries(value)){
+    if(/^(?:subscription|membership)Plans$/i.test(key)&&child&&typeof child==='object'){
+     const plans=Array.isArray(child)?child:Object.values(child),valid=plans.filter(plan=>plan&&typeof plan==='object'&&!Array.isArray(plan)&&Object.entries(plan).some(([name,v])=>/(?:price|amount)/i.test(name)&&(typeof v==='number'||typeof v==='string'&&v.trim()))&&Object.entries(plan).some(([name,v])=>/(?:renewal|billing|cadence|interval|period|display_name|selection_key)/i.test(name)&&/^(?:P?1?[MY]|months?|monthly|years?|yearly|annual)$/i.test(String(v))));
+     if(valid.length)return true;
+    }
+    if(child&&typeof child==='object')stack.push({value:child,depth:depth+1});
+   }
+  }
+ }
+ return false;
+}
+
+function nativePlanPresentationIdentity(parsed,providerName){
+ if(!nativeSubscriptionPlanSet(parsed.body)||typeof providerName!=='string')return null;
+ const name=normalized(providerName),fields=fieldRows(parsed),title=uniqueRow(fields.filter(row=>row.kind==='TITLE')),openGraphRows=fields.filter(row=>row.kind==='OG:TITLE'),openGraphTitle=openGraphRows.length?uniqueRow(openGraphRows):null,descriptions=fields.filter(row=>['DESCRIPTION','OG:DESCRIPTION'].includes(row.kind)),description=descriptions.length?uniqueRow(descriptions):null,siteRows=fields.filter(row=>['APPLICATION-NAME','OG:SITE_NAME'].includes(row.kind)),siteIdentity=siteRows.length?uniqueRow(siteRows):null;
+ if(!title||!description||!name||name.length<2||name.length>120||genericName.test(name)||peripheralName.test(name)||(openGraphRows.length&&(!openGraphTitle||comparable(openGraphTitle.value)!==comparable(title.value)))||(siteRows.length&&(!siteIdentity||comparable(siteIdentity.value)!==comparable(name))))return null;
+ if(!/\b(?:plans?|subscriptions?|memberships?)\b/iu.test(title.value)||!exactWord(description.value,name)||!relationshipWord.test(description.value)||!/\b(?:plans?|service|app(?:lication)?|membership)\b/iu.test(description.value))return null;
+ const identity=exactLocator(parsed,description,name),subscription=relationLocator(parsed,description);if(!identity||!subscription)return null;
+ const type=/\b(?:app(?:lication)?|software)\b/iu.test(description.value)?'SoftwareApplication':'Service';
+ return {name,type,identity,subscription,support:['PAGE_TITLE','PRODUCT_DESCRIPTION','NATIVE_SUBSCRIPTION_PLAN_SET']};
+}
+
 function componentIdentities(parsed,providerName){
  const found=[];
  for(const node of parsed.nodes){if(node.hidden||node.tag!=='section'||ancestors(node).some(parent=>peripheral.has(parent.tag)))continue;
@@ -148,6 +177,6 @@ function enrichFromProse(parsed,offerings){
 }
 
 export function interpretSubscriptionPage({body,url,providerName=null}){
- if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges}));enrichFromProse(parsed,offerings);
+ if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges}));enrichFromProse(parsed,offerings);
  return {services,offerings,limited:parsed.limited};
 }

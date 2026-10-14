@@ -39,7 +39,7 @@ export function launchPreflight(config,input,actor,done,action='PREFLIGHT'){
 export function beginPreflight(ops,input,actor,launch=launchPreflight){
  if(input&&Object.hasOwn(input,'humanLeadSnapshot'))fail('CLIENT_LEAD_SNAPSHOT_FORBIDDEN',400);
  if(!ops.config.control)fail('RUN_CONTROL_DISABLED',403);
- if(!input||!['MATURE_LIFECYCLE','LOGIN_MANAGE'].includes(input.objective))fail('INVALID_CONFIG',400);
+ if(!input||!['MATURE_LIFECYCLE','LOGIN_MANAGE','PRICE_RESEARCH'].includes(input.objective))fail('INVALID_CONFIG',400);
  const {idempotencyKey,...config}=input;
  if(idempotencyKey!==undefined&&(typeof idempotencyKey!=='string'||!/^[a-zA-Z0-9-]{16,80}$/.test(idempotencyKey)))fail('INVALID_IDEMPOTENCY_KEY',400);
  input=config; // Request identity is not research configuration or admission evidence.

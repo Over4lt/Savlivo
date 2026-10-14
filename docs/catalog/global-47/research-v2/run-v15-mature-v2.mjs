@@ -49,7 +49,7 @@ export async function lifecycleMain(args,control={}){
  const h=stage('handoff',()=>inspectLifecycleInput(file));h.config.capabilities=resolveCapabilities(h.config.capabilities);const capabilityCheck=stage('capabilities',()=>capabilityPreflight(h.config.capabilities));const markets=structuredClone(h.config.researchScopes?json(h.config.researchScopes).researchMarkets:{});
  // Explicit project market hints are research scopes only, never availability.
  for(const c of h.cohort.candidates)if(!markets[c.slug]?.length&&c.markets?.length)markets[c.slug]=[...c.markets];
- priceTargets(h.targets,markets,h.cohort.manifest.serviceIds);
+ const scopedPrices=priceTargets(h.targets,markets,h.cohort.manifest.serviceIds);
  const codeFiles=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?codeFiles(path.join(dir,e.name)):e.isFile()&&e.name.endsWith('.mjs')?[path.join(dir,e.name)]:[]);
  const codeHash=stage('engine-code-hashes',()=>digest(codeFiles('services/api/src/research-v2').sort().map(f=>[f,digest(fs.readFileSync(f))])));
  const genesis=h.config.productionGenesis?stage('genesis-validation',()=>validateProductionGenesis(process.cwd(),h.config.productionGenesis,{onTiming:t=>console.error(JSON.stringify({...context,event:'V2_NATIVE_CHECK_STAGE',...t,status:'FINISHED',rssBytes:process.memoryUsage().rss,heapUsedBytes:process.memoryUsage().heapUsed,maxRssKiB:process.resourceUsage().maxRSS}))})):null;
@@ -63,5 +63,9 @@ export async function lifecycleMain(args,control={}){
  control.beforeExecution?.({output:location.directory});
  const key=h.config.capabilities.tavily?process.env.TAVILY_API_KEY?.trim():null;
  let stop=false;const halt=()=>{stop=true;console.log('Stopping after current mature action; use the same command to resume.');};process.on('SIGINT',halt);process.on('SIGTERM',halt);
- try{return await executeHandoff({handoff:h,researchMarkets:markets,directory:location.directory,mode:'live',key,shouldStop:()=>stop||control.shouldStop?.()===true||checkpointReserveLow(path.join(process.cwd(),'.savlivo')),lifecycle});}finally{process.off('SIGINT',halt);process.off('SIGTERM',halt);}
+ const execute=researchHandoffs=>executeHandoff({handoff:h,researchMarkets:markets,directory:location.directory,mode:'live',key,shouldStop:()=>stop||control.shouldStop?.()===true||checkpointReserveLow(path.join(process.cwd(),'.savlivo')),lifecycle,researchHandoffs});
+ try{
+  if(control.runResearch)return await control.runResearch({output:location.directory,targets:scopedPrices.map(({id,service,serviceName,market})=>({id,service,serviceName,market})),execute});
+  return await execute({});
+ }finally{process.off('SIGINT',halt);process.off('SIGTERM',halt);}
 }
