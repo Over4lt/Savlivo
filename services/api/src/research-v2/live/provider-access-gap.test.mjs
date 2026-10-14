@@ -16,6 +16,11 @@ test('authorized exact-host Direct grounding plus an unresolved V3 target need a
  const plan=planResearch(value);assert.equal(plan.route,'DECODO');assert.equal(plan.url,url);assert.equal(plan.reason,'TARGET_MARKET_OBSERVATION_REQUIRED');assert.equal(executableAction(value,{route:'DECODO',url}).executable,true);
 });
 
+test('canonical price research missing target-market proof exposes an explicit Decodo capability blocker after Direct grounding',()=>{
+ const disabled=target({operationsObjective:'PRICE_RESEARCH',capabilities:{direct:true,tavily:false,decodo:false,browser:false,groq:false}}),plan=planResearch(disabled);assert.equal(plan.route,'STOP');assert.equal(plan.reason,'INDEPENDENT_DECODO_PERMISSION_REQUIRED');assert.equal(plan.url,null);
+ const bounded=target({operationsObjective:'PRICE_RESEARCH'}),boundedPlan=planResearch(bounded,{executionContext:{bounds:{...executionBounds,perServiceAcquisitions:0},usage:{reads:0,searches:0,acquisitions:0,bytes:0}}});assert.equal(boundedPlan.route,'STOP');assert.equal(boundedPlan.reason,'DECODO_BUDGET_EXHAUSTED');
+});
+
 test('country scheduling still fails closed without market, authority, exact successful Direct grounding, unresolved need or capacity',()=>{
  const cases=[
   ['market',value=>{value.market=null;}],

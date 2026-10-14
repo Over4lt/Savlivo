@@ -48,10 +48,17 @@ export function targetExecutionContext(state,t){
 }
 
 function sufficient(state,service){const catalogTargets=Object.values(state.targets).filter(t=>t.service===service&&t.researchObjective==='CATALOG_ONLY');if(catalogTargets.length){const proofs=catalogTargets.flatMap(t=>t.catalogCapabilityProofs??[]);for(const t of catalogTargets){for(const p of proofs)mergeTargetCapabilities(t,p);}return catalogTargets.some(t=>t.loginManageEstablished)?'LOGIN_MANAGE_ESTABLISHED':null;}const ts=Object.values(state.targets).filter(t=>t.service===service),reasons=ts.map(t=>pricingSufficiency(t,ts));return reasons.length&&reasons.every(Boolean)?reasons.includes('MEDIUM_SUFFICIENT')?'MEDIUM_SUFFICIENT':reasons[0]:null;}
-function pricingSufficiency(t,targets=[t]){const review=targets.filter(x=>x.market===t.market).map(x=>t.market?targetMarketPriceReview(t,x.retainedPriceReview):currentRetainedPriceReview(t,x.retainedPriceReview)).find(Boolean);if(!review||marketProofContradicted(t)||pendingMarketProof(t).length&&review.market!==t.market)return null;return t.priceStrategy==='USER_PRICE_PREFERRED'?'USER_PRICE_PREFERRED_SUFFICIENT':review.confidence==='HIGH'?'HIGH_SUFFICIENT':'MEDIUM_SUFFICIENT';}
+export function v4VerificationStatus(t){
+ const requirement=t.v4VerificationRequirement;
+ if(!requirement)return {required:false,attempted:false,satisfied:false};
+ const attempted=(t.reads?.length??0)+(t.queries?.length??0)+(t.acquisitionOutcomes?.length??0)+(t.renderingOutcomes?.length??0)>0;
+ const satisfied=(t.verified?.length??0)>0||t.retainedPriceReview?.sourceBound===true&&t.retainedPriceReview?.market===t.market;
+ return {required:true,attempted,satisfied};
+}
+function pricingSufficiency(t,targets=[t]){const verification=v4VerificationStatus(t);if(verification.required&&!verification.satisfied)return null;const review=targets.filter(x=>x.market===t.market).map(x=>t.market?targetMarketPriceReview(t,x.retainedPriceReview):currentRetainedPriceReview(t,x.retainedPriceReview)).find(Boolean);if(!review||marketProofContradicted(t)||pendingMarketProof(t).length&&review.market!==t.market)return null;return t.priceStrategy==='USER_PRICE_PREFERRED'?'USER_PRICE_PREFERRED_SUFFICIENT':review.confidence==='HIGH'?'HIGH_SUFFICIENT':'MEDIUM_SUFFICIENT';}
 function actionKey(service,p){return JSON.stringify([service,p.route,['DIRECT','DECODO','PARK_RENDERING'].includes(p.route)?resourceKey(p.url):p.url??p.query,p.retainedKey,...(p.route==='DECODO'?[p.targetMarket]:[])]);}
 export function assessAdaptiveService(state,service){
- const s=state.services[service],ts=Object.values(state.targets).filter(t=>t.service===service),enough=sufficient(state,service),signature=hash(ts.map(t=>[t.id,counts(t),t.retainedPriceReview,t.researchDiagnosis,t.capabilityReconciliation,t.renderingOutcomes,t.blockedOrigins,t.catalogEligibility,readPriceEvidenceNeeds(t)?.evidenceDigest??null])),rows=[];
+ const s=state.services[service],ts=Object.values(state.targets).filter(t=>t.service===service),enough=sufficient(state,service),signature=hash(ts.map(t=>[t.id,counts(t),t.retainedPriceReview,t.v4VerificationRequirement,t.researchDiagnosis,t.capabilityReconciliation,t.renderingOutcomes,t.blockedOrigins,t.catalogEligibility,readPriceEvidenceNeeds(t)?.evidenceDigest??null])),rows=[];
  const attempted=new Set(ts.flatMap(t=>[...(t.reads??[]).map(r=>resourceKey(r.requestedUrl)),...(t.decisions??[]).filter(d=>d.acquisitionReserved).map(d=>resourceKey(d.url))]));
  for(const t of ts){rankPlannerLeads(t);const context=targetExecutionContext(state,t),p=planResearch(t,{executionContext:context,unreadUrls:t.leads.map(l=>l.url),discoveryAllowed:destinationDiscoveryNeeded(t,context.bounds,context.usage)}),cap=executableAction(t,p,context);if(p.route==='DECODO')p.targetMarket=t.market;let decision='DEFER',reason=p.reason,value=0;
  if(enough){decision='REJECT';reason=enough;}
