@@ -12,6 +12,17 @@ export function recordJobPhase(config,job,event){
 }
 // Only bounded machine codes are exposed; arbitrary exception/log text can contain secrets.
 const code=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{0,159}$/.test(value)?value:null;
+const batchStatuses=new Set(['PENDING','RUNNING','COMPLETE','FAILED','STOPPED']);
+const safeInteger=value=>Number.isSafeInteger(value)&&value>=0?value:null;
+export function priceResearchBatchStatus(job,dir){
+ const config=job?.config;if(config?.objective!=='PRICE_RESEARCH'||config.targetKind!=='CANONICAL_SELECTION'||!Array.isArray(config.batchTargets)||config.batchTargets.length<1||config.batchTargets.length>10)return null;
+ const recorded=json(path.join(dir,'price-research-batch-progress.json'),1024*1024),recordedRows=Array.isArray(recorded?.outcomes)?recorded.outcomes:[];
+ const outcomes=config.batchTargets.map((target,index)=>{
+  const row=recordedRows[index]?.targetId===target.id?recordedRows[index]:null,result=json(path.join(dir,'price-research-targets',`${String(index+1).padStart(2,'0')}-${target.serviceId}-${target.targetMarket}`,'result.json'),4*1024*1024),resultRow=result?.kind==='ADMIN_V4_FIRST_RESEARCH_RESULT'&&Array.isArray(result.targets)?result.targets.find(item=>item?.target?.id===target.id):null,resultClass=code(resultRow?.combined?.resultClass);
+  return {position:index+1,total:config.batchTargets.length,targetId:target.id,serviceId:target.serviceId,serviceName:target.serviceName,targetMarket:target.targetMarket,status:batchStatuses.has(row?.status)?row.status:'PENDING',...(code(row?.failureCode)?{failureCode:code(row.failureCode)}:{}),...(typeof row?.startedAt==='string'?{startedAt:row.startedAt}:{}),...(typeof row?.finishedAt==='string'?{finishedAt:row.finishedAt}:{}),...(resultClass?{resultClass}:{}),...(safeInteger(resultRow?.persisted?.suggestedPlans)!==null?{suggestedPlans:resultRow.persisted.suggestedPlans}:{}),...(safeInteger(resultRow?.persisted?.verified)!==null?{verified:resultRow.persisted.verified}:{})};
+ });
+ return {status:batchStatuses.has(recorded?.status)?recorded.status:job.status==='QUEUED'?'PENDING':job.status==='RUNNING'?'RUNNING':batchStatuses.has(job.status)?job.status:'PENDING',nextIndex:safeInteger(recorded?.nextIndex)??0,logicalTargetCount:config.logicalTargetCount,cursor:config.cursor??null,continuationCursor:config.continuationCursor??null,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling,outcomes};
+}
 export function terminationDiagnostic(job,phase,processAlive){
  if(['COMPLETE','SKIPPED_NOT_DUE'].includes(job.status))return null;
  const abnormal=['FAILED','INTERRUPTED','STOPPED','SKIPPED_CONFLICT'].includes(job.status);
@@ -36,5 +47,5 @@ export function jobStatus(ops,id,actor){
   if(job.status==='QUEUED'&&phase.event==='PREPARATION_STARTED'&&json(path.join(ops.config.root,'control.lock'))===phase.pid)preparation='Preparing execution';
   if(job.status==='RUNNING'&&phase.pid===job.pid)preparation=phase.event==='AUTHORITATIVE_VALIDATION_STARTED'?'Validating execution integrity':phase.event==='AUTHORITATIVE_VALIDATION_COMPLETED'?'Lifecycle execution':phase.event==='EXECUTION_STARTED'?'Preparing execution':null;
  }
- return {id:job.id,status:job.status,terminal:jobTerminalStatuses.includes(job.status),phase:preparation,diagnostic:terminationDiagnostic(job,phase,Number.isInteger(job.pid)&&job.pid>1?alive(job.pid):null),services:job.config?.services??[],createdAt:job.createdAt,startedAt:job.startedAt??null,updatedAt:job.updatedAt,finishedAt:job.finishedAt??null,maximumRequests:manifest?.limits?.totalRequests??manifest?.safety?.totalRequests??null};
+ return {id:job.id,status:job.status,terminal:jobTerminalStatuses.includes(job.status),phase:preparation,diagnostic:terminationDiagnostic(job,phase,Number.isInteger(job.pid)&&job.pid>1?alive(job.pid):null),services:job.config?.services??[],createdAt:job.createdAt,startedAt:job.startedAt??null,updatedAt:job.updatedAt,finishedAt:job.finishedAt??null,maximumRequests:manifest?.limits?.totalRequests??manifest?.safety?.totalRequests??null,batchProgress:priceResearchBatchStatus(job,dir)};
 }
