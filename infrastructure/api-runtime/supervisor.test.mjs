@@ -20,5 +20,5 @@ test('runtime rejects missing mode and every endpoint override',()=>{
 });
 
 test('Docker runtime keeps one API image, loopback server and no browser port exposure',()=>{
- const docker=fs.readFileSync(new URL('./Dockerfile',import.meta.url),'utf8');assert.match(docker,/WORKDIR \/opt\/render\/project\/src/);assert.match(docker,/SAVLIVO_BROWSER_RUNTIME=LOCAL_CONTAINER/);assert.doesNotMatch(docker,/EXPOSE\s+3001|0\.0\.0\.0|docker\.sock|SAVLIVO_BROWSER_WS_ENDPOINT|chrome[_-]sandbox|CHROME_DEVEL_SANDBOX|chmod\s+4755/);
+ const docker=fs.readFileSync(new URL('../../Dockerfile',import.meta.url),'utf8');assert.match(docker,/WORKDIR \/opt\/render\/project\/src/);assert.match(docker,/SAVLIVO_BROWSER_RUNTIME=LOCAL_CONTAINER/);assert.doesNotMatch(docker,/EXPOSE\s+3001|0\.0\.0\.0|docker\.sock|SAVLIVO_BROWSER_WS_ENDPOINT|chrome[_-]sandbox|CHROME_DEVEL_SANDBOX|chmod\s+4755/);
 });

@@ -13,7 +13,7 @@ test('LOCAL_CONTAINER has one fixed loopback endpoint and forbids endpoint overr
 });
 
 test('API client and internal server pin exactly the same Playwright generation and image',()=>{
- const client=JSON.parse(fs.readFileSync(new URL('../../../../infrastructure/playwright-client/package.json',import.meta.url))),server=JSON.parse(fs.readFileSync(new URL('../../../../infrastructure/browser-runtime/package.json',import.meta.url))),docker=fs.readFileSync(new URL('../../../../infrastructure/api-runtime/Dockerfile',import.meta.url),'utf8');
+ const client=JSON.parse(fs.readFileSync(new URL('../../../../infrastructure/playwright-client/package.json',import.meta.url))),server=JSON.parse(fs.readFileSync(new URL('../../../../infrastructure/browser-runtime/package.json',import.meta.url))),docker=fs.readFileSync(new URL('../../../../Dockerfile',import.meta.url),'utf8');
  assert.equal(client.dependencies['playwright-core'],localPlaywrightVersion);assert.equal(server.dependencies.playwright,localPlaywrightVersion);assert.match(docker,/mcr\.microsoft\.com\/playwright@sha256:68f1c3dca663d0e8331e8af4681b0b315eca7de1bd7fa934aac0accbeb9f8323/);
 });
 
