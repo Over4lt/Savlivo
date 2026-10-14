@@ -33,6 +33,8 @@ export function terminationText(job){
  if(['COMPLETE','SKIPPED_NOT_DUE'].includes(job.status))return '';
  const d=job.diagnostic;
  const label=d?.kind==='CAUSE'?'Cause':d?.kind==='PROBABLE_CAUSE'?'Probable cause':null;
- const reason=label&&d.reason?`${label}: ${d.reason}`:['FAILED','INTERRUPTED','STOPPED','SKIPPED_CONFLICT'].includes(job.status)?'Cause unavailable from recorded status.':'';
+ let reason=label&&d.reason?`${label}: ${d.reason}`:['FAILED','INTERRUPTED','STOPPED','SKIPPED_CONFLICT'].includes(job.status)?'Cause unavailable from recorded status.':'';
+ const failures=(job.batchProgress?.outcomes??[]).flatMap(row=>/^[A-Z][A-Z0-9_]{0,159}$/.test(row?.failureCode??'')&&/^[a-z0-9][a-z0-9-]{0,159}$/.test(row?.serviceId??'')&&/^[A-Z]{2}$/.test(row?.targetMarket??'')?[`${row.serviceId} / ${row.targetMarket}: ${row.failureCode}`]:[]);
+ if(failures.length){const shown=failures.slice(0,3).join(' · '),more=failures.length>3?` · +${failures.length-3} more`:'';reason+=(reason?' ':'')+`Child failure${failures.length===1?'':'s'}: ${shown}${more}.`;}
  return reason+(reason&&d?.lastPhase?` Last recorded phase: ${d.lastPhase}${d.lastPhaseAt?' at '+d.lastPhaseAt:''}.`:'');
 }

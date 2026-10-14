@@ -31,6 +31,10 @@ test('foreign phase and unbounded error text are not exposed',()=>{
 test('missing diagnostics use explicit unknown, while active/read errors do not invent run failure',()=>{
  assert.equal(terminationText(job),'Cause unavailable from recorded status.');assert.equal(terminationText({status:'RUNNING'}),'');
 });
+test('bounded PRICE_RESEARCH child failure codes are visible without exposing arbitrary text',()=>{
+ const value=terminationText({status:'FAILED',diagnostic:{kind:'CAUSE',reason:'PRICE_RESEARCH_BATCH_CHILD_FAILED'},batchProgress:{outcomes:[{serviceId:'chess-com',targetMarket:'ES',failureCode:'TAVILY_CREDENTIAL_UNAVAILABLE'},{serviceId:'unsafe service',targetMarket:'DE',failureCode:'secret=private'}]}});
+ assert.match(value,/chess-com \/ ES: TAVILY_CREDENTIAL_UNAVAILABLE/);assert.doesNotMatch(value,/unsafe|secret|private/);
+});
 test('abnormal elapsed freezes at authoritative terminal time',()=>{
  assert.equal(elapsedText({...job,terminal:true,startedAt:'2026-09-25T12:00:00Z',finishedAt:'2026-09-25T12:01:02Z'},Date.now()),'Elapsed: 1m 2s');
 });

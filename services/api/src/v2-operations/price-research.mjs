@@ -1,13 +1,13 @@
 import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {countryCurrencies} from '../../../../packages/contracts/src/markets.ts';
-import {resolveCapabilities,capabilityPreflight} from '../research-v2/capabilities/config.mjs';
+import {resolveCapabilities} from '../research-v2/capabilities/config.mjs';
 import {resolvePriceResearchIdentity,admitDurableResearchIdentity} from '../research-v3/research-identity-store.mjs';
 import {providerOrBrandResearchTarget} from '../research-v3/research-target.mjs';
 import {runProviderSeedCampaign} from '../research-v2/inventory/provider-seed-campaign.mjs';
 import {runAdaptiveCampaign} from '../research-v2/inventory/adaptive-campaign.mjs';
 import {runAdminV4FirstResearch,v3ResultFromTarget} from '../google-ai/admin-live-pipeline.mjs';
-import {createPriceResearchAdapters} from './price-research-live.mjs';
+import {createPriceResearchAdapters,priceResearchCapabilityPreflight} from './price-research-live.mjs';
 import {applyResearchHandoff} from '../research-v2/inventory/reviewed-cohort-execution.mjs';
 import {loadPriceResearchTargeting,selectPriceResearchTargetBatch} from './price-research-targeting.mjs';
 import {executePriceResearchBatch} from './price-research-batch.mjs';
@@ -17,14 +17,15 @@ const fail=(code,status=400)=>{throw Object.assign(Error(code),{status});};
 const capabilities=input=>{try{return resolveCapabilities(input);}catch{return fail('INVALID_CAPABILITIES');}};
 const validBatchTarget=target=>target&&typeof target.serviceId==='string'&&/^[a-z0-9][a-z0-9-]{0,159}$/.test(target.serviceId)&&typeof target.serviceName==='string'&&target.serviceName.length>0&&target.serviceName.length<=240&&typeof target.targetMarket==='string'&&/^[A-Z]{2}$/.test(target.targetMarket)&&target.id===`price-research:${target.serviceId}:${target.targetMarket}`&&target.marketApplicabilityEstablished===false;
 
-async function singlePriceResearchPlan(input,{root,client}={}){
+async function singlePriceResearchPlan(input,options={}){
+ const {root,client}=options;
  if(!input||typeof input!=='object'||Array.isArray(input)||input.objective!=='PRICE_RESEARCH'||Object.keys(input).some(key=>!['objective','targetKind','seedName','serviceId','market','capabilities'].includes(key)))fail('INVALID_PRICE_RESEARCH_CONFIG');
  if(typeof input.market!=='string'||!countryCurrencies[input.market])fail('INVALID_PRICE_RESEARCH_MARKET');
  const caps=capabilities(input.capabilities),seed=input.targetKind==='PROVIDER_OR_BRAND_SEED';let identity=null;
  if(seed){if(typeof input.seedName!=='string'||input.seedName.trim().length<2||input.seedName.trim().length>120||input.serviceId!==undefined)fail('INVALID_PROVIDER_SEED');}
  else if(input.targetKind==='KNOWN_SERVICE'){if(input.seedName!==undefined)fail('INVALID_PRICE_RESEARCH_IDENTITY');const resolved=await resolvePriceResearchIdentity(input.serviceId,{client});if(resolved.status!=='RESEARCHABLE')fail('UNKNOWN_PRICE_RESEARCH_IDENTITY');identity=resolved.identity;}
  else fail('INVALID_PRICE_RESEARCH_TARGET');
- const config={objective:'PRICE_RESEARCH',targetKind:input.targetKind,...(seed?{seedName:input.seedName.trim()}:{serviceId:identity.serviceId}),market:input.market,capabilities:caps},check=capabilityPreflight(caps),manifest={objective:'PRICE_RESEARCH',catalog:[],targets:identity?[{id:`price-research:${identity.serviceId}:${input.market}`,service:identity.serviceId,serviceName:identity.serviceName,market:input.market}]:[],priceResearch:{targetKind:input.targetKind,seedName:seed?config.seedName:null,identity,market:input.market},limits:{totalRequests:seed?192:96}};
+ const config={objective:'PRICE_RESEARCH',targetKind:input.targetKind,...(seed?{seedName:input.seedName.trim()}:{serviceId:identity.serviceId}),market:input.market,capabilities:caps},check=await priceResearchCapabilityPreflight(caps,{...options.runtimeReadiness,env:options.env??process.env,markets:[input.market]}),manifest={objective:'PRICE_RESEARCH',catalog:[],targets:identity?[{id:`price-research:${identity.serviceId}:${input.market}`,service:identity.serviceId,serviceName:identity.serviceName,market:input.market}]:[],priceResearch:{targetKind:input.targetKind,seedName:seed?config.seedName:null,identity,market:input.market},limits:{totalRequests:seed?192:96}};
  return {config,manifest,actionable:1,liveReady:check.ready,capabilityCheck:check,source:null,catalogHash:digest(manifest.priceResearch),servicesConsidered:1,servicesExpectedNetwork:1,totalSafetyCeiling:manifest.limits.totalRequests,discovery:caps.tavily,decodo:caps.decodo,browser:caps.browser,conflicts:[],runner:'PRICE_RESEARCH V4-first identity bridge',checkpoint:path.join(root,'runs')};
 }
 
@@ -35,7 +36,7 @@ async function canonicalSelectionPlan(input,options={}){
  if(model.revision!==input.targetingRevision)fail('TARGETING_STALE',409);
  const batch=selectPriceResearchTargetBatch(model,input.cursor??null),batchTargets=batch.targets.map(target=>({id:target.id,serviceId:target.serviceId,serviceName:target.serviceName,targetMarket:target.targetMarket,marketApplicabilityEstablished:false}));
  const config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:model.selection.effectiveServices,markets:model.selection.requestedMarkets,targetingRevision:model.revision,cursor:batch.cursor,batchTargets,logicalTargetCount:batch.logicalTargetCount,continuationCursor:batch.continuationCursor,perTargetRequestCeiling:96,batchRequestCeiling:batchTargets.length*96,capabilities:caps};
- const check=capabilityPreflight(caps),manifest={objective:'PRICE_RESEARCH',catalog:[],targets:batchTargets.map(target=>({id:target.id,service:target.serviceId,serviceName:target.serviceName,market:target.targetMarket,marketApplicabilityEstablished:false})),priceResearch:{targetKind:'CANONICAL_SELECTION',services:config.services,markets:config.markets,targetingRevision:config.targetingRevision,cursor:config.cursor,logicalTargetCount:config.logicalTargetCount,continuationCursor:config.continuationCursor},limits:{perTargetRequests:96,totalRequests:config.batchRequestCeiling}};
+ const check=await priceResearchCapabilityPreflight(caps,{...options.runtimeReadiness,env:options.env??process.env,markets:[...new Set(batchTargets.map(target=>target.targetMarket))]}),manifest={objective:'PRICE_RESEARCH',catalog:[],targets:batchTargets.map(target=>({id:target.id,service:target.serviceId,serviceName:target.serviceName,market:target.targetMarket,marketApplicabilityEstablished:false})),priceResearch:{targetKind:'CANONICAL_SELECTION',services:config.services,markets:config.markets,targetingRevision:config.targetingRevision,cursor:config.cursor,logicalTargetCount:config.logicalTargetCount,continuationCursor:config.continuationCursor},limits:{perTargetRequests:96,totalRequests:config.batchRequestCeiling}};
  return {config,manifest,actionable:batchTargets.length,liveReady:check.ready,capabilityCheck:check,source:null,catalogHash:digest(manifest.priceResearch),servicesConsidered:config.services.length,servicesExpectedNetwork:batchTargets.length,logicalTargetCount:config.logicalTargetCount,batchTargetCount:batchTargets.length,continuationCursor:config.continuationCursor,perTargetRequestCeiling:96,totalSafetyCeiling:config.batchRequestCeiling,discovery:caps.tavily,decodo:caps.decodo,browser:caps.browser,conflicts:[],runner:'PRICE_RESEARCH bounded canonical batch',checkpoint:path.join(options.root,'runs')};
 }
 

@@ -7,11 +7,18 @@ export async function readTavilyKeychain(){
  if(process.platform!=='darwin')return null;
  try{const {stdout}=await execute('/usr/bin/security',['find-generic-password','-s','com.savlivo.research-v2.tavily','-a','TAVILY_API_KEY','-w'],{encoding:'utf8',timeout:15000,maxBuffer:8192});return stdout.trim();}catch{return null;}
 }
+export async function resolveTavilyCredential({env=process.env,readKeychain=readTavilyKeychain}={}){
+ const configured=typeof env.TAVILY_API_KEY==='string'?env.TAVILY_API_KEY.trim():'';
+ if(configured)return configured;
+ let local=null;try{local=await readKeychain();}catch{}
+ if(typeof local==='string'&&local.trim())return local.trim();
+ throw Error('TAVILY_CREDENTIAL_UNAVAILABLE');
+}
 export const createTavilySearch=options=>createSearch(options,50);
 // Explicit manual benchmark only; normal callers retain the 50-call ceiling.
 export const createTavilyBenchmarkSearch=options=>createSearch({...options,maxCalls:58},58);
-async function createSearch({readKeychain=readTavilyKeychain,fetchImpl=fetch,maxCalls=50,timeoutMs=20000}={},ceiling){
- let key;try{key=await readKeychain();}catch{}if(typeof key!=='string'||!key.trim())throw Error('TAVILY_CREDENTIAL_UNAVAILABLE');
+async function createSearch({env=process.env,readKeychain=readTavilyKeychain,fetchImpl=fetch,maxCalls=50,timeoutMs=20000}={},ceiling){
+ const key=await resolveTavilyCredential({env,readKeychain});
  if(!Number.isInteger(maxCalls)||maxCalls<1||maxCalls>ceiling)throw Error('TAVILY_INVALID_BOUND');let calls=0;
  return async({query,target})=>{
   const meta={transport:'TAVILY_SEARCH_BASIC',timestamp:new Date().toISOString(),service:target.service,market:target.market,query,results:[]};

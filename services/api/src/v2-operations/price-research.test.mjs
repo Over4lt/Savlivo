@@ -7,7 +7,7 @@ import {Operations} from './control.mjs';
 import {priceResearchPlan} from './price-research.mjs';
 
 const caps={direct:false,tavily:false,decodo:false,browser:false,groq:false};
-const fixture=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-operations-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:root,root:path.join(root,'.savlivo/v2-operations'),lifecycleInput:null,read:true,control:true,scheduling:false,timezone:'Europe/Oslo'});};
+const fixture=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-operations-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:root,root:path.join(root,'.savlivo/v2-operations'),lifecycleInput:null,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',env:{},runtimeReadiness:{readGemini:async()=>null}});};
 
 test('provider seed Preflight retains seed status and cannot manufacture a service identity',async t=>{
  const ops=fixture(t),pre=await ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName:'Unlisted Brand',market:'DE',capabilities:caps},'admin');assert.equal(pre.runner,'PRICE_RESEARCH V4-first identity bridge');assert.equal(pre.servicesConsidered,1);const stored=ops.db().preflights[0];assert.equal(stored.config.seedName,'Unlisted Brand');assert.equal(Object.hasOwn(stored.config,'serviceId'),false);
@@ -21,7 +21,7 @@ test('known canonical baseline, product and frozen identities are admitted to PR
 });
 
 const lifecycleInput='docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/lifecycle-input.json';
-function batchFixture(t,databaseIdentities=[]){const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-batch-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:process.cwd(),root,lifecycleInput,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',databaseIdentities});}
+function batchFixture(t,databaseIdentities=[]){const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-batch-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:process.cwd(),root,lifecycleInput,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',databaseIdentities,env:{},runtimeReadiness:{readGemini:async()=>null}});}
 const dbIdentity=id=>({research_service_id:id,canonical_slug:id.replace(/^research-/,''),canonical_name:id,normalized_name:id,identity_type:'Service',status:'RESEARCHABLE',aliases:[],provider_host:'provider.example',provider_binding_digest:'a'.repeat(64),provider_observation:'observation',source_url:'https://provider.example',source_body_sha256:'b'.repeat(64),relationship:'PROVIDER_PRESENTS_SERVICE',extraction_mechanism:'STRUCTURED_DATA',admission_version:1,created_at:'2026-10-14T00:00:00.000Z',updated_at:'2026-10-14T00:00:00.000Z'});
 
 test('canonical selection Preflight freezes the exact bounded batch and Start queues only that batch',async t=>{
@@ -42,4 +42,8 @@ test('Start rejects changed canonical projection and worker preparation rejects 
  const identities=[],ops=batchFixture(t,identities),targeting=await ops.priceResearchTargeting({services:['chess-com'],markets:['DE']}),pre=await ops.preflight({objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['chess-com'],markets:['DE'],targetingRevision:targeting.revision,capabilities:caps},'admin');
  identities.push(dbIdentity('research-new-service'));await assert.rejects(ops.start(pre.token,'admin',true),error=>error.message==='TARGETING_STALE'&&error.status===409);assert.equal(ops.db().jobs.length,0);identities.length=0;
  const valid=await ops.start(pre.token,'admin',true),file=path.join(ops.config.root,'runs',valid.id,'manifest.json'),manifest=JSON.parse(fs.readFileSync(file));manifest.targets[0].market='NO';fs.writeFileSync(file,JSON.stringify(manifest));assert.throws(()=>ops.prepareQueued(ops.db(),valid),/PRICE_RESEARCH_BATCH_BINDING_CHANGED/);
+});
+
+test('PRICE_RESEARCH Preflight exposes blocking capability readiness and non-blocking Gemini readiness',async t=>{
+ const ops=fixture(t);ops.config.env={TAVILY_API_KEY:'fixture-private'};const pre=await ops.preflight({objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'chess-com',market:'ES',capabilities:{...caps,tavily:true}},'admin');assert.equal(pre.liveReady,true);assert.equal(pre.capabilityCheck.availability.tavily.reason,'CONFIGURED');assert.equal(pre.capabilityCheck.auxiliary.googleAi.reason,'GEMINI_CREDENTIAL_UNAVAILABLE');assert.equal(pre.capabilityCheck.auxiliary.googleAi.blocking,false);assert.equal(JSON.stringify(pre).includes('fixture-private'),false);
 });
