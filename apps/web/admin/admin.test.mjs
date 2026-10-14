@@ -82,12 +82,21 @@ test("admin client uses memory token, uses native passkey, renders data as text,
   assert.equal(texts(nodes.results).join(" ").includes("PRIVATE_EVENT_SENTINEL"),false);
   assert.equal(texts(nodes.results).join(" ").includes("123456"),false);
 });
-test("Admin renders Suggested, Verified, match, conflict and no-price coverage observationally",async()=>{
-  const nodes=harness(async url=>response(url.endsWith("authenticate/verify")?{token:"adm_test",expiresInSeconds:900}:{...overview,analyticsV2Enabled:false}));
+test("Analytics retains Growth, Plans and Product while excluding provider-price research coverage",async()=>{
+  let received;
+  const nodes=harness(async url=>{
+    if(url.endsWith("authenticate/verify"))return response({token:"adm_test",expiresInSeconds:900});
+    if(url.includes("analytics/segments"))return response({state:"unavailable",report:"top-services",month:"2026-08",reason:"insufficient history"});
+    if(url.includes("analytics?"))return response(analytics);
+    return response({...overview,analyticsV2Enabled:true,v2OperationsEnabled:true});
+  },undefined,undefined,undefined,async(_parent,_request,_isCurrent,options)=>{received=options;return()=>{};});
   await nodes.login.listeners.submit(submit);
   const texts=element=>[element.textContent,...element.children.flatMap(texts)];
-  const all=texts(nodes.results).join(" ");
-  for(const value of ["Suggested coverage: 3 plans","Verified coverage: 3 plans","Suggested → Verified overlap: 2","Conflicts: 1","SUGGESTED ONLY","VERIFIED ONLY","SUGGESTED AND VERIFIED MATCH","SUGGESTED AND VERIFIED CONFLICT","NO PRICE","EUR 21.99","EUR 19.99"])assert.ok(all.includes(value),value);
+  const analyticsText=texts(byId(nodes,"analytics-view")).join(" ");
+  for(const value of ["Growth","Plans","Product","Current accounts: 1","Plan history values"])assert.ok(analyticsText.includes(value),value);
+  for(const value of ["Suggested coverage","Verified coverage","Price model coverage","Provider plan price state","EUR 21.99","EUR 19.99"])assert.equal(analyticsText.includes(value),false,value);
+  await viewLink(nodes,"V2 Operations").listeners.click(submit);
+  assert.deepEqual(JSON.parse(JSON.stringify(received)),{priceCoverage});
 });
 test("logout clears sensitive view immediately and rejects late dashboard result",async()=>{
   let complete;let reads=0;

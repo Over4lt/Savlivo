@@ -64,7 +64,7 @@ function ensureAdminViews() {
     link.addEventListener("click",event=>{event.preventDefault();window.history.replaceState(null,"",hash);return selectAdminView(key);});
     links[key]=link;navigation.append(link);
   }
-  adminViews={analytics,operations,links,active:null,operationsEnabled:false,analyticsLoaded:false,scroll:{analytics:0,operations:0}};
+  adminViews={analytics,operations,links,active:null,operationsEnabled:false,priceCoverage:null,analyticsLoaded:false,scroll:{analytics:0,operations:0}};
   $("admin-navigation").append(navigation);
   $("results").append(analytics,operations);
 }
@@ -76,7 +76,7 @@ async function ensureOperations() {
     try {
       const {mountOperations}=await import("./v2-operations.js");
       if(adminViews!==views||token!==session||!views.operationsEnabled)return;
-      const dispose=await mountOperations(views.operations,request,()=>adminViews===views&&token===session&&views.operationsEnabled);
+      const dispose=await mountOperations(views.operations,request,()=>adminViews===views&&token===session&&views.operationsEnabled,{priceCoverage:views.priceCoverage});
       if(adminViews!==views||token!==session||!views.operationsEnabled)dispose?.();else disposeOperations=dispose;
     } catch(error) {
       if(adminViews===views&&token===session){views.operations.replaceChildren();paragraph(views.operations,"V2 Operations could not load. "+error.message);}
@@ -108,6 +108,7 @@ async function refresh() {
     if($("market").options.length===1) for(const [code,name] of data.markets) {const option=document.createElement("option");option.value=code;option.textContent=name;$("market").append(option);}
     ensureAdminViews();
     adminViews.operationsEnabled=data.v2OperationsEnabled===true;
+    adminViews.priceCoverage=data.dataQuality.priceCoverage??null;
     if(!adminViews.operationsEnabled&&disposeOperations){disposeOperations();disposeOperations=null;adminViews.operations.replaceChildren();}
     await selectAdminView(adminViews.active??(location.hash==="#v2-operations"?"operations":"analytics"),false);
     if(current!==generation||!token)return;
@@ -118,13 +119,6 @@ async function refresh() {
     for(const note of data.notes)paragraph(panel,note);
     paragraph(panel,`Data quality: ${data.dataQuality.selectableMarkets} selectable markets; ${data.dataQuality.registryRows} registry fallbacks in scope.`);
     table("Persisted provider-price records (not user spending)",[["verification","Verification"],["prices","Prices"]],data.dataQuality.persistedPrices);
-    const priceCoverage=data.dataQuality.priceCoverage;
-    if(priceCoverage) {
-      paragraph(panel,`Suggested coverage: ${priceCoverage.plansWithSuggested} plans across ${priceCoverage.providersWithSuggested} providers (${priceCoverage.suggestedCoveragePercent}%). Verified coverage: ${priceCoverage.plansWithVerified} plans across ${priceCoverage.providersWithVerified} providers (${priceCoverage.verifiedCoveragePercent}%).`);
-      paragraph(panel,`Suggested → Verified overlap: ${priceCoverage.suggestedVerifiedOverlap}. Conflicts: ${priceCoverage.suggestedVerifiedConflicts}. Analytics is observational and does not resolve or mutate prices.`);
-      table("Price model coverage",[["status","State"],["count","Plans / unpriced providers"]],Object.entries(priceCoverage.statusCounts).map(([status,count])=>({status:status.replaceAll("_"," "),count})));
-      table("Provider plan price state",[["serviceSlug","Provider"],["planName","Plan"],["countryCode","Market"],["status","State"],["suggested","Suggested"],["verified","Verified"]],priceCoverage.rows);
-    }
     const analyticsHeading=document.createElement("h2");analyticsHeading.id="analytics";analyticsHeading.textContent="Analytics";panel.append(analyticsHeading);
     if(data.analyticsV2Enabled) {
       const analytics=await request(`analytics?range=${encodeURIComponent(analyticsRange)}`);
