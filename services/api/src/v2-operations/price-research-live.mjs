@@ -6,7 +6,7 @@ import {geminiChildEnvironment} from '../google-ai/keychain.mjs';
 import {createDecodoProvider} from '../../../../docs/catalog/global-47/research-v1/decodo-adapter.mjs';
 import {runLive} from '../research-v2/live/runner.mjs';
 import {randomBytes} from 'node:crypto';
-import {createRemoteRenderedBrowser} from '../research-v3/remote-browser.mjs';
+import {createLocalContainerRenderedBrowser} from '../research-v3/local-container-browser.mjs';
 
 export async function priceResearchChildEnvironment(base=process.env){
  const env=await geminiChildEnvironment(base);if(!env.TAVILY_API_KEY){const key=await readTavilyKeychain();if(key)env.TAVILY_API_KEY=key;}
@@ -14,7 +14,7 @@ export async function priceResearchChildEnvironment(base=process.env){
  return env;
 }
 
-export async function createPriceResearchAdapters({market,capabilities,env=process.env},{createDiscovery=createTavilyDiscovery,createRenderedBrowser=createRemoteRenderedBrowser}={}){
+export async function createPriceResearchAdapters({market,capabilities,env=process.env},{createDiscovery=createTavilyDiscovery,createRenderedBrowser=createLocalContainerRenderedBrowser}={}){
  let outerSearch=null,runtime=null,bundle=null;
  if(capabilities.decodo){runtime=await loadDecodoRuntimeConfig({env});bundle=createDecodoProvider({env:runtime});if(!bundle.provider?.ready||!bundle.provider?.configured||!bundle.verifier?.approved)throw Error('DECODO_PREFLIGHT_FAILED');}
  return async({stage,directory,targets=[]})=>{

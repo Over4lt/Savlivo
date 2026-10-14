@@ -79,8 +79,9 @@ async function boundedRequest(context,url,{maxBytes=512000,record=null,resourceT
     return {status:response.status(),text:body.toString('utf8')};
 }
 
-export function createPlaywrightRenderedCapability({chromium,proxyFor=()=>null,clock=()=>new Date().toISOString(),viewportCss={width:1440,height:900},locale='en-US',timezoneId='UTC',limits=browserRenderLimits,hostAllowed=publicHost}={}) {
-    if(!chromium?.launch)throw Error('RENDERED_BROWSER_CONFIGURATION_REQUIRED');
+export function createPlaywrightRenderedCapability({browserType,chromium,launchOptions={headless:true,args:['--disable-background-networking','--disable-sync']},proxyFor=()=>null,clock=()=>new Date().toISOString(),viewportCss={width:1440,height:900},locale='en-US',timezoneId='UTC',limits=browserRenderLimits,hostAllowed=publicHost}={}) {
+    const configuredBrowserType=browserType??chromium;
+    if(!configuredBrowserType?.launch)throw Error('RENDERED_BROWSER_CONFIGURATION_REQUIRED');
     const sessions=new Map(),imageHash=bytes=>createHash('sha256').update(bytes).digest('hex');
     let sharedBrowser=null;
     const capability=async(action,{parent,objective,maxRenderMs=limits.timeoutMs}={})=>{
@@ -112,7 +113,7 @@ export function createPlaywrightRenderedCapability({chromium,proxyFor=()=>null,c
         }
         const started=performance.now(),country=parent.context.transport==='DECODO'?parent.context.networkGeography:null,proxy=country?proxyFor(parent.context):null;
         if(country&&!proxy?.server)throw Error('RENDERED_COUNTRY_PROXY_REQUIRED');
-        const browser=sharedBrowser??=await chromium.launch({headless:true,args:['--disable-background-networking','--disable-sync']});
+        const browser=sharedBrowser??=await configuredBrowserType.launch(launchOptions);
         let context,keep=false;
         try {
             context=await browser.newContext({viewport:viewportCss,deviceScaleFactor:1,locale,timezoneId,serviceWorkers:'block',acceptDownloads:false,permissions:[],userAgent:researchUserAgent,...(proxy?{proxy}:{})});

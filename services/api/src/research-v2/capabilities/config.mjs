@@ -3,7 +3,7 @@ import {resolveDecodoCredentials} from '../../research-v1/decodo-credentials.mjs
 import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {homedir} from 'node:os';
-import {remoteBrowserConfiguration} from '../../research-v3/remote-browser.mjs';
+import {localContainerBrowserConfiguration} from '../../research-v3/local-container-browser.mjs';
 export const capabilityNames=Object.freeze(['direct','tavily','decodo','browser','groq']);
 export const defaults=Object.freeze({direct:true,tavily:true,decodo:true,browser:false,groq:false});
 export const capabilityLimits=Object.freeze({browserPerService:1,browserPerRun:20,groqPerService:2,groqPerRun:40});
@@ -23,9 +23,9 @@ export function localBrowserAvailability(){
  return {available:r.status===0,reason:r.status===0?'LOCAL_IMAGE_PRESENT_SANDBOX_CHECK_AT_USE':'DOCKER_OR_PINNED_IMAGE_UNAVAILABLE'};
 }
 export function browserAvailability(env=process.env,{probeLocal=localBrowserAvailability}={}){
- const remote=remoteBrowserConfiguration(env);
- if(remote.configured)return {available:true,reason:remote.reason};
- if(remote.reason!=='REMOTE_BROWSER_ENDPOINT_NOT_CONFIGURED')return {available:false,reason:remote.reason};
+ const container=localContainerBrowserConfiguration(env);
+ if(container.configured)return {available:true,reason:container.reason};
+ if(container.reason!=='LOCAL_CONTAINER_BROWSER_NOT_CONFIGURED'||env.NODE_ENV==='production')return {available:false,reason:container.reason};
  return probeLocal();
 }
 export function capabilityAvailability(env=process.env,{browser=false,probeBrowser=browserAvailability}={}){
