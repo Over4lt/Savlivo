@@ -5,6 +5,8 @@ import {loadDecodoRuntimeConfig,credentialNames} from '../research-v1/decodo-run
 import {geminiChildEnvironment} from '../google-ai/keychain.mjs';
 import {createDecodoProvider} from '../../../../docs/catalog/global-47/research-v1/decodo-adapter.mjs';
 import {runLive} from '../research-v2/live/runner.mjs';
+import {randomBytes} from 'node:crypto';
+import {createRemoteRenderedBrowser} from '../research-v3/remote-browser.mjs';
 
 export async function priceResearchChildEnvironment(base=process.env){
  const env=await geminiChildEnvironment(base);if(!env.TAVILY_API_KEY){const key=await readTavilyKeychain();if(key)env.TAVILY_API_KEY=key;}
@@ -12,13 +14,13 @@ export async function priceResearchChildEnvironment(base=process.env){
  return env;
 }
 
-export async function createPriceResearchAdapters({market,capabilities}){
+export async function createPriceResearchAdapters({market,capabilities,env=process.env},{createDiscovery=createTavilyDiscovery,createRenderedBrowser=createRemoteRenderedBrowser}={}){
  let outerSearch=null,runtime=null,bundle=null;
- if(capabilities.decodo){runtime=await loadDecodoRuntimeConfig();bundle=createDecodoProvider({env:runtime});if(!bundle.provider?.ready||!bundle.provider?.configured||!bundle.verifier?.approved)throw Error('DECODO_PREFLIGHT_FAILED');}
+ if(capabilities.decodo){runtime=await loadDecodoRuntimeConfig({env});bundle=createDecodoProvider({env:runtime});if(!bundle.provider?.ready||!bundle.provider?.configured||!bundle.verifier?.approved)throw Error('DECODO_PREFLIGHT_FAILED');}
  return async({stage,directory,targets=[]})=>{
   if(stage==='PROVIDER_SEED')return {search:async args=>{if(!capabilities.tavily)throw Error('TAVILY_NOT_PERMITTED');outerSearch??=await createTavilySearch({maxCalls:2});return outerSearch(args);},read:async({url,maxBytes=2097152,stopOnCrossHostRedirect=false})=>{if(!capabilities.direct)throw Error('DIRECT_NOT_PERMITTED');return createV2RobotsPublicAdapter({authorities:[],retainRaw:true,maxLinks:80,maxReads:1,maxRequests:4,network:{timeoutMs:15000,maxBytes,maxRedirects:1,pricingResources:false}}).read({url,targetCountry:market,maxRedirects:1,stopOnCrossHostRedirect});}};
   if(stage!=='KNOWN_SERVICE_CHILD')throw Error('UNKNOWN_ADAPTER_STAGE');
-  const discovery=await createTavilyDiscovery({inventory:targets,bounds:{searches:2}}),live=discovery.bind({dir:directory,runtime,bundle,runLive,dependencies:{}});
-  return {search:live.search,read:live.read,classify:live.classify,consumeProvider:live.consumeProvider,acquire:live.acquire};
+  const dependencies=capabilities.browser?{createRenderedBrowser:()=>createRenderedBrowser({env,proxyFor:context=>runtime?{server:'http://gate.decodo.com:7000',username:'user-'+runtime.DECODO_USERNAME+'-country-'+context.networkGeography.toLowerCase()+'-session-'+randomBytes(16).toString('hex'),password:runtime.DECODO_PASSWORD}:null})}:{},discovery=await createDiscovery({inventory:targets,bounds:{searches:2}}),live=discovery.bind({dir:directory,runtime,bundle,runLive,dependencies});
+  return {search:live.search,read:live.read,classify:live.classify,consumeProvider:live.consumeProvider,acquire:live.acquire,...(capabilities.browser?{render:live.render}:{})};
  };
 }

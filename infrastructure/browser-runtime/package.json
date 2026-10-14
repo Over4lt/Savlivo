@@ -1,0 +1,13 @@
+{
+  "name": "savlivo-browser-runtime",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Private Playwright execution service for Savlivo rendered acquisition",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "playwright run-server --host 0.0.0.0 --port ${PORT:-3000}"
+  },
+  "dependencies": {
+    "playwright": "1.58.2"
+  }
+}
