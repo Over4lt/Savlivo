@@ -10,7 +10,7 @@ export const googleAiResearchStatuses=Object.freeze([
 export const googleAiDefaults=Object.freeze({
   endpoint:'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
   model:'gemini-3.8-flash',
-  timeoutMs:60_000,
+  timeoutMs:120_000,
   maxResponseBytes:1_048_576,
   maxRequests:2
 });

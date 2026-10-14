@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {researchMonthlyRecurringWithGoogleAi} from './monthly-recurring.mjs';
+import {googleAiDefaults,researchMonthlyRecurringWithGoogleAi} from './monthly-recurring.mjs';
 import {verifyCandidates,buildSuggested} from './v4-normalization.mjs';
 
 const secret='test-secret-that-must-not-be-returned';
@@ -11,6 +11,7 @@ const response=value=>new Response(JSON.stringify(value),{status:200,headers:{'c
 const run=async(value,seen=[])=>researchMonthlyRecurringWithGoogleAi({providerName:'Example',targetMarket:'DE',apiKey:secret,fetchImpl:async(url,init)=>{seen.push({url,init});return response(typeof value==='function'?value(seen.length):value);},clock:(()=>{let n=0;return()=>`2026-10-13T00:00:0${n++}.000Z`;})()});
 
 test('clean JSON preserves multiple plans, citations, intro and ordinary prices',async()=>{
+ assert.equal(googleAiDefaults.timeoutMs,120_000);
  const annual={...basePlan,planName:'Annual',amount:6.25,ordinaryRecurringPrice:6.25,paymentCadence:'ANNUAL',commitment:'ANNUAL',billingBasis:'annual equivalent',annualOnly:true};
  const intro={...basePlan,planName:'Plus',amount:12.99,ordinaryRecurringPrice:12.99,introPrice:1.99,introDuration:'one month'};
  const seen=[],result=await run(generated(payload([basePlan,intro,annual])),seen);
