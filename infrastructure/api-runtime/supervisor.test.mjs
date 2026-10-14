@@ -19,6 +19,6 @@ test('runtime rejects missing mode and every endpoint override',()=>{
  assert.throws(()=>runtimeConfiguration({SAVLIVO_BROWSER_RUNTIME:'LOCAL_CONTAINER',SAVLIVO_BROWSER_WS_ENDPOINT:'ws:\/\/127.0.0.1:3002/'},{passwd:'pwuser:x:1001:1001::/home/pwuser:/bin/bash\n'}),/BROWSER_ENDPOINT_OVERRIDE_FORBIDDEN/);
 });
 
-test('Docker runtime keeps one API image, loopback server and no browser port exposure',()=>{
- const docker=fs.readFileSync(new URL('../../Dockerfile',import.meta.url),'utf8');assert.match(docker,/WORKDIR \/opt\/render\/project\/src/);assert.match(docker,/SAVLIVO_BROWSER_RUNTIME=LOCAL_CONTAINER/);assert.doesNotMatch(docker,/EXPOSE\s+3001|0\.0\.0\.0|docker\.sock|SAVLIVO_BROWSER_WS_ENDPOINT|chrome[_-]sandbox|CHROME_DEVEL_SANDBOX|chmod\s+4755/);
+test('Docker runtime keeps browser activation in the deployment environment and its port private',()=>{
+ const docker=fs.readFileSync(new URL('../../Dockerfile',import.meta.url),'utf8');assert.match(docker,/WORKDIR \/opt\/render\/project\/src/);assert.doesNotMatch(docker,/SAVLIVO_BROWSER_RUNTIME|EXPOSE\s+3001|0\.0\.0\.0|docker\.sock|SAVLIVO_BROWSER_WS_ENDPOINT|chrome[_-]sandbox|CHROME_DEVEL_SANDBOX|chmod\s+4755/);
 });
