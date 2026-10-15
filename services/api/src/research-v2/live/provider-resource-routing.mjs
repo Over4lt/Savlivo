@@ -26,6 +26,7 @@ function intent(t,lead){
 
 export function providerResourceRelevance(t,lead,objective=providerStageRoutingObjective(t)){
  const authority=lead?.url&&providerRoutingAuthority(t,lead.url);if(!objective||!authority)return {tier:3,role:'OUTSIDE_PROVIDER_OBJECTIVE',signals:[]};
+ if(lead.learnedProviderPricingRoute===true)return {tier:0,role:'LEARNED_PRICING_ROUTE',signals:['RETAINED_AUTHORITATIVE_PRICING_ROUTE']};
  const anchor=t.providerSeedCandidateServiceContext?.objectiveResource?.url,retainedLead=objectiveLead(t,lead.url),isAnchor=!!anchor&&normalized(anchor)===normalized(lead.url),text=leadText(lead)||(retainedLead?.title??''),need=objective===providerRoutingObjectives.PRICE_EVIDENCE?priceNeedRelevance(t,lead.url,text):null;
  if(retainedLead&&retainedLead.acquisitionStatus!=='ATTEMPTED'&&(retainedLead.objectiveCapability==='COMMERCIAL_OBJECTIVE'||Number(retainedLead.objectiveProgressValue)>0))return {tier:0,role:isAnchor?'OBJECTIVE_RESOURCE_ANCHOR':'OBJECTIVE_RESOURCE_LEAD',signals:['RETAINED_PROVIDER_SEED_OBJECTIVE_LEAD'],objectiveAnchor:isAnchor};
  if(isAnchor&&!t.providerSeedCandidateServiceContext?.objectiveLeads)return {tier:0,role:'OBJECTIVE_RESOURCE_ANCHOR',signals:['RETAINED_PROVIDER_SEED_OBJECTIVE_RESOURCE'],objectiveAnchor:true};

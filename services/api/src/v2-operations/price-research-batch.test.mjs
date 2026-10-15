@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {executePriceResearchBatch,readPriceResearchBatchProgress} from './price-research-batch.mjs';
 import {TargetResearchFailure} from '../research-v2/live/target-research-failure.mjs';
+import {providerPricingRoutesForTarget} from '../research-v2/live/hybrid-provider-resource-memory.mjs';
 
 const capabilities={direct:true,tavily:true,decodo:false,browser:false,groq:false};
 const target=(serviceId,targetMarket)=>({id:`price-research:${serviceId}:${targetMarket}`,serviceId,serviceName:serviceId,targetMarket,marketApplicabilityEstablished:false});
@@ -17,6 +18,16 @@ test('batch executes one child at a time in deterministic namespaces and complet
  const result=await executePriceResearchBatch({...f,executeTarget});assert.equal(result.status,'COMPLETE');assert.equal(maximum,1);assert.deepEqual(order,['alpha:DE','alpha:NO','beta:DE']);assert.equal(new Set(directories).size,3);for(const directory of directories)assert(fs.existsSync(path.join(directory,'result.json')));
  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(directories[0],'result.json'))),{retainedSuggested:true,verifiedUntouched:true});
  const recovered=await executePriceResearchBatch({...f,executeTarget:async()=>{throw Error('DUPLICATE_EXECUTION');}});assert.equal(recovered.status,'COMPLETE');assert.deepEqual(order,['alpha:DE','alpha:NO','beta:DE']);
+});
+
+test('completed child route metadata is rebuilt for the next market after resume',async t=>{
+ const f=fixture(t,[target('alpha','DE'),target('alpha','NO'),target('beta','DE')]),url='https://alpha.example/membership',body='retained provider pricing body',sha256=createHash('sha256').update(body).digest('hex');let stop=false;
+ const first=await executePriceResearchBatch({...f,shouldStop:()=>stop,executeTarget:async({job,directory})=>{
+  assert.equal(job.config.market,'DE');const campaign=path.join(directory,'known-service'),native=path.join(campaign,'targets','price-research:alpha:DE','open-web-discovery');fs.mkdirSync(path.join(native,'bodies'),{recursive:true});fs.writeFileSync(path.join(native,'bodies',sha256+'.txt'),body);
+  const reference={observation:'source-DE',sha256},state={targets:{'price-research:alpha:DE':{service:'alpha',serviceName:'alpha',market:'DE',reads:[{url,outcome:'OK',truncated:false,bodyHash:sha256,sourceIntegrity:{sha256},bodyFile:'bodies/'+sha256+'.txt'}],decisions:[{url,eligible:true,authority:{hostname:'alpha.example',service:'alpha',validated:true}}],providerInterpretations:[{url,v3Observation:{id:reference.observation,kind:'PROVIDER',url,sha256,context:{transport:'DIRECT'}},v3Truth:{prices:{DE:{propositions:{PRICE_AMOUNT:{state:'ESTABLISHED',evidence:[{reference}]}}}}}}]}}};fs.writeFileSync(path.join(campaign,'adaptive-state.json'),JSON.stringify(state));stop=true;return {ok:true};
+ }});assert.equal(first.status,'STOPPED');
+ const seen=[];const resumed=await executePriceResearchBatch({...f,executeTarget:async({job,providerPricingRouteMemory})=>{seen.push({service:job.config.serviceId,market:job.config.market,routes:providerPricingRoutesForTarget(providerPricingRouteMemory,{service:job.config.serviceId,serviceName:job.config.serviceId}) .map(row=>row.url)});return {ok:true};}});
+ assert.equal(resumed.status,'COMPLETE');assert.deepEqual(seen,[{service:'alpha',market:'NO',routes:[url]},{service:'beta',market:'DE',routes:[]}]);
 });
 
 test('stop after an active child preserves completion and never starts the next child',async t=>{

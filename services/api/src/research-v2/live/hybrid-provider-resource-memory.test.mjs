@@ -11,9 +11,11 @@ import {digest} from '../../research-v3/model.mjs';
 import {evaluate} from '../../research-v3/truth.mjs';
 import {refreshCatalog} from '../../research-v3/subscription-catalog.mjs';
 import {providerRoutingAuthority,installRunScopedV3ProviderAuthority} from './provider-routing-authority.mjs';
+import {evaluateProviderSourceTruth} from './provider-source-v3.mjs';
+import {runAdaptiveCampaign} from '../inventory/adaptive-campaign.mjs';
 import {createResearchMemory,usableResearchMemory} from './research-memory.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
-import {defaultHybridProviderResourceMemoryRoot,hybridProviderResourceMemoryContract,loadHybridProviderResources,recordHybridProviderResourceFailure,rememberHybridProviderResource} from './hybrid-provider-resource-memory.mjs';
+import {defaultHybridProviderResourceMemoryRoot,hybridProviderResourceMemoryContract,loadHybridProviderResources,recordHybridProviderResourceFailure,rememberHybridProviderResource,createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget,recordProviderPricingRouteFailure} from './hybrid-provider-resource-memory.mjs';
 
 const service='aurora-club',serviceName='Aurora Club',market='US',host='aurora.example',candidateUrl=`https://${host}/membership`,providerUrl=`https://${host}/pricing`;
 const candidateBody=`<html><main><h1>${serviceName} membership</h1><p>We operate ${serviceName} membership and provide our own classes.</p><a href="/pricing">Pricing</a></main><footer>© ${serviceName} 2026. All rights reserved.</footer></html>`;
@@ -26,6 +28,48 @@ function result(observation,markets=[market]){const k={objective:objective(marke
 function fixture(t){const base=fs.mkdtempSync(path.join(os.tmpdir(),'phase3-hybrid-memory-'));t.after(()=>fs.rmSync(base,{recursive:true,force:true}));return {base,root:path.join(base,'research-engine-v1'),run1:path.join(base,'run-1'),run2:path.join(base,'run-2')};}
 function seed(t,{amount=12,acquisition={route:'DIRECT'},acquiredAt='2026-10-01T00:00:00.000Z'}={}){const f=fixture(t),review=candidateReview(),observation=providerObservation(body(amount),{acquisition}),r=result(observation),record=rememberHybridProviderResource({root:f.root,target:target(),authorityReview:review,providerObservation:observation,truth:r.truth,catalog:r.catalog,acquisition,acquiredAt});return {...f,review,observation,truth:r.truth,catalog:r.catalog,record};}
 const readBody=(directory,page)=>fs.readFileSync(path.join(directory,page.bodyFile),'utf8');
+
+function learnedFixture(t){
+ const f=fixture(t),source=body(12),observation=providerObservation(source),truth=result(observation).truth,memory=createProviderPricingRouteMemory();
+ fs.mkdirSync(path.join(f.run1,'bodies'),{recursive:true});fs.writeFileSync(path.join(f.run1,'bodies',observation.sha256+'.txt'),source);
+ const state=target({reads:[{url:providerUrl,outcome:'OK',truncated:false,bodyHash:observation.sha256,sourceIntegrity:{sha256:observation.sha256},bodyFile:'bodies/'+observation.sha256+'.txt'}],decisions:[{url:providerUrl,eligible:true,authority:{hostname:host,service,validated:true}}],providerInterpretations:[{url:providerUrl,v3Observation:{id:observation.id,kind:'PROVIDER',url:providerUrl,sha256:observation.sha256,context:observation.context},v3Truth:truth}]});
+ return {f,state,memory,observation,truth};
+}
+
+test('batch pricing route requires retained hash-valid provider price propositions and stores no price Truth',t=>{
+ const {f,state,memory,observation}=learnedFixture(t),rows=learnProviderPricingRoutesFromTarget({memory,target:state,directory:f.run1});assert.equal(rows.length,1);assert.equal(rows[0].url,providerUrl);assert.deepEqual(rows[0].propositions.filter(name=>name==='PRICE_AMOUNT'),['PRICE_AMOUNT']);
+ const next=providerPricingRoutesForTarget(memory,target({market:'CA'}));assert.equal(next.length,1);for(const field of ['amount','currency','targetMarket','eligibility','truth'])assert.equal(Object.hasOwn(next[0],field),false);assert.equal(JSON.stringify(next).includes('USD'),false);
+ const other=providerPricingRoutesForTarget(memory,target({service:'another-service',serviceName:'Another Service',market:'CA'}));assert.deepEqual(other,[]);
+ fs.writeFileSync(path.join(f.run1,'bodies',observation.sha256+'.txt'),'tampered');const bad=createProviderPricingRouteMemory();assert.deepEqual(learnProviderPricingRoutesFromTarget({memory:bad,target:state,directory:f.run1}),[]);
+ const suggested=createProviderPricingRouteMemory(),noPrice=structuredClone(state);noPrice.providerInterpretations[0].v3Truth={prices:{US:{propositions:{PRICE_AMOUNT:{state:'UNRESOLVED',evidence:[]}}}}};assert.deepEqual(learnProviderPricingRoutesFromTarget({memory:suggested,target:noPrice,directory:f.run1}),[]);
+});
+
+test('learned route is freshly acquired for a different market ahead of legal and can fall back',async t=>{
+ const {f,state,memory}=learnedFixture(t);learnProviderPricingRoutesFromTarget({memory,target:state,directory:f.run1});const legal=`https://${host}/legal/subscriber`,calls=[];
+ const fresh=target({id:'aurora-ca',market:'CA',urls:[legal],leads:[{url:legal,title:'Subscriber legal terms',rank:0}],authorities:[{hostname:host,provider:serviceName,checkedAt:'2026-10-01',sourceType:'OFFICIAL_PROVIDER'}]});
+ const acquired=await runOpenWebResearch({directory:f.run2,targets:[fresh],providerPricingRouteMemory:memory,maxActions:1,search:async()=>{calls.push('SEARCH');return {results:[]};},read:async({url,target:current})=>{calls.push(current.market+':'+url);const text=body(19,{market:'CA'});return {url,outcome:'OK',httpStatus:200,contentType:'application/json',body:text,sourceIntegrity:{sha256:digest(text)},accessDecisions:[{decision:'ALLOWED'}]};}});
+ assert.deepEqual(calls,['CA:'+providerUrl]);assert.equal(acquired.targets[0].reads[0].requestedUrl,providerUrl);assert.equal(acquired.targets[0].market,'CA');assert.equal(acquired.targets[0].v3Truth,undefined);
+ const freshPage=acquired.targets[0].reads[0],freshBody=readBody(f.run2,freshPage),independent=evaluateProviderSourceTruth({target:fresh,retained:{url:providerUrl,requestedUrl:providerUrl,truncated:false,contentType:'application/json',accessDecisions:[{decision:'ALLOWED'}],httpStatus:200,bodyHash:freshPage.bodyHash,sourceIntegrity:{sha256:freshPage.bodyHash},rawSource:{text:freshBody}},acquisition:{route:'DIRECT'},observationId:'fresh-ca'});
+ assert.equal(independent.v3Truth.prices.CA.propositions.PRICE_AMOUNT.value,19);assert.equal(independent.v3Truth.prices.US,undefined);
+ const fallback=[];await runOpenWebResearch({directory:path.join(f.base,'fallback'),targets:[fresh],providerPricingRouteMemory:memory,maxActions:2,search:async()=>{fallback.push('SEARCH');return {results:[]};},read:async({url})=>{fallback.push(url);const text='<html>No current price</html>';return {url,outcome:'OK',httpStatus:200,contentType:'text/html',body:text,sourceIntegrity:{sha256:digest(text)},accessDecisions:[{decision:'ALLOWED'}]};}});assert.equal(fallback[0],providerUrl);assert(fallback.length>=2);
+ const failures=recordProviderPricingRouteFailure(memory,fresh,providerUrl);assert(failures.failures>=1);recordProviderPricingRouteFailure(memory,fresh,providerUrl);recordProviderPricingRouteFailure(memory,fresh,providerUrl);assert.deepEqual(providerPricingRoutesForTarget(memory,fresh),[]);
+});
+
+test('learned route remains a candidate when current target has no provider authority',async t=>{
+ const {f,state,memory}=learnedFixture(t);learnProviderPricingRoutesFromTarget({memory,target:state,directory:f.run1});const calls=[],candidate=target({market:'CA',urls:[`https://${host}/legal/subscriber`],leads:[{url:`https://${host}/legal/subscriber`,title:'Subscriber legal terms'}]});
+ await runOpenWebResearch({directory:path.join(f.base,'candidate'),targets:[candidate],providerPricingRouteMemory:memory,maxActions:1,search:async()=>{calls.push('SEARCH');return {results:[]};},read:async({url})=>{calls.push(url);return {url,outcome:'ERROR',httpStatus:503,contentType:'text/plain',accessDecisions:[{decision:'ALLOWED'}]};}});
+ assert.deepEqual(calls,[providerUrl]);assert.equal(candidate.authorities.length,0);
+});
+
+test('adaptive assessment sees an untried learned route before a no-progress stop',async t=>{
+ const {f,state,memory}=learnedFixture(t);learnProviderPricingRoutesFromTarget({memory,target:state,directory:f.run1});const legal=`https://${host}/legal/subscriber`,next=target({id:'aurora-ca',market:'CA',urls:[legal],leads:[{url:legal,title:'Subscriber legal terms'}]});
+ const campaign=await runAdaptiveCampaign({directory:path.join(f.base,'adaptive'),manifest:{targets:[next],conditionalFollowupTargets:[]},providerPricingRouteMemory:memory,stopBeforeNetwork:true,maxActions:1,createAdapters:()=>{throw Error('NO_NETWORK_EXPECTED');}});
+ assert.equal(campaign.services[service].pending?.plan?.url,providerUrl);assert.notEqual(campaign.services[service].stop?.reason,'NO_EXECUTABLE_PROGRESS_RECONCILE');
+});
+
+test('batch pricing route memory is bounded per service',t=>{
+ const {f,state,memory}=learnedFixture(t);for(let i=0;i<12;i++){const url=`https://${host}/plan-${i}`,source=body(12),hash=digest(source),file='bodies/'+hash+'.txt';fs.writeFileSync(path.join(f.run1,file),source);const variant=structuredClone(state);variant.reads=[{...state.reads[0],url,bodyFile:file}];variant.decisions=[{url,eligible:true,authority:{hostname:host,service,validated:true}}];variant.providerInterpretations=[{...state.providerInterpretations[0],url,v3Observation:{...state.providerInterpretations[0].v3Observation,url}}];learnProviderPricingRoutesFromTarget({memory,target:variant,directory:f.run1});}assert(providerPricingRoutesForTarget(memory,state).length<=8);
+});
 
 test('contract and default namespace are versioned and isolated',()=>{
  assert.equal(Object.isFrozen(hybridProviderResourceMemoryContract),true);assert.equal(defaultHybridProviderResourceMemoryRoot('/home/test'),'/home/test/.savlivo/research-engine-v1');

@@ -114,6 +114,51 @@ export function recordHybridProviderResourceFailure({root,target,resourceId,outc
  row.resource.failures++;row.resource.lastAttempt=now;row.resource.lastOutcome=outcome;const days=Math.min(30,2**Math.min(row.resource.failures,5));row.resource.nextRetryAt=new Date(Date.parse(now)+days*86400000).toISOString();assertRecord(row);atomic(storeFile(directory),state);return structuredClone(row);
 }
 
+// The durable hybrid records above require a V3 autonomous authority proof and
+// are market scoped. Known-service PRICE_RESEARCH also uses this bounded,
+// routing-only batch view. It is rebuilt from completed child checkpoints on
+// resume; no prior-market observation or Truth is passed to a new target.
+export function createProviderPricingRouteMemory(){return {routes:new Map(),byService:new Map()};}
+const pricingRouteLimit=8;
+const pricingPropositions=new Set(['PRICE_AMOUNT','PRICE_CURRENCY','PRICE_CADENCE','PRICE_ROLE']);
+const routeKey=(service,url)=>service+'|'+url;
+const routeRows=(memory,service)=>[...(memory?.byService?.get(service)?.values()??[])];
+
+export function learnProviderPricingRoutesFromTarget({memory,target,directory,now=new Date().toISOString()}){
+ if(!memory?.routes||!target?.service||!target?.serviceName||!validTime(now))return [];
+ const learned=[];
+ for(const interpretation of target.providerInterpretations??[]){
+  const observation=interpretation.v3Observation,truth=interpretation.v3Truth,url=normalizeUrl(observation?.url),hash=observation?.sha256;
+  if(!url||!/^([a-f0-9]{64})$/.test(hash??'')||observation.kind!=='PROVIDER'||!truth||!/^([A-Z]{2})$/.test(target.market??''))continue;
+  const propositions=[...new Set(Object.values(truth.prices??{}).flatMap(price=>Object.entries(price?.propositions??{}).filter(([name,value])=>pricingPropositions.has(name)&&value?.state==='ESTABLISHED'&&references(value,observation.id,hash)).map(([name])=>name)))];
+  if(!propositions.length)continue;
+  const host=new URL(url).hostname,decision=(target.decisions??[]).find(row=>row.eligible===true&&normalizeUrl(row.url)===normalizeUrl(interpretation.url)&&row.authority?.hostname===host&&row.authority?.service===target.service&&row.authority?.validated===true);
+  if(!decision||normalizeUrl(interpretation.url)!==url)continue;
+  const page=(target.reads??[]).find(row=>normalizeUrl(row.url)===url&&row.outcome==='OK'&&row.truncated!==true&&row.bodyHash===hash&&row.sourceIntegrity?.sha256===hash);
+  let retained=false;
+  if(page?.bodyFile&&directory){try{const file=path.resolve(directory,page.bodyFile);retained=file.startsWith(path.resolve(directory)+path.sep)&&!fs.lstatSync(file).isSymbolicLink()&&digest(fs.readFileSync(file,'utf8'))===hash;}catch{/* Invalid retained body. */}}
+  if(!retained&&interpretation.countryV3Evaluation?.status==='EVALUATED'&&interpretation.countryV3Evaluation.sourceHash===hash&&observation.context?.transport==='DECODO'&&observation.context?.networkGeography===target.market)retained=true;
+  if(!retained)continue;
+  const key=routeKey(target.service,url),prior=memory.routes.get(key),source={market:target.market,observation:observation.id,sha256:hash};
+  const sources=[...(prior?.sources??[]).filter(row=>row.market!==source.market||row.sha256!==source.sha256),source].slice(-8);
+  const row={service:target.service,serviceName:target.serviceName,url,host,role:'PRICING',meaning:hybridProviderResourceMemoryContract.meaning,successes:(prior?.successes??0)+Number(!prior?.sources?.some(row=>row.market===source.market&&row.sha256===source.sha256)),failures:prior?.failures??0,lastSuccessAt:now,sources,propositions:[...new Set([...(prior?.propositions??[]),...propositions])].sort()};
+  memory.routes.set(key,row);if(!memory.byService.has(target.service))memory.byService.set(target.service,new Map());memory.byService.get(target.service).set(url,row);learned.push(structuredClone(row));
+  const serviceRows=routeRows(memory,target.service).sort((a,b)=>(b.successes-b.failures)-(a.successes-a.failures)||b.lastSuccessAt.localeCompare(a.lastSuccessAt)||a.url.localeCompare(b.url));
+  for(const stale of serviceRows.slice(pricingRouteLimit)){memory.routes.delete(routeKey(stale.service,stale.url));memory.byService.get(stale.service).delete(stale.url);}
+ }
+ return learned;
+}
+
+export function providerPricingRoutesForTarget(memory,target){
+ if(!memory?.routes||!target?.service||!target?.serviceName)return [];
+ return routeRows(memory,target.service).filter(row=>row.serviceName===target.serviceName&&row.successes>0&&row.failures<row.successes+2).sort((a,b)=>(b.successes-b.failures)-(a.successes-a.failures)||b.lastSuccessAt.localeCompare(a.lastSuccessAt)||a.url.localeCompare(b.url)).map(row=>structuredClone(row));
+}
+
+export function recordProviderPricingRouteFailure(memory,target,url){
+ const normalized=normalizeUrl(url),row=normalized&&memory?.routes?.get(routeKey(target?.service,normalized));if(!row||row.serviceName!==target?.serviceName)return null;
+ row.failures=Math.min(32,row.failures+1);return structuredClone(row);
+}
+
 // Phase-1 representation for routing from a source-bound ProviderBinding before
 // any consumer Service exists. Persistence/replay remains deliberately outside
 // this phase; the record contains no Truth and always requires fresh acquisition.
