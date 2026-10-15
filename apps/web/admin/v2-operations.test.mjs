@@ -530,6 +530,15 @@ test('market status selectors replace explicit canonical Markets Set and manual 
  await button(root,'All 46 markets').listeners.click();assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,canonicalMarkets.map(row=>row.id));
 });
 
+test('zero-match status cannot turn an empty category into an implicit all-markets run',async t=>{
+ const {root,calls}=await canonicalBuilder(t,{statusRows:[{serviceId:'chess-com',market:'ES',suggestedCount:3,verifiedCount:0}]}),chess=descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes('Chess.com')).children[0];
+ chess.checked=true;await chess.listeners.change();
+ const es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();
+ assert.equal(button(root,'Verified (0)').disabled,true);
+ assert.equal(checkbox(root,'Spain (ES)').checked,true);
+ assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,['ES']);
+});
+
 test('failed market status lookup preserves market selection and All 46/manual selection',async t=>{
  const {root,calls}=await canonicalBuilder(t,{statusError:true}),es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();const chess=descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes('Chess.com')).children[0];chess.checked=true;await chess.listeners.change();assert(text(root).includes('Market price status unavailable. Existing market selection is unchanged.'));assert(checkbox(root,'Spain (ES)').checked);assert.equal(button(root,'Suggested only (0)').disabled,true);const x1=checkbox(root,'Market 1 (X1)');x1.checked=true;await x1.listeners.change();assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,['ES','X1']);await button(root,'All 46 markets').listeners.click();assert.equal(descendants(root).filter(node=>node.className==='ops-canonical-markets').flatMap(descendants).filter(node=>node.type==='checkbox'&&node.checked).length,46);
 });
