@@ -40,11 +40,11 @@ test('C: stronger source-bound V3 Suggested supersedes V4 monotonically',async()
 });
 
 test('D: matching Verified stays separate and Analytics reports match',async()=>{
- const {row,final}=await execute({v3:{suggested:[],verified:[verified()],contradictions:[],operationalFailures:[]}});assert.equal(final.verifiedRows.length,1);assert.equal(final.suggested[0].verified.length,0);assert.deepEqual(row.analyticsStates.map(x=>x.status),['SUGGESTED_AND_VERIFIED_MATCH']);
+ const {row,final}=await execute({v3:{suggested:[],verified:[verified()],contradictions:[],operationalFailures:[]}});assert.equal(final.verifiedRows.length,1);assert.equal(final.suggested[0].verified.length,0);assert.equal(row.combined.resultClass,'VERIFIED');assert.equal(row.combined.plans[0].activePrice.amount,10.99);assert.deepEqual(row.analyticsStates.map(x=>x.status),['SUGGESTED_AND_VERIFIED_MATCH']);
 });
 
-test('E: conflicting Verified stays separate and Analytics reports conflict',async()=>{
- const {row}=await execute({v3:{suggested:[],verified:[verified(12.99)],contradictions:[],operationalFailures:[]}});assert.deepEqual(row.analyticsStates.map(x=>x.status),['SUGGESTED_AND_VERIFIED_CONFLICT']);assert.equal(row.combined.resultClass,'CONFLICT');
+test('E: differing Suggested remains diagnostic while Verified is authoritative',async()=>{
+ const {row}=await execute({v3:{suggested:[],verified:[verified(12.99)],contradictions:[],operationalFailures:[]}});assert.deepEqual(row.analyticsStates.map(x=>x.status),['VERIFIED_ONLY']);assert.equal(row.combined.resultClass,'VERIFIED');assert.equal(row.combined.plans[0].activePrice.amount,12.99);assert.equal(row.combined.plans[0].suggestedMismatch,true);assert.equal(row.combined.plans[0].suggested[0].amount,10.99);
 });
 
 test('F: Google no-price result can be superseded by source-bound V3 Suggested',async()=>{

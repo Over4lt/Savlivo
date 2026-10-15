@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   productPriceRows,
   productPriceStatus,
+  productPriceTruth,
   summarizeProductPricing,
   type ProductPlanPricing
 } from "../../../packages/contracts/src/product-pricing.js";
@@ -66,13 +67,22 @@ test("B Verified only", () => {
 test("C Suggested equals Verified", () => {
   const plan = project({activeSuggested: suggested(12.99), verified: [verified(12.99)]});
   assert.equal(productPriceStatus(plan), "SUGGESTED_AND_VERIFIED_MATCH");
-  assert.equal(productPriceRows(plan).rows.length, 2);
+  const rows = productPriceRows(plan);
+  assert.equal(rows.rows.length, 2);
+  assert.equal(rows.activeProviderPrice?.monthlyPriceMinor, 1299);
+  assert.equal(rows.providerPriceAuthority, "VERIFIED");
+  assert.equal(rows.suggestedMismatch, false);
 });
 
 test("D Suggested differs from Verified", () => {
   const plan = project({activeSuggested: suggested(13.99), verified: [verified(12.99)]});
-  assert.equal(productPriceStatus(plan), "SUGGESTED_AND_VERIFIED_CONFLICT");
-  assert.deepEqual(productPriceRows(plan).rows.map(row => row.monthlyPriceMinor), [1399, 1299]);
+  assert.equal(productPriceStatus(plan), "VERIFIED_ONLY");
+  const rows = productPriceRows(plan);
+  assert.deepEqual(rows.rows.map(row => row.monthlyPriceMinor), [1399, 1299]);
+  assert.equal(rows.activeProviderPrice?.monthlyPriceMinor, 1299);
+  assert.equal(rows.providerPriceAuthority, "VERIFIED");
+  assert.equal(rows.suggestedMismatch, true);
+  assert.equal(rows.authoritativeConflict, false);
 });
 
 test("E Suggested, Verified and User Override all remain available", () => {
@@ -95,6 +105,8 @@ test("F V4 history, V3 active and Verified use one exact logical plan", () => {
   assert.equal(plan.planIdentity, "provider:de:premium");
   assert.equal(plan.suggestedHistory.length, 1);
   assert.equal(plan.verified.length, 1);
+  assert.equal(productPriceTruth(plan).suggestedMismatch, true);
+  assert.equal(productPriceStatus(plan), "VERIFIED_ONLY");
   assert.equal(projectCombinedResearchProductPlans({
     serviceSlug: "provider",
     billingProviderSlug: "direct",
@@ -143,7 +155,9 @@ test("I Suggested conflict cannot overwrite Verified", () => {
   const [merged] = mergeProductPlans([suggestedPlan], [verifiedPlan]);
   assert.equal(merged.suggested?.monthlyPriceMinor, 2199);
   assert.equal(merged.verified[0].monthlyPriceMinor, 1999);
-  assert.equal(productPriceStatus(merged), "SUGGESTED_AND_VERIFIED_CONFLICT");
+  assert.equal(productPriceStatus(merged), "VERIFIED_ONLY");
+  assert.equal(productPriceTruth(merged).activePrice?.monthlyPriceMinor, 1999);
+  assert.equal(productPriceTruth(merged).suggestedMismatch, true);
 });
 
 test("J User Override remains effective with Suggested and Verified", () => {
@@ -156,12 +170,13 @@ test("Admin coverage reports all five observational states", () => {
     project({activeSuggested: suggested(13.99)}),
     project({verified: [verified(12.99)]}),
     project({activeSuggested: suggested(12.99), verified: [verified(12.99)]}),
-    project({activeSuggested: suggested(13.99), verified: [verified(12.99)]})
+    project({activeSuggested: suggested(13.99), verified: [verified(12.99)]}),
+    project({verified: [verified(12.99), verified(14.99)]})
   ].map((plan, index) => ({...plan, planIdentity: `${plan.planIdentity}:${index}`, planName: `Plan ${index}`}));
   const coverage = summarizeProductPricing(plans, ["provider", "missing-provider"]);
   assert.deepEqual(coverage.statusCounts, {
     SUGGESTED_ONLY: 1,
-    VERIFIED_ONLY: 1,
+    VERIFIED_ONLY: 2,
     SUGGESTED_AND_VERIFIED_MATCH: 1,
     SUGGESTED_AND_VERIFIED_CONFLICT: 1,
     NO_PRICE: 1
@@ -169,7 +184,7 @@ test("Admin coverage reports all five observational states", () => {
   assert.equal(coverage.providersWithSuggested, 1);
   assert.equal(coverage.plansWithSuggested, 3);
   assert.equal(coverage.providersWithVerified, 1);
-  assert.equal(coverage.plansWithVerified, 3);
+  assert.equal(coverage.plansWithVerified, 4);
   assert.equal(coverage.suggestedVerifiedOverlap, 2);
   assert.equal(coverage.suggestedVerifiedConflicts, 1);
 });

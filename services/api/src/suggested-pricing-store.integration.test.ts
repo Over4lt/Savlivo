@@ -10,7 +10,7 @@ import {productPriceStatus} from "../../../packages/contracts/src/product-pricin
 
 const enabled = process.env.SAVLIVO_DISPOSABLE_DB_TEST === "1";
 
-test("Suggested history remains available beside a conflicting Verified price", {skip: !enabled}, async () => {
+test("Suggested history remains available while Verified price stays authoritative", {skip: !enabled}, async () => {
   assert.equal(process.env.DATABASE_URL, "postgresql://postgres@127.0.0.1:55439/savlivo_test");
   const sql = (path: string) => readFileSync(new URL(`../../../${path}`, import.meta.url), "utf8");
   const plan: ProductPlanPricing = {
@@ -82,7 +82,7 @@ test("Suggested history remains available beside a conflicting Verified price", 
       projectCatalogProductPlans(await loadPersistedVerifiedPrices("DE", "EUR"))
     );
     assert.equal(merged.length, 1);
-    assert.equal(productPriceStatus(merged[0]), "SUGGESTED_AND_VERIFIED_CONFLICT");
+    assert.equal(productPriceStatus(merged[0]), "VERIFIED_ONLY");
     assert.equal(merged[0].suggested?.monthlyPriceMinor, 1299);
     assert.equal(merged[0].verified[0]?.monthlyPriceMinor, 1199);
     assert.equal(merged[0].suggestedHistory[0]?.monthlyPriceMinor, 1399);

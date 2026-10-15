@@ -28,6 +28,39 @@ export type ProductPriceStatus =
   | "SUGGESTED_AND_VERIFIED_CONFLICT"
   | "NO_PRICE";
 
+export function productPriceTruth(plan: ProductPlanPricing) {
+  const key = (value: ProductPriceEvidence) => [
+    value.currency,
+    value.monthlyPriceMinor,
+    value.paymentCadence
+  ].join(":");
+  const verifiedFacts = new Set(plan.verified.map(key));
+  const authoritativeConflict = verifiedFacts.size > 1;
+  const activePrice = authoritativeConflict
+    ? null
+    : plan.verified[0] ?? plan.suggested;
+  const suggestedEvidence = [plan.suggested, ...plan.suggestedHistory]
+    .filter((value): value is ProductPriceEvidence => Boolean(value));
+  const suggestedMismatch = Boolean(
+    suggestedEvidence.length && plan.verified.length &&
+    suggestedEvidence.some(suggested =>
+      !plan.verified.some(value => key(value) === key(suggested))
+    )
+  );
+  return {
+    activePrice,
+    authority: authoritativeConflict
+      ? "CONFLICT" as const
+      : plan.verified.length
+        ? "VERIFIED" as const
+        : plan.suggested
+          ? "SUGGESTED" as const
+          : "NONE" as const,
+    authoritativeConflict,
+    suggestedMismatch
+  };
+}
+
 export function catalogPlanIdentity(value: {
   serviceSlug: string;
   planSlug: string;
@@ -46,17 +79,12 @@ export function catalogPlanIdentity(value: {
 }
 
 export function productPriceStatus(plan: ProductPlanPricing): ProductPriceStatus {
+  const truth = productPriceTruth(plan);
   if (!plan.suggested && !plan.verified.length) return "NO_PRICE";
   if (plan.suggested && !plan.verified.length) return "SUGGESTED_ONLY";
-  if (!plan.suggested) return "VERIFIED_ONLY";
-  const matches = plan.verified.every(value =>
-    value.monthlyPriceMinor === plan.suggested!.monthlyPriceMinor &&
-    value.currency === plan.suggested!.currency &&
-    value.paymentCadence === plan.suggested!.paymentCadence
-  );
-  return matches
-    ? "SUGGESTED_AND_VERIFIED_MATCH"
-    : "SUGGESTED_AND_VERIFIED_CONFLICT";
+  if (truth.authoritativeConflict) return "SUGGESTED_AND_VERIFIED_CONFLICT";
+  if (!plan.suggested || truth.suggestedMismatch) return "VERIFIED_ONLY";
+  return "SUGGESTED_AND_VERIFIED_MATCH";
 }
 
 export function productPriceRows(
@@ -64,6 +92,7 @@ export function productPriceRows(
   userMonthlyPriceMinor?: number,
   userCurrency?: string
 ) {
+  const truth = productPriceTruth(plan);
   const rows: Array<{
     label: "Suggested" | "Verified" | "Your price";
     monthlyPriceMinor: number;
@@ -88,7 +117,7 @@ export function productPriceRows(
     monthlyPriceMinor: effectivePersonalMonthlyPriceMinor,
     currency: userCurrency
   });
-  return {rows, effectivePersonalMonthlyPriceMinor};
+  return {rows, activeProviderPrice: truth.activePrice, providerPriceAuthority: truth.authority, suggestedMismatch: truth.suggestedMismatch, authoritativeConflict: truth.authoritativeConflict, effectivePersonalMonthlyPriceMinor};
 }
 
 export function summarizeProductPricing(
@@ -108,7 +137,7 @@ export function summarizeProductPricing(
   let plansWithVerified = 0;
   let overlap = 0;
   const rows = plans.map(plan => {
-    const status = productPriceStatus(plan);
+    const status = productPriceStatus(plan), truth = productPriceTruth(plan);
     statusCounts[status] += 1;
     if (plan.suggested) {
       plansWithSuggested += 1;
@@ -124,6 +153,8 @@ export function summarizeProductPricing(
       planName: plan.planName,
       countryCode: plan.countryCode,
       status,
+      suggestedMismatch: truth.suggestedMismatch,
+      authoritativeConflict: truth.authoritativeConflict,
       suggested: plan.suggested
         ? `${plan.suggested.currency} ${(plan.suggested.monthlyPriceMinor / 100).toFixed(2)}`
         : null,
@@ -143,6 +174,8 @@ export function summarizeProductPricing(
     planName: "No observed priced plan",
     countryCode: "",
     status: "NO_PRICE" as const,
+    suggestedMismatch: false,
+    authoritativeConflict: false,
     suggested: null,
     verified: null
   })));
