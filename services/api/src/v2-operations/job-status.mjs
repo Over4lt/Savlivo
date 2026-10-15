@@ -19,6 +19,12 @@ const safeInteger=value=>Number.isSafeInteger(value)&&value>=0?value:null;
 const count=value=>Array.isArray(value)?value.length:null;
 const safeText=(value,maximum=512)=>typeof value==='string'&&value.length<=maximum?value:null;
 const safeUrl=value=>{try{const parsed=new URL(value);return parsed.protocol==='https:'&&!parsed.username&&!parsed.password&&value.length<=2048?value:null;}catch{return null;}};
+const retryUsageKeys=['actions','reads','searches','acquisitions','retainedReviews','bytes'];
+function safeRetryUsage(value){if(!value||typeof value!=='object')return null;return Object.fromEntries(retryUsageKeys.flatMap(key=>{const amount=safeInteger(value[key]);return amount===null?[]:[[key,amount]];}));}
+function safeVerificationRetry(value){
+ if(!value||typeof value!=='object')return null;
+ return {attempted:value.attempted===true,count:safeInteger(value.count)??0,usageScope:['TARGET','CAMPAIGN'].includes(value.usageScope)?value.usageScope:null,firstAttemptReason:code(value.firstAttemptReason),firstAttemptOutcome:code(value.firstAttemptOutcome),firstAttemptUsage:safeRetryUsage(value.firstAttemptUsage),retryOutcome:code(value.retryOutcome),retryReason:code(value.retryReason),retryUsage:safeRetryUsage(value.retryUsage),verifiedAttempt:value.verifiedAttempt===1||value.verifiedAttempt===2?value.verifiedAttempt:null};
+}
 const targetResultFile=(dir,target,index)=>path.join(dir,'price-research-targets',`${String(index+1).padStart(2,'0')}-${target.serviceId}-${target.targetMarket}`,'result.json');
 function resultRowForTarget(result,target){return result?.kind==='ADMIN_V4_FIRST_RESEARCH_RESULT'&&Array.isArray(result.targets)?result.targets.find(item=>item?.target?.id===target.id):null;}
 function safeVerificationEvidence(value){
@@ -30,8 +36,8 @@ function canonicalTargetResult(result,resultRow,target){
  const adaptive=result?.downstreamResult,targetState=adaptive?.targets?.[target.id],serviceState=adaptive?.services?.[target.serviceId],usage={};
  const metrics={googleAiRequests:safeInteger(resultRow?.googleRequests),directAttempts:count(targetState?.reads),tavilyAttempts:count(targetState?.queries),decodoAttempts:Array.isArray(targetState?.decisions)?targetState.decisions.filter(row=>row?.route==='DECODO'&&row.acquisitionReserved===true).length:null,browserAttempts:count(targetState?.renderingOutcomes)};
  for(const [key,value]of Object.entries(metrics))if(value!==null)usage[key]=value;
- const planCounts=canonicalPlanEvidenceCounts(resultRow?.combined),stopReason=code(serviceState?.stop?.reason),suggested=planCounts?.suggestedPlans??safeInteger(resultRow?.persisted?.suggestedPlans),verified=planCounts?.verifiedPlans??safeInteger(resultRow?.persisted?.verified),resultClass=code(resultRow?.combined?.resultClass);
- return {resultClass,suggested,verified,usage:Object.keys(usage).length?usage:null,stopReason,verificationEvidenceAvailable:Array.isArray(resultRow?.verificationEvidence)&&resultRow.verificationEvidence.length>0,researchOutcome:verified>0?'VERIFIED':suggested>0?'SUGGESTED_ONLY':stopReason?'UNRESOLVED':'NOT_REPORTED'};
+ const planCounts=canonicalPlanEvidenceCounts(resultRow?.combined),suggested=planCounts?.suggestedPlans??safeInteger(resultRow?.persisted?.suggestedPlans),verified=planCounts?.verifiedPlans??safeInteger(resultRow?.persisted?.verified),resultClass=code(resultRow?.combined?.resultClass),eligibleTruth=Array.isArray(resultRow?.verificationEvidence)&&resultRow.verificationEvidence.some(evidence=>evidence?.eligibility==='ELIGIBLE'&&evidence?.targetMarket===target.targetMarket&&evidence?.truthMarket===target.targetMarket),authoritativeFinal=resultClass==='VERIFIED'&&verified>0&&eligibleTruth&&!(resultRow?.combined?.contradictions?.length),recordedStop=code(serviceState?.stop?.reason),stopReason=resultClass==='CONFLICT'?'AUTHORITATIVE_CONFLICT':authoritativeFinal?null:recordedStop;
+ return {resultClass,suggested,verified,usage:Object.keys(usage).length?usage:null,stopReason,verificationEvidenceAvailable:Array.isArray(resultRow?.verificationEvidence)&&resultRow.verificationEvidence.length>0,researchOutcome:resultClass==='CONFLICT'?'CONFLICT':verified>0?'VERIFIED':suggested>0?'SUGGESTED_ONLY':stopReason?'UNRESOLVED':'NOT_REPORTED'};
 }
 export function priceResearchBatchStatus(job,dir){
  const config=job?.config,expectedCeiling=config?.batchTargets?.length*96;if(config?.objective!=='PRICE_RESEARCH'||config.targetKind!=='CANONICAL_SELECTION'||!Array.isArray(config.batchTargets)||config.batchTargets.length<1||config.logicalTargetCount!==config.batchTargets.length||config.perTargetRequestCeiling!==96||!Number.isSafeInteger(expectedCeiling)||config.batchRequestCeiling!==expectedCeiling)return null;
@@ -54,7 +60,7 @@ export function priceResearchTargetEvidence(ops,id,position,actor){
  if(progress?.outcomes?.[index]?.targetId!==target.id||progress.outcomes[index].status!=='COMPLETE')throw new OperationError('PRICE_RESEARCH_EVIDENCE_UNAVAILABLE',404);
  const result=json(targetResultFile(dir,target,index),4*1024*1024),row=resultRowForTarget(result,target);if(!row)throw new OperationError('PRICE_RESEARCH_EVIDENCE_UNAVAILABLE',404);
  const evidence=(row.verificationEvidence??[]).slice(0,128).map(safeVerificationEvidence).filter(Boolean),suggested=Array.isArray(row.combined?.suggested)?row.combined.suggested:[];
- return {target:{id:target.id,serviceId:target.serviceId,serviceName:target.serviceName,targetMarket:target.targetMarket},stages:{googleAiV4Suggested:suggested.filter(item=>item?.provenance==='GOOGLE_AI_V4').length,v3SourceResearchSuggested:suggested.filter(item=>item?.provenance==='V3_SOURCE_RESEARCH').length,v3TruthVerified:evidence.length},verificationEvidence:evidence};
+ return {target:{id:target.id,serviceId:target.serviceId,serviceName:target.serviceName,targetMarket:target.targetMarket},stages:{googleAiV4Suggested:suggested.filter(item=>item?.provenance==='GOOGLE_AI_V4').length,v3SourceResearchSuggested:suggested.filter(item=>item?.provenance==='V3_SOURCE_RESEARCH').length,v3TruthVerified:evidence.length},verificationRetry:safeVerificationRetry(row.verificationRetry),verificationEvidence:evidence};
 }
 export function terminationDiagnostic(job,phase,processAlive){
  if(['COMPLETE','SKIPPED_NOT_DUE'].includes(job.status))return null;
