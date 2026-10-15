@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
-import {projectEstablishedV3Offerings,projectTargetV3Result} from './v3-result-projection.mjs';
+import {projectEstablishedV3Offerings,projectTargetV3Result,projectV3VerificationEvidence} from './v3-result-projection.mjs';
 import {writeLifecycleDisposition} from './lifecycle-continuation.mjs';
 import {acceptV3TruthNeeds} from '../live/market-proof-continuation.mjs';
 import {digest} from '../../research-v3/model.mjs';
@@ -57,6 +57,16 @@ test('unresolved or contradicted required propositions never project as establis
 test('Direct and country Truth use the same offering projector while retaining transport provenance',()=>{
  const country=projectEstablishedV3Offerings(target())[0],directTarget=target({v3Truth:truth([offer('gold',79.99,{transport:'DIRECT'})]),v3Observation:{id:observationId,kind:'PROVIDER',url,sha256:hash,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'PROVIDER_PAGE'}}}),direct=projectEstablishedV3Offerings(directTarget)[0];
  assert.deepEqual(direct.ordinaryRecurringPrice,country.ordinaryRecurringPrice);assert.deepEqual(direct.propositionStates,country.propositionStates);assert.equal(direct.source.context.transport,'DIRECT');assert.equal(direct.countryContext,null);assert.equal(country.source.context.transport,'DECODO');
+});
+
+test('verification evidence preserves persisted URL, source context, Truth market and proposition states without locale inference',()=>{
+ const current=target({serviceName:'Chess.com'});current.market='SE';current.v3Observation={...current.v3Observation,url:'https://www.chess.com/fr/membership',authority:'REVIEWED_PROVIDER',acquiredAt:'2026-10-15T12:00:00.000Z',context:{transport:'DECODO',networkGeography:'SE',representation:'PROVIDER_PAGE'}};current.v3Truth.eligibility.SE=current.v3Truth.eligibility.NO;delete current.v3Truth.eligibility.NO;
+ for(const row of current.v3Truth.offers){row.market='SE';row.propositions.TARGET_MARKET.value='SE';for(const proposition of Object.values(row.propositions))for(const evidence of proposition.evidence??[]){if(evidence.reference.marketContext)evidence.reference.marketContext.country='SE';}}
+ const evidence=projectV3VerificationEvidence(current)[0];assert.equal(evidence.provider,'Chess.com');assert.equal(evidence.targetMarket,'SE');assert.equal(evidence.sourceUrl,'https://www.chess.com/fr/membership');assert.equal(evidence.transport,'DECODO');assert.equal(evidence.networkGeography,'SE');assert.equal(evidence.truthMarket,'SE');assert.equal(evidence.eligibility,'ELIGIBLE');assert.equal(evidence.sourceAuthority,'REVIEWED_PROVIDER');assert.equal(evidence.observationId,observationId);assert.equal(evidence.bodySha256,hash);assert.equal(evidence.verifiedAt,'2026-10-15T12:00:00.000Z');assert.equal(evidence.verifiedByAgreement,false);assert.deepEqual(evidence.propositionStates,{SERVICE_IDENTITY:'ESTABLISHED',PRICE_AMOUNT:'ESTABLISHED',CURRENCY:'ESTABLISHED',MONTHLY_SUBSCRIPTION:'ESTABLISHED',CONSUMER_SUBSCRIPTION:'ESTABLISHED',TARGET_MARKET:'ESTABLISHED',MONTHLY_CADENCE:'UNRESOLVED'});
+});
+
+test('verification evidence degrades safely when optional observation context is missing',()=>{
+ const current=target();delete current.v3Observation.context;delete current.v3Observation.authority;const evidence=projectV3VerificationEvidence(current)[0];assert.equal(evidence.transport,null);assert.equal(evidence.networkGeography,null);assert.equal(evidence.sourceAuthority,null);assert.equal(evidence.truthMarket,'NO');
 });
 
 test('acceptance persists existing catalog beside Truth without changing needs',()=>{

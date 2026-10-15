@@ -53,6 +53,37 @@ export function projectEstablishedV3Offerings(target){
  return projected;
 }
 
+const verificationPropositions=['SERVICE_IDENTITY','PRICE_AMOUNT','CURRENCY','MONTHLY_SUBSCRIPTION','CONSUMER_SUBSCRIPTION','TARGET_MARKET','MONTHLY_CADENCE'];
+// Diagnostic projection only. Every field comes from the already-evaluated
+// offering/source projection; this never re-runs or reinterprets Truth.
+export function projectV3VerificationEvidence(target){
+ return projectEstablishedV3Offerings(target).map(row=>{
+  const source=row.source,observation=source?target?.v3Observation:null,route=source?.context?.transport??null,acquiredAt=[observation?.acquiredAt,observation?.observedAt,observation?.checkedAt,observation?.timestamp].find(value=>typeof value==='string')??null,rendered=typeof observation?.renderParentObservation==='string';
+  return {
+   provider:typeof target?.serviceName==='string'?target.serviceName:null,
+   serviceId:typeof target?.service==='string'?target.service:null,
+   targetMarket:typeof target?.market==='string'?target.market:null,
+   plan:row.name??row.id,
+   offerIdentityName:row.offerIdentity?.name??null,
+   amount:row.ordinaryRecurringPrice.amount,
+   currency:row.ordinaryRecurringPrice.currency,
+   sourceUrl:source?.url??row.sourceReferences.find(reference=>reference?.url)?.url??null,
+   sourceAuthority:typeof observation?.authority==='string'?observation.authority:null,
+   transport:rendered?'RENDERED':route,
+   acquisitionTransport:rendered?route:null,
+   networkGeography:source?.context?.networkGeography??null,
+   observationId:source?.observationId??null,
+   bodySha256:source?.bodyHash??null,
+   truthMarket:row.market,
+   eligibility:row.eligibility?.result??null,
+   verification:'authoritative-provider',
+   verifiedAt:acquiredAt,
+   verifiedByAgreement:false,
+   propositionStates:Object.fromEntries(verificationPropositions.filter(name=>Object.hasOwn(row.propositionStates,name)).map(name=>[name,row.propositionStates[name]]))
+  };
+ });
+}
+
 export function projectTargetV3Result(target){
  if(!target?.v3Truth)return null;
  const direct=[...(target.providerInterpretations??[])].reverse().find(row=>row?.v3Observation?.context?.transport==='DIRECT');

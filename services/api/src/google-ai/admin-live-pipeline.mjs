@@ -5,7 +5,7 @@ import {productPriceStatus} from '../../../../packages/contracts/src/product-pri
 import {projectCombinedResearchProductPlans,mergeProductPlans} from '../product-pricing.ts';
 import {persistSuggestedProductPlans,loadSuggestedProductPlans} from '../suggested-pricing-store.ts';
 import {persistVerifiedLivePrices,loadPersistedVerifiedPrices} from '../pricing-store.ts';
-import {projectEstablishedV3Offerings} from '../research-v2/inventory/v3-result-projection.mjs';
+import {projectV3VerificationEvidence} from '../research-v2/inventory/v3-result-projection.mjs';
 import {verifyCandidates,buildSuggested} from './v4-normalization.mjs';
 import {createV4SuggestedSnapshot,createV3Handoff} from './research-handoff.mjs';
 import {canonicalPlanEvidenceCounts,mergeResearch,planIdentity as canonicalResearchPlanIdentity} from './monotonic-merge.mjs';
@@ -32,12 +32,12 @@ function v4State(target,acquisition){
 }
 
 function verifiedFromTarget(target){
-  return projectEstablishedV3Offerings(target).map(row=>({
-    plan:row.name??row.id,planIdentity:row.planIdentity??(row.offerIdentity?canonicalResearchPlanIdentity(target.serviceName,row.market,row.offerIdentity.name):undefined),
-    amount:row.ordinaryRecurringPrice.amount,currency:row.ordinaryRecurringPrice.currency,
-    paymentCadence:'MONTHLY_RECURRING',sourceUrl:row.source?.url??row.sourceReferences?.find(reference=>reference?.url)?.url??null,
-    verifiedAt:new Date().toISOString(),provenance:'V3_VERIFIED'
-  }));
+  return projectV3VerificationEvidence(target).map(evidence=>{const {offerIdentityName,...verificationEvidence}=evidence,verifiedAt=evidence.verifiedAt??new Date().toISOString();return {
+    plan:evidence.plan,planIdentity:offerIdentityName?canonicalResearchPlanIdentity(target.serviceName,evidence.truthMarket,offerIdentityName):undefined,
+    amount:evidence.amount,currency:evidence.currency,
+    paymentCadence:'MONTHLY_RECURRING',sourceUrl:evidence.sourceUrl,
+    verifiedAt,provenance:'V3_VERIFIED',verificationEvidence:{...verificationEvidence,verifiedAt}
+  };});
 }
 
 export function v3ResultFromTarget(target){
@@ -88,7 +88,7 @@ export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,
     const acceptedVerified=verifiedAdapters(target,v3Result.verified??[]);if(acceptedVerified.length)await persistVerified(acceptedVerified);
     let observedPlans=productPlans;if(currency)try{const storedVerified=(await loadVerified(target.market,currency)).filter(row=>row.serviceSlug===target.service);observedPlans=mergeProductPlans(await loadSuggested(target.market,currency),projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined:mergeResearch({snapshot:createV4SuggestedSnapshot({provider:target.serviceName,market:target.market,suggested:[]}),existingVerified:existingVerifiedRows(storedVerified)})}));}catch{/* Persistence result remains explicit below. */}
     const planCounts=canonicalPlanEvidenceCounts(combined);
-    const result={target,googleStatus:acquisition.status,googleRequests:acquisition.audit.request.requestCount,earlySuggestedPersisted:session.earlyPersistedPlans,combined,planCounts,persisted:{suggestedPlans:productPlans.filter(plan=>plan.suggested||plan.suggestedHistory.length).length,verified:acceptedVerified.length},analyticsStates:observedPlans.filter(plan=>plan.serviceSlug===target.service).map(plan=>({planIdentity:plan.planIdentity,status:productPriceStatus(plan)}))};
+    const result={target,googleStatus:acquisition.status,googleRequests:acquisition.audit.request.requestCount,earlySuggestedPersisted:session.earlyPersistedPlans,combined,planCounts,verificationEvidence:(v3Result.verified??[]).map(row=>row.verificationEvidence).filter(Boolean),persisted:{suggestedPlans:productPlans.filter(plan=>plan.suggested||plan.suggestedHistory.length).length,verified:acceptedVerified.length},analyticsStates:observedPlans.filter(plan=>plan.serviceSlug===target.service).map(plan=>({planIdentity:plan.planIdentity,status:productPriceStatus(plan)}))};
     results.push(result);if(artifactDirectory)writeJson(path.join(artifactDirectory,'google-ai-v4',target.id.replace(/[^a-zA-Z0-9_.:-]/g,'_')+'-final.json'),result);
   }
   return {schemaVersion:1,kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',downstreamResult:downstream?.result??downstream,targets:results};

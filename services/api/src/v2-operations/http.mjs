@@ -1,6 +1,6 @@
 import {resumeAllowed} from './resume-policy.mjs';
 import {humanLeadsRequest} from './human-leads.mjs';
-import {jobStatus,terminationDiagnostic} from './job-status.mjs';
+import {jobStatus,priceResearchTargetEvidence,terminationDiagnostic} from './job-status.mjs';
 import {beginPreflight,beginStart,preflightStatus} from './preflight-operations.mjs';
 import {storageView} from '../research-v2/storage/runtime.mjs';
 import {historyIndex} from '../research-v2/storage/history.mjs';
@@ -29,6 +29,7 @@ export async function operationsRequest({method,url,body,actor},ops=operations()
  // Persistent jobs are discoverable independently of lifecycle output or Start receipts.
  // One control-store read; at most 100 small rows; no execution artifact reads.
  if(method==='GET'&&route==='/jobs'){const {offset,limit}=page(),db=ops.db();let rows=db.jobs.filter(j=>j.actor===actor);if(url.searchParams.get('resumable')==='true')rows=rows.filter(j=>resumeAllowed(j,db.events));rows.sort((a,b)=>String(b.updatedAt??b.createdAt??'').localeCompare(String(a.updatedAt??a.createdAt??''))||a.id.localeCompare(b.id));return {total:rows.length,rows:rows.slice(offset,offset+limit).map(j=>({id:j.id,status:j.status,updatedAt:j.updatedAt??null,resumeAllowed:resumeAllowed(j,db.events)}))};}
+ if(method==='GET'&&parts[0]==='jobs'&&parts[2]==='price-research-targets'&&parts[4]==='verification-evidence'&&parts.length===5)return priceResearchTargetEvidence(ops,parts[1],parts[3],actor);
  if(method==='GET'&&parts[0]==='jobs'&&parts.length===2)return jobStatus(ops,parts[1],actor);
  if(method==='POST'&&parts[0]==='jobs'&&parts[2]==='dismiss-resumable'&&parts.length===3)return ops.dismissResumable(parts[1],actor);
  if(method==='POST'&&parts[0]==='jobs'&&parts.length===3)return ops.control(parts[1],parts[2],actor);
