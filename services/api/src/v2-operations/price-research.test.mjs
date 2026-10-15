@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {Operations} from './control.mjs';
-import {priceResearchPlan} from './price-research.mjs';
+import {priceResearchPlan,runBoundedV3Verification} from './price-research.mjs';
+import {runAdminV4FirstResearch} from '../google-ai/admin-live-pipeline.mjs';
 
 const caps={direct:false,tavily:false,decodo:false,browser:false,groq:false};
 const fixture=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-operations-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:root,root:path.join(root,'.savlivo/v2-operations'),lifecycleInput:null,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',env:{},runtimeReadiness:{readGemini:async()=>null}});};
@@ -54,4 +55,46 @@ test('Start rejects changed canonical projection and worker preparation rejects 
 
 test('PRICE_RESEARCH Preflight exposes blocking capability readiness and non-blocking Gemini readiness',async t=>{
  const ops=fixture(t);ops.config.env={TAVILY_API_KEY:'fixture-private'};const pre=await ops.preflight({objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'chess-com',market:'ES',capabilities:{...caps,tavily:true}},'admin');assert.equal(pre.liveReady,true);assert.equal(pre.capabilityCheck.availability.tavily.reason,'CONFIGURED');assert.equal(pre.capabilityCheck.auxiliary.googleAi.reason,'GEMINI_CREDENTIAL_UNAVAILABLE');assert.equal(pre.capabilityCheck.auxiliary.googleAi.blocking,false);assert.equal(JSON.stringify(pre).includes('fixture-private'),false);
+});
+
+const verificationTarget={id:'price-research:example:DE',service:'example',serviceName:'Example',market:'DE'};
+const verificationHandoff={kind:'V4_TO_V3_RESEARCH_HANDOFF',provider:'Example',targetMarket:'DE',researchLeads:{candidatePlans:[{suggestedId:'v4:one'}]}};
+const emptyV3=()=>({suggested:[],verified:[],contradictions:[],operationalFailures:[]});
+function adaptiveAttempt({reason='NO_EXECUTABLE_PROGRESS_RECONCILE',kind='BLOCKED',usage={},bounds={},verification=true}={}){const used={reads:1,searches:0,acquisitions:0,retainedReviews:0,bytes:1,...usage};return {executionComplete:true,turn:used.actions??1,bounds:{reads:24,searches:8,acquisitions:8,retainedReviews:64,turns:512,bytes:16*1024*1024,...bounds},targets:{[verificationTarget.id]:{id:verificationTarget.id,service:'example',serviceName:'Example',market:'DE',...(verification?{v4VerificationRequirement:{kind:'SOURCE_BOUND_PRICE_VERIFICATION_REQUIRED'}}:{})}},services:{example:{used,stop:{kind,reason}}}};}
+const downstreamSequence=(attempts,calls=[])=>async(_handoffs,options)=>{calls.push(structuredClone(options));const next=attempts.shift();return typeof next==='function'?next(options):next;};
+
+test('V4 Suggested retries one isolated no-progress V3 attempt and accepts Verified truth',async()=>{
+ const calls=[],verified={plan:'Individual',amount:10.99,currency:'EUR'},result=await runBoundedV3Verification({targets:[verificationTarget],handoffs:{[verificationTarget.id]:verificationHandoff},execute:downstreamSequence([{adaptive:adaptiveAttempt(),v3Results:{[verificationTarget.id]:emptyV3()}},{adaptive:adaptiveAttempt({reason:'VERIFIED'}),v3Results:{[verificationTarget.id]:{...emptyV3(),verified:[verified]}}}],calls)});
+ assert.equal(calls.length,2);assert.equal(calls[1].attempt,2);assert.deepEqual(result.v3Results[verificationTarget.id].verified,[verified]);assert.equal(result.result.v3VerificationRetry.outcomes[verificationTarget.id].status,'AUTHORITATIVE_PROGRESS');
+});
+
+test('a second no-progress result exhausts exactly one V3 retry and remains Suggested-only',async()=>{
+ const calls=[],result=await runBoundedV3Verification({targets:[verificationTarget],handoffs:{[verificationTarget.id]:verificationHandoff},execute:downstreamSequence([{adaptive:adaptiveAttempt(),v3Results:{[verificationTarget.id]:emptyV3()}},{adaptive:adaptiveAttempt(),v3Results:{[verificationTarget.id]:emptyV3()}}],calls)}),failures=result.v3Results[verificationTarget.id].operationalFailures;
+ assert.equal(calls.length,2);assert.equal(result.verificationRetry.attemptedTargetIds.length,1);assert(failures.some(row=>row.kind==='V3_VERIFICATION_RETRY_EXHAUSTED'&&row.reason==='NO_EXECUTABLE_PROGRESS_RECONCILE'));assert.equal(result.v3Results[verificationTarget.id].verified.length,0);
+});
+
+test('V3 retry requires a V4 candidate and unresolved verification without authoritative conflict',async()=>{
+ for(const row of [
+  {name:'no V4 Suggested',handoff:{...verificationHandoff,researchLeads:{candidatePlans:[]}},v3:emptyV3(),state:adaptiveAttempt()},
+  {name:'existing Verified',handoff:verificationHandoff,v3:{...emptyV3(),verified:[{plan:'Individual'}]},state:adaptiveAttempt()},
+  {name:'authoritative contradiction',handoff:verificationHandoff,v3:{...emptyV3(),contradictions:[{kind:'AUTHORITATIVE_PRICE_CONTRADICTION'}]},state:adaptiveAttempt()},
+  {name:'policy/access blocker',handoff:verificationHandoff,v3:emptyV3(),state:adaptiveAttempt({reason:'PROVIDER_ACCESS_POLICY_STOP'})},
+  {name:'hard budget exhaustion',handoff:verificationHandoff,v3:emptyV3(),state:adaptiveAttempt({usage:{reads:24},kind:'BUDGET_LIMITED'})}
+ ]){const calls=[],result=await runBoundedV3Verification({targets:[verificationTarget],handoffs:{[verificationTarget.id]:row.handoff},execute:downstreamSequence([{adaptive:row.state,v3Results:{[verificationTarget.id]:row.v3}}],calls)});assert.equal(calls.length,1,row.name);assert.deepEqual(result.verificationRetry.attemptedTargetIds,[],row.name);}
+});
+
+test('V3 retry carries first usage into the same hard budget and rejects aggregate overflow',async()=>{
+ const calls=[],first=adaptiveAttempt({usage:{actions:3,reads:20,searches:5,acquisitions:2,retainedReviews:4,bytes:1000}}),retry=options=>({adaptive:{...adaptiveAttempt({reason:'VERIFIED',usage:{actions:1,reads:4,searches:3,acquisitions:6,retainedReviews:60,bytes:16*1024*1024-1000}}),budgetScope:'CAMPAIGN',initialUsage:options.initialUsage},v3Results:{[verificationTarget.id]:{...emptyV3(),verified:[{plan:'Individual'}]}}});
+ await runBoundedV3Verification({targets:[verificationTarget],handoffs:{[verificationTarget.id]:verificationHandoff},execute:downstreamSequence([{adaptive:first,v3Results:{[verificationTarget.id]:emptyV3()}},retry],calls)});assert.deepEqual(calls[1].initialUsage,{actions:3,reads:20,searches:5,acquisitions:2,retainedReviews:4,bytes:1000});
+ const overflow=options=>({adaptive:{...adaptiveAttempt({usage:{reads:5}}),budgetScope:'CAMPAIGN',initialUsage:options.initialUsage},v3Results:{[verificationTarget.id]:emptyV3()}});await assert.rejects(runBoundedV3Verification({targets:[verificationTarget],handoffs:{[verificationTarget.id]:verificationHandoff},execute:downstreamSequence([{adaptive:first,v3Results:{[verificationTarget.id]:emptyV3()}},overflow])}),/V3_VERIFICATION_RETRY_BUDGET_VIOLATION/);
+});
+
+test('V3 retry preserves stop and infrastructure failures instead of converting them to Suggested-only',async()=>{
+ await assert.rejects(runBoundedV3Verification({targets:[verificationTarget],handoffs:{[verificationTarget.id]:verificationHandoff},execute:downstreamSequence([{adaptive:adaptiveAttempt(),v3Results:{[verificationTarget.id]:emptyV3()}},()=>{throw Error('PRICE_RESEARCH_STOPPED');}])}),/PRICE_RESEARCH_STOPPED/);
+});
+
+test('V4 acquisition runs once while first and retry V3 attempts retain separate artifact identities',async()=>{
+ let googleRequests=0;const calls=[],googlePlan={planName:'Individual',amount:10.99,currency:'EUR',paymentCadence:'MONTHLY_RECURRING',commitment:'NONE',ordinaryRecurringPrice:10.99,introPrice:null,introDuration:null,sourceUrl:'https://example.test/pricing',sourceEvidence:'Individual EUR 10.99 monthly',marketEvidence:'Germany',billingBasis:'charged monthly',annualOnly:false,freeTier:false,summary:'Monthly',warnings:[],market:'DE',sourceReferences:['https://example.test/pricing']},acquisition={status:'GOOGLE_AI_SUCCESS',aiResult:{provider:'Example',market:'DE',plans:[googlePlan],sources:[],warnings:[],timestamp:'2026-10-15T00:00:00.000Z',requestCount:1},audit:{timestamp:'2026-10-15T00:00:00.000Z',request:{requestCount:1}}};
+ const result=await runAdminV4FirstResearch({targets:[verificationTarget],artifactDirectory:null,apiKey:'test',acquireGoogle:async()=>{googleRequests++;return acquisition;},persistSuggested:async()=>({}),persistVerified:async()=>({}),loadSuggested:async()=>[],loadVerified:async()=>[],runDownstream:({handoffs})=>runBoundedV3Verification({targets:[verificationTarget],handoffs,execute:downstreamSequence([{adaptive:adaptiveAttempt(),v3Results:{[verificationTarget.id]:emptyV3()}},{adaptive:adaptiveAttempt(),v3Results:{[verificationTarget.id]:emptyV3()}}],calls)})});
+ assert.equal(googleRequests,1);assert.equal(calls.length,2);assert.equal(calls[0].attempt,1);assert.equal(calls[1].artifactName,'v3-verification-retry-1');assert.equal(result.downstreamResult.v3VerificationRetry.firstAttemptArtifact,'primary');assert.equal(result.downstreamResult.v3VerificationRetry.retryAttemptArtifact,'v3-verification-retry-1');assert(result.targets[0].combined.operationalFailures.some(row=>row.kind==='V3_VERIFICATION_RETRY_EXHAUSTED'));
 });
