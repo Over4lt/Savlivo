@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import {TargetResearchFailure} from '../research-v2/live/target-research-failure.mjs';
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const safeCode=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{0,159}$/.test(value)?value:'PRICE_RESEARCH_CHILD_FAILED';
@@ -25,10 +26,13 @@ function applyEvents(config,outcomes,events){
  for(const event of events){
   const target=config.batchTargets[event?.index],outcome=outcomes[event?.index];
   if(!Number.isSafeInteger(event?.index)||!target||event.targetId!==target.id||!['PENDING','RUNNING','COMPLETE','FAILED','STOPPED'].includes(event.status))throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');
-  outcome.status=event.status;delete outcome.failureCode;delete outcome.startedAt;delete outcome.finishedAt;
+  outcome.status=event.status;delete outcome.failureCode;delete outcome.failureScope;delete outcome.startedAt;delete outcome.finishedAt;
   if(typeof event.startedAt==='string')outcome.startedAt=event.startedAt;
   if(typeof event.finishedAt==='string')outcome.finishedAt=event.finishedAt;
-  if(event.status==='FAILED')outcome.failureCode=safeCode(event.failureCode);
+  if(event.status==='FAILED'){
+   outcome.failureCode=safeCode(event.failureCode);
+   if(event.failureScope!==undefined){if(!['TARGET','JOB'].includes(event.failureScope))throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');outcome.failureScope=event.failureScope;}
+  }
  }
  return outcomes;
 }
@@ -55,7 +59,7 @@ function loadProgress(config,directory){
  const file=progressFile(directory),journal=journalFile(directory),existing=readPriceResearchBatchProgress(config,directory);
  if(existing?.version===1){
   const progress={...initialProgress(config),status:existing.status,nextIndex:existing.nextIndex,current:null,outcomes:existing.outcomes};
-  const events=progress.outcomes.flatMap((outcome,index)=>outcome.status==='PENDING'?[]:[{index,targetId:config.batchTargets[index].id,status:outcome.status,...(typeof outcome.startedAt==='string'?{startedAt:outcome.startedAt}:{}),...(typeof outcome.finishedAt==='string'?{finishedAt:outcome.finishedAt}:{}),...(outcome.status==='FAILED'?{failureCode:safeCode(outcome.failureCode)}:{})}]);
+  const events=progress.outcomes.flatMap((outcome,index)=>outcome.status==='PENDING'?[]:[{index,targetId:config.batchTargets[index].id,status:outcome.status,...(typeof outcome.startedAt==='string'?{startedAt:outcome.startedAt}:{}),...(typeof outcome.finishedAt==='string'?{finishedAt:outcome.finishedAt}:{}),...(outcome.status==='FAILED'?{failureCode:safeCode(outcome.failureCode),...(['TARGET','JOB'].includes(outcome.failureScope)?{failureScope:outcome.failureScope}:{})}:{})}]);
   fs.writeFileSync(journal,events.map(event=>JSON.stringify(event)).join('\n')+(events.length?'\n':''),{mode:0o600});writeJson(file,compact(progress));return {file,journal,progress};
  }
  if(existing)return {file,journal,progress:existing};
@@ -70,6 +74,19 @@ function record(journal,index,target,status,fields={}){
  const event={index,targetId:target.id,status,...fields};appendEvent(journal,event);return event;
 }
 
+function legacyTargetAccessStop(directory,target,index,outcome){
+ if(outcome.failureScope!==undefined||outcome.failureCode!=='DIRECT_PROVIDER_AUTHORITY_REQUIRED')return false;
+ const file=path.join(childDirectory(directory,target,index),'known-service-v3-verification-retry-1','targets',target.id,'open-web-discovery','journal.jsonl');
+ try{
+  if(fs.statSync(file).size>4*1024*1024)return false;
+  const events=fs.readFileSync(file,'utf8').split('\n').filter(Boolean);
+  if(events.length>512)return false;
+  const reads=events.map(line=>JSON.parse(line)).filter(event=>event.type==='ACTION_RESULT'&&event.action?.type==='READ'&&event.action.target===target.id);
+  const last=reads.at(-1);
+  return last?.action?.url===last?.response?.requestedUrl&&last.response.outcome==='ACCESS_CONTROL_STOP'&&last.response.failure?.code==='ROBOTS_ACCESS_STOP';
+ }catch{return false;}
+}
+
 export async function executePriceResearchBatch({job,directory,apiKey,client,shouldStop=()=>false,executeTarget}){
  const config=job?.config;
  const expectedCeiling=config?.batchTargets?.length*96;
@@ -79,18 +96,29 @@ export async function executePriceResearchBatch({job,directory,apiKey,client,sho
   const target=config.batchTargets[index],outcome=progress.outcomes[index];
   if(outcome.status==='COMPLETE')continue;
   if(outcome.status==='RUNNING')throw Error('PRICE_RESEARCH_CHILD_RECOVERY_UNSAFE');
-  if(outcome.status==='FAILED')throw Error('PRICE_RESEARCH_BATCH_CHILD_FAILED');
+  if(outcome.status==='FAILED'){
+   // Older checkpoints predate typed scopes. Resume only when the target's
+   // retained retry journal also proves the access stop behind that code.
+   if(outcome.failureScope==='TARGET'||legacyTargetAccessStop(directory,target,index,outcome)){progress.nextIndex=index+1;continue;}
+   throw Error('PRICE_RESEARCH_BATCH_CHILD_FAILED');
+  }
   if(outcome.status==='STOPPED'&&!shouldStop()){Object.assign(outcome,record(journal,index,target,'PENDING'));delete outcome.index;}
   if(shouldStop()){progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}
   const childDir=childDirectory(directory,target,index),startedAt=new Date().toISOString();Object.assign(outcome,record(journal,index,target,'RUNNING',{startedAt}));delete outcome.index;progress.status='RUNNING';progress.nextIndex=index;progress.current={index,targetId:target.id,status:'RUNNING',startedAt};writeJson(file,compact(progress));
-  try{
-   const result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop}),finishedAt=new Date().toISOString();
-   writeJson(path.join(childDir,'result.json'),result);Object.assign(outcome,record(journal,index,target,'COMPLETE',{startedAt,finishedAt}));delete outcome.index;progress.nextIndex=index+1;progress.current=null;writeJson(file,compact(progress));
-  }catch(error){
+  let result;
+  try{result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop});}
+  catch(error){
    const finishedAt=new Date().toISOString();
    if(shouldStop()||error?.message==='PRICE_RESEARCH_STOPPED'){Object.assign(outcome,record(journal,index,target,'STOPPED',{startedAt,finishedAt}));delete outcome.index;progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}
-   const failureCode=safeCode(error?.message);Object.assign(outcome,record(journal,index,target,'FAILED',{startedAt,finishedAt,failureCode}));delete outcome.index;progress.status='FAILED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));throw Error('PRICE_RESEARCH_BATCH_CHILD_FAILED');
+   const failureCode=safeCode(error?.message),targetLocal=error instanceof TargetResearchFailure;
+   Object.assign(outcome,record(journal,index,target,'FAILED',{startedAt,finishedAt,failureCode,failureScope:targetLocal?'TARGET':'JOB'}));delete outcome.index;progress.status=targetLocal?'RUNNING':'FAILED';progress.nextIndex=targetLocal?index+1:index;progress.current=null;writeJson(file,compact(progress));
+   if(targetLocal)continue;
+   throw Error('PRICE_RESEARCH_BATCH_CHILD_FAILED');
   }
+  const finishedAt=new Date().toISOString();
+  // Result publication and checkpoint writes are job-global persistence work.
+  // Their failure leaves RUNNING evidence for safe recovery review.
+  writeJson(path.join(childDir,'result.json'),result);Object.assign(outcome,record(journal,index,target,'COMPLETE',{startedAt,finishedAt}));delete outcome.index;progress.nextIndex=index+1;progress.current=null;writeJson(file,compact(progress));
  }
  progress.status='COMPLETE';progress.nextIndex=config.batchTargets.length;progress.current=null;writeJson(file,compact(progress));return {...progress};
 }

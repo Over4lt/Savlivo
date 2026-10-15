@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {executePriceResearchBatch,readPriceResearchBatchProgress} from './price-research-batch.mjs';
+import {TargetResearchFailure} from '../research-v2/live/target-research-failure.mjs';
 
 const capabilities={direct:true,tavily:true,decodo:false,browser:false,groq:false};
 const target=(serviceId,targetMarket)=>({id:`price-research:${serviceId}:${targetMarket}`,serviceId,serviceName:serviceId,targetMarket,marketApplicabilityEstablished:false});
@@ -29,6 +30,25 @@ test('child failure is persisted with its exact target and is never retried on r
  await assert.rejects(executePriceResearchBatch({...f,executeTarget:async({job})=>{const id=job.config.serviceId+':'+job.config.market;order.push(id);if(id==='alpha:NO')throw Error('INFRASTRUCTURE_FAILURE');return {ok:true};}}),/PRICE_RESEARCH_BATCH_CHILD_FAILED/);
  const progress=readPriceResearchBatchProgress(f.job.config,f.directory);assert.equal(progress.status,'FAILED');assert.deepEqual(progress.outcomes.map(row=>[row.targetId,row.status,row.failureCode??null]),[['price-research:alpha:DE','COMPLETE',null],['price-research:alpha:NO','FAILED','INFRASTRUCTURE_FAILURE'],['price-research:beta:DE','PENDING',null]]);
  await assert.rejects(executePriceResearchBatch({...f,executeTarget:async()=>{throw Error('MUST_NOT_RUN');}}),/PRICE_RESEARCH_BATCH_CHILD_FAILED/);assert.deepEqual(order,['alpha:DE','alpha:NO']);
+});
+
+test('typed target failure retains artifacts and continues later targets with exact checkpoint counts',async t=>{
+ const f=fixture(t),order=[],result=await executePriceResearchBatch({...f,executeTarget:async({job,directory})=>{const id=job.config.serviceId+':'+job.config.market;order.push(id);fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'research-artifact.json'),JSON.stringify({id}));if(id==='alpha:NO')throw new TargetResearchFailure('DIRECT_PROVIDER_AUTHORITY_REQUIRED');return {id,verified:[id]};}});
+ assert.equal(result.status,'COMPLETE');assert.equal(result.nextIndex,3);assert.equal(result.batchRequestCeiling,288);assert.deepEqual(result.outcomes.map(row=>[row.status,row.failureCode??null,row.failureScope??null]),[['COMPLETE',null,null],['FAILED','DIRECT_PROVIDER_AUTHORITY_REQUIRED','TARGET'],['COMPLETE',null,null]]);
+ assert.deepEqual(order,['alpha:DE','alpha:NO','beta:DE']);assert.equal(fs.existsSync(path.join(f.directory,result.outcomes[1].artifactDirectory,'research-artifact.json')),true);assert.equal(fs.existsSync(path.join(f.directory,result.outcomes[1].artifactDirectory,'result.json')),false);
+ const events=fs.readFileSync(path.join(f.directory,'price-research-batch-progress.jsonl'),'utf8').trim().split('\n').map(JSON.parse);assert.deepEqual(events.filter(row=>row.status==='FAILED').map(row=>[row.index,row.failureCode,row.failureScope]),[[1,'DIRECT_PROVIDER_AUTHORITY_REQUIRED','TARGET']]);assert.equal(events.filter(row=>row.status==='COMPLETE').length,2);
+ const recovered=await executePriceResearchBatch({...f,executeTarget:async()=>{throw Error('DUPLICATE_EXECUTION');}});assert.equal(recovered.status,'COMPLETE');assert.deepEqual(order,['alpha:DE','alpha:NO','beta:DE']);
+});
+
+test('interrupted legacy target-local failure resumes pending targets without changing completed or failed history',async t=>{
+ const f=fixture(t,[target('alpha','DE'),target('alpha','NO'),target('beta','DE'),target('beta','NO')]),order=[];
+ await assert.rejects(executePriceResearchBatch({...f,executeTarget:async({job})=>{const id=job.config.serviceId+':'+job.config.market;order.push(id);if(id==='alpha:NO')throw Error('DIRECT_PROVIDER_AUTHORITY_REQUIRED');return {id,verificationEvidence:[{targetMarket:job.config.market,plan:'Gold'}]};}}),/PRICE_RESEARCH_BATCH_CHILD_FAILED/);
+ const journal=path.join(f.directory,'price-research-batch-progress.jsonl'),events=fs.readFileSync(journal,'utf8').trim().split('\n').map(JSON.parse);delete events.at(-1).failureScope;fs.writeFileSync(journal,events.map(row=>JSON.stringify(row)).join('\n')+'\n');
+ await assert.rejects(executePriceResearchBatch({...f,executeTarget:async()=>{throw Error('MUST_NOT_RUN');}}),/PRICE_RESEARCH_BATCH_CHILD_FAILED/);
+ const blockedUrl='https://provider.example/register?returnUrl=/',retryJournal=path.join(f.directory,'price-research-targets','02-alpha-NO','known-service-v3-verification-retry-1','targets','price-research:alpha:NO','open-web-discovery','journal.jsonl');fs.mkdirSync(path.dirname(retryJournal),{recursive:true});fs.writeFileSync(retryJournal,JSON.stringify({type:'ACTION_RESULT',action:{type:'READ',target:'price-research:alpha:NO',url:blockedUrl},response:{requestedUrl:blockedUrl,outcome:'ACCESS_CONTROL_STOP',failure:{code:'ROBOTS_ACCESS_STOP'}}})+'\n');
+ const firstFile=path.join(f.directory,'price-research-targets','01-alpha-DE','result.json'),firstBytes=fs.readFileSync(firstFile),before=readPriceResearchBatchProgress(f.job.config,f.directory);assert.equal(before.status,'FAILED');assert.equal(before.nextIndex,1);
+ const resumed=await executePriceResearchBatch({...f,executeTarget:async({job})=>{const id=job.config.serviceId+':'+job.config.market;order.push(id);if(id==='beta:DE')throw new TargetResearchFailure('SOURCE_REVIEW_REQUIRED');return {id,verified:[id]};}});
+ assert.equal(resumed.status,'COMPLETE');assert.equal(resumed.nextIndex,4);assert.equal(resumed.batchRequestCeiling,384);assert.deepEqual(order,['alpha:DE','alpha:NO','beta:DE','beta:NO']);assert.deepEqual(resumed.outcomes.map(row=>row.status),['COMPLETE','FAILED','FAILED','COMPLETE']);assert.deepEqual(fs.readFileSync(firstFile),firstBytes);assert.deepEqual(JSON.parse(firstBytes).verificationEvidence,[{targetMarket:'DE',plan:'Gold'}]);assert.equal(resumed.outcomes[1].failureCode,'DIRECT_PROVIDER_AUTHORITY_REQUIRED');assert.equal(resumed.outcomes[2].failureCode,'SOURCE_REVIEW_REQUIRED');assert.equal(fs.readFileSync(journal,'utf8').trim().split('\n').filter(line=>JSON.parse(line).index===1&&JSON.parse(line).status==='FAILED').length,1);
 });
 
 test('scope above ten executes sequentially and resumes without repeating completed targets',async t=>{

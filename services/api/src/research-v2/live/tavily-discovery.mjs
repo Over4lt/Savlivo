@@ -9,6 +9,10 @@ import {canonical} from '../../research-v3/model.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
 import {activeRenderingNeed} from './rendering-diagnosis.mjs';
+export function nonObservedDirectProviderPage(page,url){
+ if(page.outcome==='OK')return null;
+ return {url,classification:page.outcome==='ACCESS_CONTROL_STOP'?'DIRECT_ACCESS_BLOCKED':'DIRECT_ACQUISITION_UNRESOLVED',verified:[],needsGeo:false,blockers:[page.failure?.code??page.outcome],channel:'DIRECT_FAILED'};
+}
 export function admittedDiscoveryCandidate(candidate,target){
  const decision=candidate.authority;
  if(decision?.eligible!==true||!decision.authority?.validated||new URL(decision.url).hostname!==decision.authority.hostname)throw Error('DISCOVERY_AUTHORITY_URL_MISMATCH');
@@ -36,6 +40,7 @@ export async function createTavilyDiscovery({inventory,env=process.env,readKeych
    async consumeProvider({target,candidate,page,directory}){
     const admitted=admittedDiscoveryCandidate(candidate,target),gapProof=providerAccessGap(page);
     if(gapProof)return {url:admitted.url,classification:'DIRECT_ACCESS_GAP',verified:[],needsGeo:true,gapProof,acquisitionEscalation:acquisitionEscalation({page,targetMarket:target.market}),blockers:[page.failure.code],channel:'DIRECT_FAILED'};
+    const blocked=nonObservedDirectProviderPage(page,admitted.url);if(blocked)return blocked;
     const direct=await interpretDirectProvider({target,page,directory});
     journal.append('DIRECT_INTERPRETED',{target:target.id,url:admitted.url,runDirectory:direct.runDirectory,monetary:direct.monetary,verified:direct.verified.length,blockers:direct.blockers});
     return {...direct,needsGeo:directGeoGap(direct)};

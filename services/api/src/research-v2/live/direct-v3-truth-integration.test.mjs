@@ -6,6 +6,7 @@ import {authorityBinding} from '../../research-v3/discovery-authority.mjs';
 import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.mjs';
 import {evaluate} from '../../research-v3/truth.mjs';
 import {interpretDirectProvider,evaluateDirectProviderTruth} from './direct-provider-evidence.mjs';
+import {TargetResearchFailure} from './target-research-failure.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
 import {planResearch} from './research-planner.mjs';
 
@@ -76,4 +77,5 @@ test('Direct validation still rejects unresolved authority, sibling host, tamper
   ['tamper',f=>{f.page.bodyHash='0'.repeat(64);},/DIRECT_PROVIDER_HASH_MISMATCH/],
   ['denied',f=>{f.page.accessDecisions=[{decision:'DENIED'}];},/DIRECT_PROVIDER_POLICY_UNPROVEN/]
  ]){const f=fixture();change(f);await assert.rejects(()=>direct(f),pattern,name);}
+ await assert.rejects(()=>direct(fixture(html(),{outcome:'ACCESS_CONTROL_STOP',httpStatus:null,authority:{status:'UNKNOWN'}})),error=>error instanceof TargetResearchFailure&&error.message==='DIRECT_PROVIDER_AUTHORITY_REQUIRED');
 });

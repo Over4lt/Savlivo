@@ -6,6 +6,7 @@ import {interpretRun} from './runner.mjs';import {verifyRetainedRun} from './mod
 import {canonical} from '../../research-v3/model.mjs';
 import {autonomousProviderAuthorityDecision} from './provider-routing-authority.mjs';
 import {evaluateProviderSourceTruth} from './provider-source-v3.mjs';
+import {TargetResearchFailure} from './target-research-failure.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 function autonomousAuthority(target,page){
  const requested=autonomousProviderAuthorityDecision(target,page.requestedUrl??page.url),final=autonomousProviderAuthorityDecision(target,page.url);
@@ -14,7 +15,7 @@ function autonomousAuthority(target,page){
 }
 export function validateDirectProviderPage({target,page,directory}){
  const projected=autonomousAuthority(target,page),authority=projected??page.authority;
- if(page.outcome!=='OK'||page.httpStatus!==200||authority?.status!=='CONFIGURED_REVIEWED')throw Error('DIRECT_PROVIDER_AUTHORITY_REQUIRED');
+ if(page.outcome!=='OK'||page.httpStatus!==200||authority?.status!=='CONFIGURED_REVIEWED')throw new TargetResearchFailure('DIRECT_PROVIDER_AUTHORITY_REQUIRED');
  const host=new URL(page.url).hostname;
  if(authority.hostname!==host||authority.provider!==target.serviceName||!projected&&!target.authorities.some(a=>a.hostname===host&&a.provider===target.serviceName&&/^OFFICIAL_/.test(a.sourceType)))throw Error('DIRECT_PROVIDER_IDENTITY_MISMATCH');
  if(!page.bodyFile||!/^bodies\/[a-f0-9]{64}\.txt$/.test(page.bodyFile))throw Error('DIRECT_PROVIDER_BODY_REQUIRED');
