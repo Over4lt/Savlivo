@@ -18,7 +18,7 @@ export function admittedDiscoveryCandidate(candidate,target){
  if(decision?.eligible!==true||!decision.authority?.validated||new URL(decision.url).hostname!==decision.authority.hostname)throw Error('DISCOVERY_AUTHORITY_URL_MISMATCH');
  if(decision.providerAuthorityBinding){
   const current=target&&providerRoutingAuthority(target,decision.url);
-  const mechanisms=new Set(['V3_AUTONOMOUS_CANDIDATE_REVIEW','SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY']);
+  const mechanisms=new Set(['V3_AUTONOMOUS_CANDIDATE_REVIEW','SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY','REVIEWED_PROVIDER_NAMESPACE']);
   if(!mechanisms.has(current?.provenance)||decision.authority.reference?.kind!==current.provenance||current.host!==decision.authority.hostname||canonical(current.binding)!==canonical(decision.providerAuthorityBinding)||canonical(decision.authority.reference?.binding)!==canonical(current.binding))throw Error('DISCOVERY_AUTHORITY_URL_MISMATCH');
  }
  // Authority belongs to the reviewed final URL, not an untrusted redirecting lead.

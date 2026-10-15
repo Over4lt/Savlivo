@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "scope": "LIVE_PRICE_RESEARCH_PROVIDER_IDENTITY_ONLY",
+  "bindings": [
+    {
+      "service": "hulu",
+      "serviceName": "Hulu",
+      "registrableDomain": "hulu.com",
+      "status": "REVIEWED",
+      "scope": "OWNED_DNS_NAMESPACE",
+      "review": {
+        "reviewedAt": "2026-10-15T20:52:56.000Z",
+        "method": "CODEX_REVIEW_OF_REPOSITORY_CONFIG",
+        "reason": "The canonical Hulu service has a direct provider offer on www.hulu.com and a direct account-management route on secure.hulu.com in the checked baseline snapshot. Together these independently configured Hulu destinations support hulu.com as its provider-controlled DNS namespace. This grants provider identity only; no price, product, target-market, or availability truth is inherited."
+      },
+      "provenance": [
+        {
+          "kind": "DIRECT_PROVIDER_PRICE_SOURCE",
+          "path": "docs/catalog/baseline-60362c6.json",
+          "sha256": "3276f66f167817eef7f70d65c76a17d4c5388028ef1877bb2749edd3797b675f",
+          "sourceUrl": "https://www.hulu.com/annual-offer"
+        },
+        {
+          "kind": "DIRECT_PROVIDER_MANAGEMENT_ROUTE",
+          "path": "docs/catalog/baseline-60362c6.json",
+          "sha256": "3276f66f167817eef7f70d65c76a17d4c5388028ef1877bb2749edd3797b675f",
+          "sourceUrl": "https://secure.hulu.com/account"
+        }
+      ]
+    }
+  ]
+}

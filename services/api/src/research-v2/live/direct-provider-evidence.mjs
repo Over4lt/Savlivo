@@ -10,7 +10,8 @@ import {TargetResearchFailure} from './target-research-failure.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 function autonomousAuthority(target,page){
  const requested=autonomousProviderAuthorityDecision(target,page.requestedUrl??page.url),final=autonomousProviderAuthorityDecision(target,page.url);
- if(!requested||!final||requested.authority.hostname!==final.authority.hostname||page.providerAuthority?.provenance!==final.authority.reference.kind||canonical(page.providerAuthority.binding)!==canonical(final.providerAuthorityBinding))return null;
+ const sameReviewedNamespace=requested?.authority.reference.kind==='REVIEWED_PROVIDER_NAMESPACE'&&final?.authority.reference.kind==='REVIEWED_PROVIDER_NAMESPACE'&&requested.providerAuthorityBinding.registrableDomain===final.providerAuthorityBinding.registrableDomain;
+ if(!requested||!final||requested.authority.hostname!==final.authority.hostname&&!sameReviewedNamespace||page.providerAuthority?.provenance!==final.authority.reference.kind||canonical(page.providerAuthority.binding)!==canonical(final.providerAuthorityBinding))return null;
  return {status:'CONFIGURED_REVIEWED',hostname:final.authority.hostname,provider:target.serviceName,sourceType:'OFFICIAL_PROVIDER',sourceUrl:final.url,checkedAt:page.checkedAt??page.capturedAt??page.sourceIntegrity?.checkedAt??new Date().toISOString(),autonomousProviderAuthority:{provenance:final.authority.reference.kind,binding:structuredClone(final.providerAuthorityBinding)}};
 }
 export function validateDirectProviderPage({target,page,directory}){

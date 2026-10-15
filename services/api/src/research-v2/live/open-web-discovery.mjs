@@ -19,6 +19,7 @@ import {providerAccessGap,acquisitionEscalation} from './provider-access-gap.mjs
 import {sha,commercialFields} from './online-discovery.mjs';
 import {normalizePublicUrl} from '../../research-v1/public-network.mjs';
 import {sourceLinks} from './source-frontier-links.mjs';
+import {semanticReasons} from './source-frontier.mjs';
 import {providerNavigation,navigationRank,navigationKey} from './provider-navigation.mjs';
 import {reviewV2CandidateAuthority,reviewV2DelegatedCandidateAuthority} from '../../research-v3/v2-candidate-authority-adapter.mjs';
 import {autonomousProviderAuthorityDecision,hasProviderRoutingAuthority,installRunScopedV3ProviderAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
@@ -106,7 +107,7 @@ export async function reuseProviderSeedCampaignEvidence({directory,target,provid
  }
  return {reused:results.some(row=>row.reused),count:results.filter(row=>row.reused).length,results};
 }
-// Scheduling relevance is not authority admission. Exact reviewed hosts only;
+// Scheduling relevance is not authority admission. Reviewed hosts and namespaces;
 // the normal redirect/authority validator still controls evidence consumption.
 export const reviewedDestination=(t,url)=>!!providerRoutingAuthority(t,url);
 export function destinationPriority(t,lead){return navigationRank(t,lead);}
@@ -114,9 +115,10 @@ const legacyMarketHint=(t,url)=>new RegExp('(?:[/_-])'+t.market+'(?:[/_.-]|$)','
 const plannerPriority=(t,l)=>destinationPriority(t,l)*100+(hasProviderRoutingAuthority(t)?0:candidateIdentityPriority(t,l))+score(l)-((hasProviderRoutingAuthority(t)?targetMarketPathHint(t,l.url):legacyMarketHint(t,l.url))?3:0)-(providerRoutingAuthority(t,l.url)?3:0);
 export function rankPlannerLeads(t){if(t.smartResearch?.version===2)for(const l of t.leads)l.navigationPriority=plannerPriority(t,l)/100;return t;}
 export function usefulProviderDestination(t,lead){
- if(!reviewedDestination(t,lead.url))return false;
- const p=new URL(lead.url).pathname;
- return (t.knownCommercialUrls??[]).includes(lead.url)||destinationPriority(t,lead)<=15||/(?:^|[\/_-])(?:products?|services?|offers?|packages?)(?:[\/_-]|$)/i.test(p)&&destinationPriority(t,lead)<40;
+ const routing=providerRoutingAuthority(t,lead.url);if(!routing)return false;
+ const p=new URL(lead.url).pathname,semantic=semanticReasons(lead.url,lead.label??lead.title??'','');
+ return (t.knownCommercialUrls??[]).includes(lead.url)||destinationPriority(t,lead)<=15||/(?:^|[\/_-])(?:products?|services?|offers?|packages?)(?:[\/_-]|$)/i.test(p)&&destinationPriority(t,lead)<40||
+  routing.provenance==='REVIEWED_PROVIDER_NAMESPACE'&&!semantic.reject&&semantic.priority<=10&&semantic.reasons.includes('SUBSCRIPTION_PRODUCT_PRICING');
 }
 export function destinationDiscoveryNeeded(t,bounds,usage){
  // Discovery locates a destination; it does not fill interpretation/verification fields.
@@ -243,8 +245,8 @@ export async function runOpenWebResearch({directory,targets,search,read,classify
   session.recordAuthority(t.id,a.url,{eligible:!!review.providerAuthorityBinding,reason:review.providerAuthorityBinding?'V3_AUTONOMOUS_FIRST_PARTY_PRESENTATION':review.reason,providerAuthorityBinding:review.providerAuthorityBinding,candidateObservation:review.candidateObservation?{id:review.candidateObservation.id,kind:review.candidateObservation.kind,url:review.candidateObservation.url,sha256:review.candidateObservation.sha256}:null});
   const composed=composeCandidateAuthority(session,t,directory);if(composed)await consumeComposedProviderAuthority({session,target:t,directory,review:composed,consumeProvider,interpret});
  }
- const providerPage=a.type==='READ'?t.reads.at(-1):null,requestedRouting=providerPage&&!a.candidateAuthorityReview?providerRoutingAuthority(t,a.url):null,finalRouting=providerPage?providerRoutingAuthority(t,providerPage.url??a.url):null,sourceBoundProvenance=new Set(['V3_AUTONOMOUS_CANDIDATE_REVIEW','SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY']),autonomousProviderSource=sourceBoundProvenance.has(requestedRouting?.provenance)&&requestedRouting?.provenance===finalRouting?.provenance&&requestedRouting.host===finalRouting.host;
- if(autonomousProviderSource){const page=providerPage,routing=requestedRouting;page.researchRole='PROVIDER_SOURCE';page.providerAuthority={provenance:routing.provenance,binding:routing.binding};session.event('V3_PROVIDER_SOURCE_RETAINED',{target:t.id,url:a.url,bodyHash:page.bodyHash,binding:routing.binding});session.save();}
+ const providerPage=a.type==='READ'?t.reads.at(-1):null,requestedRouting=providerPage&&!a.candidateAuthorityReview?providerRoutingAuthority(t,a.url):null,finalRouting=providerPage?providerRoutingAuthority(t,providerPage.url??a.url):null,sourceBoundProvenance=new Set(['V3_AUTONOMOUS_CANDIDATE_REVIEW','SOURCE_BOUND_SUBSCRIPTION_SERVICE_DISCOVERY','REVIEWED_PROVIDER_NAMESPACE']),sameReviewedNamespace=requestedRouting?.provenance==='REVIEWED_PROVIDER_NAMESPACE'&&finalRouting?.provenance==='REVIEWED_PROVIDER_NAMESPACE'&&requestedRouting.binding.registrableDomain===finalRouting.binding.registrableDomain,autonomousProviderSource=sourceBoundProvenance.has(requestedRouting?.provenance)&&requestedRouting?.provenance===finalRouting?.provenance&&(requestedRouting.host===finalRouting.host||sameReviewedNamespace);
+ if(autonomousProviderSource){const page=providerPage,routing=finalRouting;page.researchRole='PROVIDER_SOURCE';page.providerAuthority={provenance:routing.provenance,binding:routing.binding};session.event('V3_PROVIDER_SOURCE_RETAINED',{target:t.id,url:a.url,bodyHash:page.bodyHash,binding:routing.binding});session.save();}
  if(a.type==='READ'&&!a.candidateAuthorityReview&&(autonomousProviderSource||classify)){const page=t.reads.at(-1),authority=autonomousProviderSource?autonomousProviderAuthorityDecision(t,page.url??a.url):(page.outcome==='OK'||providerAccessGap(page))?await classify({target:t,page,directory}):{eligible:false,reason:page.failure?.code??'PAGE_NOT_ACQUIRED'};session.recordAuthority(t.id,a.url,authority);
  let direct=null;
  if(authority.eligible===true&&page.outcome==='OK'&&page.bodyFile){interpret(()=>observeAdmissionSource(t,page,fs.readFileSync(directory+'/'+page.bodyFile,'utf8'),{path:directory+'/'+page.bodyFile,hash:page.bodyHash}));session.save();}

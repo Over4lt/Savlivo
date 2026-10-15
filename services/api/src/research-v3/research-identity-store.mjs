@@ -3,6 +3,7 @@ import {serviceCatalog,normalizeCatalogText} from '../../../../packages/contract
 import {pool} from '../db.js';
 import {canonicalServiceId,rehydrateSubscriptionService} from './subscription-service-admission.mjs';
 import {loadResearchServiceProjection,resolveProjectedResearchService} from './research-service-projection.mjs';
+import {reviewedProviderNamespacesFor} from './reviewed-provider-namespaces.mjs';
 
 const sha=value=>createHash('sha256').update(typeof value==='string'?value:JSON.stringify(value)).digest('hex');
 const exact=value=>normalizeCatalogText(String(value??''));
@@ -25,7 +26,7 @@ export async function listResearchServiceIdentities({client=pool}={}){
  return result.rows.map(safeListRecord);
 }
 
-const canonicalIdentity=row=>({kind:row.sources.baseline||row.sources.frozen?'CANONICAL_STATIC_IDENTITY':'RESEARCH_IDENTITY',serviceId:row.serviceId,serviceName:row.name,canonicalSlug:row.canonicalSlug,status:'RESEARCHABLE'});
+const canonicalIdentity=row=>({kind:row.sources.baseline||row.sources.frozen?'CANONICAL_STATIC_IDENTITY':'RESEARCH_IDENTITY',serviceId:row.serviceId,serviceName:row.name,canonicalSlug:row.canonicalSlug,status:'RESEARCHABLE',reviewedProviderNamespaces:reviewedProviderNamespacesFor(row.serviceId,row.name)});
 const projectionOptions=options=>({repo:options.repo,lifecycleInput:options.lifecycleInput,databaseIdentities:options.databaseIdentities??[]});
 const staticProjection=options=>options.projection??loadResearchServiceProjection(projectionOptions(options));
 
