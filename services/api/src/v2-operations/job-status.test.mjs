@@ -73,3 +73,22 @@ test('persistent resumable job listing is actor scoped, paginated and artifact i
  for(let i=0;i<3;i++){const first=await get();assert.equal(first.total,3);assert.equal(first.rows.length,2);assert(first.rows.every(r=>r.resumeAllowed));assert.equal((await get('one','resumable=true&limit=2&offset=2')).rows.length,1);}
  assert.equal((await get('two')).rows[0].id,'private');await assert.rejects(get(null),/UNAUTHORIZED/);assert.deepEqual(fs.readFileSync(root+'/state.json'),before);
 });
+
+
+test('dismissing one resumable job is durable, actor-owned, idempotent and preserves history artifacts',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'dismiss-resumable-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const config={root,repo:root,read:true,control:true,scheduling:false},ops=new Operations(config),first='11111111-1111-1111-1111-111111111111',second='22222222-2222-2222-2222-222222222222',running='33333333-3333-3333-3333-333333333333';
+ const jobs=[{id:first,status:'INTERRUPTED',actor:'one',origin:'ADMIN',createdAt:'2026-10-15T10:00:00Z',config:{objective:'PRICE_RESEARCH'},error:'WORKER_PROCESS_EXITED_CHECKPOINT_PRESERVED'},{id:second,status:'STOPPED',actor:'one',origin:'ADMIN',createdAt:'2026-10-15T09:00:00Z',config:{objective:'PRICE_RESEARCH'}}];
+ ops.transaction(db=>db.jobs.push(...jobs));
+ for(const job of jobs){const dir=path.join(root,'runs',job.id);atomic(path.join(dir,'operation.json'),job);atomic(path.join(dir,'manifest.json'),{objective:'PRICE_RESEARCH',createdAt:job.createdAt,limits:{totalRequests:96}});atomic(path.join(dir,'checkpoint.json'),{jobId:job.id,turn:7});atomic(path.join(dir,'research-artifact.json'),{jobId:job.id,evidence:'retained'});}
+ const list=(instance=ops,query='resumable=true')=>operationsRequest({method:'GET',url:new URL('https://offline.invalid/v1/admin/v2-operations/jobs?'+query),actor:'one'},instance);
+ const dismiss=(instance=ops,id=first,actor='one')=>operationsRequest({method:'POST',url:new URL('https://offline.invalid/v1/admin/v2-operations/jobs/'+id+'/dismiss-resumable'),body:{},actor},instance);
+ assert.deepEqual((await list()).rows.map(row=>row.id).sort(),[first,second]);
+ const checkpoint=fs.readFileSync(path.join(root,'runs',first,'checkpoint.json')),artifact=fs.readFileSync(path.join(root,'runs',first,'research-artifact.json')),dismissed=await dismiss();
+ assert.equal(dismissed.id,first);assert.equal(dismissed.resumeAllowed,false);assert.equal(typeof dismissed.resumableDismissedAt,'string');assert.deepEqual((await list()).rows.map(row=>row.id),[second]);
+ const restarted=new Operations(config);assert.deepEqual((await list(restarted)).rows.map(row=>row.id),[second]);
+ const all=await list(restarted,'limit=50');assert.equal(all.total,2);assert.deepEqual(new Set(all.rows.map(row=>row.id)),new Set([first,second]));assert.equal(all.rows.find(row=>row.id===first).resumeAllowed,false);assert.equal((await operationsRequest({method:'GET',url:new URL('https://offline.invalid/v1/admin/v2-operations/jobs/'+first),actor:'one'},restarted)).status,'INTERRUPTED');const history=await operationsRequest({method:'GET',url:new URL('https://offline.invalid/v1/admin/v2-operations/runs?limit=50'),actor:'one'},restarted);assert(history.rows.some(run=>run.jobId===first&&run.status==='INTERRUPTED'));
+ assert.deepEqual(fs.readFileSync(path.join(root,'runs',first,'checkpoint.json')),checkpoint);assert.deepEqual(fs.readFileSync(path.join(root,'runs',first,'research-artifact.json')),artifact);assert.equal(fs.existsSync(path.join(root,'runs',first,'operation.json')),true);assert.equal(restarted.db().jobs.length,2);
+ const repeated=await dismiss(restarted);assert.equal(repeated.resumableDismissedAt,dismissed.resumableDismissedAt);assert.equal(restarted.db().events.filter(event=>event.type==='RESUMABLE_DISMISSED'&&event.jobId===first).length,1);
+ await assert.rejects(dismiss(restarted,second,'two'),/OWNED_RUN_NOT_FOUND/);const resumed=restarted.control(second,'resume','one');assert.equal(resumed.status,'QUEUED');assert.equal(restarted.db().events.filter(event=>event.type==='RESUME_REQUESTED'&&event.jobId===second).length,1);await assert.rejects(dismiss(restarted,second),/RUN_NOT_RESUMABLE/);
+ restarted.transaction(db=>db.jobs.push({id:running,status:'RUNNING',actor:'one'}));await assert.rejects(dismiss(restarted,running),/RUN_NOT_RESUMABLE/);
+});
