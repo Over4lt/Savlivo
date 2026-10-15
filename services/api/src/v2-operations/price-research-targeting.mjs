@@ -7,7 +7,6 @@ const fail=code=>{throw Object.assign(Error(code),{status:400});};
 const canonicalMarkets=countryCurrencyData.map(([id,name,currency],order)=>({id,name,currency,order}));
 const marketIds=canonicalMarkets.map(row=>row.id),marketSet=new Set(marketIds);
 const unique=values=>[...new Set(values)];
-export const maxPriceResearchBatchTargets=10;
 
 function selection(input){
  if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(key=>!['services','markets'].includes(key)))fail('INVALID_PRICE_RESEARCH_TARGETING');
@@ -28,17 +27,17 @@ const serviceView=row=>({
 
 function orderedMarkets(service,explicit){
  if(explicit.length)return explicit;
- const hinted=unique(service.researchScopeHints.map(hint=>hint.market)).filter(market=>marketSet.has(market));
- return [...hinted,...marketIds.filter(market=>!hinted.includes(market))];
+ const hinted=unique(service.researchScopeHints.map(hint=>hint.market)).filter(market=>marketSet.has(market)),hintedSet=new Set(hinted);
+ return [...hinted,...marketIds.filter(market=>!hintedSet.has(market))];
 }
 
 export function projectPriceResearchTargeting(projection,input={}){
  if(!projection||!Array.isArray(projection.rows))fail('INVALID_RESEARCH_SERVICE_PROJECTION');
- const requested=selection(input),services=projection.rows.map(serviceView),byId=new Map(services.map(row=>[row.serviceId,row]));
+ const requested=selection(input),services=projection.rows.map(serviceView),byId=new Map(services.map(row=>[row.serviceId,row])),marketById=new Map(canonicalMarkets.map(row=>[row.id,row]));
  for(const id of requested.services){const row=byId.get(id);if(!row)fail('UNKNOWN_PRICE_RESEARCH_SERVICE');if(!row.selectable)fail('PRICE_RESEARCH_SERVICE_NOT_SELECTABLE');}
- const selected=services.filter(row=>requested.services.includes(row.serviceId)),targets=[];
+ const selectedIds=new Set(requested.services),selected=services.filter(row=>selectedIds.has(row.serviceId)),targets=[];
  for(const service of selected)for(const market of orderedMarkets(service,requested.markets)){
-  const details=canonicalMarkets.find(row=>row.id===market);
+  const details=marketById.get(market);
   targets.push({id:`price-research:${service.serviceId}:${market}`,serviceId:service.serviceId,serviceName:service.name,targetMarket:market,marketName:details.name,currency:details.currency,marketApplicabilityEstablished:false,researchScopeHints:service.researchScopeHints});
  }
  const selectable=services.filter(row=>row.selectable).length,revision=createHash('sha256').update(JSON.stringify({services:services.map(row=>[row.serviceId,row.status,row.researchable,row.researchScopeHints]),markets:canonicalMarkets})).digest('hex');
@@ -51,19 +50,9 @@ export function projectPriceResearchTargeting(projection,input={}){
  };
 }
 
-const cursorBinding=(model,offset)=>({version:1,revision:model.revision,services:model.selection.effectiveServices,markets:model.selection.requestedMarkets,logicalTargetCount:model.targets.length,offset});
-const cursorFor=(model,offset)=>`${offset}.${createHash('sha256').update(JSON.stringify(cursorBinding(model,offset))).digest('hex')}`;
-
-export function selectPriceResearchTargetBatch(model,cursor=null){
+export function selectPriceResearchTargets(model){
  if(!model?.selection?.explicitServiceSelection||!Array.isArray(model.targets)||!model.targets.length)fail('PRICE_RESEARCH_SELECTION_REQUIRED');
- let offset=0;
- if(cursor!==null&&cursor!==undefined){
-  if(typeof cursor!=='string'||!/^[1-9][0-9]*\.[a-f0-9]{64}$/.test(cursor))fail('INVALID_PRICE_RESEARCH_CURSOR');
-  const split=cursor.indexOf('.');offset=Number(cursor.slice(0,split));
-  if(!Number.isSafeInteger(offset)||offset%maxPriceResearchBatchTargets!==0||offset>=model.targets.length||cursor!==cursorFor(model,offset))fail('INVALID_PRICE_RESEARCH_CURSOR');
- }
- const targets=model.targets.slice(offset,offset+maxPriceResearchBatchTargets),nextOffset=offset+targets.length;
- return {offset,cursor:cursor??null,targets,continuationCursor:nextOffset<model.targets.length?cursorFor(model,nextOffset):null,logicalTargetCount:model.targets.length};
+ return {targets:model.targets,logicalTargetCount:model.targets.length};
 }
 
 export async function loadPriceResearchTargeting(input={},options={}){

@@ -9,13 +9,14 @@ import {runAdaptiveCampaign} from '../research-v2/inventory/adaptive-campaign.mj
 import {runAdminV4FirstResearch,v3ResultFromTarget} from '../google-ai/admin-live-pipeline.mjs';
 import {createPriceResearchAdapters,priceResearchCapabilityPreflight} from './price-research-live.mjs';
 import {applyResearchHandoff} from '../research-v2/inventory/reviewed-cohort-execution.mjs';
-import {loadPriceResearchTargeting,selectPriceResearchTargetBatch} from './price-research-targeting.mjs';
+import {loadPriceResearchTargeting,selectPriceResearchTargets} from './price-research-targeting.mjs';
 import {executePriceResearchBatch} from './price-research-batch.mjs';
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const fail=(code,status=400)=>{throw Object.assign(Error(code),{status});};
 const capabilities=input=>{try{return resolveCapabilities(input);}catch{return fail('INVALID_CAPABILITIES');}};
 const validBatchTarget=target=>target&&typeof target.serviceId==='string'&&/^[a-z0-9][a-z0-9-]{0,159}$/.test(target.serviceId)&&typeof target.serviceName==='string'&&target.serviceName.length>0&&target.serviceName.length<=240&&typeof target.targetMarket==='string'&&/^[A-Z]{2}$/.test(target.targetMarket)&&target.id===`price-research:${target.serviceId}:${target.targetMarket}`&&target.marketApplicabilityEstablished===false;
+const requestCeilingFor=count=>{const ceiling=count*96;if(!Number.isSafeInteger(count)||count<1||!Number.isSafeInteger(ceiling))fail('PRICE_RESEARCH_REQUEST_CEILING_OVERFLOW');return ceiling;};
 
 async function singlePriceResearchPlan(input,options={}){
  const {root,client}=options;
@@ -30,20 +31,20 @@ async function singlePriceResearchPlan(input,options={}){
 }
 
 async function canonicalSelectionPlan(input,options={}){
- if(!input||typeof input!=='object'||Array.isArray(input)||input.objective!=='PRICE_RESEARCH'||input.targetKind!=='CANONICAL_SELECTION'||Object.keys(input).some(key=>!['objective','targetKind','services','markets','targetingRevision','cursor','capabilities'].includes(key)))fail('INVALID_PRICE_RESEARCH_CONFIG');
- if(typeof input.targetingRevision!=='string'||!/^[a-f0-9]{64}$/.test(input.targetingRevision)||input.cursor!==undefined&&input.cursor!==null&&typeof input.cursor!=='string')fail('INVALID_PRICE_RESEARCH_TARGETING');
+ if(!input||typeof input!=='object'||Array.isArray(input)||input.objective!=='PRICE_RESEARCH'||input.targetKind!=='CANONICAL_SELECTION'||Object.keys(input).some(key=>!['objective','targetKind','services','markets','targetingRevision','capabilities'].includes(key)))fail('INVALID_PRICE_RESEARCH_CONFIG');
+ if(typeof input.targetingRevision!=='string'||!/^[a-f0-9]{64}$/.test(input.targetingRevision))fail('INVALID_PRICE_RESEARCH_TARGETING');
  const caps=capabilities(input.capabilities),model=await loadPriceResearchTargeting({services:input.services,markets:input.markets},options);
  if(model.revision!==input.targetingRevision)fail('TARGETING_STALE',409);
- const batch=selectPriceResearchTargetBatch(model,input.cursor??null),batchTargets=batch.targets.map(target=>({id:target.id,serviceId:target.serviceId,serviceName:target.serviceName,targetMarket:target.targetMarket,marketApplicabilityEstablished:false}));
- const config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:model.selection.effectiveServices,markets:model.selection.requestedMarkets,targetingRevision:model.revision,cursor:batch.cursor,batchTargets,logicalTargetCount:batch.logicalTargetCount,continuationCursor:batch.continuationCursor,perTargetRequestCeiling:96,batchRequestCeiling:batchTargets.length*96,capabilities:caps};
- const check=await priceResearchCapabilityPreflight(caps,{...options.runtimeReadiness,env:options.env??process.env,markets:[...new Set(batchTargets.map(target=>target.targetMarket))]}),manifest={objective:'PRICE_RESEARCH',catalog:[],targets:batchTargets.map(target=>({id:target.id,service:target.serviceId,serviceName:target.serviceName,market:target.targetMarket,marketApplicabilityEstablished:false})),priceResearch:{targetKind:'CANONICAL_SELECTION',services:config.services,markets:config.markets,targetingRevision:config.targetingRevision,cursor:config.cursor,logicalTargetCount:config.logicalTargetCount,continuationCursor:config.continuationCursor},limits:{perTargetRequests:96,totalRequests:config.batchRequestCeiling}};
- return {config,manifest,actionable:batchTargets.length,liveReady:check.ready,capabilityCheck:check,source:null,catalogHash:digest(manifest.priceResearch),servicesConsidered:config.services.length,servicesExpectedNetwork:batchTargets.length,logicalTargetCount:config.logicalTargetCount,batchTargetCount:batchTargets.length,continuationCursor:config.continuationCursor,perTargetRequestCeiling:96,totalSafetyCeiling:config.batchRequestCeiling,discovery:caps.tavily,decodo:caps.decodo,browser:caps.browser,conflicts:[],runner:'PRICE_RESEARCH bounded canonical batch',checkpoint:path.join(options.root,'runs')};
+ const selection=selectPriceResearchTargets(model),batchTargets=selection.targets.map(target=>({id:target.id,serviceId:target.serviceId,serviceName:target.serviceName,targetMarket:target.targetMarket,marketApplicabilityEstablished:false})),batchRequestCeiling=requestCeilingFor(batchTargets.length);
+ const config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:model.selection.effectiveServices,markets:model.selection.requestedMarkets,targetingRevision:model.revision,batchTargets,logicalTargetCount:selection.logicalTargetCount,perTargetRequestCeiling:96,batchRequestCeiling,capabilities:caps};
+ const check=await priceResearchCapabilityPreflight(caps,{...options.runtimeReadiness,env:options.env??process.env,markets:[...new Set(batchTargets.map(target=>target.targetMarket))]}),manifest={objective:'PRICE_RESEARCH',catalog:[],targets:batchTargets.map(target=>({id:target.id,service:target.serviceId,serviceName:target.serviceName,market:target.targetMarket,marketApplicabilityEstablished:false})),priceResearch:{targetKind:'CANONICAL_SELECTION',services:config.services,markets:config.markets,targetingRevision:config.targetingRevision,logicalTargetCount:config.logicalTargetCount},limits:{perTargetRequests:96,totalRequests:config.batchRequestCeiling}};
+ return {config,manifest,actionable:batchTargets.length,liveReady:check.ready,capabilityCheck:check,source:null,catalogHash:digest(manifest.priceResearch),servicesConsidered:config.services.length,servicesExpectedNetwork:batchTargets.length,logicalTargetCount:config.logicalTargetCount,batchTargetCount:batchTargets.length,continuationCursor:null,perTargetRequestCeiling:96,totalSafetyCeiling:config.batchRequestCeiling,discovery:caps.tavily,decodo:caps.decodo,browser:caps.browser,conflicts:[],runner:'PRICE_RESEARCH complete canonical scope',checkpoint:path.join(options.root,'runs')};
 }
 
 export async function priceResearchPlan(input,options={}){
  if(input?.targetKind!=='CANONICAL_SELECTION')return singlePriceResearchPlan(input,options);
  if(options.revalidateFrozen){
-  const external={objective:input.objective,targetKind:input.targetKind,services:input.services,markets:input.markets,targetingRevision:input.targetingRevision,cursor:input.cursor,capabilities:input.capabilities},current=await canonicalSelectionPlan(external,options);
+  const external={objective:input.objective,targetKind:input.targetKind,services:input.services,markets:input.markets,targetingRevision:input.targetingRevision,capabilities:input.capabilities},current=await canonicalSelectionPlan(external,options);
   if(digest(current.config)!==digest(input))fail('PREFLIGHT_STALE',409);
   return current;
  }
@@ -53,9 +54,10 @@ export async function priceResearchPlan(input,options={}){
 export function verifyPriceResearchPlanBinding(config,manifest){
  if(config?.targetKind!=='CANONICAL_SELECTION')return manifest?.objective==='PRICE_RESEARCH';
  const targets=config.batchTargets;
- if(!Array.isArray(targets)||targets.length<1||targets.length>10||targets.some(target=>!validBatchTarget(target))||new Set(targets.map(target=>`${target.serviceId}:${target.targetMarket}`)).size!==targets.length||!Number.isSafeInteger(config.logicalTargetCount)||config.logicalTargetCount<targets.length||config.perTargetRequestCeiling!==96||config.batchRequestCeiling!==targets.length*96||config.batchRequestCeiling>960)throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');
+ const expectedCeiling=targets?.length*96;
+ if(!Array.isArray(targets)||targets.length<1||targets.some(target=>!validBatchTarget(target))||new Set(targets.map(target=>`${target.serviceId}:${target.targetMarket}`)).size!==targets.length||config.logicalTargetCount!==targets.length||config.perTargetRequestCeiling!==96||!Number.isSafeInteger(expectedCeiling)||config.batchRequestCeiling!==expectedCeiling)throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');
  const expected=targets.map(target=>({id:target.id,service:target.serviceId,serviceName:target.serviceName,market:target.targetMarket,marketApplicabilityEstablished:false}));
- if(manifest?.objective!=='PRICE_RESEARCH'||digest(manifest.targets)!==digest(expected)||manifest.limits?.perTargetRequests!==96||manifest.limits?.totalRequests!==config.batchRequestCeiling||manifest.priceResearch?.targetingRevision!==config.targetingRevision||manifest.priceResearch?.continuationCursor!==config.continuationCursor)throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');
+ if(manifest?.objective!=='PRICE_RESEARCH'||digest(manifest.targets)!==digest(expected)||manifest.limits?.perTargetRequests!==96||manifest.limits?.totalRequests!==config.batchRequestCeiling||manifest.priceResearch?.targetingRevision!==config.targetingRevision||manifest.priceResearch?.logicalTargetCount!==targets.length)throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');
  return true;
 }
 

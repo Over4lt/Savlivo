@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {projectResearchServices} from '../research-v3/research-service-projection.mjs';
-import {loadPriceResearchTargeting,projectPriceResearchTargeting} from './price-research-targeting.mjs';
+import {loadPriceResearchTargeting,projectPriceResearchTargeting,selectPriceResearchTargets} from './price-research-targeting.mjs';
 import {Operations} from './control.mjs';
 import {operationsRequest} from './http.mjs';
 
@@ -38,6 +38,14 @@ test('selected services and markets form only their cartesian product in determi
  assert.equal(new Set(model.targets.map(row=>row.id)).size,4);
 });
 
+test('complete target selection admits 42 markets and cartesian scopes above ten without continuation',async()=>{
+ const universe=await loadPriceResearchTargeting({}, {repo:process.cwd(),lifecycleInput,databaseIdentities:[]}),marketIds=universe.markets.slice(0,42).map(row=>row.id);
+ const one=await loadPriceResearchTargeting({services:['chess-com'],markets:marketIds}, {repo:process.cwd(),lifecycleInput,databaseIdentities:[]}),selectedOne=selectPriceResearchTargets(one);
+ assert.equal(selectedOne.logicalTargetCount,42);assert.equal(selectedOne.targets.length,42);assert.equal(Object.hasOwn(selectedOne,'continuationCursor'),false);
+ const cartesian=await loadPriceResearchTargeting({services:['chess-com','1password','strava'],markets:marketIds.slice(0,4)}, {repo:process.cwd(),lifecycleInput,databaseIdentities:[]}),selectedCartesian=selectPriceResearchTargets(cartesian);
+ assert.equal(selectedCartesian.logicalTargetCount,12);assert.equal(selectedCartesian.targets.length,12);assert.equal(new Set(selectedCartesian.targets.map(row=>row.id)).size,12);
+});
+
 test('scope hints affect all-market ordering but never membership',()=>{
  const projection=projectResearchServices({baseline:[{service:'hinted',name:'Hinted',launchMarkets:['DE']}],frozen:[],manifestServiceIds:[],productCatalogRows:[],researchScopes:{hinted:['NO']}}),all=projectPriceResearchTargeting(projection,{services:['hinted']});
  assert.deepEqual(all.targets.slice(0,2).map(row=>row.targetMarket),['DE','NO']);assert.equal(all.targets.length,46);assert.deepEqual(new Set(all.targets.map(row=>row.targetMarket)),new Set(all.markets.map(row=>row.id)));
@@ -47,6 +55,11 @@ test('scope hints affect all-market ordering but never membership',()=>{
 test('full explicit service universe can be previewed as exactly 21,298 read-only targets',async()=>{
  const universe=await loadPriceResearchTargeting({}, {repo:process.cwd(),lifecycleInput,databaseIdentities:[]}),full=await loadPriceResearchTargeting({services:universe.services.map(row=>row.serviceId)}, {repo:process.cwd(),lifecycleInput,databaseIdentities:[]});
  assert.equal(full.targets.length,21298);assert.equal(full.serviceMarketTargets,21298);assert.equal(full.selection.canStart,false);assert(full.targets.every(row=>row.marketApplicabilityEstablished===false));
+});
+
+test('synthetic future universe above ten thousand targets has no fixed PRICE_RESEARCH target ceiling',()=>{
+ const baseline=Array.from({length:500},(_,index)=>({service:`future-service-${String(index).padStart(3,'0')}`,name:`Future Service ${index}`})),projection=projectResearchServices({baseline,frozen:[],manifestServiceIds:[],productCatalogRows:[]}),serviceIds=projection.rows.map(row=>row.serviceId),model=projectPriceResearchTargeting(projection,{services:serviceIds}),selected=selectPriceResearchTargets(model);
+ assert.equal(model.counts.canonicalServices,500);assert.equal(model.counts.markets,46);assert.equal(model.targets.length,23000);assert.equal(selected.logicalTargetCount,23000);assert.equal(selected.targets.length,23000);assert.equal(selected.targets.at(-1).id,`price-research:future-service-499:${model.markets.at(-1).id}`);assert.equal(Object.hasOwn(selected,'continuationCursor'),false);
 });
 
 test('unknown markets and unknown, ambiguous or deactivated services fail closed',()=>{

@@ -7,38 +7,90 @@ const safeCode=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{0,159}$/.test(va
 const validTarget=target=>target&&typeof target.serviceId==='string'&&/^[a-z0-9][a-z0-9-]{0,159}$/.test(target.serviceId)&&typeof target.serviceName==='string'&&target.serviceName.length>0&&target.serviceName.length<=240&&typeof target.targetMarket==='string'&&/^[A-Z]{2}$/.test(target.targetMarket)&&target.id===`price-research:${target.serviceId}:${target.targetMarket}`&&target.marketApplicabilityEstablished===false;
 const writeJson=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});const pending=file+`.${process.pid}.pending`;fs.writeFileSync(pending,JSON.stringify(value,null,2)+'\n',{mode:0o600});fs.renameSync(pending,file);};
 const childDirectory=(directory,target,index)=>path.join(directory,'price-research-targets',`${String(index+1).padStart(2,'0')}-${target.serviceId}-${target.targetMarket}`);
-const binding=config=>digest({targetingRevision:config.targetingRevision,services:config.services,markets:config.markets,cursor:config.cursor,batchTargets:config.batchTargets,logicalTargetCount:config.logicalTargetCount,continuationCursor:config.continuationCursor,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling});
+const binding=config=>digest({targetingRevision:config.targetingRevision,services:config.services,markets:config.markets,batchTargets:config.batchTargets,logicalTargetCount:config.logicalTargetCount,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling});
+const legacyBinding=config=>digest({targetingRevision:config.targetingRevision,services:config.services,markets:config.markets,cursor:config.cursor??null,batchTargets:config.batchTargets,logicalTargetCount:config.logicalTargetCount,continuationCursor:config.continuationCursor??null,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling});
+const progressFile=directory=>path.join(directory,'price-research-batch-progress.json');
+const journalFile=directory=>path.join(directory,'price-research-batch-progress.jsonl');
+const appendEvent=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});fs.appendFileSync(file,JSON.stringify(value)+'\n',{mode:0o600});};
 
-function initialProgress(config,directory){
- return {version:1,kind:'PRICE_RESEARCH_BATCH_PROGRESS',binding:binding(config),targetingRevision:config.targetingRevision,logicalTargetCount:config.logicalTargetCount,cursor:config.cursor,continuationCursor:config.continuationCursor,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling,status:'PENDING',nextIndex:0,outcomes:config.batchTargets.map((target,index)=>({targetId:target.id,serviceId:target.serviceId,targetMarket:target.targetMarket,status:'PENDING',artifactDirectory:path.relative(directory,childDirectory(directory,target,index))}))};
+function initialProgress(config){
+ return {version:2,kind:'PRICE_RESEARCH_BATCH_PROGRESS',binding:binding(config),targetingRevision:config.targetingRevision,logicalTargetCount:config.logicalTargetCount,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling,status:'PENDING',nextIndex:0,current:null};
+}
+
+function baseOutcomes(config,directory){
+ return config.batchTargets.map((target,index)=>({targetId:target.id,serviceId:target.serviceId,targetMarket:target.targetMarket,status:'PENDING',artifactDirectory:path.relative(directory,childDirectory(directory,target,index))}));
+}
+
+function applyEvents(config,outcomes,events){
+ for(const event of events){
+  const target=config.batchTargets[event?.index],outcome=outcomes[event?.index];
+  if(!Number.isSafeInteger(event?.index)||!target||event.targetId!==target.id||!['PENDING','RUNNING','COMPLETE','FAILED','STOPPED'].includes(event.status))throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');
+  outcome.status=event.status;delete outcome.failureCode;delete outcome.startedAt;delete outcome.finishedAt;
+  if(typeof event.startedAt==='string')outcome.startedAt=event.startedAt;
+  if(typeof event.finishedAt==='string')outcome.finishedAt=event.finishedAt;
+  if(event.status==='FAILED')outcome.failureCode=safeCode(event.failureCode);
+ }
+ return outcomes;
+}
+
+function readJournal(config,directory){
+ const file=journalFile(directory);if(!fs.existsSync(file))return [];
+ const maximum=Math.max(1024*1024,config.batchTargets.length*8192),stat=fs.statSync(file);if(stat.size>maximum)throw Error('PRICE_RESEARCH_PROGRESS_RESOURCE_BOUND');
+ return fs.readFileSync(file,'utf8').split('\n').filter(Boolean).map(line=>{try{return JSON.parse(line);}catch{throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');}});
+}
+
+export function readPriceResearchBatchProgress(config,directory){
+ const file=progressFile(directory);if(!fs.existsSync(file))return null;
+ const progress=JSON.parse(fs.readFileSync(file,'utf8')),fresh=initialProgress(config);
+ if(progress?.kind!==fresh.kind)throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');
+ if(progress.version===1&&Array.isArray(progress.outcomes)){
+  if(progress.binding!==legacyBinding(config)||progress.outcomes.length!==config.batchTargets.length||progress.outcomes.some((row,index)=>row.targetId!==config.batchTargets[index].id))throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');
+  return {...progress,outcomes:progress.outcomes};
+ }
+ if(progress.version!==2||progress.binding!==fresh.binding||!Number.isSafeInteger(progress.nextIndex)||progress.nextIndex<0||progress.nextIndex>config.batchTargets.length)throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');
+ return {...progress,outcomes:applyEvents(config,baseOutcomes(config,directory),readJournal(config,directory))};
 }
 
 function loadProgress(config,directory){
- const file=path.join(directory,'price-research-batch-progress.json'),fresh=initialProgress(config,directory);
- if(!fs.existsSync(file)){writeJson(file,fresh);return {file,progress:fresh};}
- const progress=JSON.parse(fs.readFileSync(file,'utf8'));
- if(progress?.kind!==fresh.kind||progress.binding!==fresh.binding||progress.outcomes?.length!==fresh.outcomes.length||progress.outcomes.some((row,index)=>row.targetId!==fresh.outcomes[index].targetId))throw Error('PRICE_RESEARCH_BATCH_BINDING_CHANGED');
- return {file,progress};
+ const file=progressFile(directory),journal=journalFile(directory),existing=readPriceResearchBatchProgress(config,directory);
+ if(existing?.version===1){
+  const progress={...initialProgress(config),status:existing.status,nextIndex:existing.nextIndex,current:null,outcomes:existing.outcomes};
+  const events=progress.outcomes.flatMap((outcome,index)=>outcome.status==='PENDING'?[]:[{index,targetId:config.batchTargets[index].id,status:outcome.status,...(typeof outcome.startedAt==='string'?{startedAt:outcome.startedAt}:{}),...(typeof outcome.finishedAt==='string'?{finishedAt:outcome.finishedAt}:{}),...(outcome.status==='FAILED'?{failureCode:safeCode(outcome.failureCode)}:{})}]);
+  fs.writeFileSync(journal,events.map(event=>JSON.stringify(event)).join('\n')+(events.length?'\n':''),{mode:0o600});writeJson(file,compact(progress));return {file,journal,progress};
+ }
+ if(existing)return {file,journal,progress:existing};
+ const progress={...initialProgress(config),outcomes:baseOutcomes(config,directory)};writeJson(file,initialProgress(config));return {file,journal,progress};
+}
+
+function compact(progress){
+ const {outcomes,...summary}=progress;return summary;
+}
+
+function record(journal,index,target,status,fields={}){
+ const event={index,targetId:target.id,status,...fields};appendEvent(journal,event);return event;
 }
 
 export async function executePriceResearchBatch({job,directory,apiKey,client,shouldStop=()=>false,executeTarget}){
  const config=job?.config;
- if(config?.targetKind!=='CANONICAL_SELECTION'||!Array.isArray(config.batchTargets)||config.batchTargets.length<1||config.batchTargets.length>10||config.batchTargets.some(target=>!validTarget(target))||new Set(config.batchTargets.map(target=>`${target.serviceId}:${target.targetMarket}`)).size!==config.batchTargets.length||!Number.isSafeInteger(config.logicalTargetCount)||config.logicalTargetCount<config.batchTargets.length||config.perTargetRequestCeiling!==96||config.batchRequestCeiling!==config.batchTargets.length*96||config.batchRequestCeiling>960||typeof executeTarget!=='function')throw Error('INVALID_PRICE_RESEARCH_BATCH');
- const {file,progress}=loadProgress(config,directory);
+ const expectedCeiling=config?.batchTargets?.length*96;
+ if(config?.targetKind!=='CANONICAL_SELECTION'||!Array.isArray(config.batchTargets)||config.batchTargets.length<1||config.batchTargets.some(target=>!validTarget(target))||new Set(config.batchTargets.map(target=>`${target.serviceId}:${target.targetMarket}`)).size!==config.batchTargets.length||config.logicalTargetCount!==config.batchTargets.length||config.perTargetRequestCeiling!==96||!Number.isSafeInteger(expectedCeiling)||config.batchRequestCeiling!==expectedCeiling||typeof executeTarget!=='function')throw Error('INVALID_PRICE_RESEARCH_BATCH');
+ const {file,journal,progress}=loadProgress(config,directory);
  for(let index=0;index<config.batchTargets.length;index++){
   const target=config.batchTargets[index],outcome=progress.outcomes[index];
   if(outcome.status==='COMPLETE')continue;
   if(outcome.status==='RUNNING')throw Error('PRICE_RESEARCH_CHILD_RECOVERY_UNSAFE');
   if(outcome.status==='FAILED')throw Error('PRICE_RESEARCH_BATCH_CHILD_FAILED');
-  if(outcome.status==='STOPPED'||shouldStop()){progress.status='STOPPED';progress.nextIndex=index;writeJson(file,progress);return {...progress};}
-  const childDir=childDirectory(directory,target,index);outcome.status='RUNNING';outcome.startedAt=new Date().toISOString();progress.status='RUNNING';progress.nextIndex=index;writeJson(file,progress);
+  if(outcome.status==='STOPPED'&&!shouldStop()){Object.assign(outcome,record(journal,index,target,'PENDING'));delete outcome.index;}
+  if(shouldStop()){progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}
+  const childDir=childDirectory(directory,target,index),startedAt=new Date().toISOString();Object.assign(outcome,record(journal,index,target,'RUNNING',{startedAt}));delete outcome.index;progress.status='RUNNING';progress.nextIndex=index;progress.current={index,targetId:target.id,status:'RUNNING',startedAt};writeJson(file,compact(progress));
   try{
-   const result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop});
-   writeJson(path.join(childDir,'result.json'),result);outcome.status='COMPLETE';outcome.finishedAt=new Date().toISOString();progress.nextIndex=index+1;writeJson(file,progress);
+   const result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop}),finishedAt=new Date().toISOString();
+   writeJson(path.join(childDir,'result.json'),result);Object.assign(outcome,record(journal,index,target,'COMPLETE',{startedAt,finishedAt}));delete outcome.index;progress.nextIndex=index+1;progress.current=null;writeJson(file,compact(progress));
   }catch(error){
-   if(shouldStop()||error?.message==='PRICE_RESEARCH_STOPPED'){outcome.status='STOPPED';outcome.finishedAt=new Date().toISOString();progress.status='STOPPED';progress.nextIndex=index;writeJson(file,progress);return {...progress};}
-   outcome.status='FAILED';outcome.failureCode=safeCode(error?.message);outcome.finishedAt=new Date().toISOString();progress.status='FAILED';progress.nextIndex=index;writeJson(file,progress);throw Error('PRICE_RESEARCH_BATCH_CHILD_FAILED');
+   const finishedAt=new Date().toISOString();
+   if(shouldStop()||error?.message==='PRICE_RESEARCH_STOPPED'){Object.assign(outcome,record(journal,index,target,'STOPPED',{startedAt,finishedAt}));delete outcome.index;progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}
+   const failureCode=safeCode(error?.message);Object.assign(outcome,record(journal,index,target,'FAILED',{startedAt,finishedAt,failureCode}));delete outcome.index;progress.status='FAILED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));throw Error('PRICE_RESEARCH_BATCH_CHILD_FAILED');
   }
  }
- progress.status='COMPLETE';progress.nextIndex=config.batchTargets.length;writeJson(file,progress);return {...progress};
+ progress.status='COMPLETE';progress.nextIndex=config.batchTargets.length;progress.current=null;writeJson(file,compact(progress));return {...progress};
 }

@@ -3,6 +3,7 @@ import path from 'node:path';
 import {json,alive} from './artifacts.mjs';
 import {atomic,OperationError} from './control.mjs';
 import {canonicalPlanEvidenceCounts} from '../google-ai/monotonic-merge.mjs';
+import {readPriceResearchBatchProgress} from './price-research-batch.mjs';
 export const jobTerminalStatuses=['COMPLETE','FAILED','STOPPED','INTERRUPTED','SKIPPED_CONFLICT','SKIPPED_NOT_DUE'];
 export function recordJobPhase(config,job,event){
  const record={event,jobId:job.id,purpose:event.startsWith('PREPARATION_')?'WORKER_PREPARE':'EXECUTION',pid:process.pid,at:new Date().toISOString()};
@@ -24,13 +25,16 @@ function canonicalTargetResult(result,resultRow,target){
  return {resultClass,suggested,verified,usage:Object.keys(usage).length?usage:null,stopReason,researchOutcome:verified>0?'VERIFIED':suggested>0?'SUGGESTED_ONLY':stopReason?'UNRESOLVED':'NOT_REPORTED'};
 }
 export function priceResearchBatchStatus(job,dir){
- const config=job?.config;if(config?.objective!=='PRICE_RESEARCH'||config.targetKind!=='CANONICAL_SELECTION'||!Array.isArray(config.batchTargets)||config.batchTargets.length<1||config.batchTargets.length>10)return null;
- const recorded=json(path.join(dir,'price-research-batch-progress.json'),1024*1024),recordedRows=Array.isArray(recorded?.outcomes)?recorded.outcomes:[];
- const outcomes=config.batchTargets.map((target,index)=>{
-  const row=recordedRows[index]?.targetId===target.id?recordedRows[index]:null,result=json(path.join(dir,'price-research-targets',`${String(index+1).padStart(2,'0')}-${target.serviceId}-${target.targetMarket}`,'result.json'),4*1024*1024),resultRow=result?.kind==='ADMIN_V4_FIRST_RESEARCH_RESULT'&&Array.isArray(result.targets)?result.targets.find(item=>item?.target?.id===target.id):null,projected=canonicalTargetResult(result,resultRow,target);
+ const config=job?.config,expectedCeiling=config?.batchTargets?.length*96;if(config?.objective!=='PRICE_RESEARCH'||config.targetKind!=='CANONICAL_SELECTION'||!Array.isArray(config.batchTargets)||config.batchTargets.length<1||config.logicalTargetCount!==config.batchTargets.length||config.perTargetRequestCeiling!==96||!Number.isSafeInteger(expectedCeiling)||config.batchRequestCeiling!==expectedCeiling)return null;
+ let recorded=null;try{recorded=readPriceResearchBatchProgress(config,dir);}catch{return null;}const recordedRows=Array.isArray(recorded?.outcomes)?recorded.outcomes:[];
+ const status=batchStatuses.has(recorded?.status)?recorded.status:job.status==='QUEUED'?'PENDING':job.status==='RUNNING'?'RUNNING':batchStatuses.has(job.status)?job.status:'PENDING',counts={PENDING:0,RUNNING:0,COMPLETE:0,FAILED:0,STOPPED:0},rows=config.batchTargets.map((target,index)=>recordedRows[index]?.targetId===target.id?recordedRows[index]:{targetId:target.id,status:'PENDING'});
+ for(const row of rows)counts[batchStatuses.has(row.status)?row.status:'PENDING']++;
+ const completeProjection=jobTerminalStatuses.includes(job.status)||['COMPLETE','FAILED','STOPPED'].includes(status),indexes=rows.map((row,index)=>({row,index})).filter(({row})=>completeProjection||row.status!=='PENDING').slice(completeProjection?0:-100).map(({index})=>index);
+ const outcomes=indexes.map(index=>{const target=config.batchTargets[index];
+  const row=recordedRows[index]?.targetId===target.id?recordedRows[index]:null,result=row?.status==='COMPLETE'?json(path.join(dir,'price-research-targets',`${String(index+1).padStart(2,'0')}-${target.serviceId}-${target.targetMarket}`,'result.json'),4*1024*1024):null,resultRow=result?.kind==='ADMIN_V4_FIRST_RESEARCH_RESULT'&&Array.isArray(result.targets)?result.targets.find(item=>item?.target?.id===target.id):null,projected=canonicalTargetResult(result,resultRow,target);
   return {position:index+1,total:config.batchTargets.length,targetId:target.id,serviceId:target.serviceId,serviceName:target.serviceName,targetMarket:target.targetMarket,status:batchStatuses.has(row?.status)?row.status:'PENDING',...(code(row?.failureCode)?{failureCode:code(row.failureCode)}:{}),...(typeof row?.startedAt==='string'?{startedAt:row.startedAt}:{}),...(typeof row?.finishedAt==='string'?{finishedAt:row.finishedAt}:{}),...(projected.resultClass?{resultClass:projected.resultClass}:{}),...(projected.suggested!==null?{suggestedPlans:projected.suggested}:{}),...(projected.verified!==null?{verified:projected.verified}:{}),...(projected.usage?{capabilityUsage:projected.usage}:{}),...(projected.stopReason?{stopReason:projected.stopReason}:{}),...(resultRow?{researchOutcome:projected.researchOutcome}:{})};
  });
- return {status:batchStatuses.has(recorded?.status)?recorded.status:job.status==='QUEUED'?'PENDING':job.status==='RUNNING'?'RUNNING':batchStatuses.has(job.status)?job.status:'PENDING',nextIndex:safeInteger(recorded?.nextIndex)??0,logicalTargetCount:config.logicalTargetCount,cursor:config.cursor??null,continuationCursor:config.continuationCursor??null,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling,outcomes};
+ return {status,nextIndex:safeInteger(recorded?.nextIndex)??0,logicalTargetCount:config.logicalTargetCount,admittedTargetCount:config.batchTargets.length,serviceCount:new Set(config.batchTargets.map(target=>target.serviceId)).size,progressCounts:{pending:counts.PENDING,running:counts.RUNNING,complete:counts.COMPLETE,failed:counts.FAILED,stopped:counts.STOPPED},outcomesTruncated:outcomes.length<config.batchTargets.length,continuationCursor:null,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling,outcomes};
 }
 export function terminationDiagnostic(job,phase,processAlive){
  if(['COMPLETE','SKIPPED_NOT_DUE'].includes(job.status))return null;
