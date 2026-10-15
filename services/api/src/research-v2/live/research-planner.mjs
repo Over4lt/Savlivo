@@ -8,6 +8,7 @@ import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-r
 import {targetMarketStateGap} from './provider-resource-routing.mjs';
 // Deterministic planning metadata only. No transport and no evidence grants.
 import {normalizeFrontierUrl} from './source-frontier.mjs';
+import {canonicalReviewedProviderRoot} from '../../research-v3/reviewed-provider-namespaces.mjs';
 export const marketLanguages={NO:'nb',SE:'sv',DK:'da',DE:'de',AT:'de',FR:'fr',BE:'fr',ES:'es',MX:'es',CL:'es',CO:'es',PT:'pt',BR:'pt',IT:'it',NL:'nl',PL:'pl',CZ:'cs',TR:'tr',TH:'th',KR:'ko',JP:'ja',CN:'zh',TW:'zh',HK:'zh',FI:'fi',RO:'ro'};
 export const searchTerms={en:['pricing','subscription','membership','plans'],nb:['priser','abonnement','medlemskap','pakker'],sv:['priser','abonnemang','medlemskap','paket'],da:['priser','abonnement','medlemskab','pakker'],de:['Preise','Abonnement','Mitgliedschaft','Tarife'],fr:['tarifs','abonnement','adhésion','offres'],es:['precios','suscripción','membresía','planes'],pt:['preços','assinatura','adesão','planos'],it:['prezzi','abbonamento','iscrizione','piani'],nl:['prijzen','abonnement','lidmaatschap','pakketten'],pl:['cennik','abonament','członkostwo','pakiety'],cs:['ceník','předplatné','členství','tarify'],tr:['fiyat','abonelik','üyelik','paketler'],th:['ราคา','สมัครสมาชิก','สมาชิก','แพ็กเกจ'],ko:['가격','구독','멤버십','요금제'],ja:['料金','サブスクリプション','会員','プラン'],zh:['价格','订阅','会员','套餐'],fi:['hinnat','tilaus','jäsenyys','paketit'],ro:['prețuri','abonament','membru','pachete']};
 export function categoryIntent(target){const c=String(target.category??target.categories?.join(' ')??'').toLowerCase();return /fitness|gym/.test(c)?'MEMBERSHIP':/news|press/.test(c)?'DIGITAL_SUBSCRIPTION':/audio|music|book/.test(c)?'PREMIUM_SUBSCRIPTION':/dating/.test(c)?'PREMIUM_SUBSCRIPTION':/delivery|commerce/.test(c)?'MEMBERSHIP_BENEFITS':/software|vpn|security|cloud|ai/.test(c)?'BILLING_RENEWAL':'SUBSCRIPTION_PLANS';}
@@ -20,7 +21,9 @@ export const discoveryQueryIdentity=query=>String(query??'').normalize('NFKC').t
 // historical records without action metadata remain consumed by normalized text.
 export function discoveryActions(t){
  const marketState=targetMarketStateGap(t);if(marketState){const host=providerRoutingAuthority(t,marketState.resource)?.host,query=[t.serviceName??t.service,t.market,'subscription pricing membership',host?'site:'+host:null].filter(Boolean).join(' ');return [{need:'MARKET_STATE_RESOURCE',family:0,query,key:discoveryQueryIdentity(query)}];}
- const actions=[0,1].map(family=>({family,need:'CONTEXT',query:contextualQuery(t,family)}));
+ const reviewed=(t.reviewedProviderNamespaces??[]).find(binding=>{const root=canonicalReviewedProviderRoot(binding);return root&&providerRoutingAuthority(t,root.url)?.provenance==='REVIEWED_PROVIDER_NAMESPACE';});
+ const actions=reviewed&&t.operationsObjective==='PRICE_RESEARCH'?[{family:0,need:'REVIEWED_NAMESPACE',query:[t.serviceName??t.service,t.market,'official consumer subscription pricing plans','site:'+reviewed.registrableDomain].join(' ')}]:[];
+ actions.push(...[0,1].map(family=>({family,need:'CONTEXT',query:contextualQuery(t,family)})));
  if(t.smartResearch?.version===2&&t.researchObjective!=='CATALOG_ONLY')for(const need of priceNeedIntents(t))for(const family of [0,1])actions.push({need,family,query:priceNeedQuery(t,family,need)});
  return [...new Map(actions.filter(a=>a.query).map(a=>[discoveryQueryIdentity(a.query),{...a,key:discoveryQueryIdentity(a.query)}])).values()];
 }

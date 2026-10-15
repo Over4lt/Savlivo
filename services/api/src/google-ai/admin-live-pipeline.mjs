@@ -10,13 +10,15 @@ import {verifyCandidates,buildSuggested} from './v4-normalization.mjs';
 import {createV4SuggestedSnapshot,createV3Handoff} from './research-handoff.mjs';
 import {canonicalPlanEvidenceCounts,mergeResearch,planIdentity as canonicalResearchPlanIdentity} from './monotonic-merge.mjs';
 import {researchMonthlyRecurringWithGoogleAi} from './monthly-recurring.mjs';
+import {reviewedProviderNamespacesFor,reviewedNamespaceMatches} from '../research-v3/reviewed-provider-namespaces.mjs';
 
 export const adminGooglePipelineLimits=Object.freeze({targets:32});
 const slug=value=>String(value??'').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,120)||'plan';
 const targetKey=target=>target.id??`${target.service}:${target.market}`;
 const safeTarget=target=>{
   if(!target||typeof target.service!=='string'||!/^[a-z0-9-]+$/.test(target.service)||typeof target.serviceName!=='string'||!target.serviceName.trim()||!/^[A-Z]{2}$/.test(target.market??''))throw Error('ADMIN_V4_TARGET_INVALID');
-  return {id:targetKey(target),service:target.service,serviceName:target.serviceName.trim(),market:target.market};
+  const reviewed=reviewedProviderNamespacesFor(target.service,target.serviceName.trim()).find(row=>(target.reviewedProviderNamespaces??[]).some(candidate=>JSON.stringify(candidate)===JSON.stringify(row)));
+  return {id:targetKey(target),service:target.service,serviceName:target.serviceName.trim(),market:target.market,providerNamespace:reviewed?.registrableDomain??null};
 };
 const writeJson=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});const pending=file+'.pending';fs.writeFileSync(pending,JSON.stringify(value,null,2)+'\n',{mode:0o600});fs.renameSync(pending,file);};
 
@@ -27,7 +29,8 @@ function v4State(target,acquisition){
   const snapshot=createV4SuggestedSnapshot({provider:target.serviceName,market:target.market,suggested:normalized.suggested});
   const origins=new Map(snapshot.suggested.map(row=>[[row.plan,Number(row.amount),row.currency].join('\u0000'),row.suggestedId]));
   const researchCandidates=results.map(row=>({...row,suggestedId:origins.get([row.plan,Number(row.amount),row.currency].join('\u0000'))})).filter(row=>row.suggestedId);
-  const handoff=createV3Handoff(snapshot,{researchCandidates,unresolvedGaps:acquisition.status==='GOOGLE_AI_SUCCESS'?['verification']:['google-acquisition-or-price']});
+  const providerDiscoveryUrls=target.providerNamespace?(aiResult.sources??[]).map(row=>row.url).filter(url=>reviewedNamespaceMatches(target.providerNamespace,url)):[];
+  const handoff=createV3Handoff(snapshot,{researchCandidates,providerDiscoveryUrls,unresolvedGaps:acquisition.status==='GOOGLE_AI_SUCCESS'?['verification']:['google-acquisition-or-price']});
   return {aiResult,results,normalizationDiagnostics:normalized.diagnostics,snapshot,handoff};
 }
 
@@ -70,7 +73,7 @@ export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,
   const scoped=targets.map(safeTarget),sessions=[];
   for(const target of scoped){
     let acquisition;
-    try{acquisition=await acquireGoogle({providerName:target.serviceName,targetMarket:target.market,apiKey});}
+    try{acquisition=await acquireGoogle({providerName:target.serviceName,targetMarket:target.market,providerNamespace:target.providerNamespace,apiKey});}
     catch{acquisition={status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:{schemaVersion:1,query:null,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model:null,timestamp:new Date().toISOString(),normalizedAnswer:null,citations:[],request:{requestCount:0,status:'ADAPTER_FAILURE'}}};}
     const state=v4State(target,acquisition),early=mergeResearch({snapshot:state.snapshot}),plans=projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined:early});
     if(plans.length)await persistSuggested(plans);

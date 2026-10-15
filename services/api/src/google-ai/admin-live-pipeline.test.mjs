@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {mergeProductPlans} from '../product-pricing.ts';
 import {runAdminV4FirstResearch,v3ResultFromTarget} from './admin-live-pipeline.mjs';
 import {digest} from '../research-v3/model.mjs';
+import {reviewedProviderNamespacesFor} from '../research-v3/reviewed-provider-namespaces.mjs';
+import {buildGoogleAiQuery} from './v4-query.mjs';
 
 const target={id:'example-price-DE',service:'example',serviceName:'Example',market:'DE'};
 const plan={planName:'Individual',amount:10.99,currency:'EUR',paymentCadence:'MONTHLY_RECURRING',commitment:'NONE',ordinaryRecurringPrice:10.99,introPrice:null,introDuration:null,sourceUrl:'https://example.test/de/pricing',sourceEvidence:'Individual EUR 10.99 monthly',marketEvidence:'Germany',billingBasis:'charged monthly',annualOnly:false,freeTier:false,summary:'Monthly subscription',warnings:[],market:'DE',sourceReferences:['https://example.test/de/pricing']};
@@ -71,4 +73,32 @@ test('I: acquisition budget stop preserves useful V3 Suggested through publicati
 test('exact established V3 offer identity reaches the Verified adapter unchanged',()=>{
  const observation='wahoo-provider',bodyHash='c'.repeat(64),offerIdentity=name=>({kind:'SPAN',start:10,end:10+name.length,quote:name,sha256:digest(name)}),reference=name=>({observation,sha256:bodyHash,pointer:'/offers/'+name.toLowerCase(),source:{offer:name,offerIdentity:offerIdentity(name)}}),proposition=(name,value)=>({state:'ESTABLISHED',value,evidence:[{value,reference:reference(name)}],contradictions:[]}),offer=(name,amount)=>({id:digest(name),market:'DE',propositions:{SERVICE_IDENTITY:{state:'ESTABLISHED',value:true,evidence:[]},PRICE_AMOUNT:proposition(name,amount),CURRENCY:proposition(name,'EUR'),MONTHLY_CADENCE:{state:'UNRESOLVED',value:null,evidence:[]},MONTHLY_SUBSCRIPTION:proposition(name,true),CONSUMER_SUBSCRIPTION:proposition(name,true),TARGET_MARKET:proposition(name,'DE')}}),offers=[offer('Core',4.99),offer('Pro',17.99)],current={serviceName:'Wahoo App',market:'DE',v3Observation:{id:observation,url:'https://provider.example/pricing',sha256:bodyHash,context:{transport:'DIRECT'}},v3Truth:{offers,eligibility:{DE:{result:'ELIGIBLE'}}}},result=v3ResultFromTarget(current);
  assert.deepEqual(result.verified.map(row=>[row.plan,row.planIdentity]),[['Core','wahoo app:de:core'],['Pro','wahoo app:de:pro']]);assert(result.verified.every(row=>row.verificationEvidence?.verification==='authoritative-provider'&&row.verificationEvidence.verifiedAt===row.verifiedAt));
+});
+
+
+test('reviewed namespace makes Gemini discover official URLs without manufacturing Suggested',async()=>{
+ const reviewed=reviewedProviderNamespacesFor('hulu','Hulu')[0],hulu={id:'price-research:hulu:PT',service:'hulu',serviceName:'Hulu',market:'PT',reviewedProviderNamespaces:[reviewed]},official='https://help.hulu.com/s/article/hulu-plans-and-prices',outside='https://publisher.example/hulu-prices';
+ const query=buildGoogleAiQuery({providerName:'Hulu',targetMarket:'PT',providerNamespace:'hulu.com'});
+ assert.match(query,/official consumer subscription pricing pages/);
+ assert.match(query,/legitimate subdomains/);
+ let handoff;
+ const result=await runAdminV4FirstResearch({targets:[hulu],artifactDirectory:null,apiKey:'test',acquireGoogle:async args=>{
+  assert.equal(args.providerNamespace,'hulu.com');
+  return {status:'GOOGLE_AI_NO_PRICE',aiResult:{provider:'Hulu',market:'PT',plans:[],sources:[{title:'Official plans',url:official},{title:'Article',url:outside}],warnings:[],timestamp:'2026-10-13T00:00:00.000Z',requestCount:1},audit:{request:{requestCount:1}}};
+ },...stores(),runDownstream:async({handoffs})=>{handoff=handoffs[hulu.id];return {result:{},v3Results:{[hulu.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}};}});
+ assert.deepEqual(handoff.researchLeads.candidatePlans,[]);
+ assert.deepEqual(handoff.researchLeads.providerDiscoveryUrls,[official]);
+ assert.deepEqual(handoff.adaptiveTargetPatch.urls,[official]);
+ assert.equal(handoff.adaptiveTargetPatch.leads[0].truthAuthority,'NONE');
+ assert.equal(handoff.adaptiveTargetPatch.leads[0].authoritative,false);
+ assert.equal(result.targets[0].combined.resultClass,'NO_RESULT');
+ assert.deepEqual(result.targets[0].analyticsStates,[]);
+});
+
+test('service without reviewed namespace keeps the existing Gemini query and handoff',async()=>{
+ assert.doesNotMatch(buildGoogleAiQuery({providerName:'Example',targetMarket:'DE'}),/legitimate subdomains/);
+ let seen,handoff;
+ await runAdminV4FirstResearch({targets:[target],artifactDirectory:null,apiKey:'test',acquireGoogle:async args=>{seen=args.providerNamespace;return acquisition('GOOGLE_AI_NO_PRICE',[]);},...stores(),runDownstream:async({handoffs})=>{handoff=handoffs[target.id];return {result:{},v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}};}});
+ assert.equal(seen,null);
+ assert.deepEqual(handoff.researchLeads.providerDiscoveryUrls,[]);
 });

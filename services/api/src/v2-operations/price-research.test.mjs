@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {Operations} from './control.mjs';
-import {priceResearchPlan,runBoundedV3Verification} from './price-research.mjs';
+import {priceResearchPlan,reviewedNamespacePriceResearchSeed,runBoundedV3Verification} from './price-research.mjs';
 import {runAdminV4FirstResearch} from '../google-ai/admin-live-pipeline.mjs';
+import {reviewedProviderNamespacesFor} from '../research-v3/reviewed-provider-namespaces.mjs';
 
 const caps={direct:false,tavily:false,decodo:false,browser:false,groq:false};
 const fixture=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-operations-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:root,root:path.join(root,'.savlivo/v2-operations'),lifecycleInput:null,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',env:{},runtimeReadiness:{readGemini:async()=>null}});};
@@ -103,4 +104,16 @@ test('V4 acquisition runs once while first and retry V3 attempts retain separate
  let googleRequests=0;const calls=[],googlePlan={planName:'Individual',amount:10.99,currency:'EUR',paymentCadence:'MONTHLY_RECURRING',commitment:'NONE',ordinaryRecurringPrice:10.99,introPrice:null,introDuration:null,sourceUrl:'https://example.test/pricing',sourceEvidence:'Individual EUR 10.99 monthly',marketEvidence:'Germany',billingBasis:'charged monthly',annualOnly:false,freeTier:false,summary:'Monthly',warnings:[],market:'DE',sourceReferences:['https://example.test/pricing']},acquisition={status:'GOOGLE_AI_SUCCESS',aiResult:{provider:'Example',market:'DE',plans:[googlePlan],sources:[],warnings:[],timestamp:'2026-10-15T00:00:00.000Z',requestCount:1},audit:{timestamp:'2026-10-15T00:00:00.000Z',request:{requestCount:1}}};
  const result=await runAdminV4FirstResearch({targets:[verificationTarget],artifactDirectory:null,apiKey:'test',acquireGoogle:async()=>{googleRequests++;return acquisition;},persistSuggested:async()=>({}),persistVerified:async()=>({}),loadSuggested:async()=>[],loadVerified:async()=>[],runDownstream:({handoffs})=>runBoundedV3Verification({targets:[verificationTarget],handoffs,execute:downstreamSequence([{adaptive:adaptiveAttempt(),v3Results:{[verificationTarget.id]:emptyV3()}},{adaptive:adaptiveAttempt(),v3Results:{[verificationTarget.id]:emptyV3()}}],calls)})});
  assert.equal(googleRequests,1);assert.equal(calls.length,2);assert.equal(calls[0].attempt,1);assert.equal(calls[1].artifactName,'v3-verification-retry-1');assert.equal(result.downstreamResult.v3VerificationRetry.firstAttemptArtifact,'primary');assert.equal(result.downstreamResult.v3VerificationRetry.retryAttemptArtifact,'v3-verification-retry-1');assert.equal(result.targets[0].verificationRetry.attempted,true);assert.equal(result.targets[0].verificationRetry.firstAttemptReason,'NO_EXECUTABLE_PROGRESS_RECONCILE');assert.equal(result.targets[0].verificationRetry.retryOutcome,'UNRESOLVED');assert(result.targets[0].combined.operationalFailures.some(row=>row.kind==='V3_VERIFICATION_RETRY_EXHAUSTED'));
+});
+
+
+test('live known-service target seeds the reviewed provider root as routing only',()=>{
+ const namespace=reviewedProviderNamespacesFor('hulu','Hulu')[0],seed=reviewedNamespacePriceResearchSeed({serviceName:'Hulu',reviewedProviderNamespaces:[namespace]});
+ assert.deepEqual(seed.urls,['https://www.hulu.com/']);
+ assert.equal(seed.leads[0].providerRootSeed,true);
+ assert.equal(seed.leads[0].truthAuthority,'NONE');
+ assert.equal(seed.leads[0].authoritative,false);
+ assert.equal(seed.leads[0].evidenceStatus,'DISCOVERY_LEAD_ONLY');
+ assert.equal(seed.leads[0].from.method,'REVIEWED_NAMESPACE_ROOT');
+ assert.deepEqual(reviewedNamespacePriceResearchSeed({serviceName:'Example'}),{reviewedProviderNamespaces:[],urls:[]});
 });

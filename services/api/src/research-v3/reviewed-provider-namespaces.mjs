@@ -64,3 +64,13 @@ export function reviewedProviderNamespacesFor(service,serviceName){
  defaultBindings??=loadReviewedProviderNamespaces();
  return defaultBindings.filter(row=>row.service===service&&row.serviceName===serviceName).map(row=>structuredClone(row));
 }
+
+// A reviewed price-source host is the preferred navigation root. The path is
+// deliberately discarded: this is a discovery seed, never inherited evidence.
+export function canonicalReviewedProviderRoot(binding){
+ if(binding?.status!=='REVIEWED'||binding?.scope!=='OWNED_DNS_NAMESPACE')return null;
+ const source=binding.provenance?.find(row=>row.kind==='DIRECT_PROVIDER_PRICE_SOURCE'&&reviewedNamespaceMatches(binding.registrableDomain,row.sourceUrl));
+ if(!source)return null;
+ const url=new URL(source.sourceUrl);
+ return {url:`https://${url.hostname}/`,registrableDomain:binding.registrableDomain,sourceUrl:source.sourceUrl,meaning:'ROUTING_ONLY_NOT_EVIDENCE',truthAuthority:'NONE'};
+}

@@ -3,8 +3,10 @@ const clean = (value, name) => {
   return value.trim().replace(/\s+/g, ' ');
 };
 
-export function buildGoogleAiQuery({providerName, targetMarket}) {
+export function buildGoogleAiQuery({providerName, targetMarket, providerNamespace=null}) {
   const provider = clean(providerName, 'PROVIDER_NAME');
   const market = clean(targetMarket, 'TARGET_MARKET').toUpperCase();
-  return `Find ALL subscription plans from ${provider} available in market ${market} that are actually billed or payable monthly on a recurring basis. Return strict JSON with: provider, market, plans, and sources. For every plan return planName, amount, currency, paymentCadence, commitment, ordinaryRecurringPrice, introPrice, introDuration, sourceUrl, sourceEvidence, and marketEvidence. Include all actual monthly options. Exclude free tiers, one-time purchases, trials without an ordinary recurring price, and annual upfront subscriptions merely displayed as a per-month equivalent. Classify annual-only plans as annual-only. A 12-month commitment paid each month still has monthly payment cadence. Use official first-party provider sources when possible. Do not infer unsupported prices. Report conflicts and uncertainty explicitly.`;
+  const namespace=providerNamespace===null?null:clean(providerNamespace,'PROVIDER_NAMESPACE').toLowerCase();
+  if(namespace&&!/^(?:[a-z0-9-]+\.)+[a-z]{2,}$/.test(namespace))throw new TypeError('PROVIDER_NAMESPACE_INVALID');
+  return `Find ALL subscription plans from ${provider} available in market ${market} that are actually billed or payable monthly on a recurring basis. Return strict JSON with: provider, market, plans, and sources. For every plan return planName, amount, currency, paymentCadence, commitment, ordinaryRecurringPrice, introPrice, introDuration, sourceUrl, sourceEvidence, and marketEvidence. Include all actual monthly options. Exclude free tiers, one-time purchases, trials without an ordinary recurring price, and annual upfront subscriptions merely displayed as a per-month equivalent. Classify annual-only plans as annual-only. A 12-month commitment paid each month still has monthly payment cadence. Use official first-party provider sources when possible.${namespace?` Find the official consumer subscription pricing pages for ${provider} in ${market}. In sources, return only HTTPS URLs on ${namespace} or its legitimate subdomains, preferring current plan and price pages. These URLs are discovery leads, not proof of price or market.`:''} Do not infer unsupported prices. Report conflicts and uncertainty explicitly.`;
 }

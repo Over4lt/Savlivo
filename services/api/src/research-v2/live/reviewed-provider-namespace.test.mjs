@@ -4,14 +4,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {resolvePriceResearchIdentity} from '../../research-v3/research-identity-store.mjs';
-import {loadReviewedProviderNamespaces,reviewedNamespaceMatches,reviewedProviderNamespacesFor} from '../../research-v3/reviewed-provider-namespaces.mjs';
+import {canonicalReviewedProviderRoot,loadReviewedProviderNamespaces,reviewedNamespaceMatches,reviewedProviderNamespacesFor} from '../../research-v3/reviewed-provider-namespaces.mjs';
 import {digest} from '../../research-v3/model.mjs';
 import {evaluate} from '../../research-v3/truth.mjs';
 import {autonomousProviderAuthorityDecision,hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {admittedDiscoveryCandidate} from './tavily-discovery.mjs';
 import {validateDirectProviderPage,evaluateDirectProviderTruth} from './direct-provider-evidence.mjs';
 import {targetMarketAcquisition} from './provider-access-gap.mjs';
-import {runOpenWebResearch,usefulProviderDestination} from './open-web-discovery.mjs';
+import {OpenWebResearch,runOpenWebResearch,usefulProviderDestination} from './open-web-discovery.mjs';
+import {discoveryActions} from './research-planner.mjs';
+import {actionableDestinations} from './information-routing.mjs';
+import {planResearch} from './research-planner.mjs';
 
 const binding=reviewedProviderNamespacesFor('hulu','Hulu')[0];
 const makeTarget=()=>({
@@ -173,4 +176,113 @@ test('existing exact-host reviewed routing remains exact-host only',()=>{
  const target={...makeTarget(),reviewedProviderNamespaces:[],authorities:[{hostname:'www.chess.com',provider:'Chess.com',sourceType:'OFFICIAL_PROVIDER',checkedAt:'2026-09-18'}],service:'chess-com',serviceName:'Chess.com'};
  assert.equal(providerRoutingAuthority(target,'https://www.chess.com/membership').provenance,'HISTORICAL_REVIEWED_PROVIDER');
  assert.equal(providerRoutingAuthority(target,'https://help.chess.com/'),null);
+});
+
+
+test('reviewed price-source host yields a routing-only canonical root; absent review yields none',()=>{
+ const root=canonicalReviewedProviderRoot(binding);
+ assert.equal(root.url,'https://www.hulu.com/');
+ assert.equal(root.registrableDomain,'hulu.com');
+ assert.equal(root.meaning,'ROUTING_ONLY_NOT_EVIDENCE');
+ assert.equal(root.truthAuthority,'NONE');
+ for(const field of ['price','amount','currency','market','availability','verified'])assert.equal(Object.hasOwn(root,field),false);
+ assert.equal(canonicalReviewedProviderRoot(null),null);
+ assert.equal(canonicalReviewedProviderRoot({status:'REVIEWED',scope:'OWNED_DNS_NAMESPACE',registrableDomain:'other.com',provenance:[]}),null);
+});
+
+test('reviewed namespace query precedes broad queries without changing the search count',()=>{
+ const target={...makeTarget(),operationsObjective:'PRICE_RESEARCH'};
+ const actions=discoveryActions(target);
+ assert.equal(actions[0].need,'REVIEWED_NAMESPACE');
+ assert.match(actions[0].query,/site:hulu\.com/);
+ assert.equal(actions[1].need,'CONTEXT');
+ assert.equal(discoveryActions({...target,reviewedProviderNamespaces:[]}).some(row=>row.need==='REVIEWED_NAMESPACE'),false);
+});
+
+test('provider root and pricing lead outrank unrelated publisher and remain bounded Direct candidates',t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'namespace-rank-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const root=canonicalReviewedProviderRoot(binding),target={...makeTarget(),operationsObjective:'PRICE_RESEARCH',urls:[root.url,'https://publisher.example/hulu-prices'],leads:[{url:root.url,title:'Provider root',providerRootSeed:true,truthAuthority:'NONE',authoritative:false},{url:'https://publisher.example/hulu-prices',title:'Hulu prices'}]};
+ const session=new OpenWebResearch(directory,[target]);
+ assert.equal(session.next().url,root.url);
+ const scoped=session.target(target.id);
+ scoped.leads.push({url:help,title:'Hulu plans and prices',providerNamespaceCandidate:true,truthAuthority:'NONE',authoritative:false});
+ const ordered=actionableDestinations(scoped,{urls:scoped.leads.map(row=>row.url),executionContext:{bounds:session.bounds,usage:session.state.usage}});
+ assert.equal(ordered.candidates[0].url,help);
+ assert.equal(ordered.candidates.some(row=>row.url==='https://publisher.example/hulu-prices'),false);
+});
+
+test('root with no price yields provider navigation and Direct reads the child before search',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'namespace-root-navigation-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const root=canonicalReviewedProviderRoot(binding).url,target={...makeTarget(),operationsObjective:'PRICE_RESEARCH',urls:[root]};
+ const calls=[],rootBody='<html><a href="/plans">Subscription plans and prices</a></html>';
+ const state=await runOpenWebResearch({directory,targets:[target],maxActions:2,
+  search:async()=>assert.fail('provider navigation should precede search'),
+  read:async({url})=>{calls.push(['READ',url]);return {url,outcome:'OK',httpStatus:200,contentType:'text/html',body:url===root?rootBody:body,sourceIntegrity:{sha256:digest(url===root?rootBody:body)},accessDecisions:[{decision:'ALLOWED'}]};},
+  classify:async()=>assert.fail('reviewed namespace routes provider page'),
+  consumeProvider:async({candidate})=>{calls.push(['V3',candidate.url]);return {classification:'FIELDS_UNRESOLVED',verified:[],blockers:[],needsGeo:false};}
+ });
+ assert.deepEqual(calls.slice(0,4),[['READ',root],['V3',root],['READ','https://www.hulu.com/plans'],['V3','https://www.hulu.com/plans']]);
+ assert.equal(state.targets[0].verified.length,0);
+});
+
+test('failed provider root and namespace search can fall back to broad bounded discovery',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'namespace-fallback-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const root=canonicalReviewedProviderRoot(binding).url,target={...makeTarget(),operationsObjective:'PRICE_RESEARCH',urls:[root]},queries=[];
+ const state=await runOpenWebResearch({directory,targets:[target],maxActions:3,
+  search:async({query})=>{queries.push(query);return query.includes('site:hulu.com')?{results:[],failure:{code:'NETWORK_FAILURE'}}:{results:[]};},
+  read:async({url})=>({url,outcome:'NETWORK_FAILURE',failure:{code:'NETWORK_FAILURE'},body:''}),
+  classify:async()=>({eligible:false}),
+  consumeProvider:async()=>assert.fail('failed root is not evidence')
+ });
+ assert.equal(state.targets[0].verified.length,0);
+ assert.equal(queries.length,2);
+ assert.match(queries[0],/site:hulu\.com/);
+ assert.doesNotMatch(queries[1],/site:hulu\.com/);
+ assert.equal(state.usage.searches,2);
+ assert.equal(state.usage.reads,1);
+});
+
+test('constrained search marks legitimate nested provider lead and ignores spoof and publisher',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'namespace-search-mark-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const target={...makeTarget(),operationsObjective:'PRICE_RESEARCH'};
+ const session=new OpenWebResearch(directory,[target]);
+ const action=session.next();assert.equal(action.type,'SEARCH');assert.equal(action.providerNamespaceSearch,true);
+ session.accept(action.id,{results:[{url:help,title:'Hulu plans and prices'},{url:'https://hulu.com.evil.com/pricing',title:'Hulu pricing'},{url:'https://publisher.example/hulu-pricing',title:'Hulu prices'}]});
+ const leads=session.target(target.id).leads;
+ assert.deepEqual(leads.map(row=>row.url),[help]);
+ assert.equal(leads[0].providerNamespaceCandidate,true);
+ assert.equal(leads[0].from.method,'REVIEWED_NAMESPACE_SEARCH');
+ assert.equal(leads[0].truthAuthority,'NONE');
+ assert.equal(leads[0].authoritative,false);
+ assert.equal(session.next().url,help);
+});
+
+
+test('official search lead reaches Direct V3 price candidate and existing country gate',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'namespace-decodo-gate-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const target={...makeTarget(),operationsObjective:'PRICE_RESEARCH'},priceBody='<html><p>Consumer plan $9.99 per month</p></html>',hash=digest(priceBody),actions=[];
+ const proposition=(state,value)=>({state,value,evidence:[],contradictions:[]}),truth={prices:{PT:{id:'consumer',propositions:{SERVICE_IDENTITY:proposition('ESTABLISHED',true),PRICE_AMOUNT:proposition('ESTABLISHED',9.99),CURRENCY:proposition('ESTABLISHED','USD'),MONTHLY_SUBSCRIPTION:proposition('ESTABLISHED',true),CONSUMER_SUBSCRIPTION:proposition('ESTABLISHED',true),TARGET_MARKET:proposition('UNRESOLVED',null)}}},needs:[{id:'PT:consumer:TARGET_MARKET',proposition:'TARGET_MARKET',market:'PT',offerId:'consumer',state:'UNRESOLVED'}]};
+ const state=await runOpenWebResearch({directory,targets:[target],maxActions:2,
+  search:async({query})=>{actions.push('SEARCH');assert.match(query,/site:hulu\.com/);return {results:[{url:help,title:'Official subscription plans and prices'},{url:'https://publisher.example/hulu-prices',title:'Article'}]};},
+  read:async({url})=>{actions.push('DIRECT');assert.equal(url,help);return {url,outcome:'OK',httpStatus:200,contentType:'text/html',body:priceBody,sourceIntegrity:{sha256:hash},accessDecisions:[{decision:'ALLOWED'}]};},
+  classify:async()=>assert.fail('reviewed namespace authority must route'),
+  consumeProvider:async({page})=>{actions.push('V3');assert.equal(page.bodyHash,hash);return {classification:'MARKET_UNRESOLVED',verified:[],blockers:[],needsGeo:false,v3Observation:{id:'provider-price',kind:'PROVIDER',url:help,sha256:hash,context:{transport:'DIRECT',networkGeography:'UNBOUND'}},v3Truth:truth};}
+ });
+ assert.deepEqual(actions,['SEARCH','DIRECT','V3']);
+ const current=state.targets[0];
+ assert.equal(current.verified.length,0);
+ assert.equal(current.v3Truth.prices.PT.propositions.PRICE_AMOUNT.state,'ESTABLISHED');
+ assert.equal(current.v3Truth.prices.PT.propositions.TARGET_MARKET.state,'UNRESOLVED');
+ assert.equal(targetMarketAcquisition(current,help)?.primaryFailureReason,'TARGET_MARKET_OBSERVATION_REQUIRED');
+ const next=planResearch(current,{unreadUrls:current.leads.map(row=>row.url)});assert.equal(next.route,'DECODO');assert.equal(next.reason,'TARGET_MARKET_OBSERVATION_REQUIRED');
+});
+
+test('namespace query and provider lead resume without replaying search',t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'namespace-resume-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const target={...makeTarget(),operationsObjective:'PRICE_RESEARCH'},session=new OpenWebResearch(directory,[target]),search=session.next();
+ assert.equal(search.type,'SEARCH');session.accept(search.id,{results:[{url:help,title:'Official plans and prices'}]});
+ const resumed=new OpenWebResearch(directory,[target]);const next=resumed.next();
+ assert.equal(next.type,'READ');assert.equal(next.url,help);
+ assert.equal(resumed.state.usage.searches,1);
+ assert.equal(resumed.target(target.id).queries.length,1);
 });
