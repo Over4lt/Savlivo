@@ -2,6 +2,7 @@
 import path from 'node:path';
 import {json,alive} from './artifacts.mjs';
 import {atomic,OperationError} from './control.mjs';
+import {canonicalPlanEvidenceCounts} from '../google-ai/monotonic-merge.mjs';
 export const jobTerminalStatuses=['COMPLETE','FAILED','STOPPED','INTERRUPTED','SKIPPED_CONFLICT','SKIPPED_NOT_DUE'];
 export function recordJobPhase(config,job,event){
  const record={event,jobId:job.id,purpose:event.startsWith('PREPARATION_')?'WORKER_PREPARE':'EXECUTION',pid:process.pid,at:new Date().toISOString()};
@@ -19,7 +20,7 @@ function canonicalTargetResult(result,resultRow,target){
  const adaptive=result?.downstreamResult,targetState=adaptive?.targets?.[target.id],serviceState=adaptive?.services?.[target.serviceId],usage={};
  const metrics={googleAiRequests:safeInteger(resultRow?.googleRequests),directAttempts:count(targetState?.reads),tavilyAttempts:count(targetState?.queries),decodoAttempts:Array.isArray(targetState?.decisions)?targetState.decisions.filter(row=>row?.route==='DECODO'&&row.acquisitionReserved===true).length:null,browserAttempts:count(targetState?.renderingOutcomes)};
  for(const [key,value]of Object.entries(metrics))if(value!==null)usage[key]=value;
- const stopReason=code(serviceState?.stop?.reason),suggested=safeInteger(resultRow?.persisted?.suggestedPlans),verified=safeInteger(resultRow?.persisted?.verified),resultClass=code(resultRow?.combined?.resultClass);
+ const planCounts=canonicalPlanEvidenceCounts(resultRow?.combined),stopReason=code(serviceState?.stop?.reason),suggested=planCounts?.suggestedPlans??safeInteger(resultRow?.persisted?.suggestedPlans),verified=planCounts?.verifiedPlans??safeInteger(resultRow?.persisted?.verified),resultClass=code(resultRow?.combined?.resultClass);
  return {resultClass,suggested,verified,usage:Object.keys(usage).length?usage:null,stopReason,researchOutcome:verified>0?'VERIFIED':suggested>0?'SUGGESTED_ONLY':stopReason?'UNRESOLVED':'NOT_REPORTED'};
 }
 export function priceResearchBatchStatus(job,dir){

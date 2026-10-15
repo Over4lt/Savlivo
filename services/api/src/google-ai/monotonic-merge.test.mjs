@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createV4SuggestedSnapshot} from './research-handoff.mjs';
-import {mergeResearch,planIdentity} from './monotonic-merge.mjs';
+import {canonicalPlanEvidenceCounts,mergeResearch,planIdentity} from './monotonic-merge.mjs';
 
 const provider='Example',market='FR',identity=planIdentity(provider,market,'Gold');
 const suggested=(amount,extra={})=>({plan:'Gold',planIdentity:identity,suggestedAmount:amount,suggestedCurrency:'EUR',suggestedPaymentCadence:'MONTHLY_RECURRING',suggestedSourceUrl:'https://example.test/fr/pricing',sourceReferences:['https://example.test/fr/terms'],warnings:['BILLING_ROUTE_UNRESOLVED'],...extra});
@@ -48,4 +48,38 @@ test('existing persisted Verified trumps a new Suggested',()=>{
 test('adding Suggested evidence cannot downgrade an existing Verified result',()=>{
  const withoutSuggested=merge(snapshot(),{existingVerified:[verified(7,{provenance:'EXISTING_VERIFIED'})]}),withSuggested=merge(snapshot(suggested(6.99),suggested(7.49)),{existingVerified:[verified(7,{provenance:'EXISTING_VERIFIED'})]});
  assert.equal(withoutSuggested.resultClass,'VERIFIED');assert.equal(withSuggested.resultClass,'VERIFIED');assert.equal(withSuggested.plans[0].activePrice.amount,7);assert.equal(withSuggested.plans[0].authoritativeConflict,false);
+});
+
+test('canonical plan counts deduplicate V4 and V3 Suggested evidence per logical plan',()=>{
+ const combined={kind:'CombinedResearchResult',plans:[
+  {planIdentity:'example:at:gold',suggested:[{provenance:'GOOGLE_AI_V4'},{provenance:'V3_SOURCE_RESEARCH'}],verified:[]},
+  {planIdentity:'example:at:platinum',suggested:[{provenance:'GOOGLE_AI_V4'},{provenance:'V3_SOURCE_RESEARCH'}],verified:[]},
+  {planIdentity:'example:at:diamond',suggested:[{provenance:'GOOGLE_AI_V4'},{provenance:'V3_SOURCE_RESEARCH'}],verified:[]}
+ ]},before=structuredClone(combined);
+ assert.deepEqual(canonicalPlanEvidenceCounts({kind:'CombinedResearchResult',plans:[combined.plans[0]]}),{suggestedPlans:1,verifiedPlans:0});
+ assert.deepEqual(canonicalPlanEvidenceCounts(combined),{suggestedPlans:3,verifiedPlans:0});
+ assert.deepEqual(combined,before);
+});
+
+test('canonical plan counts allow one logical plan in both Suggested and Verified',()=>{
+ const plans=['gold','platinum','diamond'].map(name=>({planIdentity:`example:at:${name}`,suggested:[{provenance:'GOOGLE_AI_V4'},{provenance:'V3_SOURCE_RESEARCH'}],verified:[{provenance:'V3_VERIFIED'}]}));
+ assert.deepEqual(canonicalPlanEvidenceCounts({kind:'CombinedResearchResult',plans}),{suggestedPlans:3,verifiedPlans:3});
+});
+
+test('historical Suggested variants do not inflate canonical current plan counts',()=>{
+ const combined={kind:'CombinedResearchResult',plans:[
+  {planIdentity:'example:at:gold',activeSuggested:{provenance:'V3_SOURCE_RESEARCH'},suggestedHistory:[{provenance:'GOOGLE_AI_V4'},{provenance:'V3_SOURCE_RESEARCH'}],suggested:[{},{},{}],verified:[]},
+  {planIdentity:'example:at:platinum',activeSuggested:{},suggestedHistory:[],suggested:[{}],verified:[]},
+  {planIdentity:'example:at:diamond',activeSuggested:{},suggestedHistory:[],suggested:[{}],verified:[]},
+  {planIdentity:'example:at:gold',activeSuggested:null,suggestedHistory:[{}],suggested:[{}],verified:[]}
+ ]};
+ assert.deepEqual(canonicalPlanEvidenceCounts(combined),{suggestedPlans:3,verifiedPlans:0});
+});
+
+test('Suggested-only and Verified-only logical plans remain independent',()=>{
+ assert.deepEqual(canonicalPlanEvidenceCounts({kind:'CombinedResearchResult',plans:[
+  {planIdentity:'example:at:suggested',suggested:[{}],verified:[]},
+  {planIdentity:'example:at:verified',suggested:[],verified:[{}]}
+ ]}),{suggestedPlans:1,verifiedPlans:1});
+ assert.equal(canonicalPlanEvidenceCounts({kind:'OTHER',plans:[]}),null);
 });

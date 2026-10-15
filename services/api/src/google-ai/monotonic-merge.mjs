@@ -80,4 +80,21 @@ export function mergeResearch({snapshot,v3Result={},existingVerified=[]}){
   return result;
 }
 
+export function canonicalPlanEvidenceCounts(combined){
+  if(combined?.kind!=='CombinedResearchResult'||!Array.isArray(combined.plans))return null;
+  const plans=new Map();
+  for(const plan of combined.plans){
+    const planIdentity=typeof plan?.planIdentity==='string'&&plan.planIdentity.trim()?plan.planIdentity:null;
+    if(!planIdentity)continue;
+    const current=plans.get(planIdentity)??{suggested:false,verified:false};
+    current.suggested=current.suggested||Array.isArray(plan.suggested)&&plan.suggested.length>0||!!plan.activeSuggested||Array.isArray(plan.suggestedHistory)&&plan.suggestedHistory.length>0;
+    current.verified=current.verified||Array.isArray(plan.verified)&&plan.verified.length>0;
+    plans.set(planIdentity,current);
+  }
+  return {
+    suggestedPlans:[...plans.values()].filter(plan=>plan.suggested).length,
+    verifiedPlans:[...plans.values()].filter(plan=>plan.verified).length
+  };
+}
+
 export const planIdentity=(provider,market,plan)=>identity(provider,market,plan);

@@ -36,11 +36,16 @@ test('B: downstream unresolved cannot remove the already persisted V4 Suggested'
 });
 
 test('C: stronger source-bound V3 Suggested supersedes V4 monotonically',async()=>{
- const {row,final}=await execute({v3:{suggested:[v3Suggested()],verified:[],contradictions:[],operationalFailures:[]}});assert.equal(row.combined.plans[0].activeSuggested.amount,11.99);assert.equal(row.combined.plans[0].activeSuggested.provenance,'V3_SOURCE_RESEARCH');assert.equal(row.combined.plans[0].suggestedHistory.some(x=>x.provenance==='GOOGLE_AI_V4'),true);assert.equal(final.suggested[0].suggested.monthlyPriceMinor,1199);assert.equal(final.suggested[0].suggestedHistory.some(x=>x.monthlyPriceMinor===1099),true);
+ const {row,final}=await execute({v3:{suggested:[v3Suggested()],verified:[],contradictions:[],operationalFailures:[]}});assert.equal(row.combined.plans[0].activeSuggested.amount,11.99);assert.equal(row.combined.plans[0].activeSuggested.provenance,'V3_SOURCE_RESEARCH');assert.equal(row.combined.plans[0].suggestedHistory.some(x=>x.provenance==='GOOGLE_AI_V4'),true);assert.equal(row.combined.suggested.length,2);assert.deepEqual(row.planCounts,{suggestedPlans:1,verifiedPlans:0});assert.equal(final.suggested[0].suggested.monthlyPriceMinor,1199);assert.equal(final.suggested[0].suggestedHistory.some(x=>x.monthlyPriceMinor===1099),true);
 });
 
 test('D: matching Verified stays separate and Analytics reports match',async()=>{
- const {row,final}=await execute({v3:{suggested:[],verified:[verified()],contradictions:[],operationalFailures:[]}});assert.equal(final.verifiedRows.length,1);assert.equal(final.suggested[0].verified.length,0);assert.equal(row.combined.resultClass,'VERIFIED');assert.equal(row.combined.plans[0].activePrice.amount,10.99);assert.deepEqual(row.analyticsStates.map(x=>x.status),['SUGGESTED_AND_VERIFIED_MATCH']);
+ const {row,final}=await execute({v3:{suggested:[],verified:[verified()],contradictions:[],operationalFailures:[]}});assert.equal(final.verifiedRows.length,1);assert.equal(final.suggested[0].verified.length,0);assert.equal(row.combined.resultClass,'VERIFIED');assert.equal(row.combined.plans[0].activePrice.amount,10.99);assert.deepEqual(row.planCounts,{suggestedPlans:1,verifiedPlans:1});assert.deepEqual(row.analyticsStates.map(x=>x.status),['SUGGESTED_AND_VERIFIED_MATCH']);
+});
+
+test('result counts one V4 and one V3 Suggested representation as one Verified logical plan',async()=>{
+ const {row}=await execute({v3:{suggested:[v3Suggested(10.99)],verified:[verified()],contradictions:[],operationalFailures:[]}});
+ assert.equal(row.combined.suggested.length,2);assert.equal(row.combined.verified.length,1);assert.equal(row.combined.plans.length,1);assert.deepEqual(row.planCounts,{suggestedPlans:1,verifiedPlans:1});assert.deepEqual(row.persisted,{suggestedPlans:1,verified:1});assert.equal(row.combined.resultClass,'VERIFIED');
 });
 
 test('E: differing Suggested remains diagnostic while Verified is authoritative',async()=>{
