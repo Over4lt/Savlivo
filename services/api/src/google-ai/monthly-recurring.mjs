@@ -1,4 +1,5 @@
 import {buildGoogleAiQuery} from './v4-query.mjs';
+import {parseSimplifiedRecovery,simplifiedRecoveryEligibility,simplifiedRecoveryPrompt,simplifiedRecoveryLimits} from './simplified-recovery.mjs';
 
 export const googleAiResearchStatuses=Object.freeze([
   'GOOGLE_AI_SUCCESS',
@@ -58,6 +59,9 @@ function citations(response){
   }
   return [...new Map(rows.map(row=>[row.url,row])).values()].slice(0,64);
 }
+
+const policyFinishReasons=new Set(['SAFETY','BLOCKLIST','PROHIBITED_CONTENT','SPII','RECITATION']);
+const policyBlocked=response=>policyFinishReasons.has(response?.promptFeedback?.blockReason)||Array.isArray(response?.candidates)&&response.candidates.some(candidate=>policyFinishReasons.has(candidate?.finishReason));
 
 function outputText(response){
   const values=[];
@@ -153,8 +157,9 @@ function requestBody({objective,validationFailures}){
   };
 }
 
-function failureAudit({query,model,startedAt,finishedAt,requestCount,status,citations:sourceCitations=[],usage=null}){
-  return {schemaVersion:1,query,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model,timestamp:finishedAt,normalizedAnswer:null,citations:sourceCitations,request:{requestCount,startedAt,finishedAt,runtimeMs:Math.max(0,Date.parse(finishedAt)-Date.parse(startedAt)),status,usage}};
+const boundedFailureReasons=values=>[...new Set((values??[]).filter(value=>typeof value==='string'&&/^[A-Z0-9_]{1,80}$/.test(value)))].slice(0,8);
+function failureAudit({query,model,startedAt,finishedAt,requestCount,status,citations:sourceCitations=[],usage=null,failureReasons=[]}){
+  return {schemaVersion:1,query,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model,timestamp:finishedAt,normalizedAnswer:null,citations:sourceCitations,request:{requestCount,startedAt,finishedAt,runtimeMs:Math.max(0,Date.parse(finishedAt)-Date.parse(startedAt)),status,usage,normalizationFailures:boundedFailureReasons(failureReasons)}};
 }
 
 export async function researchMonthlyRecurringWithGoogleAi({providerName,targetMarket,providerNamespace=null,apiKey,fetchImpl=fetch,clock=()=>new Date().toISOString(),endpoint=googleAiDefaults.endpoint,model=googleAiDefaults.model,timeoutMs=googleAiDefaults.timeoutMs,maxResponseBytes=googleAiDefaults.maxResponseBytes,maxRequests=googleAiDefaults.maxRequests}={}){
@@ -171,11 +176,30 @@ export async function researchMonthlyRecurringWithGoogleAi({providerName,targetM
     if(!response.ok){const finishedAt=clock();return {status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:failureAudit({query,model,startedAt,finishedAt,requestCount:requests,status:'HTTP_'+response.status,citations:retainedCitations})};}
     let generated;
     try{generated=await boundedJson(response,maxResponseBytes);}catch{lastMalformed='RESPONSE_INVALID';validationFailures=['GENERATE_CONTENT_RESPONSE_INVALID'];continue;}
+    if(policyBlocked(generated)){const finishedAt=clock();return {status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:failureAudit({query,model,startedAt,finishedAt,requestCount:requests,status:'POLICY_BLOCK',failureReasons:['POLICY_BLOCK']})};}
     retainedCitations=[...new Map([...retainedCitations,...citations(generated)].map(row=>[row.url,row])).values()].slice(0,64);
     retainedUsage=safeUsage(generated.usageMetadata);
     const finishedAt=clock();
     try{return normalizeGoogleAiResponse(generated,{providerName:provider,targetMarket:market,query,model,requestCount:requests,startedAt,finishedAt,additionalCitations:retainedCitations});}
-    catch(error){lastMalformed='NORMALIZATION_FAILED';validationFailures=Array.isArray(error?.validationErrors)&&error.validationErrors.length?error.validationErrors:[clean(error?.message,120)??'OUTPUT_INVALID'];}
+    catch(error){lastMalformed='NORMALIZATION_FAILED';validationFailures=boundedFailureReasons(Array.isArray(error?.validationErrors)&&error.validationErrors.length?error.validationErrors:[error?.message??'OUTPUT_INVALID']);if(!validationFailures.length)validationFailures=['OUTPUT_INVALID'];}
   }
-  const finishedAt=clock();return {status:'GOOGLE_AI_MALFORMED_RESPONSE',aiResult:null,audit:failureAudit({query,model,startedAt,finishedAt,requestCount:requests,status:lastMalformed,citations:retainedCitations,usage:retainedUsage})};
+  const finishedAt=clock();return {status:'GOOGLE_AI_MALFORMED_RESPONSE',aiResult:null,audit:failureAudit({query,model,startedAt,finishedAt,requestCount:requests,status:lastMalformed,citations:retainedCitations,usage:retainedUsage,failureReasons:validationFailures})};
+}
+
+
+// The strict request remains the primary authority. Recovery has one separate,
+// shared-budget request and returns only Suggested/discovery material.
+export async function researchMonthlyRecurringWithRecovery(options={}){
+ const strict=await researchMonthlyRecurringWithGoogleAi(options),maxTotalRequests=options.maxTotalRequests??3,eligibility=simplifiedRecoveryEligibility(strict,{maxTotalRequests});
+ const recovery={attempted:false,reason:eligibility.reason,outcome:eligibility.eligible?'RECOVERY_NOT_STARTED':'NOT_ELIGIBLE',requestCount:0,aiResult:null,audit:null,diagnostics:[]};
+ if(!eligibility.eligible)return {...strict,recovery};
+ const provider=options.providerName.trim().replace(/\s+/g,' '),targetMarket=options.targetMarket.toUpperCase(),apiKey=options.apiKey,fetchImpl=options.fetchImpl??fetch,clock=options.clock??(()=>new Date().toISOString()),endpoint=options.endpoint??googleAiDefaults.endpoint,model=options.model??googleAiDefaults.model,timeoutMs=options.timeoutMs??googleAiDefaults.timeoutMs,maxResponseBytes=Math.min(options.maxResponseBytes??googleAiDefaults.maxResponseBytes,googleAiDefaults.maxResponseBytes),query=simplifiedRecoveryPrompt(provider,targetMarket),startedAt=clock();
+ recovery.attempted=true;recovery.requestCount=simplifiedRecoveryLimits.requests;
+ const finish=(outcome,{aiResult=null,diagnostics=[],usage=null}={})=>{const finishedAt=clock();return {...strict,recovery:{...recovery,outcome,aiResult,diagnostics,audit:{schemaVersion:1,query,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model,timestamp:finishedAt,request:{requestCount:1,startedAt,finishedAt,runtimeMs:Math.max(0,Date.parse(finishedAt)-Date.parse(startedAt)),status:outcome,usage}}}};};
+ let response;
+ try{response=await fetchImpl(endpoint,{method:'POST',redirect:'error',signal:AbortSignal.timeout(timeoutMs),headers:{'content-type':'application/json','x-goog-api-key':apiKey},body:JSON.stringify({systemInstruction:{parts:[{text:'Use Google Search grounding. Return concise JSON. Treat source URLs as discovery leads, and never infer monthly billing from an annual equivalent.'}]},contents:[{role:'user',parts:[{text:query}]}],tools:[{googleSearch:{}}],generationConfig:{maxOutputTokens:4096}})});}catch{return finish('RECOVERY_TRANSPORT_FAILURE');}
+ if(!response.ok)return finish('RECOVERY_HTTP_FAILURE',{diagnostics:[{reason:'HTTP_STATUS',status:response.status}]});
+ let generated;try{generated=await boundedJson(response,maxResponseBytes);}catch{return finish('RECOVERY_RESPONSE_INVALID');}
+ const timestamp=clock(),parsed=parseSimplifiedRecovery(generated,{providerName:provider,targetMarket,requestCount:1,timestamp});
+ return finish(parsed.outcome,{aiResult:parsed.aiResult,diagnostics:parsed.diagnostics,usage:safeUsage(generated.usageMetadata)});
 }
