@@ -9,7 +9,9 @@ import {safeRenderedControl} from './rendered-interactions.mjs';
 import {exactMarketOption,marketCodeMatches} from './provider-market-evidence.mjs';
 export {safeRenderedControl} from './rendered-interactions.mjs';
 
-export const browserRenderLimits=Object.freeze({requests:256,bodyBytes:4*1024*1024,imageBytes:16*1024*1024,domElements:512,documentHeight:12000,timeoutMs:60000});
+// A hydrated app shell and one market navigation can exceed 256 requests;
+// keep the full browser session bounded while admitting its final article read.
+export const browserRenderLimits=Object.freeze({requests:384,bodyBytes:4*1024*1024,imageBytes:16*1024*1024,domElements:512,documentHeight:12000,timeoutMs:60000});
 
 // Some provider pages load public article content through JSON POST RPCs.
 // Admit only same-origin, page-initiated read operations; never forms,
@@ -43,8 +45,9 @@ async function waitForMarketContent(page,before,{timeoutMs=8000,quietMs=400}={})
  while(Date.now()<until){
   let current;try{current=await page.evaluate(marketContentState);}catch{await new Promise(resolve=>setTimeout(resolve,100));continue;}
   const text=current?.text??'';
-  const changed=text!==before?.text&&(current.semantic||before?.semantic||Math.abs(text.length-(before?.text?.length??0))>=80);
-  const meaningful=text.length>=(current.semantic?80:200);
+  // A changed app shell or error page is not a hydrated provider article.
+  const changed=current.semantic&&text!==before?.text;
+  const meaningful=text.length>=80;
   if(current.ready&&current.busy!==true&&changed&&meaningful){
    if(text!==last){last=text;unchangedSince=Date.now();}
    if(Date.now()-unchangedSince>=quietMs)return current;
@@ -210,7 +213,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                     if(count<1||count>256)throw Error('PROVIDER_MARKET_OPTIONS_BOUND');
                     const matches=[];
                     for(let i=0;i<count;i++){
-                        const option=options.nth(i);if(!await option.isVisible())continue;
+                        const option=options.nth(i);if(!await option.isVisible()||!await option.isEnabled())continue;
                         const label=(await option.innerText()).replace(/\s+/gu,' ').trim();
                         if(exactMarketOption(target,label))matches.push({option,label});
                     }

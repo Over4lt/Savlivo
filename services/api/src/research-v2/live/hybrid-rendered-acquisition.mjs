@@ -18,7 +18,7 @@ import {projectV3SuggestedCandidates} from '../../research-v3/suggested-projecti
 import {sourceBoundLineageBindings} from '../../research-v3/source-lineage.mjs';
 import {interactiveNavigationDestination} from './interactive-research-route.mjs';
 
-export const hybridRenderedLimits=Object.freeze({actions:1,browserActions:4,networkRequests:256,countryActions:1,retries:0,perAttemptNetworkRequests:256});
+export const hybridRenderedLimits=Object.freeze({actions:1,browserActions:4,networkRequests:384,countryActions:1,retries:0,perAttemptNetworkRequests:384});
 export const hybridRenderedContract=Object.freeze({version:1,scheduler:'RESEARCH_V2',executor:'RESEARCH_V3_PLAYWRIGHT',truth:'EXISTING_RESEARCH_V3',authority:'EXACT_HOST_OR_RETAINED_PROVIDER_SOURCE'});
 
 const iso=value=>typeof value==='string'&&/^[A-Z]{2}$/.test(value);

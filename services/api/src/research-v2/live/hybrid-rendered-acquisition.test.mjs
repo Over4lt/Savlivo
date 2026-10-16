@@ -8,7 +8,7 @@ import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.
 import {authorityBinding} from '../../research-v3/discovery-authority.mjs';
 import {digest} from '../../research-v3/model.mjs';
 import {evaluate} from '../../research-v3/truth.mjs';
-import {planHybridRenderedAcquisition,runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
+import {hybridRenderedLimits,planHybridRenderedAcquisition,runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
 import {safeRenderedControl} from '../../research-v3/rendered-interactions.mjs';
 import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
 
@@ -56,7 +56,7 @@ test('verified retained provider family permits Browser only for its exact count
 
 test('V2 reserves action browser network and country before V3 execution',async t=>{
  const directory=temp(t),base=capability(),wrapped=async(...args)=>{const rows=fs.readFileSync(path.join(directory,'journal.jsonl'),'utf8');for(const kind of ['actions','browserActions','networkRequests','countryActions'])assert.match(rows,new RegExp(`"kind":"${kind}"`));assert.match(rows,/"ACTION_STARTED"/);return base.browser(...args);};wrapped.close=base.browser.close;
- const result=await runHybridRenderedAcquisition({directory,target:target(),objective,parent:parent(),transport:'DECODO',browser:wrapped});assert.equal(result.outcome,'OBSERVED',JSON.stringify(result));assert.equal(result.usage.actions,1);assert.equal(result.usage.browserActions,1);assert.equal(result.usage.countryActions,1);assert.equal(result.usage.networkRequests,256);assert.equal(result.usage.actualNetworkRequests,7);
+ const result=await runHybridRenderedAcquisition({directory,target:target(),objective,parent:parent(),transport:'DECODO',browser:wrapped});assert.equal(result.outcome,'OBSERVED',JSON.stringify(result));assert.equal(result.usage.actions,1);assert.equal(result.usage.browserActions,1);assert.equal(result.usage.countryActions,1);assert.equal(result.usage.networkRequests,hybridRenderedLimits.perAttemptNetworkRequests);assert.equal(result.usage.actualNetworkRequests,7);
 });
 
 test('same-origin robots redirect permits the checked rendered pricing route',async t=>{

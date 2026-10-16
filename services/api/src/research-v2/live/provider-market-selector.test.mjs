@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import pngjs from 'pngjs';
 import {browserRenderLimits,createPlaywrightRenderedCapability,providerReadOnlyPost} from '../../research-v3/browser-render.mjs';
-import {runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
+import {hybridRenderedLimits,runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
 import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
 import {digest} from '../../research-v3/model.mjs';
 import {marketName,validateProviderSelectedMarketReceipt} from '../../research-v3/provider-market-evidence.mjs';
@@ -32,19 +32,19 @@ const objective=market=>({kind:'PRICE',serviceId:service,serviceName,providerHos
 const parent=()=>({id:'retained-shell',kind:'PROVIDER',url,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'PROVIDER_PAGE'},outcome:'OK',body:shell,sha256:digest(shell)});
 const temp=t=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'provider-market-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;};
 const png=()=>{const image=new PNG({width:800,height:600,colorType:6,inputColorType:6,inputHasAlpha:true});image.data.fill(255);return PNG.sync.write(image);};
-function capability(market,{selectorCount=1,options=['Norway (English)','United Kingdom (English)','Australia (English)','United States (English)'],unchanged=false,wrongState=false,crossOrigin=false,lateCrossOriginAfterScreenshot=false,robots='User-agent: *\nAllow: /',foreignPrices=false,initialSelected=null,blockingOverlay=false,contentDelayMs=0,contentNever=false,contentQuietMs=0,contentTimeoutMs=250,contentNoise=false,lateContentDuringScreenshot=false}={}){
- const state={selectorClicks:0,optionClicks:0,selected:initialSelected??(market==='NO'?'GB':'NO'),routes:[],contexts:[],contentReady:false,contentSamples:0,captureBeforeReady:0,noiseTicks:0,extraText:'',lateCrossOrigin:false};
+function capability(market,{selectorCount=1,options=['Norway (English)','United Kingdom (English)','Australia (English)','United States (English)'],hiddenOptionIndexes=[],disabledOptionIndexes=[],unchanged=false,wrongState=false,crossOrigin=false,lateCrossOriginAfterScreenshot=false,robots='User-agent: *\nAllow: /',foreignPrices=false,initialSelected=null,blockingOverlay=false,contentDelayMs=0,contentNever=false,contentQuietMs=0,contentTimeoutMs=250,contentNoise=false,lateContentDuringScreenshot=false,shellAfterClick=false,extraRequests=0,articleReadRequired=false,revertAfterScreenshot=false}={}){
+ const state={selectorClicks:0,optionClicks:0,selected:initialSelected??(market==='NO'?'GB':'NO'),routes:[],contexts:[],contentReady:false,contentSamples:0,captureBeforeReady:0,noiseTicks:0,extraText:'',lateCrossOrigin:false,readPostContinued:false};
  const pre=foreignPrices?source('NO'):initialSelected===market?source(market):shell.replace('</body>',selector(state.selected)+'</body>');
- const finalBody=()=>source(wrongState?'AU':state.selected,{bundle:true,annual:true}).replace('</body>',state.extraText+'</body>');
+ const finalBody=()=>shellAfterClick?`<html><body>${selector(state.selected)}<h1>Page not found</h1><p>${'Unavailable article. '.repeat(20)}</p></body></html>`:source(wrongState?'AU':state.selected,{bundle:true,annual:true}).replace('</body>',state.extraText+'</body>');
  const chromium={async launch(){return {version:()=> 'fixture-browser',async close(){},async newContext(config){state.contexts.push(config);let routeHandler;
   return {request:{async get(){return {status:()=>200,body:async()=>Buffer.from(robots),headers:()=>({})};}},async route(_pattern,handler){routeHandler=handler;},async close(){},async newPage(){return {
    on(){},url:()=>crossOrigin&&state.optionClicks||state.lateCrossOrigin?'https://other.example/pricing':url,
-   async goto(destination){let continued=false;await routeHandler({request:()=>({url:()=>destination,method:()=> 'GET',resourceType:()=> 'document'}),continue:async()=>{continued=true;},abort:async()=>{}});state.routes.push({destination,continued});return {status:()=>continued?200:403,body:async()=>Buffer.from(shell),headers:()=>({'content-type':'text/html'})};},
+   async goto(destination){let continued=false;await routeHandler({request:()=>({url:()=>destination,method:()=> 'GET',resourceType:()=> 'document'}),continue:async()=>{continued=true;},abort:async()=>{}});state.routes.push({destination,continued});for(let i=0;i<extraRequests;i++)await routeHandler({request:()=>({url:()=>`https://help.orbit.com/assets/${i}.js`,method:()=> 'GET',resourceType:()=> 'script'}),continue:async()=>{},abort:async()=>{}});return {status:()=>continued?200:403,body:async()=>Buffer.from(shell),headers:()=>({'content-type':'text/html'})};},
    async content(){if(state.optionClicks&&!state.contentReady)state.captureBeforeReady++;return state.optionClicks?(state.contentReady?finalBody():shell.replace('</body>',selector(state.selected)+'</body>')):pre;},async waitForLoadState(){},
-   async evaluate(fn){if(fn.name==='consentDialogNames')return blockingOverlay?['Privacy Preference Center']:[];if(fn.name==='marketContentState'){state.contentSamples++;if(contentNoise)state.noiseTicks++;const body=state.optionClicks?(state.contentReady?finalBody():shell.replace('</body>',selector(state.selected)+'</body>')):pre;return {text:body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),semantic:state.optionClicks?state.contentReady:foreignPrices||initialSelected===market,ready:true,busy:false};}return String(fn).includes('createTreeWalker')?[{text:'Orbit plans',role:'h1',bboxPx:[2,2,200,30],ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null}]:{width:800,height:600};},
+   async evaluate(fn){if(fn.name==='consentDialogNames')return blockingOverlay?['Privacy Preference Center']:[];if(fn.name==='marketContentState'){state.contentSamples++;if(contentNoise)state.noiseTicks++;const body=state.optionClicks?(state.contentReady?finalBody():shell.replace('</body>',selector(state.selected)+'</body>')):pre;return {text:body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),semantic:state.optionClicks?state.contentReady&&!shellAfterClick:foreignPrices||initialSelected===market,ready:true,busy:false};}return String(fn).includes('createTreeWalker')?[{text:'Orbit plans',role:'h1',bboxPx:[2,2,200,30],ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null}]:{width:800,height:600};},
    locator(query){assert.equal(query,'button[aria-haspopup="listbox"]');return {count:async()=>selectorCount,nth:()=>({isVisible:async()=>true,getAttribute:async()=>`Change country or language. Current country ${state.selected}`,click:async options=>{if(blockingOverlay)throw Error('OVERLAY_INTERCEPTS_POINTER');if(!options?.trial)state.selectorClicks++;}})};},
-   getByRole(role){assert.equal(role,'option');return {count:async()=>options.length,nth:i=>({isVisible:async()=>true,innerText:async()=>options[i],click:async()=>{state.optionClicks++;if(!unchanged)state.selected=market;if(!contentNever){if(contentDelayMs)setTimeout(()=>{state.contentReady=true;},contentDelayMs);else state.contentReady=true;}}})};},
-   async screenshot(){if(lateContentDuringScreenshot&&state.optionClicks)state.extraText='<p>Additional provider article detail</p>';if(lateCrossOriginAfterScreenshot&&state.optionClicks)state.lateCrossOrigin=true;return png();}
+   getByRole(role){assert.equal(role,'option');return {count:async()=>options.length,nth:i=>({isVisible:async()=>!hiddenOptionIndexes.includes(i),isEnabled:async()=>!disabledOptionIndexes.includes(i),innerText:async()=>options[i],click:async()=>{state.optionClicks++;if(!unchanged)state.selected=market;if(articleReadRequired)await routeHandler({request:()=>({url:()=> 'https://help.orbit.com/api/execute',method:()=> 'POST',resourceType:()=> 'fetch',headers:()=>({'content-type':'application/json'}),postData:()=>JSON.stringify({method:'loadArticle',params:{country:market}})}),continue:async()=>{state.readPostContinued=true;},abort:async()=>{}});if(!contentNever&&(!articleReadRequired||state.readPostContinued)){if(contentDelayMs)setTimeout(()=>{state.contentReady=true;},contentDelayMs);else state.contentReady=true;}}})};},
+   async screenshot(){if(lateContentDuringScreenshot&&state.optionClicks)state.extraText='<p>Additional provider article detail</p>';if(revertAfterScreenshot&&state.optionClicks)state.contentReady=false;if(lateCrossOriginAfterScreenshot&&state.optionClicks)state.lateCrossOrigin=true;return png();}
   };}};
  }};}};
  const browser=createPlaywrightRenderedCapability({chromium,hostAllowed:async()=>true,clock:()=> '2026-10-16T10:00:00.000Z',limits:{...browserRenderLimits,marketContentQuietMs:contentQuietMs,marketContentTimeoutMs:contentTimeoutMs,consentSettleTimeoutMs:20}});
@@ -117,6 +117,29 @@ test('confirmed target without article content times out without a market receip
  assert.equal(projectEstablishedV3Offerings({...target('GB'),...result}).length,0);
 });
 
+test('changed error shell with selected country cannot issue a provider market receipt',async t=>{
+ const {result,state}=await run(t,'GB',{shellAfterClick:true,contentTimeoutMs:180});
+ assert.equal(state.optionClicks,1);assert.equal(result.marketSelection,null);
+ assert.equal(result.observation.url,url);assert.equal(result.v3Truth.established,false);
+});
+
+test('target article that reverts after screenshot cannot bind a final receipt',async t=>{
+ const {result,state}=await run(t,'GB',{revertAfterScreenshot:true,contentTimeoutMs:180});
+ assert.equal(state.optionClicks,1);assert.equal(result.marketSelection,null);
+ assert.equal(projectEstablishedV3Offerings({...target('GB'),...result}).length,0);
+});
+
+test('bounded request allowance includes the provider article read after a busy app shell',async t=>{
+ assert.equal(browserRenderLimits.requests,hybridRenderedLimits.perAttemptNetworkRequests);
+ const {result,state}=await run(t,'AU',{extraRequests:275,articleReadRequired:true});
+ assert.equal(state.readPostContinued,true);
+ assert.equal(result.marketSelection?.targetMarket,'AU');
+ assert(result.usage.actualNetworkRequests>256);
+ assert(result.usage.actualNetworkRequests<=browserRenderLimits.requests);
+ assert.equal(result.v3SuggestedCandidates.length,3);
+ assert.equal(projectEstablishedV3Offerings({...target('AU'),...result}).length,3);
+});
+
 test('unrelated animation churn cannot extend a settled article wait indefinitely',async t=>{
  const {result,state}=await run(t,'AU',{contentNoise:true,contentQuietMs:50,contentTimeoutMs:600});
  assert.equal(result.v3Truth.established,true);assert(state.noiseTicks>1);assert.equal(state.optionClicks,1);
@@ -136,6 +159,15 @@ for(const [label,options,selectorClicks,optionClicks] of [
  ['no selector',{selectorCount:0},0,0],['ambiguous selector',{selectorCount:2},0,0],['selector only in untrusted iframe',{selectorCount:0},0,0],['duplicate target options',{options:['United Kingdom (English)','United Kingdom (French)']},1,0],['target option absent',{options:['Norway (English)']},1,0],['selected state unchanged',{unchanged:true},1,1],['selected state wrong',{wrongState:true},1,1],['cross-provider navigation',{crossOrigin:true},1,1],
 ])test(`${label} yields no canonical market truth`,async t=>{
  const {result,state}=await run(t,'GB',options);assert.equal(result.outcome,'OBSERVED');assert.equal(result.marketSelection,null);assert.equal(result.v3Truth.established,false);assert.equal(projectEstablishedV3Offerings({...target('GB'),...result}).length,0);assert.equal(state.selectorClicks,selectorClicks);assert.equal(state.optionClicks,optionClicks);
+});
+
+for(const [label,optionFilter] of [
+ ['hidden duplicate',{hiddenOptionIndexes:[1]}],
+ ['disabled duplicate',{disabledOptionIndexes:[1]}],
+])test(`${label} is not an actionable second market option`,async t=>{
+ const {result,state}=await run(t,'GB',{options:['United Kingdom (English)','United Kingdom (French)'],...optionFilter});
+ assert.equal(state.optionClicks,1);assert.equal(result.marketSelection?.targetMarket,'GB');
+ assert.equal(result.marketSelection?.selectedOption,'United Kingdom (English)');
 });
 
 test('robots disallow prevents Browser before document request and clicks',async t=>{const {result,state}=await run(t,'GB',{robots:'User-agent: *\nDisallow: /'});assert.equal(result.outcome,'ACQUISITION_FAILED');assert.equal(state.routes.length,0);assert.equal(state.selectorClicks,0);});
