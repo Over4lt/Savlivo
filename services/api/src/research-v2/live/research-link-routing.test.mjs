@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {planResearch} from './research-planner.mjs';
-import {executableAction} from './execution-capabilities.mjs';
+import {equivalentCountryAcquisitionAttempted,executableAction} from './execution-capabilities.mjs';
 import {priceResearchAcquisitionCandidate} from './price-research-candidate.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
 import {interactiveNavigationDestination,interactiveRouteRequiresBrowser} from './interactive-research-route.mjs';
@@ -46,6 +46,15 @@ test('post-acquisition interpretation failure preserves provider source and its 
 test('GLOBAL route acquires NO and SE separately and never shares target market observation',async t=>{
  const seen=[];for(const market of ['NO','SE'])await runOpenWebResearch({directory:path.join(temporary(t),market),targets:[target(market,{researchLinks:[global]})],maxActions:1,search:never,read:never,acquire:async({target:current})=>{seen.push(current.market);return {classification:'CONTENT_NOT_COMMERCIAL',sourceClassification:{status:'UNKNOWN_SOURCE'},verified:[]};}});
  assert.deepEqual(seen,['NO','SE']);
+});
+
+test('Browser market-state changes do not masquerade as Decodo requests, while actual country attempts remain deduped',()=>{
+ const selector={...global,url:'https://streamco.example/pricing?redirect=true'},url=selector.url,sourceHash='a'.repeat(64),afterHash='b'.repeat(64);
+ const selected=target('NO',{researchLinks:[selector],decisions:[{route:'BROWSER',url,acquisitionReserved:true}],renderingOutcomes:[{url,sourceHash,marketSelection:{kind:'PROVIDER_SELECTED_MARKET',targetMarket:'NO',finalSourceSha256:afterHash}}]});
+ assert.equal(equivalentCountryAcquisitionAttempted(selected,url),false);
+ assert.equal(equivalentCountryAcquisitionAttempted({...selected,decisions:[...selected.decisions,{route:'DECODO',url,acquisitionReserved:true}]},url),true);
+ assert.equal(equivalentCountryAcquisitionAttempted({...selected,researchLinkOutcomes:[{id:selector.id,decodoAttempted:true,result:'BROWSER_FAILED'}]},url),true);
+ assert.equal(equivalentCountryAcquisitionAttempted({...selected,researchLinkOutcomes:[{id:selector.id,decodoAttempted:true,result:'BROWSER_FAILED'}],renderingOutcomes:[{url,sourceHash:'c'.repeat(64)}]},url),true);
 });
 
 test('an acquired third-party or unknown page cannot inherit provider truth from a configured link',async t=>{

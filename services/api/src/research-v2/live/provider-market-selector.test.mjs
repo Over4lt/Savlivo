@@ -11,8 +11,9 @@ import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.m
 import {digest} from '../../research-v3/model.mjs';
 import {marketName,validateProviderSelectedMarketReceipt} from '../../research-v3/provider-market-evidence.mjs';
 import {interpretSubscriptionPage} from '../../research-v3/subscription-page.mjs';
-import {retainedProviderSelectorAuthority} from './retained-render-source.mjs';
+import {retainedProviderSelectorAuthority,researchLinkPriorityTarget} from './retained-render-source.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
+import {runAdaptiveCampaign} from '../inventory/adaptive-campaign.mjs';
 
 const {PNG}=pngjs;
 const url='https://help.orbit.com/en-GB/article/pricing?redirect=true';
@@ -20,18 +21,18 @@ const service='orbit',serviceName='Orbit';
 const link={id:'11111111-1111-4111-8111-111111111111',url,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',enabled:true,truthAuthority:'NONE'};
 const shell='<html><head><title>Orbit Help</title><script src="/app.js"></script><script src="/other.js"></script></head><body><div id="app"></div></body></html>';
 const selector=code=>`<button type="button" aria-haspopup="listbox" aria-label="Change country or language. Current country ${code}">Country</button>`;
-const prices={NO:{code:'NOK',symbol:'NOK ',amounts:[79,109,139]},GB:{code:'GBP',symbol:'£',amounts:[6.99,10.99,13.99]},AU:{code:'AUD',symbol:'A$',amounts:[9.99,13.99,17.99]}};
+const prices={US:{code:'USD',symbol:'USD ',amounts:[9.99,15.99,19.99]},NO:{code:'NOK',symbol:'NOK ',amounts:[79,109,139]},GB:{code:'GBP',symbol:'£',amounts:[6.99,10.99,13.99]},AU:{code:'AUD',symbol:'A$',amounts:[9.99,13.99,17.99]}};
 const source=(market,{bundle=false,annual=false}={})=>{
  const {symbol,amounts}=prices[market];
  const rows=['Standard','Plus','Premium'].map((name,index)=>`<tr><td>${name}</td><td><p>Monthly: ${symbol}${amounts[index]}</p><p>Annual: ${symbol}${amounts[index]*10}</p><button>Select a plan</button></td></tr>`).join('');
- return `<html><head><title>Orbit plans</title><meta name="description" content="Orbit subscriptions and monthly plans"></head><body>${selector(market)}<h1>Orbit plans</h1><table>${rows}${bundle?`<tr><td>Orbit + Sports bundle</td><td><p>Monthly: ${symbol}99</p><button>Select a plan</button></td></tr>`:''}${annual?`<tr><td>Annual only</td><td><p>Annual: ${symbol}499</p><button>Select a plan</button></td></tr>`:''}</table></body></html>`;
+ return `<html><head><title>Orbit plans</title><meta name="description" content="Orbit subscriptions and monthly plans"></head><body>${selector(market)}<h1>Orbit plans</h1><h2>Pricing (${prices[market].code})</h2><table>${rows}${bundle?`<tr><td>Orbit + Sports bundle</td><td><p>Monthly: ${symbol}99</p><button>Select a plan</button></td></tr>`:''}${annual?`<tr><td>Annual only</td><td><p>Annual: ${symbol}499</p><button>Select a plan</button></td></tr>`:''}</table></body></html>`;
 };
 const target=(market,extra={})=>({id:'orbit-'+market,service,serviceName,market,operationsObjective:'PRICE_RESEARCH',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},authorities:[{provider:serviceName,hostname:'help.orbit.com',sourceType:'OFFICIAL_PROVIDER',sourceUrl:url,checkedAt:'2026-01-01'}],providerSourceIdentityHosts:['help.orbit.com'],urls:[url],leads:[{url,title:'Provider pricing',rank:0}],gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],reads:[],queries:[],decisions:[],verified:[],blockedOrigins:[],researchLinks:[link],researchLinkOutcomes:[],persistedVerifiedCount:0,...extra});
 const objective=market=>({kind:'PRICE',serviceId:service,serviceName,providerHosts:['help.orbit.com'],markets:[market],seeds:[url]});
 const parent=()=>({id:'retained-shell',kind:'PROVIDER',url,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'PROVIDER_PAGE'},outcome:'OK',body:shell,sha256:digest(shell)});
 const temp=t=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'provider-market-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;};
 const png=()=>{const image=new PNG({width:800,height:600,colorType:6,inputColorType:6,inputHasAlpha:true});image.data.fill(255);return PNG.sync.write(image);};
-function capability(market,{selectorCount=1,options=['Norway (English)','United Kingdom (English)','Australia (English)'],unchanged=false,wrongState=false,crossOrigin=false,robots='User-agent: *\nAllow: /',foreignPrices=false}={}){
+function capability(market,{selectorCount=1,options=['Norway (English)','United Kingdom (English)','Australia (English)','United States (English)'],unchanged=false,wrongState=false,crossOrigin=false,robots='User-agent: *\nAllow: /',foreignPrices=false}={}){
  const state={selectorClicks:0,optionClicks:0,selected:market==='NO'?'GB':'NO',routes:[],contexts:[]};
  const pre=foreignPrices?source('NO'):shell.replace('</body>',selector(state.selected)+'</body>');
  const chromium={async launch(){return {version:()=> 'fixture-browser',async close(){},async newContext(config){state.contexts.push(config);let routeHandler;
@@ -50,7 +51,7 @@ function capability(market,{selectorCount=1,options=['Norway (English)','United 
 }
 async function run(t,market,options={}){const c=capability(market,options),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(market),objective:objective(market),parent:parent(),transport:'DIRECT',browser:c.browser});return {...c,result};}
 
-for(const market of ['NO','GB','AU'])test(`${market} provider selector retains three monthly plans and source-bound market truth`,async t=>{
+for(const market of ['US','NO','GB','AU'])test(`${market} provider selector retains three monthly plans and source-bound market truth`,async t=>{
  const {result,state}=await run(t,market);
  assert.equal(result.outcome,'OBSERVED',JSON.stringify(result));assert.equal(result.marketSelection.targetMarket,market);
  assert.equal(result.v3Truth.established,true,JSON.stringify(result.v3Truth.needs));
@@ -108,6 +109,33 @@ test('successful GLOBAL selector route short-circuits Decodo, Gemini, Tavily and
  assert.equal(current.renderingOutcomes[0].usage.browserActions,2);
  assert.equal(current.renderingOutcomes[0].usage.countryActions,0);
  assert.equal(current.researchLinkOutcomes[0].result,'VERIFIED');assert.equal(current.researchLinkOutcomes[0].transport,'DIRECT_BROWSER');
+});
+
+for(const market of ['US','NO','GB','AU'])test(`${market} priority campaign selects provider market before Decodo or discovery even with historical Verified`,async t=>{
+ const directory=temp(t),caps=target(market).capabilities,priority=researchLinkPriorityTarget(target(market,{persistedVerifiedCount:market==='NO'?3:0}),caps),c=capability(market),calls={read:0,render:0,decodo:0,search:0};
+ const state=await runAdaptiveCampaign({directory,manifest:{targets:[priority],conditionalFollowupTargets:[]},profile:'PRODUCTION',maxActions:3,createAdapters:async()=>({
+  read:async()=>{calls.read++;return {url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:shell},sourceIntegrity:{sha256:digest(shell)},accessDecisions:[{decision:'ALLOWED'}]};},
+  render:async({target:current,need})=>{calls.render++;assert.equal(need.transport,'DIRECT');return runHybridRenderedAcquisition({directory:path.join(directory,'hybrid-rendered'),target:current,objective:objective(market),parent:parent(),transport:'DIRECT',browser:c.browser});},
+  acquire:async()=>{calls.decodo++;throw Error('DECODO_SHOULD_NOT_RUN');},
+  search:async()=>{calls.search++;throw Error('TAVILY_SHOULD_NOT_RUN');}
+ })});
+ const current=state.targets[priority.id];assert.deepEqual(calls,{read:1,render:1,decodo:0,search:0});
+ assert.deepEqual(state.decisionHistory.filter(row=>row.decision==='ACTIVATE').map(row=>row.plan.route),['DIRECT','PARK_RENDERING']);
+ assert.equal(projectEstablishedV3Offerings(current).length,3);assert.equal(current.v3SuggestedCandidates.length,3);
+ assert.equal(current.researchLinkOutcomes[0].result,'VERIFIED');assert.equal(c.state.optionClicks,1);
+});
+
+test('priority campaign permits one Decodo fallback when a provider selector is unavailable',async t=>{
+ const directory=temp(t),caps=target('GB').capabilities,priority=researchLinkPriorityTarget(target('GB'),caps),c=capability('GB',{selectorCount:0}),calls={read:0,render:0,decodo:0,search:0};
+ const state=await runAdaptiveCampaign({directory,manifest:{targets:[priority],conditionalFollowupTargets:[]},profile:'PRODUCTION',maxActions:3,createAdapters:async()=>({
+  read:async()=>{calls.read++;return {url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:shell},sourceIntegrity:{sha256:digest(shell)},accessDecisions:[{decision:'ALLOWED'}]};},
+  render:async({target:current,need})=>{calls.render++;return runHybridRenderedAcquisition({directory:path.join(directory,'hybrid-rendered'),target:current,objective:objective('GB'),parent:parent(),transport:need.transport,browser:c.browser});},
+  acquire:async()=>{calls.decodo++;return {classification:'ACQUISITION_FAILED',sourceClassification:{status:'UNKNOWN_SOURCE'},verified:[],acquisitionBytes:0};},
+  search:async()=>{calls.search++;throw Error('TAVILY_SHOULD_NOT_RUN');}
+ })});
+ assert.deepEqual(calls,{read:1,render:1,decodo:1,search:0},JSON.stringify(state.decisionHistory.map(row=>({route:row.plan.route,reason:row.reason,decision:row.decision,capability:row.capability}))));
+ assert.deepEqual(state.decisionHistory.filter(row=>row.decision==='ACTIVATE').map(row=>row.plan.route),['DIRECT','PARK_RENDERING','DECODO']);
+ assert.equal(c.state.optionClicks,0);assert.equal(projectEstablishedV3Offerings(state.targets[priority.id]).length,0);
 });
 
 test('pre-selection prices for another country remain unbound when target selection is unavailable',async t=>{

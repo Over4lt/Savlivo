@@ -17,6 +17,8 @@ import {executePriceResearchBatch} from './price-research-batch.mjs';
 import {learnProviderPricingRoutesFromTarget} from '../research-v2/live/hybrid-provider-resource-memory.mjs';
 import {canonicalReviewedProviderRoot} from '../research-v3/reviewed-provider-namespaces.mjs';
 import {baselineProviderSourceHosts} from '../research-v3/provider-source-family.mjs';
+import {researchLinkPriorityTarget} from '../research-v2/live/retained-render-source.mjs';
+export {researchLinkPriorityTarget} from '../research-v2/live/retained-render-source.mjs';
 
 export function reviewedNamespacePriceResearchSeed(identity){
  const reviewedProviderNamespaces=identity.reviewedProviderNamespaces??[],root=reviewedProviderNamespaces.map(canonicalReviewedProviderRoot).find(Boolean);
@@ -77,7 +79,6 @@ const retryableVerificationReasons=new Set(['NO_EXECUTABLE_PROGRESS_RECONCILE'])
 const usageKeys=['reads','searches','acquisitions','retainedReviews','bytes'];
 const allUsageKeys=['actions',...usageKeys];
 const uniqueRows=rows=>[...new Map(rows.map(row=>[JSON.stringify(row),row])).values()];
-export const researchLinkPriorityTarget=(baseTarget,capabilities)=>({...baseTarget,urls:[],leads:[],knownCommercialUrls:[],capabilities:{...capabilities,direct:false,tavily:false}});
 export function priorityRetainedV3Evidence({priorityState,target,root}){
  const current=priorityState?.targets?.[target.id],observation=current?.v3Observation,source=(current?.acquisitionOutcomes??[]).findLast(row=>row.researchLinkId&&row.sourceHash===observation?.sha256&&row.sourceClassification?.status==='PROVIDER_SOURCE'&&row.sourceClassification.finalUrl===observation?.url&&row.countryV3Evaluation?.status==='EVALUATED'&&row.countryV3Evaluation?.receiptStatus==='HASH_VERIFIED'&&row.countryV3Evaluation?.geoClass==='G1');
  if(!source||!current.v3Truth||!/^[a-f0-9]{64}$/.test(observation?.sha256??''))return null;
@@ -128,7 +129,7 @@ async function executeSinglePriceResearch({job,directory,apiKey,client,shouldSto
  let priorityState=null;
  const beforeGoogle=linkState.links.length?async()=>{
   const priorityTarget=researchLinkPriorityTarget(baseTarget,config.capabilities),campaignDirectory=path.join(directory,'priority-research-links');
-  priorityState=await runAdaptiveCampaign({directory:campaignDirectory,manifest:{targets:[priorityTarget],conditionalFollowupTargets:[]},profile:'PRODUCTION',maxActions:Math.min(40,linkState.links.length*2),createAdapters:args=>adapters({...args,stage:'RESEARCH_LINK_PRIORITY'}),onTransition:()=>{if(shouldStop())throw Error('PRICE_RESEARCH_STOPPED');}});
+  priorityState=await runAdaptiveCampaign({directory:campaignDirectory,manifest:{targets:[priorityTarget],conditionalFollowupTargets:[]},profile:'PRODUCTION',maxActions:Math.min(40,linkState.links.length*3),createAdapters:args=>adapters({...args,stage:'RESEARCH_LINK_PRIORITY'}),onTransition:()=>{if(shouldStop())throw Error('PRICE_RESEARCH_STOPPED');}});
   const current=priorityState.targets?.[target.id];for(const row of current?.researchLinkOutcomes??[])await recordResearchLinkResult({id:row.id,attemptedAt:row.at,result:row.result,client});
   const v3Result=v3ResultFromTarget(current),satisfied=v3Result.verified.length>0;
   return {satisfiedTargetIds:satisfied?[target.id]:[],downstream:satisfied?{result:priorityState,v3Results:{[target.id]:v3Result},verificationRetry:{maximumPerTarget:1,attemptedTargetIds:[],targets:{[target.id]:{attempted:false,count:0,verifiedAttempt:1}}}}:null};

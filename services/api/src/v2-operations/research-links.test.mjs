@@ -40,12 +40,12 @@ test('Research link validation rejects unsafe URLs, malformed scope and authorit
  assert.equal(validateResearchLink(input()).url,'https://streamco.example/pricing');
 });
 
-test('GLOBAL applies independently per market, specific outranks global, and persisted Verified suppresses links',async()=>{
+test('GLOBAL applies independently per market, specific outranks global, and historical Verified does not suppress an explicit investigation link',async()=>{
  const {rows,client}=fixture(),now=new Date();rows.push({id,service_id:'streamco',url:'https://streamco.example/global',kind:'DIRECT_SOURCE',market_scope:'GLOBAL',market_code:null,enabled:true,created_at:now,updated_at:now,last_result:null},{id:'22222222-2222-4222-8222-222222222222',service_id:'streamco',url:'https://streamco.example/no',kind:'INTERACTIVE_ROUTE',market_scope:'MARKET_SPECIFIC',market_code:'NO',enabled:true,created_at:now,updated_at:now,last_result:null});
  const no=await loadApplicableResearchLinks({serviceId:'streamco',canonicalSlug:'streamco',market:'NO',client}),se=await loadApplicableResearchLinks({serviceId:'streamco',canonicalSlug:'streamco',market:'SE',client});
  assert.deepEqual(no.links.map(row=>row.marketScope),['MARKET_SPECIFIC','GLOBAL']);assert.deepEqual(se.links.map(row=>row.url),['https://streamco.example/global']);assert(no.links.every(row=>row.truthAuthority==='NONE'));
  const verifiedClient={query:async sql=>sql.startsWith('WITH evidence')?{rows:[{service_slug:'streamco',country_code:'NO',verified_count:3}]}:client.query(sql,['streamco','NO'])};
- const verified=await loadApplicableResearchLinks({serviceId:'streamco',canonicalSlug:'streamco',market:'NO',client:verifiedClient});assert.equal(verified.persistedVerifiedCount,3);assert.deepEqual(verified.links,[]);
+ const verified=await loadApplicableResearchLinks({serviceId:'streamco',canonicalSlug:'streamco',market:'NO',client:verifiedClient});assert.equal(verified.persistedVerifiedCount,3);assert.deepEqual(verified.links.map(row=>row.marketScope),['MARKET_SPECIFIC','GLOBAL']);
 });
 
 test('last result metadata records bounded operational outcome without price truth',async()=>{

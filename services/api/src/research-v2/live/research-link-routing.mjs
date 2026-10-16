@@ -4,7 +4,7 @@ import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.m
 import {providerMarketSelectorRoute} from './retained-render-source.mjs';
 
 export function nextResearchLink(target,executionContext=null){
- if(target?.operationsObjective!=='PRICE_RESEARCH'||target.persistedVerifiedCount>0||(target.verified??[]).length>0||projectEstablishedV3Offerings(target).some(row=>row.market===target.market))return null;
+ if(target?.operationsObjective!=='PRICE_RESEARCH'||(target.verified??[]).length>0||projectEstablishedV3Offerings(target).some(row=>row.market===target.market))return null;
  const attempted=new Set((target.researchLinkOutcomes??[]).map(row=>row.id));
  for(const link of (target.researchLinks??[]).slice(0,20)){
   if(!link?.enabled||link.truthAuthority!=='NONE'||attempted.has(link.id)||link.marketScope==='MARKET_SPECIFIC'&&link.marketCode!==target.market)continue;

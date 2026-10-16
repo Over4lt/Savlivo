@@ -28,6 +28,14 @@ test('Research-link priority shares known-service Decodo and classification adap
  assert.equal(typeof seen[0].context.dependencies.createRenderedBrowser,'function');
 });
 
+test('priority permits Direct only for an enabled GLOBAL provider selector route with Browser available',()=>{
+ const caps={direct:true,tavily:true,decodo:true,browser:true,groq:false},link={id:'11111111-1111-4111-8111-111111111111',url:'https://help.provider.example/pricing?redirect=true',kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true,truthAuthority:'NONE'};
+ const eligible=researchLinkPriorityTarget({...target,operationsObjective:'PRICE_RESEARCH',researchLinks:[link]},caps);
+ assert.equal(eligible.capabilities.direct,true);assert.equal(eligible.capabilities.tavily,false);assert.deepEqual(eligible.urls,[]);assert.deepEqual(eligible.leads,[]);
+ for(const variant of [{...link,url:'https://help.provider.example/pricing'},{...link,marketScope:'MARKET_SPECIFIC',marketCode:'DE'},{...link,enabled:false}])assert.equal(researchLinkPriorityTarget({...target,researchLinks:[variant]},caps).capabilities.direct,false);
+ assert.equal(researchLinkPriorityTarget({...target,researchLinks:[link]},{...caps,browser:false}).capabilities.direct,false);
+});
+
 test('provider seed stays separate and unknown adapter stages fail explicitly',async t=>{
  const directory=temp(t),seen={},factory=await createPriceResearchAdapters({market:'DE',capabilities:capabilities(false)},{createDiscovery:async()=>discoveryFixture(seen)});
  const seed=await factory({stage:'PROVIDER_SEED',directory,targets:[target]});assert.deepEqual(Object.keys(seed).sort(),['read','search']);

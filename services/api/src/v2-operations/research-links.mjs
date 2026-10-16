@@ -47,7 +47,7 @@ export async function loadApplicableResearchLinks({serviceId,canonicalSlug,marke
   client.query(marketPriceStatusSql,[[canonicalSlug]])
  ]);
  const persistedVerifiedCount=Number(status.rows.find(row=>row.service_slug===canonicalSlug&&row.country_code===market)?.verified_count??0);
- return {persistedVerifiedCount,links:persistedVerifiedCount>0?[]:links.rows.flatMap(row=>{try{const link=validateResearchLink({url:row.url,kind:row.kind,marketScope:row.market_scope,marketCode:row.market_code,enabled:true});return [{id:row.id,...link,serviceId,truthAuthority:'NONE',lastResult:row.last_result??null}];}catch{return [];}})};
+ return {persistedVerifiedCount,links:links.rows.flatMap(row=>{try{const link=validateResearchLink({url:row.url,kind:row.kind,marketScope:row.market_scope,marketCode:row.market_code,enabled:true});return [{id:row.id,...link,serviceId,truthAuthority:'NONE',lastResult:row.last_result??null}];}catch{return [];}})};
 }
 
 export async function recordResearchLinkResult({id,attemptedAt,result,client=pool}){

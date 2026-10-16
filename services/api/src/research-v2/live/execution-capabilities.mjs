@@ -18,7 +18,8 @@ export const directAcquisitionReads=t=>(t.reads??[]).filter(row=>!alreadyAccount
 export function equivalentCountryAcquisitionAttempted(t,url){
  const key=resourceKey(url),outcomes=(t.acquisitionOutcomes??[]).filter(row=>resourceKey(row.url)===key),retryable=outcomes.length>0&&outcomes.every(row=>countryAcquisitionDisposition(row)==='RETRYABLE_ACQUISITION_FAILURE');
  if(outcomes.length&&!retryable)return true;
- return !retryable&&(t.decisions??[]).some(row=>row.acquisitionReserved&&resourceKey(row.url)===key);
+ const priorLinkAcquisition=(t.researchLinkOutcomes??[]).some(row=>row.decodoAttempted===true&&(t.researchLinks??[]).some(link=>link.id===row.id&&resourceKey(link.url)===key));
+ return priorLinkAcquisition||!retryable&&(t.decisions??[]).some(row=>row.acquisitionReserved&&['DECODO','CONDITIONAL_DECODO'].includes(row.route)&&resourceKey(row.url)===key);
 }
 export function destinationReadAllowed(t,lead,bounds=executionBounds,{candidateAuthorityReview=false}={}){const reviewed=providerRoutingAuthority(t,lead.url),priceCandidate=priceResearchAcquisitionCandidate(t,lead.url),authorityEvidence=candidateAuthorityReview&&typeof lead.authorityEvidenceFor==='string',sourceBoundCandidate=candidateAuthorityReview&&lead.sourceBoundCandidate===true,objectiveLeadCandidate=candidateAuthorityReview&&lead.providerSeedObjectiveLead===true,boundedAuthorityCandidate=authorityEvidence||sourceBoundCandidate||objectiveLeadCandidate,count=directAcquisitionReads(t).filter(r=>new URL(r.requestedUrl).origin===new URL(lead.url).origin).length;return (!hasProviderRoutingAuthority(t)||reviewed||priceCandidate||boundedAuthorityCandidate)&&count<(reviewed&&navigationRank(t,lead)<=15?bounds.perServiceReads:authorityEvidence?2:sourceBoundCandidate||objectiveLeadCandidate?1:2);}
 export function executableAction(t,action,{bounds=executionBounds,usage={reads:0,searches:0,acquisitions:0,bytes:0},available={direct:true,discovery:true,decodo:true,browser:true}}={}){

@@ -7,6 +7,8 @@ export function providerMarketSelectorRoute(link){
  try{return link.kind==='DIRECT_SOURCE'&&new URL(link.url).searchParams.get('redirect')==='true';}catch{return false;}
 }
 
+export const researchLinkPriorityTarget=(baseTarget,capabilities)=>({...baseTarget,urls:[],leads:[],knownCommercialUrls:[],capabilities:{...capabilities,direct:capabilities.direct===true&&capabilities.browser===true&&(baseTarget.researchLinks??[]).some(providerMarketSelectorRoute),tavily:false}});
+
 // Routing permission for a Browser continuation on the exact Decodo source
 // already classified as a provider source. This never supplies price Truth.
 import {providerSourceDomainFamily} from '../../research-v3/provider-source-family.mjs';
