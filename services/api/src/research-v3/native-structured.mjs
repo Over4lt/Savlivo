@@ -4,7 +4,7 @@ import {structuredSources} from './structured-material.mjs';
 import {parseDataLiteral,embeddedState} from './embedded-state.mjs';
 import {digest,providerBound} from './model.mjs';
 import {observationService} from './service-association.mjs';
-import {bundledPresentation} from './offering-scope.mjs';
+import {nonStandalonePresentation} from './offering-scope.mjs';
 
 const currencies=new Set(Intl.supportedValuesOf('currency'));
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -95,7 +95,7 @@ export function projectNativeStructured(o,objective){
   if(!object(product.subscription)&&!object(value.subscription)&&!Object.keys(value).some(k=>/(?:amount|price|total)/i.test(k)))continue;
   const fact=localRecord(value,region,scales,o);facts.push(fact);
   if(!service)continue;
-  if(bundledPresentation(fact.identity.name,objective.serviceName))continue;
+  if(nonStandalonePresentation(fact.identity.name,objective.serviceName))continue;
   const offer=admission(fact);if(!offer)continue;
   const pointer='/offers/'+source.offers.length;source.offers.push(offer);
   bindings[pointer]={start:region.start,end:region.end,sha256:fact.source.recordHash,structuralPath:region.pointer,parentPath:region.parent,observation:o.id,sourceHash:o.sha256,nativeStructured:true,admitted:true};

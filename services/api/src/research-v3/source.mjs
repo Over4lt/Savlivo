@@ -5,6 +5,7 @@ import {selectedStateContext,providerStates} from './provider-states.mjs';
 import {digest, pricePropositions, servicePropositions} from './model.mjs';
 import {presentationCapacity as capacity} from './acquisition-contract.mjs';
 import {interpretSubscriptionPage} from './subscription-page.mjs';
+import {providerSelectedDollarCurrency} from './currency-sources.mjs';
 const documents=new WeakMap(),semanticMaterials=new WeakMap();
 function observationDocument(o){const old=documents.get(o),cached=old?.parsed.deref();if(cached&&old.body===o.body&&old.contentType===o.contentType)return cached;const parsed=document(o.body,o.contentType);documents.set(o,{body:o.body,contentType:o.contentType,parsed:new WeakRef(parsed)});return parsed;}
 
@@ -157,11 +158,12 @@ export function projectWebSource(observation, objective) {
     const pointer=n=>({start:n.start,end:n.end,sha256:digest(observation.body.slice(n.start,n.end))});
     const identity=nodes.find(n=>['title','h1','p'].includes(n.tag)&&name.test(n.text));
     if(identity) {source.serviceId=objective.serviceId; bindings['/serviceId']=pointer(identity);}
-    const subscriptionPage=interpretSubscriptionPage({body:observation.body,url:observation.url,providerName:objective.serviceName}),pageService=subscriptionPage.services.find(row=>normalized(row.name)===normalized(objective.serviceName));
+    const dollarCurrency=providerSelectedDollarCurrency(observation,objective);
+    const subscriptionPage=interpretSubscriptionPage({body:observation.body,url:observation.url,providerName:objective.serviceName,currencyHint:dollarCurrency?.code??null}),pageService=subscriptionPage.services.find(row=>normalized(row.name)===normalized(objective.serviceName));
     if(pageService&&source.serviceId===objective.serviceId)for(const offering of subscriptionPage.offerings)for(const [chargeIndex,charge]of offering.charges.entries()){
         const p='/offers/'+source.offers.length,id=digest([new URL(observation.url).hostname,normalized(objective.serviceName),normalized(offering.name),charge.cadence,charge.amount,charge.currency,chargeIndex]);
         source.offers.push({id,amount:charge.amount,currency:charge.currency,cadence:charge.cadence,billingCadence:charge.billingCadence,consumer:charge.consumer,relationship:charge.relationship,role:charge.role,monetaryKind:charge.monetaryKind,amountDerivation:charge.amountDerivation,market:offering.market??null});
-        bindings[p]={start:offering.presentation.start,end:offering.presentation.end,sha256:offering.presentation.sha256,offer:offering.name,offerIdentity:offering.nameLocator,nativePageStructure:true,charge:{text:charge.text,cadence:charge.cadence,billingCadence:charge.billingCadence,...(charge.composition?{composition:charge.composition}:{})}};
+        bindings[p]={start:offering.presentation.start,end:offering.presentation.end,sha256:offering.presentation.sha256,offer:offering.name,offerIdentity:offering.nameLocator,nativePageStructure:true,charge:{text:charge.text,cadence:charge.cadence,billingCadence:charge.billingCadence,...(charge.composition?{composition:charge.composition}:{})},...(charge.currencyBasis==='CONTEXTUAL_DOLLAR'&&dollarCurrency?.code===charge.currency?{currencyResolution:{basis:'PROVIDER_SELECTED_MARKET',market:dollarCurrency.market,sourceHash:dollarCurrency.sourceHash,metadataVersion:dollarCurrency.metadataVersion}}:{})};
         if(charge.billingCadence==='UNKNOWN')ambiguities.push({pointer:p,reasons:['PAYMENT_CADENCE_UNRESOLVED'],source:bindings[p]});
     }
     // Keep an offer within one presentation. Prefer small enclosing offer sections,

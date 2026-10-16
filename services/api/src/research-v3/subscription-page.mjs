@@ -3,7 +3,7 @@
 // page identity with sibling plan cards; headings and money alone are never
 // promoted into Services or offerings.
 import {digest} from './model.mjs';
-import {bundledPresentation} from './offering-scope.mjs';
+import {nonStandalonePresentation} from './offering-scope.mjs';
 
 const voids=new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
 const peripheral=new Set(['nav','header','footer','aside']);
@@ -153,24 +153,24 @@ function charges(text,currencyHint=null){
  const rows=[];for(const match of text.matchAll(money)){const mark=normalized((match[1]??'')||(match[3]??'')),currency=/^[A-Z]{3}$/.test(mark)?mark:symbolCurrency.get(mark)??(mark==='$'?currencyHint:null);if(!currency)continue;const amount=number(match[2]);if(amount===null)continue;
   const after=text.slice(match.index+match[0].length,match.index+match[0].length+48),cadenceMatch=after.match(/^\s*(?:(?:\/|per\s+|a\s+|each\s+|every\s+)\s*)?(months?|monthly|mo\b|years?|yearly|annually|annual\b|yr\b)/iu);if(!cadenceMatch)continue;const cadence=/month|monthly|\bmo\b/iu.test(cadenceMatch[1])?'MONTHLY':'YEARLY',left=Math.max(0,match.index-64),right=Math.min(text.length,match.index+match[0].length+cadenceMatch[0].length+96),context=text.slice(left,right),trial=/\b(?:trial|introductory|first\s+(?:month|\d+\s+months?))\b/iu.test(context),nonCharge=/\b(?:save|saving|discount|credit|benefit|worth|value)\b[^.;]{0,32}$/iu.test(text.slice(left,match.index));if(nonCharge)continue;
   const billing=[...context.matchAll(/\b(?:billed|billing|charged|paid|pay|payment(?:s)?)\s+(?:[^.;]{0,32}?)(monthly|yearly|annually|every month|every year|per month|per year)\b|\b(monthly|yearly|annual)\s+(?:billing|payments?)\b/giu)].map(m=>/month/iu.test(m[1]??m[2])?'MONTHLY':'YEARLY'),prefix=text.slice(Math.max(0,match.index-32),match.index),stated=/(?:\bis\b|\bcosts?\b|\bpriced\s+at\b|\bor\b)\s*$/iu.test(prefix)?cadence:null,unique=[...new Set([...billing,...(stated?[stated]:[])])];
-  const billingCadence=unique.length===1?unique[0]:'UNKNOWN';rows.push({amount,currency,cadence,billingCadence,consumer:true,relationship:'SUBSCRIPTION',role:trial?'TRIAL':'ORDINARY',monetaryKind:trial?'TRIAL_CHARGE':'SUBSCRIPTION_CHARGE',amountDerivation:billingCadence!=='UNKNOWN'&&billingCadence!==cadence?'ARITHMETIC':'EXPLICIT',text:match[0]+cadenceMatch[0]});
+  const billingCadence=unique.length===1?unique[0]:'UNKNOWN';rows.push({amount,currency,cadence,billingCadence,consumer:true,relationship:'SUBSCRIPTION',role:trial?'TRIAL':'ORDINARY',monetaryKind:trial?'TRIAL_CHARGE':'SUBSCRIPTION_CHARGE',amountDerivation:billingCadence!=='UNKNOWN'&&billingCadence!==cadence?'ARITHMETIC':'EXPLICIT',text:match[0]+cadenceMatch[0],...(mark==='$'&&currencyHint?{currencyBasis:'CONTEXTUAL_DOLLAR'}:{})});
  }
  return rows;
 }
 
-function localCharges(parsed,node){
+function localCharges(parsed,node,currencyHint=null){
  const segments=parsed.within(node),rows=[];
  for(let index=0;index<segments.length;index++)for(let width=1;width<=3&&index+width<=segments.length;width++){
-  const text=segments.slice(index,index+width).map(row=>row.text).join(' ');for(const charge of charges(text)){const key=[charge.amount,charge.currency,charge.cadence,charge.role].join('|'),at=rows.findIndex(row=>[row.amount,row.currency,row.cadence,row.role].join('|')===key);if(at<0)rows.push(charge);else if(rows[at].billingCadence==='UNKNOWN'&&charge.billingCadence!=='UNKNOWN')rows[at]=charge;}
+  const text=segments.slice(index,index+width).map(row=>row.text).join(' ');for(const charge of charges(text,currencyHint)){const key=[charge.amount,charge.currency,charge.cadence,charge.role].join('|'),at=rows.findIndex(row=>[row.amount,row.currency,row.cadence,row.role].join('|')===key);if(at<0)rows.push(charge);else if(rows[at].billingCadence==='UNKNOWN'&&charge.billingCadence!=='UNKNOWN')rows[at]=charge;}
  }
  return rows;
 }
 
-function planCards(parsed){
+function planCards(parsed,currencyHint=null){
  const cards=[];
  for(const node of parsed.nodes){if(node.hidden||!(node.tag==='article'||/(?:^|\/)(?:Offer|Product)$/i.test(node.attrs.itemtype??''))||ancestors(node).some(a=>peripheral.has(a.tag)))continue;
   const headings=parsed.nodes.filter(h=>/^h[2-4]$/.test(h.tag)&&h.start>=node.openEnd&&h.end<=node.contentEnd&&!h.hidden&&!ancestors(h).some(a=>a!==node&&a.tag==='article')),names=[...new Set(headings.map(h=>parsed.text(h)).filter(name=>name&&name.length<=80))];if(names.length!==1)continue;
-  const own=localCharges(parsed,node);if(!own.length)continue;cards.push({node,name:names[0],nameNode:headings[0],charges:own});
+  const own=localCharges(parsed,node,currencyHint);if(!own.length)continue;cards.push({node,name:names[0],nameNode:headings[0],charges:own});
  }
  const groups=new Map();for(const card of cards){const key=card.node.parent?.start??-1,rows=groups.get(key)??[];rows.push(card);groups.set(key,rows);}
  return [...groups.values()].filter(rows=>rows.length>=2||rows[0].node.attrs.itemtype).flat();
@@ -179,10 +179,10 @@ function planCards(parsed){
 // Some provider help pages publish the plans as sibling list items under a
 // pricing heading. Keep each top-level item as its own source presentation;
 // nested list items describe add-ons and must never become subscription plans.
-function pricingLists(parsed){
+function pricingLists(parsed,marketCurrencyHint=null){
  const rows=[],billingStatements=parsed.segments.filter(row=>/\bplans?\s+(?:are|is)\s+(?:billed|charged|paid)\s+(?:monthly|yearly|annually)\b/iu.test(row.text)).map(row=>row.text),monthly=billingStatements.some(row=>/\bplans?\s+(?:are|is)\s+(?:billed|charged|paid)\s+monthly\b/iu.test(row)),yearly=billingStatements.some(row=>/\bplans?\s+(?:are|is)\s+(?:billed|charged|paid)\s+(?:yearly|annually)\b/iu.test(row));
  for(const heading of parsed.nodes.filter(node=>/^h[2-4]$/.test(node.tag)&&!node.hidden&&/^pricing(?:\s|$|\()/iu.test(parsed.text(node))&&!ancestors(node).some(parent=>peripheral.has(parent.tag)))){
-  const currencyHint=headingCurrency(parsed.text(heading));
+  const currencyHint=headingCurrency(parsed.text(heading))??marketCurrencyHint;
   const scope=/\bfor (?:customers|members|subscribers|consumers|residents) in ([\p{L} .-]+)$/iu.exec(parsed.text(heading))?.[1]?.trim().replace(/^the\s+/iu,'')??null,regions=new Intl.DisplayNames(['en'],{type:'region'}),market=scope?([...Array(26)].flatMap((_,a)=>[...Array(26)].map((_,b)=>String.fromCharCode(65+a,65+b))).find(code=>regions.of(code).toLocaleLowerCase('en')===scope.toLocaleLowerCase('en'))??null):null;
   const next=parsed.nodes.filter(node=>node.parent===heading.parent&&node.start>=heading.end&&!node.hidden).sort((a,b)=>a.start-b.start)[0];
   if(next?.tag!=='ul'&&next?.tag!=='ol')continue;
@@ -207,15 +207,24 @@ function pricingLists(parsed){
 
 // Provider pricing tables often put the cadence label before the charge. Keep
 // each row separate and require an actionable plan choice in the same row.
-function pricingTables(parsed){
+function pricingTables(parsed,currencyHint=null,providerName=null){
  const rows=[];
  for(const table of parsed.nodes.filter(node=>node.tag==='table'&&!node.hidden&&!ancestors(node).some(parent=>peripheral.has(parent.tag)))){
+  const heading=parsed.nodes.filter(node=>/^h[2-4]$/.test(node.tag)&&!node.hidden&&node.end<=table.start).at(-1);
+  const caption=parsed.nodes.find(node=>node.tag==='caption'&&node.start>=table.openEnd&&node.end<=table.contentEnd&&!node.hidden);
+  const headingText=heading?parsed.text(heading):'';
+  if(nonStandalonePresentation(headingText,providerName)||caption&&nonStandalonePresentation(parsed.text(caption),providerName)||/^(?:annual|yearly)\b/iu.test(headingText))continue;
+  const header=parsed.nodes.filter(node=>node.tag==='th'&&node.start>=table.openEnd&&node.end<=table.contentEnd&&!node.hidden).at(-1);
+  const headerText=header?parsed.text(header):'';
+  const previous=parsed.nodes.filter(node=>node.parent===table.parent&&node.end<=table.start&&!node.hidden).at(-1);
+  const sectionText=previous?.tag==='p'?parsed.text(previous):'';
+  const sharedMonthly=/^(?:monthly (?:price|payment)|price per month)$/iu.test(headerText)||/\bplans?\s+(?:are|is)\s+(?:billed|charged|paid)\s+monthly\b/iu.test(sectionText)&&!/\b(?:annual|yearly|equivalent)\b/iu.test(sectionText);
   const candidates=[];
   for(const row of parsed.nodes.filter(node=>node.tag==='tr'&&node.start>=table.openEnd&&node.end<=table.contentEnd&&!node.hidden)){
    const cells=parsed.nodes.filter(node=>node.tag==='td'&&node.parent===row&&!node.hidden).sort((a,b)=>a.start-b.start);
    if(cells.length<2||cells.length>6)continue;
    const nameSegment=parsed.within(cells[0])[0],name=nameSegment?.text??'';
-   if(!name||name.length>80||/^(?:monthly|annual|features?|plans?)$/iu.test(name))continue;
+   if(!name||name.length>80||/^(?:monthly|annual|features?|plans?)$/iu.test(name)||nonStandalonePresentation(name,providerName))continue;
    const priceCell=cells.at(-1),parts=parsed.within(priceCell),priceText=parts.map(part=>part.text).join(' ');
    if(!/\b(?:select|choose|subscribe|join)\s+(?:a\s+)?plan\b/iu.test(priceText))continue;
    const monthly=[];
@@ -223,8 +232,13 @@ function pricingTables(parsed){
     const label=/^monthly\s*:\s*(.*)$/iu.exec(parts[i].text);
     if(!label)continue;
     const amountText=label[1]||(parts[i+1]?.text??'');
-    const values=charges(amountText+' /month').filter(charge=>charge.cadence==='MONTHLY'&&charge.role==='ORDINARY');
+    if(/\b(?:annual|yearly|equivalent|billed\s+yearly)\b/iu.test(amountText))continue;
+    const values=charges(amountText+' /month',currencyHint).filter(charge=>charge.cadence==='MONTHLY'&&charge.role==='ORDINARY');
     if(values.length===1)monthly.push({...values[0],billingCadence:'MONTHLY',amountDerivation:'EXPLICIT',text:parts[i].text+' '+amountText});
+   }
+   if(!monthly.length&&sharedMonthly&&!/\b(?:annual|yearly|equivalent|trial|introductory|first month|promo(?:tional)?|discount|one.time|weekly)\b/iu.test(priceText)){
+    const prices=[...priceText.matchAll(money)].filter(match=>/^(?:[A-Z]{3}|CA\$|A\$|US\$|R\$|Kč|[$€£¥])\s*/u.test(match[0]));
+    if(prices.length===1){const values=charges(prices[0][0]+' /month',currencyHint).filter(charge=>charge.cadence==='MONTHLY'&&charge.role==='ORDINARY');if(values.length===1)monthly.push({...values[0],billingCadence:'MONTHLY',amountDerivation:'EXPLICIT',text:prices[0][0]+'; '+(headerText||sectionText)});}
    }
    if(monthly.length!==1)continue;
    candidates.push({name,nameLocator:locator(parsed.body,nameSegment.start,nameSegment.end),presentation:locator(parsed.body,row.start,row.end),charges:monthly});
@@ -262,7 +276,7 @@ function enrichFromProse(parsed,offerings){
  }
 }
 
-export function interpretSubscriptionPage({body,url,providerName=null}){
- if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),lists=cards.length?[]:pricingLists(parsed),tables=cards.length||lists.length?[]:pricingTables(parsed),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!bundledPresentation(row.name,providerName));enrichFromProse(parsed,offerings);
+export function interpretSubscriptionPage({body,url,providerName=null,currencyHint=null}){
+ if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed,currencyHint),lists=cards.length?[]:pricingLists(parsed,currencyHint),tables=cards.length||lists.length?[]:pricingTables(parsed,currencyHint,providerName),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!nonStandalonePresentation(row.name,providerName));enrichFromProse(parsed,offerings);
  return {services,offerings,limited:parsed.limited};
 }

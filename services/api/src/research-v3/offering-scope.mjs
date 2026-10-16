@@ -7,3 +7,9 @@ export function bundledPresentation(name,serviceName){
  const escaped=serviceName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
  return new RegExp('(?:^|[^\\p{L}\\p{N}])'+escaped+'(?=$|[^\\p{L}\\p{N}])','iu').test(name)&&/\s\+\s/u.test(name);
 }
+
+// Ancillary charges can recur monthly but do not buy the base standalone
+// subscription. Apply this to both row labels and enclosing price sections.
+export function nonStandalonePresentation(name,serviceName){
+ return bundledPresentation(name,serviceName)||typeof name==='string'&&/\b(?:extra\s+members?|add[- ]ons?|upgrades?)\b/iu.test(name);
+}

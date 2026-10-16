@@ -1,5 +1,6 @@
-import {digest} from './model.mjs';
+import {digest,providerBound} from './model.mjs';
 import {compatibleCurrencies,marketCurrencyMetadata} from './market-currencies.mjs';
+import {providerSelectedMarketContext} from './provider-market-evidence.mjs';
 // Generic ICU currency metadata; no observation country/language decoder.
 const currencyTokens=new Map();
 for(const code of Intl.supportedValuesOf('currency')) {
@@ -28,7 +29,18 @@ export function currencyOccurrences(request) {
 export function resolveSourceCurrency({occurrence,selected,explicit=[],market=null,verification=null}) {
  const initial=occurrence.candidates,source=explicit.length===1?initial.filter(c=>explicit.includes(c)):initial;
  const compatible=market?compatibleCurrencies(market):[],intersection=source.filter(c=>compatible.includes(c));
- const considered=selected===null&&source.length>1&&market!==null&&verification==='BRACKET_VERIFIED'&&explicit.length<=1;
+ const considered=selected===null&&source.length>1&&market!==null&&['BRACKET_VERIFIED','PROVIDER_SELECTED_MARKET'].includes(verification)&&explicit.length<=1;
  const code=selected!==null&&!source.includes(selected)?null:selected??(source.length===1?source[0]:considered&&intersection.length===1?intersection[0]:null);
  return {code,diagnostics:{occurrence:occurrence.id,raw:occurrence.raw,start:occurrence.start,end:occurrence.end,initialCandidates:initial,semanticCurrency:selected,explicitCandidates:explicit,verifiedMarket:market,verification,marketNarrowingConsidered:considered,compatibleIntersection:intersection,result:code,reason:selected!==null?(source.includes(selected)?'SEMANTIC_SOURCE_SELECTION':'SOURCE_SELECTION_CONFLICT'):source.length===1?'UNAMBIGUOUS_SOURCE':considered&&intersection.length===1?'VERIFIED_MARKET_NARROWING':considered?'NON_UNIQUE_MARKET_INTERSECTION':'NO_VERIFIED_MARKET',metadataVersion:marketCurrencyMetadata.version}};
+}
+
+// A bare dollar sign is ambiguous until the provider's final retained source
+// carries a validated market-selector receipt. URL locale and user IP are not
+// inputs to this narrowing.
+export function providerSelectedDollarCurrency(observation,objective){
+ if(observation?.kind!=='PROVIDER'||observation.format!=='WEB'||observation.outcome!=='OK'||observation.truncated||observation.completeness==='INCOMPLETE'||observation.httpStatus!==200||digest(observation.body)!==observation.sha256||!providerBound(objective,observation.url))return null;
+ const market=providerSelectedMarketContext(observation),candidates=currencyTokens.get('$');
+ if(!market||!candidates)return null;
+ const resolved=resolveSourceCurrency({occurrence:{id:'source-bound-dollar',raw:'$',candidates:[...candidates].sort(),start:null,end:null},selected:null,market,verification:'PROVIDER_SELECTED_MARKET'});
+ return resolved.code?{code:resolved.code,market,sourceHash:observation.sha256,metadataVersion:marketCurrencyMetadata.version}:null;
 }
