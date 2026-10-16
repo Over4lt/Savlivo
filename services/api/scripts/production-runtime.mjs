@@ -65,14 +65,31 @@ export function prepareGenesisStartupIsolated(root,input){
  if(result.error||result.status!==0){const reason=String(result.stderr??'').split('\n').find(s=>/^(GENESIS_DEPLOYMENT_|STORAGE_)/.test(s));throw Error(reason??'GENESIS_STARTUP_VALIDATION_FAILED');}
  const ready=JSON.parse(result.stdout);if(ready.researchStarted!==false||!['READY','NOT_GENESIS','NOT_CONFIGURED'].includes(ready.status))throw Error('GENESIS_STARTUP_INVALID_RESULT');return ready;
 }
-export async function main(){
- const config=runtimeConfiguration();
+export async function runProductionMigration(config){
+ const script=path.join(config.cwd,'services/api/src/migrate-production.ts');
+ if(!fs.existsSync(script))throw Error('PRODUCTION_MIGRATION_RUNNER_MISSING');
+ await new Promise((resolve,reject)=>{
+  const child=spawn(process.execPath,['--import','tsx',script],{cwd:config.cwd,env:config.env,stdio:['ignore','ignore','pipe']});
+  let diagnostic='PRODUCTION_MIGRATION_DATABASE_FAILURE',stderr='',settled=false;
+  const finish=error=>{if(settled)return;settled=true;clearTimeout(timer);error?reject(error):resolve();};
+  const timer=setTimeout(()=>{child.kill('SIGKILL');finish(Error('PRODUCTION_MIGRATION_TIMEOUT'));},180_000);
+  child.stderr.on('data',chunk=>{stderr=(stderr+String(chunk)).slice(-4096);for(const line of stderr.split('\n')){try{const row=JSON.parse(line);if(row.event==='PRODUCTION_MIGRATION_FAILED'&&/^PRODUCTION_MIGRATION_[A-Z_]+$/.test(row.code))diagnostic=row.code;}catch{}}});
+  child.once('error',()=>finish(Error('PRODUCTION_MIGRATION_SPAWN_FAILED')));
+  child.once('close',code=>finish(code===0?null:Error(diagnostic)));
+ });
+}
+export async function startProductionRuntime({config=runtimeConfiguration(),migrate=runProductionMigration,supervisor=supervise}={}){
  const genesis=prepareGenesisStartupIsolated(config.cwd,config.env.V2_OPERATIONS_LIFECYCLE_INPUT);
  if(genesis.status!=='NOT_CONFIGURED')console.log(JSON.stringify({component:'savlivo-runtime',event:'GENESIS_DEPLOYMENT_PREFLIGHT',...genesis}));
  for(const file of [config.children[0].args[0],config.children[1].args[2]])if(!fs.existsSync(file))throw Error('RUNTIME_FILE_MISSING:'+path.relative(config.cwd,file));
  import.meta.resolve('tsx');
- return supervise(config);
+ console.log(JSON.stringify({component:'savlivo-runtime',event:'PRODUCTION_MIGRATION_STARTED'}));
+ try{await migrate(config);}
+ catch(error){const code=/^PRODUCTION_MIGRATION_[A-Z_]+$/.test(error?.message??'')?error.message:'PRODUCTION_MIGRATION_FAILED';console.error(JSON.stringify({component:'savlivo-runtime',event:'PRODUCTION_MIGRATION_FAILED',code}));throw Error('PRODUCTION_MIGRATION_FAILED');}
+ console.log(JSON.stringify({component:'savlivo-runtime',event:'PRODUCTION_MIGRATION_COMPLETED'}));
+ return supervisor(config);
 }
+export async function main(){return startProductionRuntime();}
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{if(process.argv[2]==='--genesis-startup'){const {root,input}=JSON.parse(fs.readFileSync(0,'utf8'));console.log(JSON.stringify(prepareGenesisStartup(root,input)));}else process.exitCode=await main();}catch(e){console.error(process.argv[2]==='--genesis-startup'?e.message:'SAVLIVO_RUNTIME_START_FAILED '+e.message);process.exitCode=1;}
 }

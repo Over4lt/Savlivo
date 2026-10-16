@@ -1,62 +1,22 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { Client } from "pg";
+import { runProductionMigrations } from "./production-migrations.js";
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
-
 if (!databaseUrl) {
-  throw new Error("DATABASE_URL_REQUIRED");
-}
-
-const repoRoot = resolve(process.cwd(), "../..");
-
-const schemaFile = "db/schema.sql";
-
-const migrationFiles = [
-  "db/migrations/002_auth.sql",
-  "db/migrations/003_billing.sql",
-  "db/migrations/004_subscription_status_history.sql",
-  "db/migrations/005_status_history_invariants.sql",
-  "db/migrations/007_authoritative_provider_pricing.sql",
-  "db/migrations/008_add_mainland_china_services.sql",
-  "db/migrations/009_subscription_market.sql",
-  "db/migrations/010_account_deletion_grace_period.sql",
-  "db/migrations/011_add_viaplay.sql",
-  "db/migrations/012_manual_subscriptions.sql",
-  "db/migrations/013_private_analytics.sql",
-  "db/migrations/014_verified_price_observations.sql",
-  "db/migrations/015_admin_passkeys.sql",
-  "db/migrations/019_suggested_provider_prices.sql",
-  "db/migrations/021_price_research_links.sql",
-  "services/api/src/savlivo-migration-savings-ledger-1.7.0.sql",
-  "services/api/migrations/20260824_notifications.sql",
-  "services/api/migrations/20260907_password_reset.sql",
-];
-
-const client = new Client({ connectionString: databaseUrl });
-
-try {
-  await client.connect();
-
-  const schemaCheck = await client.query(`
-    SELECT to_regtype('public.savlivo_plan') IS NOT NULL AS initialized
-  `);
-
-  if (!schemaCheck.rows[0]?.initialized) {
-    console.log(`Applying ${schemaFile}...`);
-    const sql = await readFile(resolve(repoRoot, schemaFile), "utf8");
-    await client.query(sql);
-  } else {
-    console.log("Base schema already initialized; skipping schema.sql.");
+  console.error(JSON.stringify({event:"PRODUCTION_MIGRATION_FAILED",code:"DATABASE_URL_REQUIRED"}));
+  process.exitCode = 1;
+} else {
+  const client = new Client({connectionString:databaseUrl});
+  try {
+    await client.connect();
+    const result = await runProductionMigrations(client);
+    console.log(JSON.stringify({event:"PRODUCTION_MIGRATION_RUNNER_COMPLETED",...result}));
+  } catch (error) {
+    const code = error instanceof Error && /^PRODUCTION_MIGRATION_[A-Z_]+$/.test(error.message)
+      ? error.message : "PRODUCTION_MIGRATION_DATABASE_FAILURE";
+    console.error(JSON.stringify({event:"PRODUCTION_MIGRATION_FAILED",code}));
+    process.exitCode = 1;
+  } finally {
+    await client.end().catch(()=>{});
   }
-
-  for (const file of migrationFiles) {
-    console.log(`Applying ${file}...`);
-    const sql = await readFile(resolve(repoRoot, file), "utf8");
-    await client.query(sql);
-  }
-
-  console.log("Production database migration complete.");
-} finally {
-  await client.end();
 }

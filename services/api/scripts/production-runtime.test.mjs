@@ -6,7 +6,7 @@ import path from 'node:path';
 import {spawn,spawnSync} from 'node:child_process';
 import {once} from 'node:events';
 import {pathToFileURL} from 'node:url';
-import {runtimeConfiguration,repositoryRoot,featureGates} from './production-runtime.mjs';
+import {runtimeConfiguration,repositoryRoot,featureGates,startProductionRuntime,runProductionMigration} from './production-runtime.mjs';
 import {executionSpawnOptions} from '../src/v2-operations/poller-runtime.mjs';
 const runtimeUrl=new URL('./production-runtime.mjs',import.meta.url).href;
 const pollerUrl=new URL('../src/v2-operations/poller-runtime.mjs',import.meta.url).href;
@@ -29,6 +29,32 @@ test('production commands: built API plus source mature poller, root cwd, flags 
  const c=runtimeConfiguration({PATH:process.env.PATH});assert.equal(c.cwd,path.resolve(repositoryRoot));assert(c.children[0].args[0].endsWith('/services/api/dist/services/api/src/server.js'));assert.deepEqual(c.children[1].args.slice(0,2),['--import','tsx']);assert.equal(c.children[1].args.at(-1),'--poll');assert.equal(c.children[1].ipc,true);for(const gate of featureGates)assert.equal(c.env[gate],'false');
 });
 test('explicit activation is preserved, invalid gate/root fails closed',()=>{assert.equal(runtimeConfiguration({ANALYTICS_V2_RUN_CONTROL_ENABLED:'true'}).env.ANALYTICS_V2_RUN_CONTROL_ENABLED,'true');assert.throws(()=>runtimeConfiguration({ANALYTICS_V2_RUN_CONTROL_ENABLED:'yes'}),/FEATURE_GATE/);assert.throws(()=>runtimeConfiguration({V2_OPERATIONS_REPOSITORY_ROOT:'/wrong'}),/ROOT_MISMATCH/);});
+test('production startup waits for migrations before API and poller supervision',async()=>{
+ const events=[],config=runtimeConfiguration({PATH:process.env.PATH}),original=console.log;let release;
+ config.children[0].args[0]=path.join(repositoryRoot,'services/api/scripts/production-runtime.mjs');
+ const gate=new Promise(resolve=>release=resolve);
+ console.log=()=>{};
+ try{
+  const startup=startProductionRuntime({config,migrate:async()=>{events.push('migration-start');await gate;events.push('migration-complete');},supervisor:async()=>{events.push('api-and-poller-start');return 0;}});
+  await until(()=>events.includes('migration-start'));assert.deepEqual(events,['migration-start']);
+  release();assert.equal(await startup,0);assert.deepEqual(events,['migration-start','migration-complete','api-and-poller-start']);
+ }finally{console.log=original;release?.();}
+});
+test('migration failure prevents API and poller startup and never logs credentials',async()=>{
+ const secret='postgresql://operator:secret@production.example/db',lines=[],config=runtimeConfiguration({PATH:process.env.PATH}),originalLog=console.log,originalError=console.error;
+ config.children[0].args[0]=path.join(repositoryRoot,'services/api/scripts/production-runtime.mjs');
+ console.log=()=>{};console.error=value=>lines.push(String(value));
+ try{
+  await assert.rejects(startProductionRuntime({config,migrate:async()=>{throw Error(secret);},supervisor:async()=>assert.fail('children started')}),/PRODUCTION_MIGRATION_FAILED/);
+  assert(lines.some(line=>line.includes('PRODUCTION_MIGRATION_FAILED')));assert(!lines.join('\n').includes(secret));
+ }finally{console.log=originalLog;console.error=originalError;}
+});
+test('migration subprocess reports only a bounded code when its stderr contains credentials',async t=>{
+ const dir=fixture(t),script=path.join(dir,'services/api/src/migrate-production.ts');fs.mkdirSync(path.dirname(script),{recursive:true});
+ fs.symlinkSync(path.join(repositoryRoot,'node_modules'),path.join(dir,'node_modules'),'dir');
+ fs.writeFileSync(script,"console.error('postgresql://operator:secret@production.example/db');console.error(JSON.stringify({event:'PRODUCTION_MIGRATION_FAILED',code:'PRODUCTION_MIGRATION_DATABASE_FAILURE'}));process.exitCode=1;");
+ await assert.rejects(runProductionMigration({cwd:dir,env:process.env}),error=>error.message==='PRODUCTION_MIGRATION_DATABASE_FAILURE'&&!error.message.includes('secret'));
+});
 test('supervised execution children stay in poller group; standalone stays detached',()=>{assert.equal(executionSpawnOptions(true).detached,false);assert.equal(executionSpawnOptions(false).detached,true);});
 for(const signal of ['SIGTERM','SIGINT'])test('supervisor forwards '+signal+' and waits for both children',async t=>{
  const dir=fixture(t),api=idle(dir,'api'),poller=idle(dir,'poller');const run=launch(t,dir,[{name:'api',args:[api]},{name:'poller',args:[poller],ipc:true}]);await until(()=>fs.existsSync(path.join(dir,'api.pid'))&&fs.existsSync(path.join(dir,'poller.pid')));run.child.kill(signal);const [code]=await run.finished;assert.equal(code,0,run.output());for(const name of ['api','poller']){assert.equal(fs.readFileSync(path.join(dir,name+'.signal'),'utf8'),signal);assert.equal(live(Number(fs.readFileSync(path.join(dir,name+'.pid')))),false);}

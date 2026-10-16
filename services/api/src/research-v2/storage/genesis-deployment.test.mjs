@@ -19,9 +19,11 @@ test('actual production launcher rejects stale input then repairs before either 
  const {spawn,spawnSync}=await import('node:child_process');const {fileURLToPath}=await import('node:url');const f=fixture(t);
  restoreGenesisFiles(f.source,f.dest,f.g.genesisHash);registerGenesisOverlay(f.dest,f.manifest,f.g.genesisHash);
  f.put(f.dest,'historical-input.json','{"version":1}');fs.renameSync(f.dest+'/'+f.data,f.dest+'/'+f.data+'.backup');
- for(const [from,to]of [['../../../scripts/production-runtime.mjs','services/api/scripts/production-runtime.mjs'],['./genesis-deployment.mjs','services/api/src/research-v2/storage/genesis-deployment.mjs'],['./core.mjs','services/api/src/research-v2/storage/core.mjs'],['../human-leads/snapshot.mjs','services/api/src/research-v2/human-leads/snapshot.mjs'],['../../../../../packages/contracts/src/markets.ts','packages/contracts/src/markets.ts'],['../capabilities/config.mjs','services/api/src/research-v2/capabilities/config.mjs']])f.put(f.dest,to,fs.readFileSync(new URL(from,import.meta.url)));
+ for(const [from,to]of [['../../../scripts/production-runtime.mjs','services/api/scripts/production-runtime.mjs'],['./genesis-deployment.mjs','services/api/src/research-v2/storage/genesis-deployment.mjs'],['./core.mjs','services/api/src/research-v2/storage/core.mjs'],['../human-leads/snapshot.mjs','services/api/src/research-v2/human-leads/snapshot.mjs'],['../../../../../packages/contracts/src/markets.ts','packages/contracts/src/markets.ts']])f.put(f.dest,to,fs.readFileSync(new URL(from,import.meta.url)));
+ f.put(f.dest,'services/api/src/research-v2/capabilities/config.mjs','export const resolveCapabilities=()=>({});');
  fs.symlinkSync(fileURLToPath(new URL('../../../../../node_modules',import.meta.url)),f.dest+'/node_modules','dir');
  const children=['services/api/dist/services/api/src/server.js','services/api/src/v2-operations/worker.mjs'];
+ f.put(f.dest,'services/api/src/migrate-production.ts',"console.log(JSON.stringify({event:'PRODUCTION_MIGRATION_RUNNER_COMPLETED'}));");
  for(const p of children)f.put(f.dest,p,`import fs from 'node:fs';if(!fs.existsSync(${JSON.stringify(f.data)}))throw Error('REPAIR_ORDER');if(process.env.ANALYTICS_V2_RUN_CONTROL_ENABLED!=='false'||process.env.ANALYTICS_V2_SCHEDULING_ENABLED!=='false')throw Error('GATES');fs.writeFileSync(${JSON.stringify(p+'.started')},'offline');process.on('SIGTERM',()=>process.exit(0));process.on('disconnect',()=>process.exit(0));setInterval(()=>{},1000);`);
  f.put(f.dest,'services/api/package.json','{"type":"module"}');
  const env={...process.env,TSX_DISABLE_CACHE:'1',V2_OPERATIONS_REPOSITORY_ROOT:fs.realpathSync(f.dest),V2_OPERATIONS_LIFECYCLE_INPUT:'historical-input.json',ANALYTICS_V2_OPERATIONS_ENABLED:'true',ANALYTICS_V2_RUN_CONTROL_ENABLED:'false',ANALYTICS_V2_SCHEDULING_ENABLED:'false'};
@@ -29,7 +31,7 @@ test('actual production launcher rejects stale input then repairs before either 
  const child=spawn(process.execPath,['services/api/scripts/production-runtime.mjs'],{cwd:f.dest,env:{...env,V2_OPERATIONS_LIFECYCLE_INPUT:f.input},stdio:['ignore','pipe','pipe']});let output='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>output+=b);const exit=new Promise(resolve=>child.once('exit',resolve));
  t.after(()=>{if(child.exitCode===null)child.kill('SIGTERM');});
  const deadline=Date.now()+10000;while(!children.every(p=>fs.existsSync(f.dest+'/'+p+'.started'))&&Date.now()<deadline&&child.exitCode===null)await new Promise(r=>setTimeout(r,25));
- assert(children.every(p=>fs.existsSync(f.dest+'/'+p+'.started')),output);assert.equal(ensureGenesisRepositoryInputs(f.dest,f.input,{repair:false}).status,'READY');assert(output.indexOf('GENESIS_DEPLOYMENT_PREFLIGHT')<output.indexOf('CHILD_STARTED'));child.kill('SIGTERM');assert.equal(await exit,0,output);
+ assert(children.every(p=>fs.existsSync(f.dest+'/'+p+'.started')),output);assert.equal(ensureGenesisRepositoryInputs(f.dest,f.input,{repair:false}).status,'READY');assert(output.indexOf('GENESIS_DEPLOYMENT_PREFLIGHT')<output.indexOf('PRODUCTION_MIGRATION_COMPLETED'));assert(output.indexOf('PRODUCTION_MIGRATION_COMPLETED')<output.indexOf('CHILD_STARTED'));child.kill('SIGTERM');assert.equal(await exit,0,output);
 });
 
 test('execution selection cannot change Genesis trust inputs or widen research scopes',async t=>{
