@@ -47,6 +47,29 @@ test("production admin CORS is exact and request payloads cannot override server
     process.env.ADMIN_ENABLED="false";assert.equal((await request("OPTIONS",productionAdmin.ADMIN_ALLOWED_ORIGIN)).status,404);
   } finally {for(const key of Object.keys(process.env))if(!(key in old))delete process.env[key];Object.assign(process.env,old);}
 });
+test("Research Link edit preflight permits PATCH without broadening other Admin routes",async()=>{
+  const old={...process.env};Object.assign(process.env,productionAdmin);
+  async function preflight(path:string,origin=productionAdmin.ADMIN_ALLOWED_ORIGIN) {
+    const req=Readable.from([]) as IncomingMessage;
+    req.url=path;req.method="OPTIONS";req.headers={origin,"access-control-request-method":"PATCH","access-control-request-headers":"authorization,content-type"};
+    let status=0;const headers:Record<string,unknown>={};
+    await handlePrivateData(req,{setHeader:(key:string,value:unknown)=>{headers[key]=value;},writeHead:(code:number,values:Record<string,unknown>)=>{status=code;Object.assign(headers,values);},end:()=>{}} as any);
+    return {status,headers};
+  }
+  try {
+    const item="/v1/admin/v2-operations/price-research/research-links/11111111-1111-4111-8111-111111111111";
+    const edit=await preflight(item);
+    assert.equal(edit.status,204);
+    assert.equal(edit.headers["Access-Control-Allow-Origin"],productionAdmin.ADMIN_ALLOWED_ORIGIN);
+    assert.equal(edit.headers["Access-Control-Allow-Headers"],"Authorization, Content-Type");
+    assert.deepEqual(String(edit.headers["Access-Control-Allow-Methods"]).split(", "),["GET","POST","PATCH","DELETE"]);
+    assert.equal(edit.headers["Access-Control-Allow-Credentials"],undefined);
+    for(const path of ["/v1/admin/v2-operations/price-research/research-links","/v1/admin/v2-operations/summary","/v1/admin/passkeys/authenticate/options"]){
+      const other=await preflight(path);assert.equal(other.status,204);assert.equal(other.headers["Access-Control-Allow-Methods"],"GET, POST, DELETE");
+    }
+    const denied=await preflight(item,"https://savlivo.com");assert.equal(denied.status,403);assert.equal(denied.headers["Access-Control-Allow-Origin"],undefined);
+  }finally{for(const key of Object.keys(process.env))if(!(key in old))delete process.env[key];Object.assign(process.env,old);}
+});
 test("all named events accept only enum dimensions",()=>{
   for(const event of analyticsEvents) assert.equal(parseAnalyticsEvent({...valid,event}).event,event);
   assert.equal(parseAnalyticsEvent({...valid,service:"netflix",category:"video"}).service,"netflix");

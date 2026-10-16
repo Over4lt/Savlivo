@@ -55,6 +55,32 @@ test("production client has only the fixed API target, including reads and logou
   assert.ok(requests.every(({url,options})=>url.startsWith("https://savlivo-api.onrender.com/v1/admin/")&&options.credentials==="omit"&&options.cache==="no-store"));
   assert.equal(nodes.dashboard.hidden,true);
 });
+test("Research Links reads and mutations share the production API origin, auth and request policy",async()=>{
+  const requests=[],page={hostname:"admin.savlivo.com",protocol:"https:",origin:"https://admin.savlivo.com",hash:"#v2-operations"};let operationsRequest,failPatch=false;
+  const nodes=harness(async(url,options)=>{
+    requests.push({url,options});
+    if(url.endsWith("authenticate/verify"))return response({token:"adm_test",expiresInSeconds:900});
+    if(url.includes("/overview?"))return response({...overview,v2OperationsEnabled:true});
+    if(failPatch&&options.method==="PATCH")return response({error:"INVALID_RESEARCH_LINK"},400);
+    return response({version:"PRICE_RESEARCH_LINKS_V1",rows:[]});
+  },undefined,page,undefined,async(_parent,request)=>{operationsRequest=request;return ()=>{};});
+  await nodes.login.listeners.submit(submit);assert.equal(typeof operationsRequest,"function");
+  const path="v2-operations/price-research/research-links",id="11111111-1111-4111-8111-111111111111",payload={url:"https://www.disneyplus.com/",kind:"DIRECT_SOURCE",marketScope:"GLOBAL",marketCode:null,enabled:true};
+  await operationsRequest(path+"?serviceId=disney-plus");
+  await operationsRequest(path,{method:"POST",body:JSON.stringify({serviceId:"disney-plus",...payload})});
+  await operationsRequest(path+"/"+id,{method:"PATCH",body:JSON.stringify(payload)});
+  await operationsRequest(path+"/"+id,{method:"DELETE"});
+  const links=requests.filter(row=>row.url.includes("/research-links"));assert.deepEqual(links.map(row=>row.options.method??"GET"),["GET","POST","PATCH","DELETE"]);
+  assert.deepEqual(links.map(row=>row.url),[
+    "https://savlivo-api.onrender.com/v1/admin/"+path+"?serviceId=disney-plus",
+    "https://savlivo-api.onrender.com/v1/admin/"+path,
+    "https://savlivo-api.onrender.com/v1/admin/"+path+"/"+id,
+    "https://savlivo-api.onrender.com/v1/admin/"+path+"/"+id
+  ]);
+  for(const {options} of links){assert.equal(options.credentials,"omit");assert.equal(options.cache,"no-store");assert.equal(options.headers.Authorization,"Bearer adm_test");assert.equal(options.headers["Content-Type"],"application/json");}
+  assert.equal(links[0].options.body,undefined);assert.equal(links[1].options.body,JSON.stringify({serviceId:"disney-plus",...payload}));assert.equal(links[2].options.body,JSON.stringify(payload));assert.equal(links[3].options.body,undefined);
+  failPatch=true;await assert.rejects(operationsRequest(path+"/"+id,{method:"PATCH",body:JSON.stringify({...payload,url:"http://localhost/"})}),error=>error.message==="Request failed (HTTP 400: INVALID_RESEARCH_LINK)."&&!error.message.includes("Failed to fetch"));
+});
 test("production hostname variants and non-HTTPS origins are rejected before network access",()=>{
   for(const origin of ["http://admin.savlivo.com","https://admin.savlivo.com:444","https://admin.savlivo.com.evil.invalid","https://savlivo.com"]) {
     const url=new URL(origin);let calls=0;

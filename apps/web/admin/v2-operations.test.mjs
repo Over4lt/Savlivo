@@ -544,6 +544,18 @@ test('Research links panel performs add, edit, toggle and delete without startin
  const password=descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes('1Password')).children[0];password.checked=true;await password.listeners.change();assert.equal(control.hidden,true);
 });
 
+test('Research Links edit serializes the Disney+ URL and refreshes the saved row',async t=>{
+ const oldUrl='https://help.disneyplus.com/en-GB/article/disneyplus-price?redirect=true',newUrl='https://www.disneyplus.com/',id='11111111-1111-1111-1111-111111111111';
+ const {root,calls,linkRows}=await canonicalBuilder(t,{statusRows:[{serviceId:'chess-com',market:'ES',verifiedCount:0,suggestedCount:2}],linkRows:[{id,serviceId:'chess-com',url:oldUrl,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true}]});
+ const chess=descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes('Chess.com')).children[0];chess.checked=true;await chess.listeners.change();
+ const es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();await button(root,'Research links').listeners.click();assert(text(root).includes(oldUrl));
+ await button(root,'Edit').listeners.click();const editor=descendants(root).find(node=>node.className==='ops-research-links-editor'),url=descendants(editor).find(node=>node.textContent==='URL').children[0];url.value=newUrl;
+ await button(root,'Save changes').listeners.click();
+ const edits=calls.filter(row=>row.method==='PATCH'&&row.p.endsWith('/research-links/'+id));assert.equal(edits.length,1);
+ assert.deepEqual(edits[0].body,{url:newUrl,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true});
+ assert.equal(linkRows[0].url,newUrl);assert(text(root).includes(newUrl));assert.equal(calls.filter(row=>row.method==='GET'&&row.p.includes('/research-links?serviceId=chess-com')).length,2);
+});
+
 test('market status selectors replace explicit canonical Markets Set and manual edits keep working',async t=>{
  const statusRows=[{serviceId:'chess-com',market:'X2',suggestedCount:3,verifiedCount:0},{serviceId:'chess-com',market:'ES',suggestedCount:2,verifiedCount:0},{serviceId:'chess-com',market:'X1',suggestedCount:0,verifiedCount:2},{serviceId:'1password',market:'ES',suggestedCount:0,verifiedCount:1}],{root,calls}=await canonicalBuilder(t,{statusRows}),chess=descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes('Chess.com')).children[0];
  assert.equal(button(root,'Suggested only (0)').disabled,true);assert.equal(calls.filter(row=>row.p.endsWith('/market-price-status')).length,0);

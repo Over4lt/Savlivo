@@ -155,7 +155,8 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
     res.setHeader("Vary","Origin");
     if (req.method === "OPTIONS") {
       res.setHeader("Access-Control-Allow-Headers","Authorization, Content-Type");
-      res.setHeader("Access-Control-Allow-Methods","GET, POST, DELETE");respond(res,204,{});return true;
+      const researchLinkEdit=url.pathname.startsWith("/v1/admin/v2-operations/price-research/research-links/");
+      res.setHeader("Access-Control-Allow-Methods",researchLinkEdit ? "GET, POST, PATCH, DELETE" : "GET, POST, DELETE");respond(res,204,{});return true;
     }
     // No password login in any runtime. Bootstrap tokens have enrollment-only scope.
     if (url.pathname === "/v1/admin/session" && req.method === "POST") {respond(res,404,{error:"NOT_FOUND"});return true;}

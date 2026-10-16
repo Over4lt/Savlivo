@@ -37,7 +37,9 @@ async function request(path, options = {}) {
   if (!response.ok) {
     const messages={PREFLIGHT_BUSY:"Another Preflight is still running. Use Recover Preflight or wait for it to finish.",PREFLIGHT_NOT_FOUND:"This Preflight is no longer available. Run Preflight again.",TARGETING_STALE_REFRESH_PREVIEW:"The lifecycle changed. Refresh the service preview and run Preflight again.",TARGETING_PREVIEW_MISMATCH:"The selection changed. Refresh the service preview before Preflight.",INVALID_LIFECYCLE_SELECTION:"That selection includes a service outside the frozen lifecycle.",PREFLIGHT_STALE:"Research inputs changed. Run Preflight again before starting.",PREFLIGHT_EXPIRED:"Preflight expired. Run Preflight again before starting."};
     const detail=path.startsWith("v2-operations/")?await response.json().catch(()=>null):null;
-    throw new Error(response.status === 401 ? "Access denied or session expired." : messages[detail?.error]??"Request unavailable. Check configuration or try again later.");
+    const code=typeof detail?.error==="string"&&/^[A-Z][A-Z0-9_]{0,79}$/.test(detail.error)?`: ${detail.error}`:"";
+    const fallback=path.startsWith("v2-operations/")?`Request failed (HTTP ${response.status}${code}).`:"Request unavailable. Check configuration or try again later.";
+    throw new Error(response.status === 401 ? "Access denied or session expired." : messages[detail?.error]??fallback);
   }
   return response.json();
 }

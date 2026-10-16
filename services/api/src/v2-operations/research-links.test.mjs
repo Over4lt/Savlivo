@@ -7,8 +7,8 @@ import {operationsRequest} from './http.mjs';
 
 const id='11111111-1111-4111-8111-111111111111';
 const input=(url='https://streamco.example/pricing')=>({url,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true});
-function fixture(){
- const rows=[],calls=[],ops={config:{read:true,control:true},priceResearchTargeting:async()=>({services:[{serviceId:'streamco',selectable:true}],markets:[{id:'NO'},{id:'SE'}]})};
+function fixture(serviceId='streamco'){
+ const rows=[],calls=[],ops={config:{read:true,control:true},priceResearchTargeting:async()=>({services:[{serviceId,selectable:true}],markets:[{id:'NO'},{id:'SE'}]})};
  const client={async query(sql,args=[]){calls.push({sql,args});
   if(sql.startsWith('WITH evidence'))return {rows:[]};
   if(sql.startsWith('SELECT count'))return {rows:[{count:rows.length}]};
@@ -61,6 +61,19 @@ test('authenticated Operations routes POST, GET, PATCH and DELETE through the bo
  assert.equal((await call('GET','?serviceId=streamco')).rows.length,1);
  assert.equal((await call('PATCH','/'+added.row.id,{...input(),enabled:false})).row.enabled,false);
  assert.equal((await call('DELETE','/'+added.row.id)).deleted,true);
+});
+
+test('Disney+ GLOBAL Direct source URL edit survives validation, storage and refreshed list locally',async()=>{
+ const {rows,calls,ops}=fixture('disney-plus'),oldUrl='https://help.disneyplus.com/en-GB/article/disneyplus-price?redirect=true',newUrl='https://www.disneyplus.com/';
+ rows.push({id,service_id:'disney-plus',url:oldUrl,kind:'DIRECT_SOURCE',market_scope:'GLOBAL',market_code:null,enabled:true,created_at:new Date(),updated_at:new Date(),last_used_at:null,last_result:null});
+ const base='https://admin.example/v1/admin/v2-operations/price-research/research-links',call=(method,suffix,body)=>operationsRequest({method,url:new URL(base+suffix),body,actor:'admin'},ops);
+ assert.equal((await call('GET','?serviceId=disney-plus')).rows[0].url,oldUrl);
+ await assert.rejects(call('PATCH','/'+id,{...input('http://localhost/private')}),error=>error.status===400&&error.message==='UNSAFE_RESEARCH_LINK_URL');
+ assert.equal(rows[0].url,oldUrl);
+ const updated=await call('PATCH','/'+id,{url:newUrl,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true});
+ assert.deepEqual({url:updated.row.url,kind:updated.row.kind,scope:updated.row.marketScope,enabled:updated.row.enabled},{url:newUrl,kind:'DIRECT_SOURCE',scope:'GLOBAL',enabled:true});
+ assert.deepEqual(calls.findLast(row=>row.sql.startsWith('UPDATE price_research_links SET url')).args.slice(1),[newUrl,'DIRECT_SOURCE','GLOBAL',null,true]);
+ assert.equal((await call('GET','?serviceId=disney-plus')).rows[0].url,newUrl);
 });
 
 test('target snapshot keeps link order stable on resume and fails closed on tampering',async t=>{
