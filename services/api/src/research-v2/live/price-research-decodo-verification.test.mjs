@@ -40,7 +40,7 @@ test('F: disabled Decodo records an unavailable diagnostic without suppressing D
  assert.equal(state.targets[0].decodoVerification.reason,'INDEPENDENT_DECODO_PERMISSION_REQUIRED');assert.equal(state.usage.acquisitions,0);
 });
 
-test('G/H: only provider-authorized URLs are eligible for required verification',()=>{
+test('G/H: unrelated URLs without an accepted acquisition origin remain ineligible',()=>{
  const other='https://third-party.example/pricing',x=target('DE',{urls:[other],leads:[{url:other,title:'Provider pricing'}],knownCommercialUrls:[],authorities:[authority]});
  assert.equal(priceResearchDecodoVerification(x).status,'UNAVAILABLE');assert.equal(planResearch(x).route==='DECODO',false);
  assert.equal(executableAction(x,{route:'DECODO',url:other,reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED'}).reason,'AUTHORITY_UNRESOLVED');
@@ -67,11 +67,11 @@ test('N: sufficient Direct price cannot stop adaptive planning before the requir
  assert.notEqual(assessment.stop?.reason,'NO_EXECUTABLE_PROGRESS_RECONCILE');
 });
 
-test('classifier rejection is a persisted unavailable diagnostic, not a Decodo attempt',async t=>{
+test('pre-acquisition classifier rejection does not suppress a bounded candidate attempt',async t=>{
  const x=target(),state=await runAdaptiveCampaign({directory:temp(t),manifest:{targets:[x],conditionalFollowupTargets:[]},createAdapters:async()=>({read:async()=>page(),search:fail,classify:async({page:source})=>source.outcome==='OK'?admitted:{eligible:false,reason:'OWNERSHIP_UNPROVEN'},consumeProvider:async()=>direct(),acquire:fail})});
  assert.deepEqual(state.targets[x.id].verified.map(row=>row.id),['direct-price']);
- assert.deepEqual(state.targets[x.id].decodoVerification,{status:'UNAVAILABLE',url,reason:'PROVIDER_AUTHORITY_REJECTED'});
- assert.equal(state.services.provider.used.acquisitions,0);assert.notEqual(state.services.provider.stop?.reason,'NO_EXECUTABLE_PROGRESS_RECONCILE');
+ assert.equal(state.targets[x.id].decodoVerification.status,'ATTEMPTED');
+ assert.equal(state.services.provider.used.acquisitions,1);assert.notEqual(state.services.provider.stop?.reason,'NO_EXECUTABLE_PROGRESS_RECONCILE');
 });
 
 test('L: failed Decodo acquisition does not prevent a sibling target from running',async t=>{

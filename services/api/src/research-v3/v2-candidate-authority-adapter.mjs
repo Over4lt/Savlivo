@@ -19,8 +19,11 @@ export function v2CandidateAuthorityObservation(input){
  if(!url||url!==page.url||!requestedUrl||requestedUrl!==page.requestedUrl||new URL(url).hostname!==new URL(requestedUrl).hostname)return null;
  if(page.outcome!=='OK'||page.truncated===true||page.httpStatus<200||page.httpStatus>=300||!['text/html','application/xhtml+xml'].includes(page.contentType)||typeof body!=='string'||!body.trim())return null;
  if(!/^[a-f0-9]{64}$/.test(page.bodyHash)||page.bodyHash!==digest(body)||page.sourceIntegrity.sha256!==page.bodyHash)return null;
- if(!Array.isArray(page.accessDecisions)||!page.accessDecisions.length||page.accessDecisions.some(row=>!object(row)||row.decision!=='ALLOWED'))return null;
- const observation={id:input.observationId,kind:'CANDIDATE',authority:'UNREVIEWED_CANDIDATE',url,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'CANDIDATE_PAGE'},outcome:'OK',truncated:false,completeness:'COMPLETE',format:'WEB',contentType:page.contentType,httpStatus:page.httpStatus,access:page.accessDecisions.map(row=>({decision:row.decision})),body,sha256:page.bodyHash};
+ // The public reader treats an absent robots policy (404/410) as permitted.
+ // Preserve that established policy decision while presenting V3's ALLOWED
+ // observation vocabulary; explicit restrictions still fail closed.
+ if(!Array.isArray(page.accessDecisions)||!page.accessDecisions.length||page.accessDecisions.some(row=>!object(row)||!['ALLOWED','NO_ROBOTS_POLICY'].includes(row.decision)))return null;
+ const observation={id:input.observationId,kind:'CANDIDATE',authority:'UNREVIEWED_CANDIDATE',url,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'CANDIDATE_PAGE'},outcome:'OK',truncated:false,completeness:'COMPLETE',format:'WEB',contentType:page.contentType,httpStatus:page.httpStatus,access:page.accessDecisions.map(()=>({decision:'ALLOWED'})),body,sha256:page.bodyHash};
  return observation;
 }
 

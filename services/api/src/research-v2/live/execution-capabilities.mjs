@@ -3,6 +3,8 @@ import {usableResearchMemory} from './research-memory.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {activeRenderingNeed} from './rendering-diagnosis.mjs';
+import {priceResearchAcquisitionCandidate} from './price-research-candidate.mjs';
+import {normalizePublicUrl} from '../../research-v1/public-network.mjs';
 // One executable action space for planning and dispatch. No transport or evidence grants.
 import {navigationKey,navigationRank} from './provider-navigation.mjs';
 export const executionBounds=Object.freeze({managementReserveOnly:0,perServiceReads:4,perServiceSearches:2,perServiceAcquisitions:2,reads:80,searches:40,acquisitions:30,bytes:2*1024*1024,bytesPerPage:2*1024*1024});
@@ -17,7 +19,7 @@ export function equivalentCountryAcquisitionAttempted(t,url){
  if(outcomes.length&&!retryable)return true;
  return !retryable&&(t.decisions??[]).some(row=>row.acquisitionReserved&&resourceKey(row.url)===key);
 }
-export function destinationReadAllowed(t,lead,bounds=executionBounds,{candidateAuthorityReview=false}={}){const reviewed=providerRoutingAuthority(t,lead.url),authorityEvidence=candidateAuthorityReview&&typeof lead.authorityEvidenceFor==='string',sourceBoundCandidate=candidateAuthorityReview&&lead.sourceBoundCandidate===true,objectiveLeadCandidate=candidateAuthorityReview&&lead.providerSeedObjectiveLead===true,boundedAuthorityCandidate=authorityEvidence||sourceBoundCandidate||objectiveLeadCandidate,count=directAcquisitionReads(t).filter(r=>new URL(r.requestedUrl).origin===new URL(lead.url).origin).length;return (!hasProviderRoutingAuthority(t)||reviewed||boundedAuthorityCandidate)&&count<(reviewed&&navigationRank(t,lead)<=15?bounds.perServiceReads:authorityEvidence?2:sourceBoundCandidate||objectiveLeadCandidate?1:2);}
+export function destinationReadAllowed(t,lead,bounds=executionBounds,{candidateAuthorityReview=false}={}){const reviewed=providerRoutingAuthority(t,lead.url),priceCandidate=priceResearchAcquisitionCandidate(t,lead.url),authorityEvidence=candidateAuthorityReview&&typeof lead.authorityEvidenceFor==='string',sourceBoundCandidate=candidateAuthorityReview&&lead.sourceBoundCandidate===true,objectiveLeadCandidate=candidateAuthorityReview&&lead.providerSeedObjectiveLead===true,boundedAuthorityCandidate=authorityEvidence||sourceBoundCandidate||objectiveLeadCandidate,count=directAcquisitionReads(t).filter(r=>new URL(r.requestedUrl).origin===new URL(lead.url).origin).length;return (!hasProviderRoutingAuthority(t)||reviewed||priceCandidate||boundedAuthorityCandidate)&&count<(reviewed&&navigationRank(t,lead)<=15?bounds.perServiceReads:authorityEvidence?2:sourceBoundCandidate||objectiveLeadCandidate?1:2);}
 export function executableAction(t,action,{bounds=executionBounds,usage={reads:0,searches:0,acquisitions:0,bytes:0},available={direct:true,discovery:true,decodo:true,browser:true}}={}){
  if(t.capabilities)available={direct:available.direct!==false&&t.capabilities.direct,discovery:available.discovery!==false&&t.capabilities.tavily,decodo:available.decodo!==false&&t.capabilities.decodo,browser:available.browser!==false&&t.capabilities.browser};
  const no=reason=>({executable:false,reason}),yes=()=>({executable:true,reason:'CAPABILITY_AND_BUDGET_ALLOWED'}),route=action.route;
@@ -31,7 +33,7 @@ export function executableAction(t,action,{bounds=executionBounds,usage={reads:0
  if(route==='DIRECT'){
  if(bounds.managementReserveOnly===1){const lead=(t.leads??[]).find(l=>l.url===action.url),m=managementInformation(t,action.url,lead?.label??lead?.title??'');if(t.researchObjective!=='CATALOG_ONLY'||!m.strongManagement||m.missing.join('|')!=='WEB_MANAGEMENT')return no('MANAGEMENT_RESERVE_DESTINATION_REQUIRED');}
  if(available.direct===false)return no('DIRECT_DISABLED');if(usage.bytes>=bounds.bytes||bounds.bytesPerPage===0)return no('BYTE_BUDGET_EXHAUSTED');if(directAcquisitionReads(t).length>=bounds.perServiceReads||usage.reads>=bounds.reads)return no('DIRECT_BUDGET_EXHAUSTED');
- let url;try{url=new URL(action.url);}catch{return no('INVALID_URL');}const l=(t.leads??[]).find(l=>navigationKey(l.url)===navigationKey(url.href))??{url:url.href};
+ let url;try{url=t.operationsObjective==='PRICE_RESEARCH'?normalizePublicUrl(action.url):new URL(action.url);}catch{return no('INVALID_URL');}const l=(t.leads??[]).find(l=>navigationKey(l.url)===navigationKey(url.href))??{url:url.href};
  if((l.navigationDepth??0)>Math.min(3,t.smartResearch?.navigationDepth??3))return no('NAVIGATION_DEPTH_EXHAUSTED');
  if((t.blockedOrigins??[]).includes(url.origin))return no('PROVIDER_ACCESS_POLICY_STOP');
  if(!destinationReadAllowed(t,l,bounds,{candidateAuthorityReview:action.candidateAuthorityReview===true}))return no('DESTINATION_OR_ORIGIN_LIMIT');
@@ -45,9 +47,9 @@ export function executableAction(t,action,{bounds=executionBounds,usage={reads:0
   const verification=action.reason==='PRICE_RESEARCH_VERIFICATION_REQUIRED'&&t.operationsObjective==='PRICE_RESEARCH';
   if((t.capabilities?.direct!==false&&!semantic&&!verification)||t.capabilities?.decodo!==true||available.decodo===false)return no('INDEPENDENT_DECODO_PERMISSION_REQUIRED');
   if(!(/^[A-Z]{2}$/.test(t.market??'')))return no('DECODO_ADMITTED_MARKET_REQUIRED');
-  let url;try{url=new URL(action.url);}catch{return no('INVALID_URL');}
+  let url;try{url=t.operationsObjective==='PRICE_RESEARCH'?normalizePublicUrl(action.url):new URL(action.url);}catch{return no('INVALID_URL');}
   if(url.protocol!=='https:'||url.username||url.password)return no('INVALID_URL');
-  if(!providerRoutingAuthority(t,url.href))return no('AUTHORITY_UNRESOLVED');
+  if(!providerRoutingAuthority(t,url.href)&&!(verification&&priceResearchAcquisitionCandidate(t,url.href)))return no('AUTHORITY_UNRESOLVED');
   const memory=usableResearchMemory(t);if(memory.rejected)return no('RESEARCH_MEMORY_RECONCILIATION_REQUIRED');
   if([...(t.blockedOrigins??[]),...memory.blockedOrigins].includes(url.origin))return no('PROVIDER_ACCESS_POLICY_STOP');
   if(verification&&(t.reads??[]).some(row=>row.outcome==='ACCESS_CONTROL_STOP'&&new URL(row.requestedUrl).pathname===url.pathname))return no('ACCESS_CONTROL_PATH_STOP');

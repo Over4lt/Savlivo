@@ -9,6 +9,7 @@ import {canonical} from '../../research-v3/model.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
 import {activeRenderingNeed} from './rendering-diagnosis.mjs';
+import {priceResearchAcquisitionCandidate} from './price-research-candidate.mjs';
 export function nonObservedDirectProviderPage(page,url){
  if(page.outcome==='OK')return null;
  return {url,classification:page.outcome==='ACCESS_CONTROL_STOP'?'DIRECT_ACCESS_BLOCKED':'DIRECT_ACQUISITION_UNRESOLVED',verified:[],needsGeo:false,blockers:[page.failure?.code??page.outcome],channel:'DIRECT_FAILED'};
@@ -54,7 +55,8 @@ export async function createTavilyDiscovery({inventory,env=process.env,readKeych
     // Reservation already exists at dispatch; validate permission again without treating this reservation as a duplicate.
     if(independent&&!(target.capabilities?.direct===false&&target.capabilities?.decodo===true))throw Error('INDEPENDENT_DECODO_PERMISSION_REQUIRED');
     if(!independent&&!verification&&(!direct?.needsGeo||!direct.acquisitionEscalation?.eligible))throw Error('DISCOVERY_ACQUISITION_FAILURE_PROOF_REQUIRED');
-    const admitted=admittedDiscoveryCandidate(candidate,target);try{journal.reserve(target.id,'pages');}catch(error){if(String(error?.message).startsWith('DISCOVERY_BOUND_'))return {classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO',direct,channel:verification?'PRICE_RESEARCH_DECODO':independent?'INDEPENDENT_DECODO':'DIRECT_THEN_GEO',routingReason:verification||independent?reason:direct.acquisitionEscalation.primaryFailureReason};throw error;}
+    const routingOnly=verification&&priceResearchAcquisitionCandidate(target,candidate.url);
+    const admitted=routingOnly?{url:routingOnly.url,acquisitionCandidate:routingOnly}:admittedDiscoveryCandidate(candidate,target);try{journal.reserve(target.id,'pages');}catch(error){if(String(error?.message).startsWith('DISCOVERY_BOUND_'))return {classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO',direct,channel:verification?'PRICE_RESEARCH_DECODO':independent?'INDEPENDENT_DECODO':'DIRECT_THEN_GEO',routingReason:verification||independent?reason:direct.acquisitionEscalation.primaryFailureReason};throw error;}
     journal.append(verification?'PRICE_RESEARCH_DECODO_ADMITTED':independent?'INDEPENDENT_DECODO_ADMITTED':'GEO_ESCALATION_ELIGIBLE',{target:target.id,url:admitted.url,reason:verification||independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent&&!verification?{proof:direct.acquisitionEscalation,blockers:direct.blockers}:{})});
     const start=journal.events.length,geo=await acquire({target,candidate:admitted,journal,maxBytes});
     if(journal.events.slice(start).some(e=>e.type==='BOUND_STOP'))return {...geo,classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO',direct};
