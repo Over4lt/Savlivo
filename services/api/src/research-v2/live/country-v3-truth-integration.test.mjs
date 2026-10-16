@@ -32,6 +32,12 @@ test('complete consumer monthly offering becomes established through unchanged T
  const {result}=evaluateCountry(),price=result.v3Truth.prices.NO;assert.equal(price.propositions.MONTHLY_SUBSCRIPTION.value,true);assert.equal(price.propositions.CONSUMER_SUBSCRIPTION.value,true);assert.equal(price.established,true);assert.equal(result.v3Truth.established,true);
 });
 
+test('family-classified final provider source can reach unchanged V3 truth with a canonical country receipt',()=>{
+ const pageUrl='https://help.example.com/membership',targetValue=target({providerSourceIdentityHosts:['example.com'],authorities:[]}),body=html().replace('<title>Aurora</title>','<title>Help and pricing</title><h1>Aurora monthly membership</h1>'),fixture=countryFixture(body,{targetValue,pageUrl}),result=evaluateCountryProviderTruth(fixture);
+ assert.equal(result.v3Truth.established,true);assert.equal(result.v3Truth.prices.NO.propositions.PRICE_AMOUNT.value,79.99);
+ assert.equal(result.v3Truth.prices.NO.propositions.CURRENCY.value,'NOK');assert.equal(result.v3Truth.prices.NO.propositions.TARGET_MARKET.state,'ESTABLISHED');
+});
+
 test('annual prepaid country acquisition does not become monthly recurring',()=>{
  const annual=product('annual',{product:{id:'annual',name:'Annual',productType:'PRODUCT_TYPE_MEMBERSHIP',consumer:true,subscription:{length:1,unit:'years'}},totalAmountWithTaxes:{amount:'95988',currencyCode:'NOK'},monthlyEquivalent:{amount:'7999',currencyCode:'NOK'}});
  const price=evaluateCountry(html([annual])).result.v3Truth.prices.NO;
@@ -71,6 +77,11 @@ test('wrong exact host cannot create provider Truth',()=>{
 
 test('Direct source remains country-unbound despite locale, currency and path',()=>{
  const body=html(),hash=digest(body),result=evaluateProviderSourceTruth({target:target(),retained:{url:'https://provider.example/no-NO/membership',requestedUrl:'https://provider.example/no-NO/membership',httpStatus:200,contentType:'text/html',bodyHash:hash,sourceIntegrity:{sha256:hash},rawSource:{text:body},accessDecisions:[{decision:'ALLOWED'}]},acquisition:{route:'DIRECT'},observationId:'direct-unbound'});
+ assert.equal(result.v3Truth.prices.NO.propositions.TARGET_MARKET.state,'UNRESOLVED');
+});
+
+test('family source path and language do not establish a target market without country proof',()=>{
+ const url='https://help.example.com/nl/pricing',value=html(),hash=digest(value),result=evaluateProviderSourceTruth({target:target({providerSourceIdentityHosts:['example.com'],authorities:[]}),retained:{url,requestedUrl:url,httpStatus:200,contentType:'text/html',bodyHash:hash,sourceIntegrity:{sha256:hash},rawSource:{text:value},accessDecisions:[{decision:'ALLOWED'}]},acquisition:{route:'DIRECT'},observationId:'family-locale-unbound'});
  assert.equal(result.v3Truth.prices.NO.propositions.TARGET_MARKET.state,'UNRESOLVED');
 });
 

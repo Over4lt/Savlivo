@@ -15,6 +15,7 @@ import {loadPriceResearchTargeting,selectPriceResearchTargets} from './price-res
 import {executePriceResearchBatch} from './price-research-batch.mjs';
 import {learnProviderPricingRoutesFromTarget} from '../research-v2/live/hybrid-provider-resource-memory.mjs';
 import {canonicalReviewedProviderRoot} from '../research-v3/reviewed-provider-namespaces.mjs';
+import {baselineProviderSourceHosts} from '../research-v3/provider-source-family.mjs';
 
 export function reviewedNamespacePriceResearchSeed(identity){
  const reviewedProviderNamespaces=identity.reviewedProviderNamespaces??[],root=reviewedProviderNamespaces.map(canonicalReviewedProviderRoot).find(Boolean);
@@ -111,7 +112,7 @@ async function executeSinglePriceResearch({job,directory,apiKey,client,shouldSto
  const resolved=await resolvePriceResearchIdentity(config.serviceId,{client});if(resolved.status!=='RESEARCHABLE')throw Error('PRICE_RESEARCH_IDENTITY_REVOKED');
  const linkState=await researchLinkSnapshot({directory,serviceId:resolved.identity.serviceId,canonicalSlug:resolved.identity.canonicalSlug,market:config.market,client});
  const namespaceSeed=reviewedNamespacePriceResearchSeed(resolved.identity),target={id:`price-research:${resolved.identity.serviceId}:${config.market}`,service:resolved.identity.serviceId,serviceName:resolved.identity.serviceName,market:config.market,marketApplicabilityEstablished:false,reviewedProviderNamespaces:namespaceSeed.reviewedProviderNamespaces};
- const baseTarget={...target,...namespaceSeed,operationsObjective:'PRICE_RESEARCH',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},knownCommercialUrls:[],authorities:[],gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],reads:[],queries:[],decisions:[],verified:[],blockedOrigins:[],capabilities:config.capabilities,persistedVerifiedCount:linkState.persistedVerifiedCount,researchLinks:linkState.links,researchLinkOutcomes:[]};
+ const baseTarget={...target,...namespaceSeed,operationsObjective:'PRICE_RESEARCH',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},knownCommercialUrls:[],authorities:[],providerSourceIdentityHosts:baselineProviderSourceHosts(resolved.identity.serviceId,resolved.identity.serviceName),gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],reads:[],queries:[],decisions:[],verified:[],blockedOrigins:[],capabilities:config.capabilities,persistedVerifiedCount:linkState.persistedVerifiedCount,researchLinks:linkState.links,researchLinkOutcomes:[]};
  let priorityState=null;
  const beforeGoogle=linkState.links.length?async()=>{
   const priorityTarget=researchLinkPriorityTarget(baseTarget,config.capabilities),campaignDirectory=path.join(directory,'priority-research-links');

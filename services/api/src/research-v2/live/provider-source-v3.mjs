@@ -7,6 +7,7 @@ import {refreshCatalog} from '../../research-v3/subscription-catalog.mjs';
 import {digest,normalizeUrl} from '../../research-v3/model.mjs';
 import {extractNavigation} from '../../research-v3/discovery.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
+import {classifyAcquiredSource} from './source-classification.mjs';
 import {discoverSubscriptionServices} from '../../research-v3/subscription-service-discovery.mjs';
 import {projectV3SuggestedCandidates} from '../../research-v3/suggested-projection.mjs';
 import {sourceBoundLineageBindings} from '../../research-v3/source-lineage.mjs';
@@ -67,8 +68,8 @@ function canonicalCountrySource({target,sourceCheck,attempt}){
  if(!page||page.outcome!=='OK'||page.httpStatus!==200||page.targetCountry!==target.market||verification.target.finalUrl!==page.url||receipt.sourceUrl!==page.url||geo.sourceUrl!==page.url)fail('COUNTRY_PROVIDER_SOURCE_INVALID');
  const body=page.rawSource?.text,bodyHash=typeof body==='string'?digest(body):null;
  if(!hex(bodyHash)||sourceCheck.hash!==bodyHash||receipt.bodyHash!==bodyHash||geo.bodyHash!==bodyHash||page.sourceIntegrity?.sha256!==bodyHash)fail('COUNTRY_PROVIDER_HASH_MISMATCH');
- const host=new URL(page.url).hostname,routing=providerRoutingAuthority(target,page.url);
- if(!routing||routing.host!==host||page.authority?.status!=='CONFIGURED_REVIEWED'||page.authority.hostname!==host||page.authority.provider!==target.serviceName)fail('COUNTRY_PROVIDER_AUTHORITY_REQUIRED');
+ const host=new URL(page.url).hostname,routing=providerRoutingAuthority(target,page.url),family=routing?null:classifyAcquiredSource({target,page:{...page,requestedUrl:page.requestedUrl??attempt.requestedUrl??page.url,bodyHash},body,observationId:'country-source-'+bodyHash.slice(0,24)});
+ if(!(routing?.host===host||family?.status==='PROVIDER_SOURCE'&&family.binding?.kind==='PROVIDER_SOURCE_DOMAIN_FAMILY')||page.authority?.status!=='CONFIGURED_REVIEWED'||page.authority.hostname!==host||page.authority.provider!==target.serviceName)fail('COUNTRY_PROVIDER_AUTHORITY_REQUIRED');
  if(!Array.isArray(page.accessDecisions)||!page.accessDecisions.length||page.accessDecisions.some(row=>!['ALLOWED','NO_ROBOTS_POLICY'].includes(row.decision)))fail('COUNTRY_PROVIDER_POLICY_UNPROVEN');
  const indexes=geo.receiptIndexes,rows=attempt.receipts;
  if(!Array.isArray(rows)||![indexes?.before,indexes?.response,indexes?.after].every(Number.isInteger)||!(indexes.before<indexes.response&&indexes.response<indexes.after))fail('COUNTRY_PROVIDER_RECEIPT_INVALID');
