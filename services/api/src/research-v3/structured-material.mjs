@@ -77,7 +77,7 @@ export function structuredSources(body,contentType='text/html') {
  const scored=records.map(r=>({...r,routingValue:offeringRoutingValue(body.slice(r.start,r.end))}));
  const independent=scored.filter(r=>!scored.some(c=>c!==r&&c.start>=r.start&&c.end<=r.end&&c.routingValue>r.routingValue));
  const regions=independent.sort((a,b)=>(b.end-b.start)-(a.end-a.start)).filter((r,i,all)=>!all.slice(0,i).some(p=>r.start>=p.start&&r.end<=p.end)).slice(0,structuredMaterialCapacity.records).sort((a,b)=>a.start-b.start);
- return {regions,endpoints,limited:limited||records.length>structuredMaterialCapacity.records};
+ return {regions,records,endpoints,limited:limited||records.length>structuredMaterialCapacity.records};
 }
 
 // Routing signals, never semantic assertions. Inspect one source-local object,

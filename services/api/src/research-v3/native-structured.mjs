@@ -78,7 +78,10 @@ export function projectNativeStructured(o,objective){
   o.kind!=='PROVIDER'||o.outcome!=='OK'||o.truncated||o.completeness==='INCOMPLETE'||o.httpStatus!==200||digest(o.body)!==o.sha256||!providerBound(objective,o.url))
   return {source,bindings,facts,limited:false,referenceKind:'NATIVE_STRUCTURED'};
  const structured=structuredSources(o.body,o.contentType),scales=scaleMetadata(o.body,o.contentType),service=observationService(o,objective);
- const regions=[...structured.regions];
+ // Keep complete source-local child records for native offers. The semantic
+ // selector intentionally collapses overlapping context, but a parent JSON-LD
+ // graph is not itself the product/charge record inside that graph.
+ const regions=[...structured.regions,...structured.records.filter(r=>!structured.regions.some(s=>s.start===r.start&&s.end===r.end))];
  if(o.contentType==='text/html')for(const root of embeddedState(o.body).roots.filter(r=>r.complete))for(const node of root.nodes){
   if(!object(node.value)||!object(node.value.product)&&!object(node.value.item)||Buffer.byteLength(o.body.slice(node.start,node.end))>4096)continue;
   if(!regions.some(r=>r.start===node.start&&r.end===node.end))regions.push({start:node.start,end:node.end,pointer:'/embedded-'+root.root.start+node.path,parent:'/embedded-'+root.root.start+node.parent});
