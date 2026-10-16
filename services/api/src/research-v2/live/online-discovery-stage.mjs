@@ -67,18 +67,22 @@ export function providerStop(records,target){
  return codes.some(c=>providerRestrictionCodes.has(c))?'PROVIDER_RESTRICTED':codes.some(c=>policyRestrictionCodes.has(c))?'POLICY_BLOCKED':null;
 }
 export function discoveryAdapterFactory(url){return options=>{
- const ordinary=createV2RobotsPublicAdapter({...options,network:{...options.network,pricingResources:false}});
+ // Keep provider redirects separate from the independent country verifier on one Decodo binding.
+ const scopedNetwork=scope=>({...options.network,pricingResources:false,requestOnce:request=>options.network.requestOnce({...request,discoveryScope:scope})});
+ const ordinary=createV2RobotsPublicAdapter({...options,network:scopedNetwork('VERIFIER')});
  // Associated resource readers have no provider authority; this bounded discovery stage
  // does not acquire them. Do not construct a provider-only wrapper for such readers.
  if(!options.authorities?.length)return {...ordinary,read:async({url})=>({url,outcome:'UNRESOLVED',failure:{code:'DISCOVERY_ASSOCIATED_RESOURCE_DISABLED'}})};
- const bounded=createV2RobotsPublicAdapter({...options,publicEvidence:{maxRedirects:0,maxBodyBytes:discoveryLimits.maxBodyBytes,maxTotalBodyBytes:discoveryLimits.maxBodyBytes},network:{...options.network,pricingResources:false}});
+ // The retained provider page may follow a small redirect chain; each hop still gets robots and public-URL checks.
+ const bounded=createV2RobotsPublicAdapter({...options,publicEvidence:{maxRedirects:3,maxBodyBytes:discoveryLimits.maxBodyBytes,maxTotalBodyBytes:discoveryLimits.maxBodyBytes},network:scopedNetwork('SOURCE')});
  // The independent verifier is not commercial provider evidence. Preserve its approved reader.
  return {...ordinary,read:input=>(input.url===url?bounded:ordinary).read(input),checkAccess:(u,opts)=>(u===url?bounded:ordinary).checkAccess(u,opts)};
 };}
 export function createDiscoveryAcquirer({runtime,bundle,runLive,root,dependencies={}}){return async({target,candidate,journal,maxBytes=2097152})=>{
  if(!Number.isSafeInteger(maxBytes)||maxBytes<0||maxBytes>2097152)throw Error('CAMPAIGN_BYTE_BOUND');let remainingBytes=maxBytes,acquisitionBytes=0;
- const allowed=new Set([candidate.url,new URL('/robots.txt',candidate.url).href,bundle.verifier.url,new URL('/robots.txt',bundle.verifier.url).href]);
- const transport={...bundle.transport,async request(r){if(!allowed.has(r.url.href))throw Error('DISCOVERY_SCOPE_STOP');if(remainingBytes===0)throw Error('CAMPAIGN_BYTE_BOUND');const requestMax=Math.min(r.maxBytes,remainingBytes);journal.reserve(target.id,'requests');const reservation=journal.reserve(target.id,'bytes',requestMax+65536);journal.append('REQUEST_STARTED',{target:target.id,url:r.url.href,maxBytes:requestMax});let count=0;try{const response=await bundle.transport.request({...r,maxBytes:requestMax,onBodyBytes:n=>{count+=n;if(count>requestMax)throw Error('CAMPAIGN_BYTE_BOUND');journal.append('RESPONSE_BYTES',{target:target.id,bytes:n});r.onBodyBytes?.(n);}}),observed=Math.max(count,response.body.length);if(observed>remainingBytes)throw Error('CAMPAIGN_BYTE_BOUND');if(!count)journal.append('RESPONSE_BYTES',{target:target.id,bytes:response.body.length});remainingBytes-=observed;acquisitionBytes+=observed;journal.append('RESPONSE',{target:target.id,url:r.url.href,status:response.status,hash:sha(response.body),bytes:response.body.length});journal.settleBytes(reservation,observed+65536);return response;}finally{journal.append('REQUEST_FINISHED',{target:target.id,url:r.url.href});}}};
+ const sourceOrigin=new URL(candidate.url).origin,verifierOrigin=new URL(bundle.verifier.url).origin;
+ const verifierAllowed=new Set([bundle.verifier.url,new URL('/robots.txt',bundle.verifier.url).href]);
+ const transport={...bundle.transport,async request(r){if(!(r.discoveryScope==='SOURCE'&&r.url.origin===sourceOrigin)&&!(r.discoveryScope==='VERIFIER'&&(verifierAllowed.has(r.url.href)||r.robotsPolicyRetrieval===true&&r.url.origin===verifierOrigin)))throw Error('DISCOVERY_SCOPE_STOP');if(remainingBytes===0)throw Error('CAMPAIGN_BYTE_BOUND');const requestMax=Math.min(r.maxBytes,remainingBytes);journal.reserve(target.id,'requests');const reservation=journal.reserve(target.id,'bytes',requestMax+65536);journal.append('REQUEST_STARTED',{target:target.id,url:r.url.href,maxBytes:requestMax});let count=0;try{const response=await bundle.transport.request({...r,maxBytes:requestMax,onBodyBytes:n=>{count+=n;if(count>requestMax)throw Error('CAMPAIGN_BYTE_BOUND');journal.append('RESPONSE_BYTES',{target:target.id,bytes:n});r.onBodyBytes?.(n);}}),observed=Math.max(count,response.body.length);if(observed>remainingBytes)throw Error('CAMPAIGN_BYTE_BOUND');if(!count)journal.append('RESPONSE_BYTES',{target:target.id,bytes:response.body.length});remainingBytes-=observed;acquisitionBytes+=observed;journal.append('RESPONSE',{target:target.id,url:r.url.href,status:response.status,hash:sha(response.body),bytes:response.body.length});journal.settleBytes(reservation,observed+65536);return response;}finally{journal.append('REQUEST_FINISHED',{target:target.id,url:r.url.href});}}};
  const routingOnly=!!candidate.acquisitionCandidate;
  // The engine needs a configured source to retain the geo receipt. For a new
  // candidate this bridge is transport metadata only; offline interpretation is
