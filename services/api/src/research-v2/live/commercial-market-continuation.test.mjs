@@ -6,7 +6,7 @@ import {destinationInformation} from './information-routing.mjs';
 import {executableAction} from './execution-capabilities.mjs';
 import {planResearch} from './research-planner.mjs';
 import {planHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
-import {conditionalCommercialRenderingRequired,activeRenderingNeed,reconcileRenderingNeed} from './rendering-diagnosis.mjs';
+import {conditionalCommercialRenderingRequired,applicationShellRenderingRequired,activeRenderingNeed,reconcileRenderingNeed} from './rendering-diagnosis.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
 
 const host='provider.example',membership=`https://${host}/memberships`,terms=`https://${host}/terms`,social='https://social.example/provider',related='https://de.provider-cdn.example/memberships',hash='a'.repeat(64);
@@ -70,6 +70,15 @@ test('J conditional commercial country bytes preserve the same objective resourc
  assert.equal(conditionalCommercialRenderingRequired(body),true);assert.equal(conditionalCommercialRenderingRequired('<main>Core 4,99 EUR/Monat</main>'),false);
  const value=target({capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},demonstratedRendering:true,acquisitionOutcomes:[{url:membership,classification:'COMMERCIAL_FIELDS_INSUFFICIENT',renderingRequired:true,countryV3Evaluation:{status:'EVALUATED',receiptStatus:'HASH_VERIFIED',geoClass:'G1'}}],decisions:[{url:membership,acquisitionReserved:true,route:'DECODO'}]});
  const plan=planResearch(value);assert.equal(plan.route,'PARK_RENDERING');assert.equal(plan.reason,'RENDERING_REQUIRED');const rendered=planHybridRenderedAcquisition(value,{url:membership,transport:'DECODO'});assert.equal(rendered.scheduled,true);assert.equal(rendered.url,membership);assert.equal(rendered.country,'DE');
+});
+
+test('scripted provider shell needs rendering while static prices remain static',()=>{
+ const shell='<html><body><webruntime-app></webruntime-app><script src="/app.js"></script><script>bootstrap()</script></body></html>';
+ const staticPrices='<html><body><main><h2>Basic</h2><p>GBP 9 / month</p></main><script src="/app.js"></script><script>bootstrap()</script></body></html>';
+ const staticWithConsent=staticPrices.replace('</body>','<div>Cookie consent <button>Reject all</button></div></body>');
+ assert.equal(applicationShellRenderingRequired(shell),true);
+ assert.equal(applicationShellRenderingRequired(staticPrices),false);
+ assert.equal(applicationShellRenderingRequired(staticWithConsent),false);
 });
 
 test('K commercial country insufficiency without a rendering diagnosis remains genuinely exhausted when no alternative exists',()=>{

@@ -41,6 +41,15 @@ test('family-classified final provider source can reach unchanged V3 truth with 
  assert.equal(result.v3Truth.prices.NO.propositions.CURRENCY.value,'NOK');assert.equal(result.v3Truth.prices.NO.propositions.TARGET_MARKET.state,'ESTABLISHED');
 });
 
+test('a hash-verified country provider source reaches V3 without legacy monetary bindings',()=>{
+ const pageUrl='https://help.example.com/en/plans',targetValue=target({providerSourceIdentityHosts:['example.com'],authorities:[]}),fixture=countryFixture(listedPricing(),{targetValue,pageUrl});
+ fixture.sourceCheck.receipt.bindingEstablished=false;fixture.sourceCheck.receipt.bindings=[];
+ const result=evaluateCountryProviderTruth(fixture),established=projectEstablishedV3Offerings({...targetValue,...result});
+ assert.equal(result.v3Truth.established,true);assert.equal(established.length,3);
+ assert.equal(result.v3SuggestedCandidates.length,3);
+ assert(result.v3SuggestedCandidates.every(row=>row.provenance==='V3_SOURCE_RESEARCH'));
+});
+
 test('country-bound provider help price list establishes separate monthly plans without add-ons',()=>{
  const pageUrl='https://help.example.com/en/plans',targetValue=target({providerSourceIdentityHosts:['example.com'],authorities:[]}),fixture=countryFixture(listedPricing(),{targetValue,pageUrl}),result=evaluateCountryProviderTruth(fixture),established=projectEstablishedV3Offerings({...targetValue,...result});
  assert.deepEqual(established.map(row=>[row.name,row.ordinaryRecurringPrice.amount,row.ordinaryRecurringPrice.currency]),[['Basic',119,'NOK'],['Standard',149,'NOK'],['Premium',219,'NOK']]);

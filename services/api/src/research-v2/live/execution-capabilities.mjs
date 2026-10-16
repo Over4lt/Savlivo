@@ -3,6 +3,7 @@ import {usableResearchMemory} from './research-memory.mjs';
 import {managementInformation} from '../intelligence/management-targeting.mjs';
 import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {activeRenderingNeed} from './rendering-diagnosis.mjs';
+import {retainedProviderRenderingAuthority} from './retained-render-source.mjs';
 import {priceResearchAcquisitionCandidate} from './price-research-candidate.mjs';
 import {normalizePublicUrl} from '../../research-v1/public-network.mjs';
 // One executable action space for planning and dispatch. No transport or evidence grants.
@@ -26,7 +27,7 @@ export function executableAction(t,action,{bounds=executionBounds,usage={reads:0
  if(route==='REUSE_RETAINED')return yes();
  if(route==='PARK_RENDERING'){
   const need=activeRenderingNeed(t);if(!need||need.url!==action.url)return no('RENDERING_NEED_RECONCILED');
-  if(available.browser!==true)return no('BROWSER_DISABLED');if(!providerRoutingAuthority(t,need.url))return no('AUTHORITY_UNRESOLVED');
+  if(available.browser!==true)return no('BROWSER_DISABLED');if(!providerRoutingAuthority(t,need.url)&&!retainedProviderRenderingAuthority(t,{url:need.url,transport:need.transport,sourceHash:need.sourceHash}))return no('AUTHORITY_UNRESOLVED');
   if(usage.acquisitions>=bounds.acquisitions||(t.decisions??[]).filter(row=>row.acquisitionReserved).length>=bounds.perServiceAcquisitions)return no('DECODO_BUDGET_EXHAUSTED');return yes();
  }
  if(route==='AUTHORITY_DISCOVERY'&&action.url)return executableAction(t,{route:'DIRECT',url:action.url,candidateAuthorityReview:true},{bounds,usage,available});

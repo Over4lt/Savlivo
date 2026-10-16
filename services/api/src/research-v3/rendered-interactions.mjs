@@ -3,7 +3,7 @@ export function safeRenderedControl(row,kind,selectedPeer=null) {
     if(!row||typeof row.text!=='string'||row.disabled!==false||!Array.isArray(row.bboxPx)||row.bboxPx.length!==4||row.bboxPx[2]<=0||row.bboxPx[3]<=0)return false;
     const label=[row.text,row.ariaLabel??''].join(' ').normalize('NFKC').toLowerCase();
     if(/\b(?:buy|purchase|subscribe|checkout|payment|pay now|start trial|sign in|log in|delete|cancel subscription|submit order)\b/.test(label))return false;
-    if(kind==='COOKIE_REJECT')return /\b(?:cookies?|consent|privacy)\b/.test([label,row.contextText??''].join(' ').toLowerCase())&&/\b(?:reject|decline|deny|dismiss|close|essential only)\b/.test(label);
+    if(kind==='COOKIE_REJECT')return row.role==='button'&&/\b(?:cookies?|consent|privacy)\b/.test([label,row.contextText??''].join(' ').toLowerCase())&&/\b(?:reject|decline|deny|only necessary|necessary only|essential only|continue without accepting)\b/.test(label);
     // Selectable role and explicit unselected state, not English billing words.
     if(kind==='PRESENTATION_SELECT'){
         if(['tab','radio'].includes(row.role))return row.selected===false;

@@ -76,7 +76,19 @@ async function boundedRequest(context,url,{maxBytes=512000,record=null,resourceT
     const response=await context.request.get(url,{timeout:15000,maxRedirects:0});
     const body=await response.body();
     if(body.length>maxBytes)throw Error('RENDERED_AUXILIARY_BOUND');
-    return {status:response.status(),text:body.toString('utf8')};
+    return {status:response.status(),text:body.toString('utf8'),headers:response.headers()};
+}
+
+async function boundedRobots(context,origin,record) {
+    let url=origin+'/robots.txt';
+    for(let hop=0;hop<=3;hop++){
+        const response=await boundedRequest(context,url,{record,resourceType:'robots'});
+        if(![301,302,303,307,308].includes(response.status))return response;
+        const location=response.headers?.location,next=location&&normalizeUrl(new URL(location,url).href);
+        if(!next||new URL(next).origin!==origin||hop===3)throw Error('RENDERED_ROBOTS_REDIRECT_INVALID');
+        url=next;
+    }
+    throw Error('RENDERED_ROBOTS_REDIRECT_INVALID');
 }
 
 export function createPlaywrightRenderedCapability({browserType,chromium,launchOptions={headless:true,args:['--disable-background-networking','--disable-sync']},proxyFor=()=>null,clock=()=>new Date().toISOString(),viewportCss={width:1440,height:900},locale='en-US',timezoneId='UTC',limits=browserRenderLimits,hostAllowed=publicHost}={}) {
@@ -90,7 +102,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             const session=sessions.get(parent.id),source=parent.domSnapshot?.find(row=>row.id===action.interaction?.controlId),selectedPeer=parent.domSnapshot?.find(row=>row.id===action.interaction?.selectedControlId),prior=parent.renderedArtifacts?.find(row=>row.id===action.interaction?.sourceRenderId);
             const control=parent.renderedControlRegions?.find(row=>row.renderId===prior?.id&&row.imageSha256===prior?.image.sha256)?.regions?.find(row=>row.id===action.interaction?.sourceRegionId);
             if(!session||!source||!prior||!control||JSON.stringify(control.bboxPx)!==JSON.stringify(source.bboxPx)||session.imageSha256!==prior.image.sha256||action.interaction.sourceRegionId!=='control-'+source.id||!safeRenderedControl(source,action.interaction.kind,selectedPeer))throw Error('RENDERED_INTERACTION_UNSAFE');
-            const {page,browser,context,receipt,geo}=session;
+            const {page,browser,context,receipt,geo,ledger,sessionBinding,country}=session;
             try{
                 const locator=await sourceBoundLocator(page,source,selectedPeer);
                 if(await locator.count()!==1||!(await locator.isEnabled()))throw Error('RENDERED_INTERACTION_UNSAFE');
@@ -99,6 +111,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                     if(selected!=='false'&&checked!=='false')throw Error('RENDERED_INTERACTION_UNSAFE');
                 }
                 const before=geo?await geo():null;
+                if(geo&&receipt.transport.exitAddressHash!==digest(before))throw Error('RENDERED_GEOGRAPHY_UNVERIFIED');
                 await locator.click({timeout:Math.min(10000,maxRenderMs)});
                 await page.waitForLoadState('networkidle',{timeout:4000}).catch(()=>{});
                 if(normalizeUrl(page.url())!==parent.url)throw Error('RENDERED_INTERACTION_NAVIGATION_UNSUPPORTED');
@@ -106,9 +119,13 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                 if(extent.height>limits.documentHeight||extent.width>32768||extent.width*extent.height>50_000_000)throw Error('RENDERED_PAGE_BOUND');
                 const dom=await page.evaluate(visibleDom),pngBytes=await page.screenshot({type:'png',fullPage:true,animations:'disabled',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
                 if(pngBytes.length>limits.imageBytes||geo&&before!==await geo())throw Error('RENDERED_STATE_INVALID');
+                const renderedBody=await page.content();
+                if(Buffer.byteLength(renderedBody)>limits.bodyBytes)throw Error('RENDERED_BODY_BOUND');
                 session.imageSha256=imageHash(pngBytes);
                 const executedAt=clock();
-                return {page:structuredClone(receipt),finalUrl:parent.url,pngBytes,capture:{capturedAt:executedAt,browserBuild:browser.version(),captureRevision:'playwright-state-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,executedAt]).slice(0,24),parentRenderId:prior.id,stateFingerprint:digest([parent.url,dom.map(row=>[row.text,row.selected,row.disabled]).slice(0,128)]),interactions:[{actionId:action.id,kind:action.interaction.kind,parentRenderId:prior.id,sourceControlRef:{kind:'IMAGE_REGION',renderId:prior.id,imageSha256:prior.image.sha256,regionId:action.interaction.sourceRegionId},intendedPresentationVariant:source.text.slice(0,256),policyDecisionRef:digest(['SAFE_RENDERED_CONTROL',action.interaction.kind,source.id,source.text,selectedPeer?.id??null,selectedPeer?.text??null]),executedAt,executionOutcome:'COMPLETED',resultingRenderId:'',observedStateRefs:[],navigationReceiptRef:null}]},dom};
+                const stateReceipt={...structuredClone(receipt),body:renderedBody,acquiredAt:executedAt,responseMetadata:{...receipt.responseMetadata,renderedDomSha256:digest(renderedBody),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64)}};
+                const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:country?'DECODO':'DIRECT',requestedCountry:country,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:!!country,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
+                return {page:stateReceipt,finalUrl:parent.url,pngBytes,capture:{capturedAt:executedAt,browserBuild:browser.version(),captureRevision:'playwright-state-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,executedAt]).slice(0,24),parentRenderId:prior.id,stateFingerprint:digest([parent.url,dom.map(row=>[row.text,row.selected,row.disabled]).slice(0,128)]),interactions:[{actionId:action.id,kind:action.interaction.kind,parentRenderId:prior.id,sourceControlRef:{kind:'IMAGE_REGION',renderId:prior.id,imageSha256:prior.image.sha256,regionId:action.interaction.sourceRegionId},intendedPresentationVariant:source.text.slice(0,256),policyDecisionRef:digest(['SAFE_RENDERED_CONTROL',action.interaction.kind,source.id,source.text,selectedPeer?.id??null,selectedPeer?.text??null]),executedAt,executionOutcome:'COMPLETED',resultingRenderId:'',observedStateRefs:[],navigationReceiptRef:null}]},dom,browserLedger:structuredClone(ledger),networkSession};
             } catch(error){sessions.delete(parent.id);await context.close().catch(()=>{});throw error;}
         }
         const started=performance.now(),country=parent.context.transport==='DECODO'?parent.context.networkGeography:null,proxy=country?proxyFor(parent.context):null;
@@ -125,7 +142,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                 ledger.push({urlHash:digest(url),origin:parsed.origin,method,resourceType,channel,transport:country?'DECODO':'DIRECT',requestedCountry:country,sessionBinding});
             };
             if(!(await hostAllowed(new URL(origin).hostname,dns)))throw Error('RENDERED_PUBLIC_HOST_REQUIRED');
-            const robots=await boundedRequest(context,origin+'/robots.txt',{record,resourceType:'robots'});
+            const robots=await boundedRobots(context,origin,record);
             const policy=[404,410].includes(robots.status)?{decision:'ALLOWED',reason:'ROBOTS_ABSENT'}:robots.status===200?evaluateAcquisitionRobots(parseAcquisitionRobots(robots.text),action.url):{decision:'REVIEW_REQUIRED'};
             if(policy.decision!=='ALLOWED')throw Error('RENDERED_ROBOTS_NOT_ALLOWED');
             const access=[{destinationOrigin:origin,destinationHash:digest(action.url),status:robots.status,decision:policy.decision,reason:policy.reason??null}];
@@ -160,8 +177,8 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                 if(!response||response.status()!==200||!providerBound(objective,page.url()))throw Error('RENDERED_NAVIGATION_FAILED');
                 await page.waitForLoadState('networkidle',{timeout:4000}).catch(()=>{});
             }
-            const finalUrl=normalizeUrl(page.url()),body=await response.body();
-            if(body.length>limits.bodyBytes)throw Error('RENDERED_BODY_BOUND');
+            const finalUrl=normalizeUrl(page.url()),networkBody=await response.body(),renderedBody=await page.content();
+            if(networkBody.length>limits.bodyBytes||Buffer.byteLength(renderedBody)>limits.bodyBytes)throw Error('RENDERED_BODY_BOUND');
             const extent=await page.evaluate(()=>({width:Math.max(document.documentElement.scrollWidth,document.body?.scrollWidth??0),height:Math.max(document.documentElement.scrollHeight,document.body?.scrollHeight??0)}));
             if(extent.height>limits.documentHeight||extent.width>32768||extent.width*extent.height>50_000_000)throw Error('RENDERED_PAGE_BOUND');
             const dom=await page.evaluate(visibleDom),pngBytes=await page.screenshot({type:'png',fullPage:true,animations:'disabled',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
@@ -171,8 +188,8 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             const transport=country?{kind:'DECODO',requestedCountry:country,verifiedCountry:country,verification:'BRACKET_VERIFIED',exitAddressHash:digest(before)}:{kind:'DIRECT',verification:'UNBOUND'};
             const acquiredAt=clock();
             const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:country?'DECODO':'DIRECT',requestedCountry:country,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:!!country,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
-            const receipt={url:finalUrl,requestedUrl:action.navigationUrl??action.url,body:body.toString('utf8'),httpStatus:200,contentType:response.headers()['content-type']??'text/html',completeness:'COMPLETE',acquiredAt,transport,access,redirects:[],responseMetadata:{browser:'PLAYWRIGHT',mainDocumentSha256:digest(body.toString('utf8')),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64),networkSessionBinding:sessionBinding},acquisitionTiming:{elapsedMs:Math.round(performance.now()-started)}};
-            sessions.set(action.id,{browser,context,page,receipt,geo:country?geo:null,imageSha256:imageHash(pngBytes)});keep=true;
+            const receipt={url:finalUrl,requestedUrl:action.navigationUrl??action.url,body:renderedBody,httpStatus:200,contentType:response.headers()['content-type']??'text/html',completeness:'COMPLETE',acquiredAt,transport,access,redirects:[],responseMetadata:{browser:'PLAYWRIGHT',mainDocumentSha256:digest(networkBody.toString('utf8')),renderedDomSha256:digest(renderedBody),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64),networkSessionBinding:sessionBinding},acquisitionTiming:{elapsedMs:Math.round(performance.now()-started)}};
+            sessions.set(action.id,{browser,context,page,receipt,geo:country?geo:null,ledger,sessionBinding,country,imageSha256:imageHash(pngBytes)});keep=true;
             return {page:receipt,finalUrl,pngBytes,capture:{capturedAt:clock(),browserBuild:browser.version(),captureRevision:'playwright-fullpage-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([finalUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:ledger,networkSession};
         } finally {if(!keep)await context?.close().catch(()=>{});}
     };

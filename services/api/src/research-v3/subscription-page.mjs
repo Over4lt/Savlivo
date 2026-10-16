@@ -3,6 +3,7 @@
 // page identity with sibling plan cards; headings and money alone are never
 // promoted into Services or offerings.
 import {digest} from './model.mjs';
+import {bundledPresentation} from './offering-scope.mjs';
 
 const voids=new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
 const peripheral=new Set(['nav','header','footer','aside']);
@@ -219,6 +220,6 @@ function enrichFromProse(parsed,offerings){
 }
 
 export function interpretSubscriptionPage({body,url,providerName=null}){
- if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),lists=cards.length?[]:pricingLists(parsed),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists];enrichFromProse(parsed,offerings);
+ if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),lists=cards.length?[]:pricingLists(parsed),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists].filter(row=>!bundledPresentation(row.name,providerName));enrichFromProse(parsed,offerings);
  return {services,offerings,limited:parsed.limited};
 }

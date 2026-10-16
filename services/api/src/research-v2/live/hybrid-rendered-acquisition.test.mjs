@@ -9,21 +9,24 @@ import {authorityBinding} from '../../research-v3/discovery-authority.mjs';
 import {digest} from '../../research-v3/model.mjs';
 import {evaluate} from '../../research-v3/truth.mjs';
 import {planHybridRenderedAcquisition,runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
+import {safeRenderedControl} from '../../research-v3/rendered-interactions.mjs';
+import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
 
 const {PNG}=pngjs,host='provider.example',url=`https://${host}/pricing`,service='fixture',serviceName='Example service',market='NO';
 const objective={kind:'PRICE',serviceId:service,serviceName,providerHosts:[host],markets:[market],seeds:[url]};
 const product={product:{id:'monthly',name:'Monthly',productType:'SUBSCRIPTION',consumer:true,subscription:{length:1,unit:'months'}},totalAmountWithTaxes:{amount:'7999',currencyCode:'NOK'}};
 const establishedBody=`<html><head><title>${serviceName}</title></head><body><script>const data = ${JSON.stringify({offeredProducts:{months:[product]},currenciesSubunit:{NOK:2}})};</script></body></html>`;
+const threePlanBody=`<html><head><title>${serviceName}</title></head><body><script>const data = ${JSON.stringify({offeredProducts:{months:[product,{...product,product:{...product.product,id:'standard',name:'Standard'},totalAmountWithTaxes:{amount:'9999',currencyCode:'NOK'}},{...product,product:{...product.product,id:'premium',name:'Premium'},totalAmountWithTaxes:{amount:'12999',currencyCode:'NOK'}}]},currenciesSubunit:{NOK:2}})};</script></body></html>`;
 const insufficientBody=`<html><title>${serviceName}</title><body>Membership information requires another state.</body></html>`;
 const target=(extra={})=>({id:'fixture-no',service,serviceName,market,researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[url],leads:[{url,title:'Pricing',rank:0}],authorities:[{provider:serviceName,hostname:host,sourceType:'OFFICIAL_PROVIDER',checkedAt:'2026-01-01'}],gaps:['amount'],reads:[],queries:[],decisions:[],capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},...extra});
 const parent=()=>({id:'ordinary-parent',kind:'PROVIDER',url,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'PROVIDER_PAGE'},outcome:'OK',body:insufficientBody,sha256:digest(insufficientBody)});
 const temp=t=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'phase4-browser-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;};
 const png=()=>{const image=new PNG({width:800,height:600,colorType:6,inputColorType:6,inputHasAlpha:true});image.data.fill(255);return PNG.sync.write(image);};
 
-function fakeChromium({body=establishedBody,finalUrl=url,country='NO'}={}) {
- const state={contexts:[],routes:[],gotos:[]};
+function fakeChromium({body=establishedBody,renderedBody=body,postConsentBody=establishedBody,finalUrl=url,country='NO',consent=false,consentLabel='Reject all',robotsRedirect=false}={}) {
+ const state={contexts:[],routes:[],gotos:[],clicks:0};
  const chromium={async launch(){return {version:()=> 'offline-playwright',async close(){},async newContext(options){state.contexts.push(options);let routeHandler;
-  const context={request:{async get(requested){if(requested.includes('ipwho.is'))return {status:()=>200,body:async()=>Buffer.from(JSON.stringify({success:true,ip:'203.0.113.9',country_code:country}))};return {status:()=>404,body:async()=>Buffer.alloc(0)};}},async route(_pattern,handler){routeHandler=handler;},async close(){},async newPage(){let evaluations=0;return {on(){},url:()=>finalUrl,async goto(destination){state.gotos.push(destination);for(const [requestUrl,type] of [[destination,'document'],['https://assets.example/app.js','script'],['https://api.example/data','fetch'],['https://assets.example/card.png','image']]){let continued=false,aborted=false;await routeHandler({request:()=>({url:()=>requestUrl,method:()=> 'GET',resourceType:()=>type}),continue:async()=>{continued=true;},abort:async()=>{aborted=true;}});state.routes.push({requestUrl,type,continued,aborted});}return {status:()=>200,body:async()=>Buffer.from(body),headers:()=>({'content-type':'text/html'})};},async waitForLoadState(){},async evaluate(){evaluations++;return evaluations===1?{width:800,height:600}:[{text:serviceName,role:'h1',ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null,bboxPx:[1,1,100,20]}];},async screenshot(){return png();}};}};
+  const context={request:{async get(requested){if(requested.includes('ipwho.is'))return {status:()=>200,body:async()=>Buffer.from(JSON.stringify({success:true,ip:'203.0.113.9',country_code:country})),headers:()=>({})};if(robotsRedirect&&requested.endsWith('/csp/robots.txt'))return {status:()=>200,body:async()=>Buffer.from('User-agent: *\nAllow: /'),headers:()=>({})};if(robotsRedirect&&requested.endsWith('/robots.txt'))return {status:()=>301,body:async()=>Buffer.alloc(0),headers:()=>({location:'/csp/robots.txt'})};return {status:()=>404,body:async()=>Buffer.alloc(0),headers:()=>({})};}},async route(_pattern,handler){routeHandler=handler;},async close(){},async newPage(){let clicked=false;const dom=()=>[{text:serviceName,role:'h1',ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null,bboxPx:[1,1,100,20]},...(consent&&!clicked?[{text:consentLabel,role:'button',ariaLabel:null,contextText:'Cookie consent preferences',groupId:'consent',selected:null,disabled:false,bboxPx:[10,40,120,30]}]:[])];return {on(){},url:()=>finalUrl,async goto(destination){state.gotos.push(destination);for(const [requestUrl,type] of [[destination,'document'],['https://assets.example/app.js','script'],['https://api.example/data','fetch'],['https://assets.example/card.png','image']]){let continued=false,aborted=false;await routeHandler({request:()=>({url:()=>requestUrl,method:()=> 'GET',resourceType:()=>type}),continue:async()=>{continued=true;},abort:async()=>{aborted=true;}});state.routes.push({requestUrl,type,continued,aborted});}return {status:()=>200,body:async()=>Buffer.from(body),headers:()=>({'content-type':'text/html'})};},async content(){return clicked?postConsentBody:renderedBody;},async waitForLoadState(){},async evaluate(fn){return String(fn).includes('createTreeWalker')?dom():{width:800,height:600};},locator(){return {async evaluateAll(){return [0];},nth(){return {async count(){return 1;},async isEnabled(){return true;},async click(){clicked=true;state.clicks++;}};}};},async screenshot(){return png();}};}};
   return context;}};}};
  return {chromium,state};
 }
@@ -44,9 +47,57 @@ test('V2 plan selects one bounded browser capability only after rendering is dia
  const sufficient=target({researchObjective:'CATALOG_ONLY',loginManageEstablished:true});assert.equal(planHybridRenderedAcquisition(sufficient,{url,transport:'DIRECT'}).scheduled,false);
 });
 
+test('verified retained provider family permits Browser only for its exact country source',()=>{
+ const familyUrl='https://help.example.com/pricing',source={...parent(),url:familyUrl},withoutHistorical=target({authorities:[],providerSourceIdentityHosts:['example.com'],acquisitionOutcomes:[{sourceClassification:{status:'PROVIDER_SOURCE',finalUrl:familyUrl,sourceHash:source.sha256},countryV3Evaluation:{status:'EVALUATED',receiptStatus:'HASH_VERIFIED',geoClass:'G1'}}]});
+ assert.equal(planHybridRenderedAcquisition(withoutHistorical,{url:familyUrl,transport:'DECODO',parent:source}).scheduled,true);
+ assert.equal(planHybridRenderedAcquisition(withoutHistorical,{url:familyUrl,transport:'DECODO',parent:{...source,sha256:'0'.repeat(64)}}).reason,'EXACT_HOST_AUTHORITY_REQUIRED');
+ assert.equal(planHybridRenderedAcquisition(withoutHistorical,{url:familyUrl,transport:'DIRECT',parent:source}).reason,'EXACT_HOST_AUTHORITY_REQUIRED');
+});
+
 test('V2 reserves action browser network and country before V3 execution',async t=>{
  const directory=temp(t),base=capability(),wrapped=async(...args)=>{const rows=fs.readFileSync(path.join(directory,'journal.jsonl'),'utf8');for(const kind of ['actions','browserActions','networkRequests','countryActions'])assert.match(rows,new RegExp(`"kind":"${kind}"`));assert.match(rows,/"ACTION_STARTED"/);return base.browser(...args);};wrapped.close=base.browser.close;
  const result=await runHybridRenderedAcquisition({directory,target:target(),objective,parent:parent(),transport:'DECODO',browser:wrapped});assert.equal(result.outcome,'OBSERVED',JSON.stringify(result));assert.equal(result.usage.actions,1);assert.equal(result.usage.browserActions,1);assert.equal(result.usage.countryActions,1);assert.equal(result.usage.networkRequests,256);assert.equal(result.usage.actualNetworkRequests,7);
+});
+
+test('same-origin robots redirect permits the checked rendered pricing route',async t=>{
+ const c=capability({robotsRedirect:true}),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DECODO',browser:c.browser});
+ assert.equal(result.outcome,'OBSERVED',JSON.stringify(result));
+ const ledger=JSON.parse(fs.readFileSync(path.join(result.artifacts.root,result.networkSession.ledgerRef.file)));
+ assert.equal(ledger.filter(row=>row.resourceType==='robots').length,2);
+});
+
+test('Browser retains the populated DOM instead of the original network shell',async t=>{
+ const c=capability({body:insufficientBody,renderedBody:establishedBody}),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DECODO',browser:c.browser});
+ assert.equal(result.outcome,'OBSERVED');assert.equal(result.observation.sha256,digest(establishedBody));assert.equal(result.v3Truth.established,true);
+ assert.deepEqual(result.sourceHashes,{mainDocument:digest(insufficientBody),renderedDom:digest(establishedBody)});
+});
+
+test('bounded reject action retains rendered source and lets V3 establish three plans',async t=>{
+ const c=capability({body:insufficientBody,consent:true,postConsentBody:threePlanBody}),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DECODO',browser:c.browser});
+ assert.equal(result.outcome,'OBSERVED',JSON.stringify(result));assert.equal(c.state.clicks,1);
+ assert.equal(result.consent.outcome,'COMPLETED');assert.equal(result.usage.browserActions,2);
+ assert(result.artifacts.prior?.refs['page.html']);assert.equal(result.v3Truth.established,true);
+ assert.equal(result.v3SuggestedCandidates.length,3);assert(result.v3SuggestedCandidates.every(row=>row.provenance==='V3_SOURCE_RESEARCH'));
+ assert.equal(projectEstablishedV3Offerings({...target(),...result}).length,3);
+ assert.equal(result.observation.sha256,digest(threePlanBody));
+ assert.equal(result.observation.renderedArtifacts[0].journey.interactions[0].kind,'COOKIE_REJECT');
+});
+
+test('consent control is ignored when rendered pricing is already established',async t=>{
+ const c=capability({consent:true}),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DECODO',browser:c.browser});
+ assert.equal(result.outcome,'OBSERVED');assert.equal(c.state.clicks,0);assert.equal(result.consent,null);
+});
+
+test('an unqualified No control cannot trigger a consent click',async t=>{
+ const c=capability({body:insufficientBody,consent:true,consentLabel:'No'}),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DECODO',browser:c.browser});
+ assert.equal(result.outcome,'OBSERVED');assert.equal(c.state.clicks,0);assert.equal(result.v3Truth.established,false);
+});
+
+test('consent policy recognizes reject and necessary-only controls only inside consent UI',()=>{
+ const control=text=>({text,role:'button',disabled:false,bboxPx:[1,1,80,20],contextText:'Cookie privacy consent preferences'});
+ for(const label of ['Reject','Reject all','Decline','Decline all','Only necessary','Necessary only','Continue without accepting'])assert.equal(safeRenderedControl(control(label),'COOKIE_REJECT'),true,label);
+ for(const label of ['No','Accept all','Close','Buy now'])assert.equal(safeRenderedControl(control(label),'COOKIE_REJECT'),false,label);
+ assert.equal(safeRenderedControl({...control('Reject all'),contextText:null},'COOKIE_REJECT'),false);
 });
 
 test('DECODO constrains every relevant request to one proxied browser context and canonical country receipt',async t=>{

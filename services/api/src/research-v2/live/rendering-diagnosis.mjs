@@ -6,6 +6,18 @@ export function conditionalCommercialRenderingRequired(body){
  return conditions.length>0&&/(?:USD|EUR|GBP|NOK|SEK|DKK|CHF|CAD|AUD|JPY|\$|€|£)\s*\d|\d(?:[.,]\d{1,2})?\s*(?:USD|EUR|GBP|NOK|SEK|DKK|CHF|CAD|AUD|JPY|\$|€|£)/iu.test(text)&&/(?:\/\s*(?:month|mo\.?|monat|måned)|per\s+(?:month|monat|måned)|monthly|monatlich|månedsvis|\/\s*(?:year|yr\.?|jahr|år)|annual|yearly|jährlich)/iu.test(text);
 }
 
+// A provider can return an application bootstrap with no commercial text at
+// all. This diagnoses a missing representation only; it supplies no Truth.
+export function applicationShellRenderingRequired(body){
+ const html=String(body??'');
+ const bodyMarkup=/<body\b[^>]*>([\s\S]*?)<\/body>/iu.exec(html)?.[1]??html;
+ const visible=bodyMarkup.replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/giu,' ').replace(/<[^>]+>/gu,' ').replace(/&(?:nbsp|#160);/giu,' ').trim();
+ const scripts=(html.match(/<script\b/giu)??[]).length;
+ const appRoot=/<[a-z][a-z0-9]*-[a-z0-9-]+\b/iu.test(bodyMarkup)||/<(?:div|main)\b[^>]*\bid=["'](?:app|root|__next)["']/iu.test(bodyMarkup);
+ const priceEvidence=/(?:[$£€]\s*\d|\b(?:USD|GBP|EUR|AUD|CAD|NOK|SEK|DKK|JPY)\s*\d|\b(?:amount|price)\s*["']?\s*:\s*["']?\d)/iu.test(html);
+ return scripts>=2&&appRoot&&visible.length<=80&&!priceEvidence;
+}
+
 const renderingPropositions=new Set(['SERVICE_IDENTITY','PRICE_AMOUNT','CURRENCY','MONTHLY_CADENCE','MONTHLY_SUBSCRIPTION','CONSUMER_SUBSCRIPTION','TARGET_MARKET']);
 const unresolvedRenderingNeeds=truth=>(truth?.needs??[]).filter(row=>row?.state==='UNRESOLVED'&&renderingPropositions.has(row.proposition));
 const latestDiagnosis=t=>t.renderingNeed??[...(t.acquisitionOutcomes??[])].reverse().find(row=>row.renderingRequired===true)??(t.demonstratedRendering===true?{url:t.providerSeedCandidateServiceContext?.objectiveResource?.url??t.knownCommercialUrls?.[0]??t.urls?.[0]??null,transport:t.v3Observation?.context?.transport??'DIRECT'}:null);

@@ -51,6 +51,7 @@ test('one GLOBAL redirect=true Disney+ route retains independent US, GB and AU D
   assert.equal(attempt.exitVerification.country,market);assert(attempt.receipts.some(row=>row.url===finalUrl&&row.bodySha256===digest(body)));assert.equal(result.sourceClassification.status,'PROVIDER_SOURCE');
   assert.equal(result.sourceClassification.requestedUrl,requestedUrl);assert.equal(result.sourceClassification.finalUrl,finalUrl);assert.equal(result.sourceClassification.sourceHash,digest(body));
   assert.equal(result.countryV3Evaluation.status,'EVALUATED');assert.equal(result.countryV3Evaluation.receiptStatus,'HASH_VERIFIED');assert.equal(result.countryV3Evaluation.geoClass,'G1');
+  assert.equal(result.renderingRequired,false,'static country pricing does not schedule Browser');
   assert.equal(result.v3Observation.url,finalUrl);assert.equal(result.v3Observation.sha256,digest(body));
   assert.deepEqual(result.v3Truth.offers.filter(offer=>offer.propositions.PRICE_AMOUNT?.state==='ESTABLISHED').map(offer=>[offer.propositions.PRICE_AMOUNT.value,offer.propositions.CURRENCY.value,offer.propositions.TARGET_MARKET.value]),prices.map(price=>[price,currency,market]),JSON.stringify({observation:result.v3Observation,truth:result.v3Truth}));
   assert(wire.every(row=>row.country===market));assert(wire.some(row=>row.url==='https://help.disneyplus.com/csp/robots.txt'));assert.equal(wire.filter(row=>row.url===requestedUrl).length,1);assert.equal(wire.filter(row=>row.url===finalUrl).length,1);

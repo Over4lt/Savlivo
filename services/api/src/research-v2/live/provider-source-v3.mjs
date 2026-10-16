@@ -59,7 +59,9 @@ export function sourceBoundContinuations(observation,objective,truth){
 
 function canonicalCountrySource({target,sourceCheck,attempt}){
  const receipt=sourceCheck?.receipt,geo=receipt?.geo,page=attempt?.page,verification=attempt?.transportVerification;
- if(sourceCheck?.status!=='HASH_VERIFIED'||!receipt?.intact||receipt.service!==target.service||receipt.serviceEstablished!==true||receipt.bindingEstablished!==true)fail('COUNTRY_PROVIDER_RECEIPT_INVALID');
+ // A newly retained provider page can contain no V2 monetary fact bindings.
+ // V3 evaluates that page independently after source, service, geo and hash checks.
+ if(sourceCheck?.status!=='HASH_VERIFIED'||!receipt?.intact||receipt.service!==target.service||receipt.serviceEstablished!==true)fail('COUNTRY_PROVIDER_RECEIPT_INVALID');
  if(!country(target.market)||geo?.classification!=='G1'||geo.reasons?.length||geo.targetCountry!==target.market||geo.geoCountry!==target.market)fail('COUNTRY_PROVIDER_RECEIPT_INVALID');
  if(!attempt||attempt.id!==geo.attemptId||attempt.outcome!=='OBSERVED'||attempt.providerId!=='decodo'||attempt.method!=='APPROVED_PROXY'||attempt.mode!=='SESSION'||attempt.cleanup!=='RELEASED'||attempt.bindingRef!==attempt.id||!attempt.sessionRef||attempt.targetCountry!==target.market)fail('COUNTRY_PROVIDER_SESSION_INVALID');
  if(geo.transport?.providerId!=='decodo'||geo.transport.method!=='APPROVED_PROXY'||geo.transport.mode!=='SESSION'||geo.transport.bindingRef!==attempt.id)fail('COUNTRY_PROVIDER_SESSION_INVALID');
