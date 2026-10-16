@@ -189,7 +189,7 @@ function pricingLists(parsed){
   if(items.length<2||items.length>24)continue;
   for(const item of items){
    const own=parsed.within(item).filter(segment=>!ancestors(segment.parent).some(node=>node!==item&&node.tag==='li'));
-   const value=own.map(segment=>segment.text).join(' ').replace(/\s+/gu,' ').trim(),match=/^([\p{L}\p{N}][\p{L}\p{N} &'’+.-]{0,79}?)\s*:\s*/u.exec(value);
+   const value=own.map(segment=>segment.text).join(' ').replace(/\s+/gu,' ').trim(),match=/^([\p{L}\p{N}][\p{L}\p{N} &'’+.-]{0,79}?)\s*(?:[*†‡]+\s*)?:\s*/u.exec(value);
    if(!match)continue;
    const name=match[1].trim(),parsedCharges=charges(value.slice(match[0].length),currencyHint);
    if(parsedCharges.length!==1||parsedCharges[0].role!=='ORDINARY')continue;

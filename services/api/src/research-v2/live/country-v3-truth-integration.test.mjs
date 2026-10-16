@@ -84,6 +84,14 @@ test('malformed grouped price cannot split into a fabricated zero charge',()=>{
  assert.deepEqual(projectEstablishedV3Offerings({...targetValue,...result}),[]);
 });
 
+test('country-bound plan footnote preserves the monthly price and omits the marker from plan identity',()=>{
+ const pageUrl='https://help.example.com/en/plans',targetValue=target({market:'JP',providerSourceIdentityHosts:['example.com'],authorities:[]}),body=listedPricing('Standard with ads *: 890 JPY / month|Standard: 1,590 JPY / month|Premium: 2,290 JPY / month').replace('Pricing (Norwegian Krone)','Pricing (Japanese Yen)'),result=evaluateCountryProviderTruth(countryFixture(body,{targetValue,pageUrl})),established=projectEstablishedV3Offerings({...targetValue,...result});
+ assert.deepEqual(established.map(row=>[row.name,row.ordinaryRecurringPrice.amount,row.ordinaryRecurringPrice.currency]),[['Standard with ads',890,'JPY'],['Standard',1590,'JPY'],['Premium',2290,'JPY']]);
+ assert.equal(result.v3SuggestedCandidates.length,3);
+ assert(result.v3SuggestedCandidates.every(row=>row.provenance==='V3_SOURCE_RESEARCH'));
+ assert.deepEqual(new Set(result.v3SuggestedCandidates.map(row=>row.researchEvidence.exactOfferId)),new Set(established.map(row=>row.id)));
+});
+
 test('ambiguous dollar sign without an explicit currency heading cannot become a price',()=>{
  const pageUrl='https://help.example.com/en/plans',targetValue=target({market:'US',providerSourceIdentityHosts:['example.com'],authorities:[]}),body=listedPricing('Standard with ads: $8.99 / month|Standard: $19.99 / month|Premium: $26.99 / month').replace('Pricing (Norwegian Krone)','Pricing'),result=evaluateCountryProviderTruth(countryFixture(body,{targetValue,pageUrl}));
  assert.equal(projectEstablishedV3Offerings({...targetValue,...result}).length,0);
