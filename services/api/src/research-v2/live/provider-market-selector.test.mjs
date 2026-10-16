@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import pngjs from 'pngjs';
-import {createPlaywrightRenderedCapability} from '../../research-v3/browser-render.mjs';
+import {browserRenderLimits,createPlaywrightRenderedCapability,providerReadOnlyPost} from '../../research-v3/browser-render.mjs';
 import {runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
 import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
 import {digest} from '../../research-v3/model.mjs';
@@ -32,21 +32,22 @@ const objective=market=>({kind:'PRICE',serviceId:service,serviceName,providerHos
 const parent=()=>({id:'retained-shell',kind:'PROVIDER',url,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'PROVIDER_PAGE'},outcome:'OK',body:shell,sha256:digest(shell)});
 const temp=t=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'provider-market-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;};
 const png=()=>{const image=new PNG({width:800,height:600,colorType:6,inputColorType:6,inputHasAlpha:true});image.data.fill(255);return PNG.sync.write(image);};
-function capability(market,{selectorCount=1,options=['Norway (English)','United Kingdom (English)','Australia (English)','United States (English)'],unchanged=false,wrongState=false,crossOrigin=false,robots='User-agent: *\nAllow: /',foreignPrices=false}={}){
- const state={selectorClicks:0,optionClicks:0,selected:market==='NO'?'GB':'NO',routes:[],contexts:[]};
+function capability(market,{selectorCount=1,options=['Norway (English)','United Kingdom (English)','Australia (English)','United States (English)'],unchanged=false,wrongState=false,crossOrigin=false,lateCrossOriginAfterScreenshot=false,robots='User-agent: *\nAllow: /',foreignPrices=false,contentDelayMs=0,contentNever=false,contentQuietMs=0,contentTimeoutMs=250,contentNoise=false,lateContentDuringScreenshot=false}={}){
+ const state={selectorClicks:0,optionClicks:0,selected:market==='NO'?'GB':'NO',routes:[],contexts:[],contentReady:false,contentSamples:0,captureBeforeReady:0,noiseTicks:0,extraText:'',lateCrossOrigin:false};
  const pre=foreignPrices?source('NO'):shell.replace('</body>',selector(state.selected)+'</body>');
+ const finalBody=()=>source(wrongState?'AU':state.selected,{bundle:true,annual:true}).replace('</body>',state.extraText+'</body>');
  const chromium={async launch(){return {version:()=> 'fixture-browser',async close(){},async newContext(config){state.contexts.push(config);let routeHandler;
   return {request:{async get(){return {status:()=>200,body:async()=>Buffer.from(robots),headers:()=>({})};}},async route(_pattern,handler){routeHandler=handler;},async close(){},async newPage(){return {
-   on(){},url:()=>crossOrigin&&state.optionClicks?'https://other.example/pricing':url,
+   on(){},url:()=>crossOrigin&&state.optionClicks||state.lateCrossOrigin?'https://other.example/pricing':url,
    async goto(destination){let continued=false;await routeHandler({request:()=>({url:()=>destination,method:()=> 'GET',resourceType:()=> 'document'}),continue:async()=>{continued=true;},abort:async()=>{}});state.routes.push({destination,continued});return {status:()=>continued?200:403,body:async()=>Buffer.from(shell),headers:()=>({'content-type':'text/html'})};},
-   async content(){return state.optionClicks?source(wrongState?'AU':state.selected,{bundle:true,annual:true}):pre;},async waitForLoadState(){},
-   async evaluate(fn){return String(fn).includes('createTreeWalker')?[{text:'Orbit plans',role:'h1',bboxPx:[2,2,200,30],ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null}]:{width:800,height:600};},
+   async content(){if(state.optionClicks&&!state.contentReady)state.captureBeforeReady++;return state.optionClicks?(state.contentReady?finalBody():shell.replace('</body>',selector(state.selected)+'</body>')):pre;},async waitForLoadState(){},
+   async evaluate(fn){if(fn.name==='marketContentState'){state.contentSamples++;if(contentNoise)state.noiseTicks++;const body=state.optionClicks?(state.contentReady?finalBody():shell.replace('</body>',selector(state.selected)+'</body>')):pre;return {text:body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),semantic:state.optionClicks?state.contentReady:foreignPrices,ready:true,busy:false};}return String(fn).includes('createTreeWalker')?[{text:'Orbit plans',role:'h1',bboxPx:[2,2,200,30],ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null}]:{width:800,height:600};},
    locator(query){assert.equal(query,'button[aria-haspopup="listbox"]');return {count:async()=>selectorCount,nth:()=>({isVisible:async()=>true,getAttribute:async()=>`Change country or language. Current country ${state.selected}`,click:async()=>{state.selectorClicks++;}})};},
-   getByRole(role){assert.equal(role,'option');return {count:async()=>options.length,nth:i=>({isVisible:async()=>true,innerText:async()=>options[i],click:async()=>{state.optionClicks++;if(!unchanged)state.selected=market;}})};},
-   async screenshot(){return png();}
+   getByRole(role){assert.equal(role,'option');return {count:async()=>options.length,nth:i=>({isVisible:async()=>true,innerText:async()=>options[i],click:async()=>{state.optionClicks++;if(!unchanged)state.selected=market;if(!contentNever){if(contentDelayMs)setTimeout(()=>{state.contentReady=true;},contentDelayMs);else state.contentReady=true;}}})};},
+   async screenshot(){if(lateContentDuringScreenshot&&state.optionClicks)state.extraText='<p>Additional provider article detail</p>';if(lateCrossOriginAfterScreenshot&&state.optionClicks)state.lateCrossOrigin=true;return png();}
   };}};
  }};}};
- const browser=createPlaywrightRenderedCapability({chromium,hostAllowed:async()=>true,clock:()=> '2026-10-16T10:00:00.000Z'});
+ const browser=createPlaywrightRenderedCapability({chromium,hostAllowed:async()=>true,clock:()=> '2026-10-16T10:00:00.000Z',limits:{...browserRenderLimits,marketContentQuietMs:contentQuietMs,marketContentTimeoutMs:contentTimeoutMs}});
  return {browser,state};
 }
 async function run(t,market,options={}){const c=capability(market,options),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(market),objective:objective(market),parent:parent(),transport:'DIRECT',browser:c.browser});return {...c,result};}
@@ -64,6 +65,46 @@ for(const market of ['US','NO','GB','AU'])test(`${market} provider selector reta
  assert.equal(result.observation.marketSelection.finalSourceSha256,result.observation.sha256);
  assert.equal(result.artifacts.marketPrior.observation.sha256,digest(shell.replace('</body>',selector(market==='NO'?'GB':'NO')+'</body>')));
  assert.equal(result.v3Truth.offers.every(row=>row.propositions.TARGET_MARKET?.evidence?.some(e=>e.reference?.marketContext?.basis==='PROVIDER_SELECTED_MARKET')),true);
+});
+
+test('provider-owned JSON article fetch is admitted while purchase and unrelated POSTs remain blocked',()=>{
+ const request=(method,path,operation,{origin='https://help.orbit.com',type='fetch',contentType='application/json; charset=utf-8'}={})=>({method:()=>method,url:()=>origin+path,resourceType:()=>type,headers:()=>({'content-type':contentType}),postData:()=>JSON.stringify({method:operation,params:{}})});
+ assert.equal(providerReadOnlyPost(request('POST','/api/execute','loadArticle'),'https://help.orbit.com'),true);
+ assert.equal(providerReadOnlyPost(request('POST','/api/execute','getPlans'),'https://help.orbit.com'),true);
+ assert.equal(providerReadOnlyPost(request('POST','/api/execute','submitPurchase'),'https://help.orbit.com'),false);
+ assert.equal(providerReadOnlyPost(request('POST','/checkout','getPlans'),'https://help.orbit.com'),false);
+ assert.equal(providerReadOnlyPost(request('POST','/api/execute','loadArticle',{origin:'https://other.example'}),'https://help.orbit.com'),false);
+ assert.equal(providerReadOnlyPost(request('POST','/api/execute','loadArticle',{type:'document'}),'https://help.orbit.com'),false);
+ assert.equal(providerReadOnlyPost(request('POST','/api/execute','loadArticle',{contentType:'text/plain'}),'https://help.orbit.com'),false);
+ assert.equal(providerReadOnlyPost({...request('POST','/api/execute','loadArticle'),postData:()=>'{"query":"mutation ChangePlan { changePlan }"}'} ,'https://help.orbit.com'),false);
+});
+
+test('selector confirmation waits for asynchronous article content and binds the final post-screenshot hash',async t=>{
+ const {result,state}=await run(t,'GB',{contentDelayMs:180,contentQuietMs:50,contentTimeoutMs:900,lateContentDuringScreenshot:true});
+ assert.equal(result.outcome,'OBSERVED');assert.equal(state.optionClicks,1);assert(state.contentSamples>=4);
+ assert.equal(state.captureBeforeReady,0);assert.equal(result.v3Truth.established,true);
+ assert.equal(result.v3SuggestedCandidates.length,3);assert.equal(projectEstablishedV3Offerings({...target('GB'),...result}).length,3);
+ assert.match(result.observation.body,/Additional provider article detail/);
+ assert.equal(result.observation.sha256,digest(result.observation.body));
+ assert.equal(result.marketSelection.finalSourceSha256,result.observation.sha256);
+});
+
+test('confirmed target without article content times out without a market receipt or fabricated truth',async t=>{
+ const started=Date.now(),{result,state}=await run(t,'GB',{contentNever:true,contentTimeoutMs:180});
+ assert(Date.now()-started<2000);assert.equal(state.optionClicks,1);assert.equal(state.captureBeforeReady,0);
+ assert.equal(result.marketSelection,null);assert.equal(result.v3Truth.established,false);
+ assert.equal(projectEstablishedV3Offerings({...target('GB'),...result}).length,0);
+});
+
+test('unrelated animation churn cannot extend a settled article wait indefinitely',async t=>{
+ const {result,state}=await run(t,'AU',{contentNoise:true,contentQuietMs:50,contentTimeoutMs:600});
+ assert.equal(result.v3Truth.established,true);assert(state.noiseTicks>1);assert.equal(state.optionClicks,1);
+});
+
+test('navigation after selector confirmation cannot bind a stale URL to final content',async t=>{
+ const {result,state}=await run(t,'GB',{lateCrossOriginAfterScreenshot:true});
+ assert.equal(state.optionClicks,1);assert.equal(result.marketSelection,null);assert.equal(result.v3Truth.established,false);
+ assert.equal(projectEstablishedV3Offerings({...target('GB'),...result}).length,0);
 });
 
 test('URL locale and pre-selection NOK prices do not establish GB market truth',async t=>{

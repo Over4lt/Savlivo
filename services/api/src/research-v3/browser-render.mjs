@@ -11,6 +11,49 @@ export {safeRenderedControl} from './rendered-interactions.mjs';
 
 export const browserRenderLimits=Object.freeze({requests:256,bodyBytes:4*1024*1024,imageBytes:16*1024*1024,domElements:512,documentHeight:12000,timeoutMs:60000});
 
+// Some provider pages load public article content through JSON POST RPCs.
+// Admit only same-origin, page-initiated read operations; never forms,
+// navigations, telemetry, or actions that could change an account or order.
+export function providerReadOnlyPost(request,origin){
+ if(request.method()!=='POST'||!['fetch','xhr'].includes(request.resourceType()))return false;
+ let url;try{url=new URL(request.url());}catch{return false;}
+ if(url.origin!==origin||/(?:checkout|purchase|payment|billing|order)(?:\/|$)/i.test(url.pathname))return false;
+ const type=request.headers?.()['content-type']??request.headers?.()['Content-Type']??'';
+ if(!/^application\/json(?:\s*;|$)/i.test(type))return false;
+ const body=request.postData?.();if(typeof body!=='string'||Buffer.byteLength(body)>16384)return false;
+ let data;try{data=JSON.parse(body);}catch{return false;}
+ const read=row=>{
+  if(!row||typeof row!=='object'||Array.isArray(row))return false;
+  const operation=row.method??row.methodName??row.operationName;
+  if(typeof operation==='string')return /^(?:get|load|list|read|fetch|search|query|is|has)[A-Z_]/.test(operation)&&!/(?:create|update|delete|submit|purchase|save|cancel|set|mutation)/i.test(operation);
+  return typeof row.query==='string'&&/^\s*(?:query\b|\{)/.test(row.query)&&!/\bmutation\b/i.test(row.query);
+ };
+ return Array.isArray(data)?data.length>0&&data.length<=8&&data.every(read):read(data);
+}
+
+function marketContentState(){
+ const candidates=[...document.querySelectorAll('*')].filter(element=>/article/i.test(element.tagName)||element.matches('article,[itemprop="articleBody"],main,[role="main"]'));
+ const content=candidates.find(element=>/article/i.test(element.tagName)||element.matches('article,[itemprop="articleBody"]'))??candidates.find(element=>element.matches('main,[role="main"]'));
+ const text=String(content?.innerText??document.body?.innerText??'').replace(/\s+/g,' ').trim().slice(0,20000);
+ return {text,semantic:!!content,ready:document.readyState==='complete',busy:!!document.querySelector('[aria-busy="true"]')};
+}
+
+async function waitForMarketContent(page,before,{timeoutMs=8000,quietMs=400}={}){
+ const until=Date.now()+timeoutMs;let last=null,unchangedSince=0;
+ while(Date.now()<until){
+  let current;try{current=await page.evaluate(marketContentState);}catch{await new Promise(resolve=>setTimeout(resolve,100));continue;}
+  const text=current?.text??'';
+  const changed=text!==before?.text&&(current.semantic||before?.semantic||Math.abs(text.length-(before?.text?.length??0))>=80);
+  const meaningful=text.length>=(current.semantic?80:200);
+  if(current.ready&&current.busy!==true&&changed&&meaningful){
+   if(text!==last){last=text;unchangedSince=Date.now();}
+   if(Date.now()-unchangedSince>=quietMs)return current;
+  }else{last=null;unchangedSince=0;}
+  await new Promise(resolve=>setTimeout(resolve,Math.min(100,Math.max(1,until-Date.now()))));
+ }
+ throw Error('PROVIDER_MARKET_CONTENT_UNRESOLVED');
+}
+
 const controlLabel=text=>String(text??'').normalize('NFKC').replace(/\p{Cf}/gu,'').replace(/\s+/g,' ').trim();
 
 async function sourceBoundLocator(page,source,selectedPeer) {
@@ -123,6 +166,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             try{
                 const selector=await providerMarketSelector(page);
                 if(!selector||marketCodeMatches(target,selector.code))throw Error('PROVIDER_MARKET_SELECTOR_UNRESOLVED');
+                const preContent=await page.evaluate(marketContentState);
                 await selector.locator.click({timeout:Math.min(10000,maxRenderMs)});
                 const options=page.getByRole('option'),count=await options.count();
                 if(count<1||count>256)throw Error('PROVIDER_MARKET_OPTIONS_BOUND');
@@ -139,17 +183,22 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                 if(!finalUrl||new URL(finalUrl).origin!==new URL(parent.url).origin||!providerBound(objective,finalUrl))throw Error('PROVIDER_MARKET_NAVIGATION_UNSAFE');
                 const post=await providerMarketSelector(page);
                 if(!post||!marketCodeMatches(target,post.code)||post.code===selector.code)throw Error('PROVIDER_MARKET_STATE_UNCHANGED');
-                const renderedBody=await page.content(),bodyHash=digest(renderedBody);
-                if(bodyHash===preHash||Buffer.byteLength(renderedBody)>limits.bodyBytes)throw Error('PROVIDER_MARKET_SOURCE_INVALID');
+                await waitForMarketContent(page,preContent,{timeoutMs:Math.min(maxRenderMs,limits.marketContentTimeoutMs??8000),quietMs:limits.marketContentQuietMs??400});
                 const extent=await page.evaluate(() => ({width:Math.max(document.documentElement.scrollWidth,document.body?.scrollWidth??0),height:Math.max(document.documentElement.scrollHeight,document.body?.scrollHeight??0)}));
                 if(extent.height>limits.documentHeight||extent.width>32768||extent.width*extent.height>50_000_000)throw Error('RENDERED_PAGE_BOUND');
-                const dom=await page.evaluate(visibleDom),pngBytes=await page.screenshot({type:'png',fullPage:true,animations:'disabled',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
+                const pngBytes=await page.screenshot({type:'png',fullPage:true,animations:'disabled',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
                 if(pngBytes.length>limits.imageBytes)throw Error('RENDERED_IMAGE_BOUND');
-                const acquiredAt=clock(),marketSelection={kind:'PROVIDER_SELECTED_MARKET',observationId:action.id,targetMarket:target,transport:'DIRECT_BROWSER',initialUrl,finalUrl,providerHost:new URL(finalUrl).hostname,preSourceSha256:preHash,finalSourceSha256:bodyHash,preSelectedCode:selector.code,selectedCode:post.code,selectedOption:matches[0].label,selectorLabel:post.label};
-                const stateReceipt={...structuredClone(receipt),url:finalUrl,body:renderedBody,acquiredAt,responseMetadata:{...receipt.responseMetadata,renderedDomSha256:bodyHash,requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64)}};
+                await waitForMarketContent(page,preContent,{timeoutMs:Math.min(maxRenderMs,limits.marketContentTimeoutMs??8000),quietMs:limits.marketContentQuietMs??400});
+                const retainedUrl=normalizeUrl(page.url()),retainedSelector=await providerMarketSelector(page);
+                if(!retainedUrl||new URL(retainedUrl).origin!==new URL(parent.url).origin||!providerBound(objective,retainedUrl)||!retainedSelector||!marketCodeMatches(target,retainedSelector.code)||retainedSelector.code!==post.code)throw Error('PROVIDER_MARKET_FINAL_STATE_INVALID');
+                const dom=await page.evaluate(visibleDom);
+                const renderedBody=await page.content(),bodyHash=digest(renderedBody);
+                if(bodyHash===preHash||Buffer.byteLength(renderedBody)>limits.bodyBytes)throw Error('PROVIDER_MARKET_SOURCE_INVALID');
+                const acquiredAt=clock(),marketSelection={kind:'PROVIDER_SELECTED_MARKET',observationId:action.id,targetMarket:target,transport:'DIRECT_BROWSER',initialUrl,finalUrl:retainedUrl,providerHost:new URL(retainedUrl).hostname,preSourceSha256:preHash,finalSourceSha256:bodyHash,preSelectedCode:selector.code,selectedCode:retainedSelector.code,selectedOption:matches[0].label,selectorLabel:retainedSelector.label};
+                const stateReceipt={...structuredClone(receipt),url:retainedUrl,body:renderedBody,acquiredAt,responseMetadata:{...receipt.responseMetadata,renderedDomSha256:bodyHash,requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64)}};
                 const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:'DIRECT',requestedCountry:null,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:false,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
                 session.receipt=stateReceipt;session.imageSha256=imageHash(pngBytes);sessions.delete(parent.id);sessions.set(action.id,session);
-                return {page:stateReceipt,finalUrl,pngBytes,capture:{capturedAt:acquiredAt,browserBuild:browser.version(),captureRevision:'playwright-market-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([finalUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:structuredClone(ledger),networkSession,marketSelection,marketSelector:{kind:'PROVIDER_MARKET_SELECTOR',label:post.label,code:post.code}};
+                return {page:stateReceipt,finalUrl:retainedUrl,pngBytes,capture:{capturedAt:acquiredAt,browserBuild:browser.version(),captureRevision:'playwright-market-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([retainedUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:structuredClone(ledger),networkSession,marketSelection,marketSelector:{kind:'PROVIDER_MARKET_SELECTOR',label:retainedSelector.label,code:retainedSelector.code}};
             }catch(error){sessions.delete(parent.id);await context.close().catch(()=>{});throw error;}
         }
         if(action.mode==='STATE'){
@@ -212,7 +261,8 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             await context.route('**/*',async route=>{
                 const request=route.request(),url=request.url(),method=request.method();
                 let parsed;try{parsed=new URL(url);}catch{return route.abort();}
-                if(!['GET','HEAD'].includes(method)||!normalizeUrl(url)||request.resourceType()==='document'&&(parsed.origin!==origin||!providerBound(objective,url)||([404,410].includes(robots.status)?false:robots.status!==200||evaluateAcquisitionRobots(parseAcquisitionRobots(robots.text),url).decision!=='ALLOWED'))||ledger.length>=limits.requests||!(await hostAllowed(parsed.hostname,dns)))return route.abort();
+                const readPost=providerReadOnlyPost(request,origin),robotsNeeded=request.resourceType()==='document'||readPost;
+                if(!['GET','HEAD'].includes(method)&&!readPost||!normalizeUrl(url)||robotsNeeded&&(parsed.origin!==origin||!providerBound(objective,url)||([404,410].includes(robots.status)?false:robots.status!==200||evaluateAcquisitionRobots(parseAcquisitionRobots(robots.text),url).decision!=='ALLOWED'))||ledger.length>=limits.requests||!(await hostAllowed(parsed.hostname,dns)))return route.abort();
                 record({url,method,resourceType:request.resourceType(),channel:'PAGE'});
                 return route.continue();
             });
