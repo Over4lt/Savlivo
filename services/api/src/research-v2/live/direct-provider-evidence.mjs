@@ -6,6 +6,7 @@ import {interpretRun} from './runner.mjs';import {verifyRetainedRun} from './mod
 import {canonical} from '../../research-v3/model.mjs';
 import {autonomousProviderAuthorityDecision} from './provider-routing-authority.mjs';
 import {evaluateProviderSourceTruth} from './provider-source-v3.mjs';
+import {applicationShellRenderingRequired,conditionalCommercialRenderingRequired} from './rendering-diagnosis.mjs';
 import {TargetResearchFailure} from './target-research-failure.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 function autonomousAuthority(target,page){
@@ -39,7 +40,7 @@ export async function interpretDirectProvider({target,page,directory,interpret=i
  fs.writeFileSync(dir+'/manifest.json',JSON.stringify(manifest,null,2));
  const store=openMarketRunStore(dir+'/journal');try{store.append('V2_ACQUISITION_RESULT',{target:interpretationTarget,result:{outcome:'OBSERVED',attempts:[{id:path.basename(dir),method:'DIRECT_PUBLIC',outcome:'OBSERVED',page:retained}]}});}finally{store.close();}
  onReplayStage('INTERPRETATION',{runDirectory:dir});await interpret(dir);onReplayStage('TARGETED_VERIFICATION',{runDirectory:dir});const verification=await verify(dir);
- return {...v3,priceEvidenceNeeds:verification.priceEvidenceNeedsByTarget?.[target.id]??null,url:page.url,runDirectory:dir,classification:verification.verified.length?'VERIFIED_OUTPUT':'DIRECT_FIELDS_INSUFFICIENT',acquired:true,usable:verification.usable,monetary:verification.monetaryFacts,verified:verification.verified,sufficient:verification.verified.length>0,blockers:verification.blockers,channel:'DIRECT_PROVIDER',hardStop:false};
+ return {...v3,renderingRequired:applicationShellRenderingRequired(retained.rawSource.text)||conditionalCommercialRenderingRequired(retained.rawSource.text),renderingUrl:retained.url,priceEvidenceNeeds:verification.priceEvidenceNeedsByTarget?.[target.id]??null,url:page.url,runDirectory:dir,classification:verification.verified.length?'VERIFIED_OUTPUT':'DIRECT_FIELDS_INSUFFICIENT',acquired:true,usable:verification.usable,monetary:verification.monetaryFacts,verified:verification.verified,sufficient:verification.verified.length>0,blockers:verification.blockers,channel:'DIRECT_PROVIDER',hardStop:false};
 }
 export function directGeoGap(outcome){
  // A successful body with unresolved fields is not an acquisition failure.

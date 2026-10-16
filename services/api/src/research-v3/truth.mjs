@@ -2,6 +2,7 @@ import {monthlyPayment,paymentChoice,ordinaryCharge} from './payment-semantics.m
 import { canonical, digest, providerBound, servicePropositions, pricePropositions, requiredPricePropositions } from './model.mjs';
 import {projectObservation} from './projection.mjs';
 import {verifiedCountryContext} from './truth-contract.mjs';
+import {providerSelectedMarketContext} from './provider-market-evidence.mjs';
 export {truthContract} from './truth-contract.mjs';
 const currencies = new Set(Intl.supportedValuesOf('currency'));
 // The display cadence remains a diagnostic. Actual monthly payment is already
@@ -71,10 +72,10 @@ export function evaluate(k) {
         }
         const reference = pointer => ({ observation: o.id, sha256: o.sha256, pointer, ...(web ? {source: web.bindings[pointer]} : {}) });
         for(const [i,choice] of (source.subscriptionChoices??[]).entries()) {
-            const market=!choice.marketAmbiguous?(choice.market??verifiedCountryContext(o)):null;
+            const market=!choice.marketAmbiguous?(choice.market??providerSelectedMarketContext(o)??verifiedCountryContext(o)):null;
             if(choice.monthlyOffered===false&&choice.scope==='SERVICE'&&['COMPLETE','EXPLICIT_NO_MONTHLY'].includes(choice.basis)&&availability[market]&&!choice.excludedMarkets?.includes(market))availability[market].push({value:false,reference:reference('/subscriptionChoices/'+i)});
         }
-        for(const [i,choice] of (source.subscriptionChoices??[]).entries()){const market=!choice.marketAmbiguous?(choice.market??verifiedCountryContext(o)):null;if(paymentChoice(choice)&&availability[market]&&!choice.excludedMarkets?.includes(market))availability[market].push({value:true,reference:reference('/subscriptionChoices/'+i)});}
+        for(const [i,choice] of (source.subscriptionChoices??[]).entries()){const market=!choice.marketAmbiguous?(choice.market??providerSelectedMarketContext(o)??verifiedCountryContext(o)):null;if(paymentChoice(choice)&&availability[market]&&!choice.excludedMarkets?.includes(market))availability[market].push({value:true,reference:reference('/subscriptionChoices/'+i)});}
         for (const c of o.candidates ?? []) {
             if (c.kind === 'SERVICE' && c.pointer === '') {
                 claim(service.SERVICE_IDENTITY, true, reference('/serviceId'));
@@ -98,8 +99,9 @@ export function evaluate(k) {
             const consumer = offer.consumer === true && ['SUBSCRIPTION', 'MEMBERSHIP'].includes(offer.relationship);
             const explicitCadence = !offer.amountDerivation || offer.amountDerivation === 'EXPLICIT';
             const explicitMarket = typeof offer.market === 'string' && /^[A-Z]{2}$/.test(offer.market) ? offer.market : null;
+            const selectedMarket = !offer.marketAmbiguous ? providerSelectedMarketContext(o) : null;
             const country = !offer.marketAmbiguous ? verifiedCountryContext(o) : null;
-            const market = explicitMarket ?? country;
+            const market = explicitMarket ?? selectedMarket ?? country;
             // Never assemble a price from unrelated plans, qualifiers, or geographically
             // different unlocalized presentations. A source without an offer ID stands alone.
             // Billing cadence, commitment copy, and derivation are claims about
@@ -125,7 +127,7 @@ export function evaluate(k) {
             if (typeof offer.consumer === 'boolean' && ['SUBSCRIPTION', 'MEMBERSHIP', 'INSTALLMENT', 'ONE_TIME'].includes(offer.relationship))
                 claim(p.CONSUMER_SUBSCRIPTION, consumer, ref);
             if (market)
-                claim(p.TARGET_MARKET, market, explicitMarket?ref:{...ref,marketContext:{basis:'VERIFIED_COUNTRY_OBSERVATION',country,verification:o.transport.verification}});
+                claim(p.TARGET_MARKET, market, explicitMarket?ref:selectedMarket?{...ref,marketContext:{basis:'PROVIDER_SELECTED_MARKET',country:selectedMarket,receipt:o.marketSelection}}:{...ref,marketContext:{basis:'VERIFIED_COUNTRY_OBSERVATION',country,verification:o.transport.verification}});
         }
     }
     const conflicted=new Set();

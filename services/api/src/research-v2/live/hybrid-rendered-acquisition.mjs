@@ -5,7 +5,7 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {planResearch} from './research-planner.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
-import {retainedProviderRenderingAuthority} from './retained-render-source.mjs';
+import {retainedProviderRenderingAuthority,retainedProviderSelectorAuthority} from './retained-render-source.mjs';
 import {authorityBinding} from '../../research-v3/discovery-authority.mjs';
 import {canonical,digest,context,providerBound} from '../../research-v3/model.mjs';
 import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.mjs';
@@ -17,8 +17,9 @@ import {sourceBoundContinuations} from './provider-source-v3.mjs';
 import {projectV3SuggestedCandidates} from '../../research-v3/suggested-projection.mjs';
 import {sourceBoundLineageBindings} from '../../research-v3/source-lineage.mjs';
 import {interactiveNavigationDestination} from './interactive-research-route.mjs';
+import {marketCodeMatches} from '../../research-v3/provider-market-evidence.mjs';
 
-export const hybridRenderedLimits=Object.freeze({actions:1,browserActions:2,networkRequests:256,countryActions:1,retries:0,perAttemptNetworkRequests:256});
+export const hybridRenderedLimits=Object.freeze({actions:1,browserActions:3,networkRequests:256,countryActions:1,retries:0,perAttemptNetworkRequests:256});
 export const hybridRenderedContract=Object.freeze({version:1,scheduler:'RESEARCH_V2',executor:'RESEARCH_V3_PLAYWRIGHT',truth:'EXISTING_RESEARCH_V3',authority:'EXACT_HOST_OR_RETAINED_PROVIDER_SOURCE'});
 
 const iso=value=>typeof value==='string'&&/^[A-Z]{2}$/.test(value);
@@ -66,7 +67,7 @@ function persistArtifacts(directory,action,result,observation,retained) {
 }
 
 function retainedProviderSourceForRendering(target,parent,url,transport){
- return !!parent&&parent.url===url&&typeof parent.body==='string'&&digest(parent.body)===parent.sha256&&retainedProviderRenderingAuthority(target,{url,transport,sourceHash:parent.sha256});
+ return !!parent&&parent.url===url&&typeof parent.body==='string'&&digest(parent.body)===parent.sha256&&(retainedProviderRenderingAuthority(target,{url,transport,sourceHash:parent.sha256})||transport==='DIRECT'&&retainedProviderSelectorAuthority(target,{url,sourceHash:parent.sha256}));
 }
 
 export function planHybridRenderedAcquisition(target,{url,transport='DIRECT',executionContext,parent=null}={}) {
@@ -100,7 +101,7 @@ export async function runHybridRenderedAcquisition({directory,target,objective,p
    let acquisition=validateSession(result,transport,target.market,limits.perAttemptNetworkRequests);
    let observation=adaptV2CurrentSource(phase1Input({action,target,objective,result,acquisition}),objective);observation.action=action.id;
    let retained=retainRenderedObservation(observation,result);observation.renderedArtifacts=[retained.artifact];observation.renderedOverviews=[retained.overview];observation.domSnapshot=retained.dom;observation.renderedControlRegions=[retained.controlRegions];
-   let completedAction=action,priorArtifacts=null,consent=null;
+   let completedAction=action,priorArtifacts=null,marketPriorArtifacts=null,consent=null,marketSelection=null;
    const initialTruth=evaluate({objective,observations:[observation],attempts:[],policyBlocks:[],stop:null});
    const controls=retained.dom.filter(row=>safeRenderedControl(row,'COOKIE_REJECT')&&retained.controlRegions.regions.some(region=>region.id==='control-'+row.id&&canonical(region.bboxPx)===canonical(row.bboxPx)));
    const rank=row=>/\b(?:reject|decline)\s+all\b/i.test(row.text)?0:/\b(?:only necessary|necessary only|essential only)\b/i.test(row.text)?1:2;
@@ -116,7 +117,21 @@ export async function runHybridRenderedAcquisition({directory,target,objective,p
      result=next;acquisition=nextAcquisition;observation=nextObservation;retained=nextRetained;completedAction=stateAction;consent={attempted:true,outcome:'COMPLETED',parentRenderId:priorArtifacts.observation.renderId,renderId:retained.artifact.id};journal.append('CONSENT_ACTION_RESULT',{actionId:stateAction.id,outcome:'COMPLETED',renderId:retained.artifact.id});
     }catch(error){consent={attempted:true,outcome:'FAILED',reason:safeCode(error)};journal.append('CONSENT_ACTION_RESULT',{actionId:stateAction.id,outcome:'FAILED',reason:consent.reason});}
    }
-   const artifacts=persistArtifacts(directory,completedAction,result,observation,retained),compact={contractVersion:hybridRenderedContract.version,actionId:action.id,outcome:'OBSERVED',url:observation.url,bodySha256:observation.sha256,sourceHashes:{mainDocument:result.page.responseMetadata?.mainDocumentSha256??null,renderedDom:result.page.responseMetadata?.renderedDomSha256??null},acquisition,networkSession:{...result.networkSession,ledgerRef:artifacts.refs['request-ledger.json'],ledgerSha256:result.networkSession.ledgerSha256},artifacts:{...artifacts,...(priorArtifacts?{prior:{refs:priorArtifacts.refs,observation:priorArtifacts.observation}}:{})},consent,usage:{...journal.usage(),actualNetworkRequests:result.browserLedger.length},freshAt:result.page.acquiredAt};
+   if(transport==='DIRECT'&&result.marketSelector?.kind==='PROVIDER_MARKET_SELECTOR'&&!marketCodeMatches(target.market,result.marketSelector.code)&&!evaluate({objective,observations:[observation],attempts:[],policyBlocks:[],stop:null}).established){
+    const marketAction={id:action.id+'-market',kind:'RENDER',mode:'MARKET',observation:observation.id,url:observation.url,targetMarket:target.market};
+    try{
+     journal.reserve('browserActions');journal.append('PROVIDER_MARKET_ACTION_STARTED',{actionId:marketAction.id,parentObservation:observation.id,targetMarket:target.market});
+     marketPriorArtifacts=persistArtifacts(directory,completedAction,result,observation,retained);
+     const next=await browser(marketAction,{parent:observation,objective}),nextAcquisition=validateSession(next,transport,target.market,limits.perAttemptNetworkRequests);
+     if(!next.marketSelection||next.marketSelection.preSourceSha256!==observation.sha256||next.marketSelection.initialUrl!==result.page.requestedUrl||next.marketSelection.providerHost!==new URL(observation.url).hostname)throw Error('PROVIDER_MARKET_RECEIPT_REQUIRED');
+     const selectedAcquisition={...nextAcquisition,route:'PROVIDER_SELECTED_MARKET',marketReceipt:next.marketSelection};
+     const nextObservation=adaptV2CurrentSource(phase1Input({action:marketAction,target,objective,result:next,acquisition:selectedAcquisition}),objective);nextObservation.action=marketAction.id;
+     const nextRetained=retainRenderedObservation(nextObservation,next);nextObservation.renderedArtifacts=[nextRetained.artifact];nextObservation.renderedOverviews=[nextRetained.overview];nextObservation.domSnapshot=nextRetained.dom;nextObservation.renderedControlRegions=[nextRetained.controlRegions];
+     result=next;acquisition=selectedAcquisition;observation=nextObservation;retained=nextRetained;completedAction=marketAction;marketSelection=structuredClone(next.marketSelection);
+     journal.append('PROVIDER_MARKET_ACTION_RESULT',{actionId:marketAction.id,outcome:'COMPLETED',sourceHash:observation.sha256,targetMarket:target.market});
+    }catch(error){journal.append('PROVIDER_MARKET_ACTION_RESULT',{actionId:marketAction.id,outcome:'UNRESOLVED',reason:safeCode(error)});}
+   }
+   const artifacts=persistArtifacts(directory,completedAction,result,observation,retained),compact={contractVersion:hybridRenderedContract.version,actionId:action.id,outcome:'OBSERVED',url:observation.url,bodySha256:observation.sha256,sourceHashes:{mainDocument:result.page.responseMetadata?.mainDocumentSha256??null,renderedDom:result.page.responseMetadata?.renderedDomSha256??null},acquisition,networkSession:{...result.networkSession,ledgerRef:artifacts.refs['request-ledger.json'],ledgerSha256:result.networkSession.ledgerSha256},artifacts:{...artifacts,...(priorArtifacts?{prior:{refs:priorArtifacts.refs,observation:priorArtifacts.observation}}:{}),...(marketPriorArtifacts?{marketPrior:{refs:marketPriorArtifacts.refs,observation:marketPriorArtifacts.observation}}:{})},consent,marketSelection,usage:{...journal.usage(),actualNetworkRequests:result.browserLedger.length},freshAt:result.page.acquiredAt};
    journal.append('NETWORK_SETTLED',{actionId:action.id,used:result.browserLedger.length,reserved:limits.perAttemptNetworkRequests});journal.append('ACTION_RESULT',{actionId:action.id,outcome:'OBSERVED',checkpoint:compact});
    const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},v3Truth=evaluate(knowledge),v3Catalog=refreshCatalog(knowledge,v3Truth),v3Observation={id:observation.id,kind:observation.kind,url:observation.url,sha256:observation.sha256,context:observation.context,candidateCount:observation.candidates.length,nativeStructuredFacts:observation.nativeStructured?.facts?.length??0},{navigation,v3Continuations}=sourceBoundContinuations(observation,objective,v3Truth);v3Observation.continuationCount=v3Continuations.length;v3Observation.continuationLimited=navigation.limited;
    const providerAuthority={status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,observation.url)},projected=projectV3SuggestedCandidates({observation,objective,targetMarket:target.market,providerAuthority,truth:v3Truth}),researchCandidateLineage=(target.researchCandidateLineage??[]).map(row=>!row.sourceHash&&row.sourceUrl===observation.url?{...row,sourceHash:observation.sha256}:row),v3ResearchLineage=sourceBoundLineageBindings({handoff:{adaptiveTargetPatch:{researchCandidateLineage}},observation,candidates:projected}),v3SuggestedCandidates=projectV3SuggestedCandidates({observation,objective,targetMarket:target.market,providerAuthority,truth:v3Truth,researchLineage:v3ResearchLineage.bindings});

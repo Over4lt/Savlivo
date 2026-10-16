@@ -1,0 +1,146 @@
+import '../offline-replay/offline-guard.mjs';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import pngjs from 'pngjs';
+import {createPlaywrightRenderedCapability} from '../../research-v3/browser-render.mjs';
+import {runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
+import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
+import {digest} from '../../research-v3/model.mjs';
+import {marketName,validateProviderSelectedMarketReceipt} from '../../research-v3/provider-market-evidence.mjs';
+import {interpretSubscriptionPage} from '../../research-v3/subscription-page.mjs';
+import {retainedProviderSelectorAuthority} from './retained-render-source.mjs';
+import {runOpenWebResearch} from './open-web-discovery.mjs';
+
+const {PNG}=pngjs;
+const url='https://help.orbit.com/en-GB/article/pricing?redirect=true';
+const service='orbit',serviceName='Orbit';
+const link={id:'11111111-1111-4111-8111-111111111111',url,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',enabled:true,truthAuthority:'NONE'};
+const shell='<html><head><title>Orbit Help</title><script src="/app.js"></script><script src="/other.js"></script></head><body><div id="app"></div></body></html>';
+const selector=code=>`<button type="button" aria-haspopup="listbox" aria-label="Change country or language. Current country ${code}">Country</button>`;
+const prices={NO:{code:'NOK',symbol:'NOK ',amounts:[79,109,139]},GB:{code:'GBP',symbol:'£',amounts:[6.99,10.99,13.99]},AU:{code:'AUD',symbol:'A$',amounts:[9.99,13.99,17.99]}};
+const source=(market,{bundle=false,annual=false}={})=>{
+ const {symbol,amounts}=prices[market];
+ const rows=['Standard','Plus','Premium'].map((name,index)=>`<tr><td>${name}</td><td><p>Monthly: ${symbol}${amounts[index]}</p><p>Annual: ${symbol}${amounts[index]*10}</p><button>Select a plan</button></td></tr>`).join('');
+ return `<html><head><title>Orbit plans</title><meta name="description" content="Orbit subscriptions and monthly plans"></head><body>${selector(market)}<h1>Orbit plans</h1><table>${rows}${bundle?`<tr><td>Orbit + Sports bundle</td><td><p>Monthly: ${symbol}99</p><button>Select a plan</button></td></tr>`:''}${annual?`<tr><td>Annual only</td><td><p>Annual: ${symbol}499</p><button>Select a plan</button></td></tr>`:''}</table></body></html>`;
+};
+const target=(market,extra={})=>({id:'orbit-'+market,service,serviceName,market,operationsObjective:'PRICE_RESEARCH',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},capabilities:{direct:true,tavily:false,decodo:true,browser:true,groq:false},authorities:[{provider:serviceName,hostname:'help.orbit.com',sourceType:'OFFICIAL_PROVIDER',sourceUrl:url,checkedAt:'2026-01-01'}],providerSourceIdentityHosts:['help.orbit.com'],urls:[url],leads:[{url,title:'Provider pricing',rank:0}],gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],reads:[],queries:[],decisions:[],verified:[],blockedOrigins:[],researchLinks:[link],researchLinkOutcomes:[],persistedVerifiedCount:0,...extra});
+const objective=market=>({kind:'PRICE',serviceId:service,serviceName,providerHosts:['help.orbit.com'],markets:[market],seeds:[url]});
+const parent=()=>({id:'retained-shell',kind:'PROVIDER',url,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'PROVIDER_PAGE'},outcome:'OK',body:shell,sha256:digest(shell)});
+const temp=t=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'provider-market-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;};
+const png=()=>{const image=new PNG({width:800,height:600,colorType:6,inputColorType:6,inputHasAlpha:true});image.data.fill(255);return PNG.sync.write(image);};
+function capability(market,{selectorCount=1,options=['Norway (English)','United Kingdom (English)','Australia (English)'],unchanged=false,wrongState=false,crossOrigin=false,robots='User-agent: *\nAllow: /',foreignPrices=false}={}){
+ const state={selectorClicks:0,optionClicks:0,selected:market==='NO'?'GB':'NO',routes:[],contexts:[]};
+ const pre=foreignPrices?source('NO'):shell.replace('</body>',selector(state.selected)+'</body>');
+ const chromium={async launch(){return {version:()=> 'fixture-browser',async close(){},async newContext(config){state.contexts.push(config);let routeHandler;
+  return {request:{async get(){return {status:()=>200,body:async()=>Buffer.from(robots),headers:()=>({})};}},async route(_pattern,handler){routeHandler=handler;},async close(){},async newPage(){return {
+   on(){},url:()=>crossOrigin&&state.optionClicks?'https://other.example/pricing':url,
+   async goto(destination){let continued=false;await routeHandler({request:()=>({url:()=>destination,method:()=> 'GET',resourceType:()=> 'document'}),continue:async()=>{continued=true;},abort:async()=>{}});state.routes.push({destination,continued});return {status:()=>continued?200:403,body:async()=>Buffer.from(shell),headers:()=>({'content-type':'text/html'})};},
+   async content(){return state.optionClicks?source(wrongState?'AU':state.selected,{bundle:true,annual:true}):pre;},async waitForLoadState(){},
+   async evaluate(fn){return String(fn).includes('createTreeWalker')?[{text:'Orbit plans',role:'h1',bboxPx:[2,2,200,30],ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null}]:{width:800,height:600};},
+   locator(query){assert.equal(query,'button[aria-haspopup="listbox"]');return {count:async()=>selectorCount,nth:()=>({isVisible:async()=>true,getAttribute:async()=>`Change country or language. Current country ${state.selected}`,click:async()=>{state.selectorClicks++;}})};},
+   getByRole(role){assert.equal(role,'option');return {count:async()=>options.length,nth:i=>({isVisible:async()=>true,innerText:async()=>options[i],click:async()=>{state.optionClicks++;if(!unchanged)state.selected=market;}})};},
+   async screenshot(){return png();}
+  };}};
+ }};}};
+ const browser=createPlaywrightRenderedCapability({chromium,hostAllowed:async()=>true,clock:()=> '2026-10-16T10:00:00.000Z'});
+ return {browser,state};
+}
+async function run(t,market,options={}){const c=capability(market,options),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(market),objective:objective(market),parent:parent(),transport:'DIRECT',browser:c.browser});return {...c,result};}
+
+for(const market of ['NO','GB','AU'])test(`${market} provider selector retains three monthly plans and source-bound market truth`,async t=>{
+ const {result,state}=await run(t,market);
+ assert.equal(result.outcome,'OBSERVED',JSON.stringify(result));assert.equal(result.marketSelection.targetMarket,market);
+ assert.equal(result.v3Truth.established,true,JSON.stringify(result.v3Truth.needs));
+ assert.deepEqual(result.v3SuggestedCandidates.map(row=>row.market),[market,market,market]);
+ assert(result.v3SuggestedCandidates.every(row=>row.provenance==='V3_SOURCE_RESEARCH'&&row.sourceHash===result.observation.sha256));
+ const verified=projectEstablishedV3Offerings({...target(market),...result});assert.equal(verified.length,3);
+ assert.deepEqual(verified.map(row=>row.ordinaryRecurringPrice.currency),[prices[market].code,prices[market].code,prices[market].code]);
+ assert.equal(state.selectorClicks,1);assert.equal(state.optionClicks,1);assert.equal(result.usage.browserActions,2);assert.equal(result.usage.countryActions,0);
+ assert.equal(result.observation.context.transport,'DIRECT');assert.equal(result.v3Truth.offers.length,3);
+ assert.equal(result.observation.marketSelection.finalSourceSha256,result.observation.sha256);
+ assert.equal(result.artifacts.marketPrior.observation.sha256,digest(shell.replace('</body>',selector(market==='NO'?'GB':'NO')+'</body>')));
+ assert.equal(result.v3Truth.offers.every(row=>row.propositions.TARGET_MARKET?.evidence?.some(e=>e.reference?.marketContext?.basis==='PROVIDER_SELECTED_MARKET')),true);
+});
+
+test('URL locale and pre-selection NOK prices do not establish GB market truth',async t=>{
+ const {result}=await run(t,'GB',{foreignPrices:true});assert.equal(result.v3Truth.established,true);assert.equal(result.v3SuggestedCandidates.length,3);assert(result.v3SuggestedCandidates.every(row=>row.market==='GB'&&row.currency==='GBP'));assert.equal(result.marketSelection.preSelectedCode,'NO');
+});
+
+for(const [label,options,selectorClicks,optionClicks] of [
+ ['no selector',{selectorCount:0},0,0],['ambiguous selector',{selectorCount:2},0,0],['selector only in untrusted iframe',{selectorCount:0},0,0],['duplicate target options',{options:['United Kingdom (English)','United Kingdom (French)']},1,0],['target option absent',{options:['Norway (English)']},1,0],['selected state unchanged',{unchanged:true},1,1],['selected state wrong',{wrongState:true},1,1],['cross-provider navigation',{crossOrigin:true},1,1],
+])test(`${label} yields no canonical market truth`,async t=>{
+ const {result,state}=await run(t,'GB',options);assert.equal(result.outcome,'OBSERVED');assert.equal(result.marketSelection,null);assert.equal(result.v3Truth.established,false);assert.equal(projectEstablishedV3Offerings({...target('GB'),...result}).length,0);assert.equal(state.selectorClicks,selectorClicks);assert.equal(state.optionClicks,optionClicks);
+});
+
+test('robots disallow prevents Browser before document request and clicks',async t=>{const {result,state}=await run(t,'GB',{robots:'User-agent: *\nDisallow: /'});assert.equal(result.outcome,'ACQUISITION_FAILED');assert.equal(state.routes.length,0);assert.equal(state.selectorClicks,0);});
+
+test('market receipt requires exact target, observation, final source hash and provider control',async t=>{
+ const {result}=await run(t,'GB'),receipt=result.marketSelection,context={observationId:result.observation.id,url:result.observation.url,body:result.observation.body,sourceHash:result.observation.sha256,targetMarket:'GB'};
+ assert.equal(validateProviderSelectedMarketReceipt(receipt,context).targetMarket,'GB');
+ for(const changed of [{targetMarket:'AU'},{observationId:'other'},{finalSourceSha256:'0'.repeat(64)},{selectedCode:'AU'},{providerHost:'other.example'}])assert.throws(()=>validateProviderSelectedMarketReceipt({...receipt,...changed},context));
+ assert.throws(()=>validateProviderSelectedMarketReceipt(receipt,{...context,body:context.body+' '}));
+ assert.throws(()=>validateProviderSelectedMarketReceipt(receipt,{...context,sourceHash:'0'.repeat(64)}));
+});
+
+test('annual charges and bundle rows stay out of three standalone monthly prices',()=>{
+ const parsed=interpretSubscriptionPage({body:source('GB',{bundle:true,annual:true}),url,providerName:serviceName});assert.deepEqual(parsed.offerings.map(row=>row.name),['Standard','Plus','Premium']);assert(parsed.offerings.every(row=>row.charges.length===1&&row.charges[0].billingCadence==='MONTHLY'));
+});
+
+test('exact retained GLOBAL link routes Direct shell to Browser for a non-URL market',async t=>{
+ const dir=temp(t),x=target('NO',{authorities:[]}),read=async()=>({url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:shell},sourceIntegrity:{sha256:digest(shell)},accessDecisions:[{decision:'ALLOWED'}]}),state=await runOpenWebResearch({directory:dir,targets:[x],maxActions:1,read,search:async()=>{throw Error('NO_SEARCH');},acquire:async()=>{throw Error('NO_DECODO');},render:async()=>{throw Error('NOT_YET');}});
+ const current=state.targets[0];assert.equal(current.reads.length,1);assert.equal(current.renderingNeed?.transport,'DIRECT',JSON.stringify({plan:current.researchPlan,reads:current.reads,leads:current.leads,events:fs.readFileSync(dir+'/journal.jsonl','utf8')}));assert.equal(current.renderingNeed?.url,url);assert.equal(current.renderingNeed?.sourceHash,digest(shell));assert.equal(retainedProviderSelectorAuthority(current,{url,sourceHash:digest(shell)})?.registrableDomain,'orbit.com');
+ assert.equal(current.researchLinkOutcomes.length,0);
+});
+
+test('successful GLOBAL selector route short-circuits Decodo, Gemini, Tavily and broad discovery',async t=>{
+ const dir=temp(t),x=target('GB',{authorities:[]}),c=capability('GB'),calls={read:0,render:0,decodo:0,search:0};
+ const state=await runOpenWebResearch({directory:dir,targets:[x],maxActions:10,
+  read:async()=>{calls.read++;return {url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:shell},sourceIntegrity:{sha256:digest(shell)},accessDecisions:[{decision:'ALLOWED'}]};},
+  render:async({target:current})=>{calls.render++;return runHybridRenderedAcquisition({directory:path.join(dir,'hybrid-rendered'),target:current,objective:objective('GB'),parent:parent(),transport:'DIRECT',browser:c.browser});},
+  acquire:async()=>{calls.decodo++;throw Error('DECODO_SHOULD_NOT_RUN');},
+  search:async()=>{calls.search++;throw Error('TAVILY_SHOULD_NOT_RUN');}});
+ const current=state.targets[0];assert.deepEqual(calls,{read:1,render:1,decodo:0,search:0});
+ assert.equal(projectEstablishedV3Offerings(current).length,3);
+ assert.equal(current.v3SuggestedCandidates.length,3);
+ assert.equal(current.renderingOutcomes[0].usage.browserActions,2);
+ assert.equal(current.renderingOutcomes[0].usage.countryActions,0);
+ assert.equal(current.researchLinkOutcomes[0].result,'VERIFIED');assert.equal(current.researchLinkOutcomes[0].transport,'DIRECT_BROWSER');
+});
+
+test('pre-selection prices for another country remain unbound when target selection is unavailable',async t=>{
+ const {result}=await run(t,'GB',{foreignPrices:true,options:['Norway (English)']});
+ assert.equal(result.v3Truth.established,false);assert.equal(result.marketSelection,null);
+ assert.equal(projectEstablishedV3Offerings({...target('GB'),...result}).length,0);
+});
+
+for(const [name,change] of [
+ ['pre hash',receipt=>{receipt.preSourceSha256='0'.repeat(64);}],
+ ['initial URL',receipt=>{receipt.initialUrl='https://help.orbit.com/other';}],
+ ['final hash',receipt=>{receipt.finalSourceSha256='0'.repeat(64);}]
+])test(`tampered ${name} cannot establish provider-selected market`,async t=>{
+ const c=capability('GB'),browser=async(...args)=>{const result=await c.browser(...args);if(args[0].mode==='MARKET')change(result.marketSelection);return result;};browser.close=c.browser.close;
+ const result=await runHybridRenderedAcquisition({directory:temp(t),target:target('GB'),objective:objective('GB'),parent:parent(),transport:'DIRECT',browser});
+ assert.equal(result.outcome,'OBSERVED');assert.equal(result.marketSelection,null);assert.equal(result.v3Truth.established,false);
+});
+
+test('unresolved selector route falls back to one bounded Decodo link acquisition',async t=>{
+ const dir=temp(t),c=capability('GB',{selectorCount:0}),calls={read:0,render:0,decodo:0,search:0};
+ const state=await runOpenWebResearch({directory:dir,targets:[target('GB',{authorities:[]})],maxActions:3,
+  read:async()=>{calls.read++;return {url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:shell},sourceIntegrity:{sha256:digest(shell)},accessDecisions:[{decision:'ALLOWED'}]};},
+  render:async({target:current})=>{calls.render++;return runHybridRenderedAcquisition({directory:path.join(dir,'hybrid-rendered'),target:current,objective:objective('GB'),parent:parent(),transport:'DIRECT',browser:c.browser});},
+  acquire:async()=>{calls.decodo++;return {classification:'ACQUISITION_FAILED',sourceClassification:{status:'UNKNOWN_SOURCE'},verified:[],acquisitionBytes:0};},
+  search:async()=>{calls.search++;throw Error('BROAD_DISCOVERY_SHOULD_NOT_RUN');}});
+ assert.deepEqual(calls,{read:1,render:1,decodo:1,search:0});
+ assert.equal(projectEstablishedV3Offerings(state.targets[0]).length,0);
+ assert.equal(state.targets[0].researchLinkOutcomes[0].decodoAttempted,true);
+});
+
+
+test('same-origin provider redirect keeps exact link routing; cross-provider redirect is rejected',()=>{
+ const hash=digest(shell),finalUrl='https://help.orbit.com/en-GB/article/pricing',row={requestedUrl:url,url:finalUrl,outcome:'OK',bodyHash:hash,sourceIntegrity:{sha256:hash},bodyFile:`bodies/${hash}.txt`,accessDecisions:[{decision:'ALLOWED'}]};
+ assert.equal(retainedProviderSelectorAuthority(target('GB',{reads:[row]}),{url:finalUrl,sourceHash:hash})?.registrableDomain,'orbit.com');
+ assert.equal(retainedProviderSelectorAuthority(target('GB',{reads:[{...row,url:'https://other.example/pricing'}]}),{url:'https://other.example/pricing',sourceHash:hash}),null);
+});

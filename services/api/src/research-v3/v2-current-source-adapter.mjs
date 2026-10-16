@@ -5,6 +5,7 @@ import {authorityBinding} from './discovery-authority.mjs';
 import {projectObservation} from './projection.mjs';
 import {admittedProjectionCandidates} from './native-structured.mjs';
 import {interpretStructured} from './truth.mjs';
+import {validateProviderSelectedMarketReceipt} from './provider-market-evidence.mjs';
 
 export const v2CurrentSourceBoundary=Object.freeze({
  contractVersion:1,
@@ -31,7 +32,12 @@ function validateAuthority(value,objective,url){
  const expected=authorityBinding(objective,url);
  if(!expected||!providerBound(objective,url)||canonical(value.binding)!==canonical(expected))throw Error('V2_V3_AUTHORITY_INVALID');
 }
-function acquisition(value){
+function acquisition(value,{page,target,observationId}){
+ if(value?.route==='PROVIDER_SELECTED_MARKET'){
+  exact(value,['route','marketReceipt'],'V2_V3_ACQUISITION_INVALID');
+  validateProviderSelectedMarketReceipt(value.marketReceipt,{observationId,url:page.url,body:page.body,sourceHash:page.sha256,targetMarket:target.market});
+  return {context:context('DIRECT'),marketSelection:structuredClone(value.marketReceipt)};
+ }
  if(value?.route==='DIRECT'){
   exact(value,['route'],'V2_V3_ACQUISITION_INVALID');
   return {context:context('DIRECT')};
@@ -70,10 +76,11 @@ export function adaptV2CurrentSource(input,objective){
  if(input.target.service!==objective?.serviceId||input.target.serviceName!==objective?.serviceName||!isoCountry(input.target.market))throw Error('V2_V3_TARGET_INVALID');
  const page=retainedPage(input.page);
  validateAuthority(input.providerAuthority,objective,page.url);
- const acquired=acquisition(input.acquisition);
+ const acquired=acquisition(input.acquisition,{page,target:input.target,observationId:input.observationId});
  const web=input.page.contentType!=='application/json';
  const observation={id:input.observationId,kind:'PROVIDER',url:page.url,context:acquired.context,outcome:'OK',truncated:false,body:page.body,sha256:page.sha256,candidates:[],httpStatus:200,
   ...(acquired.transport?{transport:acquired.transport}:{}),
+  ...(acquired.marketSelection?{marketSelection:acquired.marketSelection}:{}),
   ...(web?{format:'WEB',contentType:input.page.contentType,requestedUrl:page.requestedUrl,completeness:'COMPLETE',access:page.access}:{})};
  if(web){
   const projection=projectObservation(observation,objective);

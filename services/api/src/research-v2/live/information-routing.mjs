@@ -1,3 +1,4 @@
+import {retainedProviderSelectorAuthority} from './retained-render-source.mjs';
 import {targetMarketAcquisition,unresolvedV3TargetNeed} from './provider-access-gap.mjs';
 import {pendingMarketProof,pendingV3MarketProof,marketProofContradicted} from './market-proof-continuation.mjs';
 import {currentRetainedPriceReview,targetMarketPriceReview} from './retained-pricing.mjs';
@@ -100,7 +101,7 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  const marketStateGap=targetMarketStateGap(t),stateCandidates=marketStateGap?candidates.filter(row=>marketStateContinuationValue(t,(t.leads??[]).find(lead=>norm(lead.url)===row.url),marketStateGap).eligible):[];
  let route,reason,url=null,selectedCountryIntent=null;const renderingNeed=activeRenderingNeed(t);
  const pendingMarket=pendingMarketProof(t),v3MarketNeed=!!pendingV3MarketProof(t),unresolvedV3Need=unresolvedV3TargetNeed(t),sufficientReview=t.market?targetMarketPriceReview(t,retained):currentRetainedPriceReview(t,retained);
- if(decodoVerification.status==='PENDING'&&!countryIntents.length&&((t.reads??[]).length>0||!candidates.length||sufficientReview?.sourceBound)){route='DECODO';url=decodoVerification.url;reason='PRICE_RESEARCH_VERIFICATION_REQUIRED';}
+ if(decodoVerification.status==='PENDING'&&!countryIntents.length&&((t.reads??[]).length>0||!candidates.length||sufficientReview?.sourceBound)&&!(renderingDemonstrated&&renderingNeed&&retainedProviderSelectorAuthority(t,{url:renderingNeed.url,sourceHash:renderingNeed.sourceHash}))){route='DECODO';url=decodoVerification.url;reason='PRICE_RESEARCH_VERIFICATION_REQUIRED';}
  else if(!unresolvedV3Need&&(!pendingMarket.length||(!v3MarketNeed&&currentRetainedPriceReview(t,retained)?.market===t.market))&&!marketProofContradicted(t)&&!catalogObjective(t)&&sufficientReview?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
  else if(marketProofContradicted(t)){route='STOP';reason='MARKET_CONTRADICTED';}
  else if(k.memoryRejected){route='STOP';reason='RESEARCH_MEMORY_RECONCILIATION_REQUIRED';}

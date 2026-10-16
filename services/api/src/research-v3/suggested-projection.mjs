@@ -4,6 +4,7 @@
 import {authorityBinding} from './discovery-authority.mjs';
 import {canonical,digest,providerBound} from './model.mjs';
 import {projectObservation} from './projection.mjs';
+import {providerSelectedMarketContext} from './provider-market-evidence.mjs';
 
 export const suggestedProjectionLimits=Object.freeze({scripts:32,scriptBytes:1_000_000,nodes:20_000,depth:32,candidates:64});
 const currencies=new Set(Intl.supportedValuesOf('currency'));
@@ -21,11 +22,11 @@ function sourceAligned(observation,objective,truth,projection){
 }
 
 function identityContext(observation,targetMarket){
- const observed=observation.context?.transport==='DECODO'?observation.context.networkGeography:null;
+ const selected=providerSelectedMarketContext(observation),observed=selected??(observation.context?.transport==='DECODO'?observation.context.networkGeography:null);
  return {
   market:observed??targetMarket,
   marketAlignment:observed===targetMarket?'EXACT':observed?'MISMATCH':'UNRESOLVED',
-  warnings:[...(observed===targetMarket?['MARKET_OBSERVED_NOT_PROVIDER_APPLICABILITY']:observed?['MARKET_MISMATCH']:['MARKET_UNRESOLVED']), 'BILLING_ROUTE_UNRESOLVED']
+  warnings:[...(selected===targetMarket?['PROVIDER_SELECTED_MARKET_NOT_AVAILABILITY']:observed===targetMarket?['MARKET_OBSERVED_NOT_PROVIDER_APPLICABILITY']:observed?['MARKET_MISMATCH']:['MARKET_UNRESOLVED']), 'BILLING_ROUTE_UNRESOLVED']
  };
 }
 

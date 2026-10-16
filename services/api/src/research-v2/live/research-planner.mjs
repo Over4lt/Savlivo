@@ -11,6 +11,7 @@ import {normalizeFrontierUrl} from './source-frontier.mjs';
 import {canonicalReviewedProviderRoot} from '../../research-v3/reviewed-provider-namespaces.mjs';
 import {prepareResearchLinkPlan} from './research-link-routing.mjs';
 import {activeRenderingNeed} from './rendering-diagnosis.mjs';
+import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
 export const marketLanguages={NO:'nb',SE:'sv',DK:'da',DE:'de',AT:'de',FR:'fr',BE:'fr',ES:'es',MX:'es',CL:'es',CO:'es',PT:'pt',BR:'pt',IT:'it',NL:'nl',PL:'pl',CZ:'cs',TR:'tr',TH:'th',KR:'ko',JP:'ja',CN:'zh',TW:'zh',HK:'zh',FI:'fi',RO:'ro'};
 export const searchTerms={en:['pricing','subscription','membership','plans'],nb:['priser','abonnement','medlemskap','pakker'],sv:['priser','abonnemang','medlemskap','paket'],da:['priser','abonnement','medlemskab','pakker'],de:['Preise','Abonnement','Mitgliedschaft','Tarife'],fr:['tarifs','abonnement','adhésion','offres'],es:['precios','suscripción','membresía','planes'],pt:['preços','assinatura','adesão','planos'],it:['prezzi','abbonamento','iscrizione','piani'],nl:['prijzen','abonnement','lidmaatschap','pakketten'],pl:['cennik','abonament','członkostwo','pakiety'],cs:['ceník','předplatné','členství','tarify'],tr:['fiyat','abonelik','üyelik','paketler'],th:['ราคา','สมัครสมาชิก','สมาชิก','แพ็กเกจ'],ko:['가격','구독','멤버십','요금제'],ja:['料金','サブスクリプション','会員','プラン'],zh:['价格','订阅','会员','套餐'],fi:['hinnat','tilaus','jäsenyys','paketit'],ro:['prețuri','abonament','membru','pachete']};
 export function categoryIntent(target){const c=String(target.category??target.categories?.join(' ')??'').toLowerCase();return /fitness|gym/.test(c)?'MEMBERSHIP':/news|press/.test(c)?'DIGITAL_SUBSCRIPTION':/audio|music|book/.test(c)?'PREMIUM_SUBSCRIPTION':/dating/.test(c)?'PREMIUM_SUBSCRIPTION':/delivery|commerce/.test(c)?'MEMBERSHIP_BENEFITS':/software|vpn|security|cloud|ai/.test(c)?'BILLING_RENEWAL':'SUBSCRIPTION_PLANS';}
@@ -62,6 +63,9 @@ function planResearchUnrestricted(t,{retained=null,diagnosis=null,history=[],unr
 }
 
 export function planResearch(target,options={}){
+ // A final source-bound provider-selected market with established V3 offerings
+ // has already satisfied this PRICE_RESEARCH target; no geo fallback is needed.
+ if(target.operationsObjective==='PRICE_RESEARCH'&&projectEstablishedV3Offerings(target).some(row=>row.market===target.market&&row.countryContext?.basis==='PROVIDER_SELECTED_MARKET'))return {version:2,route:'RETAINED_SUFFICIENT',reason:'PROVIDER_SELECTED_MARKET_PRICE_ESTABLISHED',url:null,runnable:false,discoveryRequired:false,directAppropriate:false,decodoConditional:false};
  let renderingNeed=activeRenderingNeed(target);
  if(renderingNeed&&(target.researchLinkOutcomes??[]).some(row=>row.result==='BROWSER_CONTINUATION_REQUIRED')&&(target.capabilities?.browser!==true||options.executionContext?.available?.browser===false)){target.renderingOutcomes??=[];target.renderingOutcomes.push({url:renderingNeed.url,transport:renderingNeed.transport,sourceHash:renderingNeed.sourceHash,outcome:'NOT_ATTEMPTED',reason:'BROWSER_DISABLED'});target.demonstratedRendering=false;delete target.renderingNeed;renderingNeed=null;}
  const researchLink=renderingNeed?null:prepareResearchLinkPlan(target,options.executionContext);if(researchLink)return researchLink;

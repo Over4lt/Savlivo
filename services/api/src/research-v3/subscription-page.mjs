@@ -48,7 +48,7 @@ function fieldRows(parsed){
  const rows=[];
  for(const node of parsed.nodes){
   if(node.hidden)continue;
-  if(node.tag==='title'){const value=parsed.text(node);if(value)rows.push({kind:'TITLE',value,node,start:node.openEnd,end:node.contentEnd});}
+  if(node.tag==='title'&&ancestors(node).some(parent=>parent.tag==='head')){const value=parsed.text(node);if(value)rows.push({kind:'TITLE',value,node,start:node.openEnd,end:node.contentEnd});}
   if(node.tag==='meta'&&['title','description','application-name'].includes(node.attrs.name?.toLowerCase())||node.tag==='meta'&&['og:title','og:description','og:site_name'].includes(node.attrs.property?.toLowerCase())){
    const value=normalized(node.attrs.content??'');if(value){const raw=parsed.body.slice(node.start,node.openEnd),at=raw.indexOf(node.attrs.content);rows.push({kind:(node.attrs.name??node.attrs.property).toUpperCase(),value,node,start:at<0?node.start:node.start+at,end:at<0?node.openEnd:node.start+at+node.attrs.content.length});}
   }
@@ -204,6 +204,49 @@ function pricingLists(parsed){
  return rows;
 }
 
+
+// Provider pricing tables often put the cadence label before the charge. Keep
+// each row separate and require an actionable plan choice in the same row.
+function pricingTables(parsed){
+ const rows=[];
+ for(const table of parsed.nodes.filter(node=>node.tag==='table'&&!node.hidden&&!ancestors(node).some(parent=>peripheral.has(parent.tag)))){
+  const candidates=[];
+  for(const row of parsed.nodes.filter(node=>node.tag==='tr'&&node.start>=table.openEnd&&node.end<=table.contentEnd&&!node.hidden)){
+   const cells=parsed.nodes.filter(node=>node.tag==='td'&&node.parent===row&&!node.hidden).sort((a,b)=>a.start-b.start);
+   if(cells.length<2||cells.length>6)continue;
+   const nameSegment=parsed.within(cells[0])[0],name=nameSegment?.text??'';
+   if(!name||name.length>80||/^(?:monthly|annual|features?|plans?)$/iu.test(name))continue;
+   const priceCell=cells.at(-1),parts=parsed.within(priceCell),priceText=parts.map(part=>part.text).join(' ');
+   if(!/\b(?:select|choose|subscribe|join)\s+(?:a\s+)?plan\b/iu.test(priceText))continue;
+   const monthly=[];
+   for(let i=0;i<parts.length;i++){
+    const label=/^monthly\s*:\s*(.*)$/iu.exec(parts[i].text);
+    if(!label)continue;
+    const amountText=label[1]||(parts[i+1]?.text??'');
+    const values=charges(amountText+' /month').filter(charge=>charge.cadence==='MONTHLY'&&charge.role==='ORDINARY');
+    if(values.length===1)monthly.push({...values[0],billingCadence:'MONTHLY',amountDerivation:'EXPLICIT',text:parts[i].text+' '+amountText});
+   }
+   if(monthly.length!==1)continue;
+   candidates.push({name,nameLocator:locator(parsed.body,nameSegment.start,nameSegment.end),presentation:locator(parsed.body,row.start,row.end),charges:monthly});
+  }
+  if(candidates.length>=2&&candidates.length<=24&&new Set(candidates.map(candidate=>comparable(candidate.name))).size===candidates.length)rows.push(...candidates);
+ }
+ return rows;
+}
+
+function pricingTableIdentity(parsed,providerName,tables){
+ if(!providerName||tables.length<2)return null;
+ const fields=fieldRows(parsed),title=uniqueRow(fields.filter(row=>row.kind==='TITLE')),description=uniqueRow(fields.filter(row=>row.kind==='DESCRIPTION'));
+ if(!title||!description||!exactWord(title.value,providerName)||!exactWord(description.value,providerName)||!/\bplans?\b/iu.test(title.value)||!/\bsubscriptions?\b|\bmemberships?\b/iu.test(description.value))return null;
+ const headings=parsed.nodes.filter(node=>node.tag==='h1'&&!node.hidden&&exactWord(parsed.text(node),providerName)&&/\bplans?\b/iu.test(parsed.text(node)));
+ if(headings.length!==1)return null;
+ const identity=exactLocator(parsed,title,providerName),relation=/\bsubscriptions?\b|\bmemberships?\b/iu.exec(description.value);
+ if(!identity||!relation)return null;
+ const at=parsed.body.slice(description.start,description.end).toLocaleLowerCase('en').indexOf(relation[0].toLocaleLowerCase('en'));
+ if(at<0)return null;
+ return {name:providerName,type:'Service',identity,subscription:{kind:/membership/iu.test(relation[0])?'EXPLICIT_MEMBERSHIP':'EXPLICIT_SUBSCRIPTION',locator:locator(parsed.body,description.start+at,description.start+at+relation[0].length)},support:['PAGE_TITLE','PRODUCT_DESCRIPTION','PRICING_TABLE']};
+}
+
 function pricingPageIdentity(parsed,providerName,lists){
  if(!providerName||lists.length<2)return null;
  const fields=fieldRows(parsed),title=uniqueRow(fields.filter(row=>row.kind==='TITLE')),description=uniqueRow(fields.filter(row=>row.kind==='DESCRIPTION'));
@@ -220,6 +263,6 @@ function enrichFromProse(parsed,offerings){
 }
 
 export function interpretSubscriptionPage({body,url,providerName=null}){
- if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),lists=cards.length?[]:pricingLists(parsed),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists].filter(row=>!bundledPresentation(row.name,providerName));enrichFromProse(parsed,offerings);
+ if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),lists=cards.length?[]:pricingLists(parsed),tables=cards.length||lists.length?[]:pricingTables(parsed),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!bundledPresentation(row.name,providerName));enrichFromProse(parsed,offerings);
  return {services,offerings,limited:parsed.limited};
 }

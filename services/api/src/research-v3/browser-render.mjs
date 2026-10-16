@@ -6,6 +6,7 @@ import {publicAddress,researchUserAgent} from '../research-v1/public-network.mjs
 import {digest,normalizeUrl,providerBound} from './model.mjs';
 import {parseAcquisitionRobots,evaluateAcquisitionRobots} from './acquisition-robots.mjs';
 import {safeRenderedControl} from './rendered-interactions.mjs';
+import {exactMarketOption,marketCodeMatches} from './provider-market-evidence.mjs';
 export {safeRenderedControl} from './rendered-interactions.mjs';
 
 export const browserRenderLimits=Object.freeze({requests:256,bodyBytes:4*1024*1024,imageBytes:16*1024*1024,domElements:512,documentHeight:12000,timeoutMs:60000});
@@ -91,6 +92,23 @@ async function boundedRobots(context,origin,record) {
     throw Error('RENDERED_ROBOTS_REDIRECT_INVALID');
 }
 
+async function providerMarketSelector(page){
+ if(typeof page.locator!=='function')return null;
+ const candidates=page.locator('button[aria-haspopup="listbox"]');
+ if(typeof candidates.count!=='function')return null;
+ const count=await candidates.count();if(count>16)return null;
+ const matches=[];
+ for(let i=0;i<count;i++){
+  const locator=candidates.nth(i);
+  if(!await locator.isVisible())continue;
+  const label=await locator.getAttribute('aria-label');
+  if(!label||!/(?:country|region)/iu.test(label))continue;
+  const state=/\bcurrent\s+(?:country|region)\s+([A-Z]{2})\b/iu.exec(label);
+  if(state)matches.push({locator,label,code:state[1]});
+ }
+ return matches.length===1?matches[0]:null;
+}
+
 export function createPlaywrightRenderedCapability({browserType,chromium,launchOptions={headless:true,args:['--disable-background-networking','--disable-sync']},proxyFor=()=>null,clock=()=>new Date().toISOString(),viewportCss={width:1440,height:900},locale='en-US',timezoneId='UTC',limits=browserRenderLimits,hostAllowed=publicHost}={}) {
     const configuredBrowserType=browserType??chromium;
     if(!configuredBrowserType?.launch)throw Error('RENDERED_BROWSER_CONFIGURATION_REQUIRED');
@@ -98,6 +116,42 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
     let sharedBrowser=null;
     const capability=async(action,{parent,objective,maxRenderMs=limits.timeoutMs}={})=>{
         if(!parent||parent.id!==action.observation||!providerBound(objective,action.url)||action.url!==parent.url)throw Error('RENDERED_PARENT_INVALID');
+        if(action.mode==='MARKET'){
+            const session=sessions.get(parent.id),target=action.targetMarket;
+            if(!session||session.country||!/^[A-Z]{2}$/.test(target??'')||session.receipt.body!==parent.body)throw Error('PROVIDER_MARKET_SESSION_INVALID');
+            const {page,browser,context,receipt,ledger,sessionBinding}=session,initialUrl=receipt.requestedUrl,preHash=digest(parent.body);
+            try{
+                const selector=await providerMarketSelector(page);
+                if(!selector||marketCodeMatches(target,selector.code))throw Error('PROVIDER_MARKET_SELECTOR_UNRESOLVED');
+                await selector.locator.click({timeout:Math.min(10000,maxRenderMs)});
+                const options=page.getByRole('option'),count=await options.count();
+                if(count<1||count>256)throw Error('PROVIDER_MARKET_OPTIONS_BOUND');
+                const matches=[];
+                for(let i=0;i<count;i++){
+                    const option=options.nth(i);if(!await option.isVisible())continue;
+                    const label=(await option.innerText()).replace(/\s+/gu,' ').trim();
+                    if(exactMarketOption(target,label))matches.push({option,label});
+                }
+                if(matches.length!==1)throw Error('PROVIDER_MARKET_OPTION_UNRESOLVED');
+                await matches[0].option.click({timeout:Math.min(10000,maxRenderMs)});
+                await page.waitForLoadState('networkidle',{timeout:6000}).catch(()=>{});
+                const finalUrl=normalizeUrl(page.url());
+                if(!finalUrl||new URL(finalUrl).origin!==new URL(parent.url).origin||!providerBound(objective,finalUrl))throw Error('PROVIDER_MARKET_NAVIGATION_UNSAFE');
+                const post=await providerMarketSelector(page);
+                if(!post||!marketCodeMatches(target,post.code)||post.code===selector.code)throw Error('PROVIDER_MARKET_STATE_UNCHANGED');
+                const renderedBody=await page.content(),bodyHash=digest(renderedBody);
+                if(bodyHash===preHash||Buffer.byteLength(renderedBody)>limits.bodyBytes)throw Error('PROVIDER_MARKET_SOURCE_INVALID');
+                const extent=await page.evaluate(() => ({width:Math.max(document.documentElement.scrollWidth,document.body?.scrollWidth??0),height:Math.max(document.documentElement.scrollHeight,document.body?.scrollHeight??0)}));
+                if(extent.height>limits.documentHeight||extent.width>32768||extent.width*extent.height>50_000_000)throw Error('RENDERED_PAGE_BOUND');
+                const dom=await page.evaluate(visibleDom),pngBytes=await page.screenshot({type:'png',fullPage:true,animations:'disabled',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
+                if(pngBytes.length>limits.imageBytes)throw Error('RENDERED_IMAGE_BOUND');
+                const acquiredAt=clock(),marketSelection={kind:'PROVIDER_SELECTED_MARKET',observationId:action.id,targetMarket:target,transport:'DIRECT_BROWSER',initialUrl,finalUrl,providerHost:new URL(finalUrl).hostname,preSourceSha256:preHash,finalSourceSha256:bodyHash,preSelectedCode:selector.code,selectedCode:post.code,selectedOption:matches[0].label,selectorLabel:post.label};
+                const stateReceipt={...structuredClone(receipt),url:finalUrl,body:renderedBody,acquiredAt,responseMetadata:{...receipt.responseMetadata,renderedDomSha256:bodyHash,requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64)}};
+                const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:'DIRECT',requestedCountry:null,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:false,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
+                session.receipt=stateReceipt;session.imageSha256=imageHash(pngBytes);sessions.delete(parent.id);sessions.set(action.id,session);
+                return {page:stateReceipt,finalUrl,pngBytes,capture:{capturedAt:acquiredAt,browserBuild:browser.version(),captureRevision:'playwright-market-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([finalUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:structuredClone(ledger),networkSession,marketSelection,marketSelector:{kind:'PROVIDER_MARKET_SELECTOR',label:post.label,code:post.code}};
+            }catch(error){sessions.delete(parent.id);await context.close().catch(()=>{});throw error;}
+        }
         if(action.mode==='STATE'){
             const session=sessions.get(parent.id),source=parent.domSnapshot?.find(row=>row.id===action.interaction?.controlId),selectedPeer=parent.domSnapshot?.find(row=>row.id===action.interaction?.selectedControlId),prior=parent.renderedArtifacts?.find(row=>row.id===action.interaction?.sourceRenderId);
             const control=parent.renderedControlRegions?.find(row=>row.renderId===prior?.id&&row.imageSha256===prior?.image.sha256)?.regions?.find(row=>row.id===action.interaction?.sourceRegionId);
@@ -125,7 +179,8 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                 const executedAt=clock();
                 const stateReceipt={...structuredClone(receipt),body:renderedBody,acquiredAt:executedAt,responseMetadata:{...receipt.responseMetadata,renderedDomSha256:digest(renderedBody),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64)}};
                 const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:country?'DECODO':'DIRECT',requestedCountry:country,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:!!country,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
-                return {page:stateReceipt,finalUrl:parent.url,pngBytes,capture:{capturedAt:executedAt,browserBuild:browser.version(),captureRevision:'playwright-state-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,executedAt]).slice(0,24),parentRenderId:prior.id,stateFingerprint:digest([parent.url,dom.map(row=>[row.text,row.selected,row.disabled]).slice(0,128)]),interactions:[{actionId:action.id,kind:action.interaction.kind,parentRenderId:prior.id,sourceControlRef:{kind:'IMAGE_REGION',renderId:prior.id,imageSha256:prior.image.sha256,regionId:action.interaction.sourceRegionId},intendedPresentationVariant:source.text.slice(0,256),policyDecisionRef:digest(['SAFE_RENDERED_CONTROL',action.interaction.kind,source.id,source.text,selectedPeer?.id??null,selectedPeer?.text??null]),executedAt,executionOutcome:'COMPLETED',resultingRenderId:'',observedStateRefs:[],navigationReceiptRef:null}]},dom,browserLedger:structuredClone(ledger),networkSession};
+                session.receipt=stateReceipt;sessions.delete(parent.id);sessions.set(action.id,session);
+                return {page:stateReceipt,finalUrl:parent.url,pngBytes,capture:{capturedAt:executedAt,browserBuild:browser.version(),captureRevision:'playwright-state-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,executedAt]).slice(0,24),parentRenderId:prior.id,stateFingerprint:digest([parent.url,dom.map(row=>[row.text,row.selected,row.disabled]).slice(0,128)]),interactions:[{actionId:action.id,kind:action.interaction.kind,parentRenderId:prior.id,sourceControlRef:{kind:'IMAGE_REGION',renderId:prior.id,imageSha256:prior.image.sha256,regionId:action.interaction.sourceRegionId},intendedPresentationVariant:source.text.slice(0,256),policyDecisionRef:digest(['SAFE_RENDERED_CONTROL',action.interaction.kind,source.id,source.text,selectedPeer?.id??null,selectedPeer?.text??null]),executedAt,executionOutcome:'COMPLETED',resultingRenderId:'',observedStateRefs:[],navigationReceiptRef:null}]},dom,browserLedger:structuredClone(ledger),networkSession,marketSelector:await providerMarketSelector(page).then(value=>value?{kind:'PROVIDER_MARKET_SELECTOR',label:value.label,code:value.code}:null)};
             } catch(error){sessions.delete(parent.id);await context.close().catch(()=>{});throw error;}
         }
         const started=performance.now(),country=parent.context.transport==='DECODO'?parent.context.networkGeography:null,proxy=country?proxyFor(parent.context):null;
@@ -157,7 +212,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             await context.route('**/*',async route=>{
                 const request=route.request(),url=request.url(),method=request.method();
                 let parsed;try{parsed=new URL(url);}catch{return route.abort();}
-                if(!['GET','HEAD'].includes(method)||!normalizeUrl(url)||request.resourceType()==='document'&&!providerBound(objective,url)||ledger.length>=limits.requests||!(await hostAllowed(parsed.hostname,dns)))return route.abort();
+                if(!['GET','HEAD'].includes(method)||!normalizeUrl(url)||request.resourceType()==='document'&&(parsed.origin!==origin||!providerBound(objective,url)||([404,410].includes(robots.status)?false:robots.status!==200||evaluateAcquisitionRobots(parseAcquisitionRobots(robots.text),url).decision!=='ALLOWED'))||ledger.length>=limits.requests||!(await hostAllowed(parsed.hostname,dns)))return route.abort();
                 record({url,method,resourceType:request.resourceType(),channel:'PAGE'});
                 return route.continue();
             });
@@ -190,7 +245,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:country?'DECODO':'DIRECT',requestedCountry:country,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:!!country,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
             const receipt={url:finalUrl,requestedUrl:action.navigationUrl??action.url,body:renderedBody,httpStatus:200,contentType:response.headers()['content-type']??'text/html',completeness:'COMPLETE',acquiredAt,transport,access,redirects:[],responseMetadata:{browser:'PLAYWRIGHT',mainDocumentSha256:digest(networkBody.toString('utf8')),renderedDomSha256:digest(renderedBody),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64),networkSessionBinding:sessionBinding},acquisitionTiming:{elapsedMs:Math.round(performance.now()-started)}};
             sessions.set(action.id,{browser,context,page,receipt,geo:country?geo:null,ledger,sessionBinding,country,imageSha256:imageHash(pngBytes)});keep=true;
-            return {page:receipt,finalUrl,pngBytes,capture:{capturedAt:clock(),browserBuild:browser.version(),captureRevision:'playwright-fullpage-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([finalUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:ledger,networkSession};
+            return {page:receipt,finalUrl,pngBytes,capture:{capturedAt:clock(),browserBuild:browser.version(),captureRevision:'playwright-fullpage-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([finalUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:ledger,networkSession,marketSelector:await providerMarketSelector(page).then(value=>value?{kind:'PROVIDER_MARKET_SELECTOR',label:value.label,code:value.code}:null)};
         } finally {if(!keep)await context?.close().catch(()=>{});}
     };
     capability.close=async()=>{for(const session of sessions.values())await session.context.close().catch(()=>{});sessions.clear();await sharedBrowser?.close().catch(()=>{});sharedBrowser=null;};
