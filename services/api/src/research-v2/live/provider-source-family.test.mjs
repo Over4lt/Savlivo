@@ -70,3 +70,35 @@ test('Decodo Research-link acquisition revalidates family source proof before in
  assert.equal(result.sourceClassification.status,'PROVIDER_SOURCE');assert.equal(result.sourceClassification.reason,'SAME_PROVIDER_REGISTRABLE_DOMAIN');assert.equal(interpreted,true);assert.deepEqual(result.verified,[]);
  assert.equal(providerRoutingAuthority(t,url),null,'classification cannot authorize navigation');
 });
+
+async function retainedLinkFixture(context,{topOutcome='OBSERVED',kind='DIRECT_SOURCE',value=body,interpret=async()=>{},retained=true,integrityValid=true}={}){
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'retained-link-result-'));context.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const url='https://help.example.com/pricing',link={id:'33333333-3333-4333-8333-333333333333',url,kind,marketScope:'GLOBAL',marketCode:null,enabled:true,truthAuthority:'NONE'},t=target('example.com',{researchLinks:[link],researchLinkOutcomes:[],persistedVerifiedCount:0});
+ const acquirer=createDiscoveryAcquirer({runtime:{},bundle:{transport:{},verifier:{url:'https://exit.example/check'}},root:directory,runLive:async()=>{
+  const child=path.join(directory,'child');fs.mkdirSync(path.join(child,'raw'),{recursive:true});const hash=digest(value),bodyFile='raw/'+hash+'.body';fs.writeFileSync(path.join(child,bodyFile),value);const store=openMarketRunStore(path.join(child,'journal'));
+  if(retained)store.append('RESPONSE_CAPTURED',{target:{taskId:t.id},url,status:200,contentType:'text/html',bodyHash:hash,bodyFile});
+  const retainedPage={...page(url,url,value),rawSource:{text:value}};if(!integrityValid)retainedPage.sourceIntegrity.sha256='0'.repeat(64);
+  store.append('V2_ACQUISITION_RESULT',{target:{id:t.id},result:{outcome:retained?topOutcome:'NETWORK_FAILED',attempts:retained?[{outcome:'OBSERVED',requestedUrl:url,page:retainedPage}]:[{outcome:'NETWORK_FAILED',requestedUrl:url,failure:'NETWORK_FAILED'}]}});store.close();return {directory:child};
+ },dependencies:{interpret,verifyRetainedRun:async()=>({verified:[],usable:false,monetaryFacts:0,sourceChecks:[],priceEvidenceNeedsByTarget:{}})}});
+ return acquirer({target:t,candidate:{url,acquisitionCandidate:priceResearchAcquisitionCandidate(t,url)},journal:{events:[],reserve:()=>1,append(){},settleBytes(){}}});
+}
+
+test('intact retained attempt prevents false acquisition failure when parent outcome differs',async context=>{
+ const result=await retainedLinkFixture(context,{topOutcome:'FACT_REVIEW_REQUIRED'});
+ assert.equal(result.acquired,true);assert.equal(result.classification,'CONTENT_NOT_COMMERCIAL');assert.equal(result.sourceClassification.status,'PROVIDER_SOURCE');assert.equal(result.sourceClassification.reason,'SAME_PROVIDER_REGISTRABLE_DOMAIN');assert.equal(result.verified.length,0);
+});
+
+test('provider source requiring Browser retains the rendering continuation',async context=>{
+ const result=await retainedLinkFixture(context,{kind:'INTERACTIVE_ROUTE',value:'<html><body><button>Continue to plans</button></body></html>'});
+ assert.equal(result.classification,'CONTENT_NOT_COMMERCIAL');assert.equal(result.sourceClassification.status,'PROVIDER_SOURCE');assert.equal(result.renderingRequired,true);assert.equal(result.renderingUrl,'https://help.example.com/pricing');
+});
+
+test('interpretation failure remains distinct from Decodo acquisition failure',async context=>{
+ const result=await retainedLinkFixture(context,{interpret:async()=>{throw Error('V2_INTERPRETATION_FAILED');}});
+ assert.equal(result.classification,'INTERPRETATION_FAILED');assert.equal(result.acquired,true);assert.equal(result.sourceClassification.status,'PROVIDER_SOURCE');assert.deepEqual(result.blockers,['V2_INTERPRETATION_FAILED']);assert.equal(result.countryV3Evaluation.reason,'V2_INTERPRETATION_FAILED');assert.deepEqual(result.verified,[]);
+});
+
+test('no retained response and invalid integrity do not enter provider interpretation',async context=>{
+ const missing=await retainedLinkFixture(context,{retained:false});assert.equal(missing.classification,'ACQUISITION_FAILED');assert.equal(missing.sourceClassification.reason,'SOURCE_NOT_RETAINED');assert.deepEqual(missing.blockers,['SOURCE_NOT_RETAINED']);
+ const invalid=await retainedLinkFixture(context,{integrityValid:false});assert.equal(invalid.classification,'UNKNOWN_SOURCE');assert.equal(invalid.sourceClassification.reason,'SOURCE_INTEGRITY_INVALID');assert.equal(invalid.acquired,false);
+});

@@ -51,6 +51,7 @@ test('GLOBAL applies independently per market, specific outranks global, and per
 test('last result metadata records bounded operational outcome without price truth',async()=>{
  const {rows,client}=fixture();rows.push({id,service_id:'streamco',url:'https://streamco.example/pricing',kind:'DIRECT_SOURCE',market_scope:'GLOBAL',market_code:null,enabled:true,created_at:new Date(),updated_at:new Date(),last_used_at:null,last_result:null});
  await recordResearchLinkResult({id,attemptedAt:'2026-10-16T12:00:00.000Z',result:'PROVIDER_SOURCE_NO_VERIFIED',client});assert.equal(rows[0].last_result,'PROVIDER_SOURCE_NO_VERIFIED');assert.equal(rows[0].last_used_at,'2026-10-16T12:00:00.000Z');assert.equal(Object.hasOwn(rows[0],'price'),false);
+ await recordResearchLinkResult({id,attemptedAt:'2026-10-16T12:01:00.000Z',result:'INTERPRETATION_FAILED',client});assert.equal(rows[0].last_result,'INTERPRETATION_FAILED');
 });
 
 test('authenticated Operations routes POST, GET, PATCH and DELETE through the bounded Admin API',async()=>{

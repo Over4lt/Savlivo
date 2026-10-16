@@ -6,7 +6,7 @@ import {marketPriceStatusSql} from './market-price-status.mjs';
 
 const kinds=new Set(['DIRECT_SOURCE','INTERACTIVE_ROUTE']);
 const scopes=new Set(['GLOBAL','MARKET_SPECIFIC']);
-const results=new Set(['VERIFIED','PROVIDER_SOURCE_NO_VERIFIED','UNKNOWN_SOURCE','THIRD_PARTY_SOURCE','ACQUISITION_FAILED','DECODO_UNAVAILABLE','BROWSER_CONTINUATION_REQUIRED','BROWSER_FAILED','ACCESS_BLOCKED']);
+const results=new Set(['VERIFIED','PROVIDER_SOURCE_NO_VERIFIED','UNKNOWN_SOURCE','THIRD_PARTY_SOURCE','ACQUISITION_FAILED','INTERPRETATION_FAILED','DECODO_UNAVAILABLE','BROWSER_CONTINUATION_REQUIRED','BROWSER_FAILED','ACCESS_BLOCKED']);
 const fail=(code,status=400)=>{throw Object.assign(Error(code),{status});};
 const timestamp=value=>value?new Date(value).toISOString():null;
 const view=row=>({id:row.id,serviceId:row.service_id,url:row.url,kind:row.kind,marketScope:row.market_scope,marketCode:row.market_code,enabled:row.enabled===true,createdAt:timestamp(row.created_at),updatedAt:timestamp(row.updated_at),lastUsedAt:timestamp(row.last_used_at),lastResult:row.last_result??null});

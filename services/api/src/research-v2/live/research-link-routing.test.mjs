@@ -33,6 +33,16 @@ test('one target acquires a link once, preserves diagnostics and resumes without
  await runOpenWebResearch({...adapters,maxActions:1,search:async()=>({results:[]})});assert.equal(calls.length,2);
 });
 
+test('genuine Decodo exception retains a bounded blocker and permits ordinary fallback',async t=>{
+ const x=target('NO',{researchLinks:[specific]}),state=await runOpenWebResearch({directory:temporary(t),targets:[x],maxActions:1,search:never,read:never,acquire:async()=>{throw Object.assign(Error('untrusted detail'),{code:'DECODO_TIMEOUT'});}});
+ const current=state.targets[0];assert.equal(current.researchLinkOutcomes[0].result,'ACQUISITION_FAILED');assert.equal(current.researchLinkOutcomes[0].reason,'DECODO_TIMEOUT');assert.equal(current.acquisitionOutcomes[0].classification,'ACQUISITION_FAILED');assert.deepEqual(current.acquisitionOutcomes[0].blockers,['DECODO_TIMEOUT']);assert.notEqual(planResearch(current)?.reason,'PRICE_RESEARCH_VERIFICATION_REQUIRED');
+});
+
+test('post-acquisition interpretation failure preserves provider source and its blocker',async t=>{
+ const x=target('NO',{researchLinks:[specific]}),state=await runOpenWebResearch({directory:temporary(t),targets:[x],maxActions:1,search:never,read:never,acquire:async()=>({classification:'INTERPRETATION_FAILED',sourceClassification:{status:'PROVIDER_SOURCE',reason:'SAME_PROVIDER_REGISTRABLE_DOMAIN'},countryV3Evaluation:{status:'UNRESOLVED',reason:'V2_INTERPRETATION_FAILED'},blockers:['V2_INTERPRETATION_FAILED'],verified:[]})});
+ const current=state.targets[0];assert.equal(current.researchLinkOutcomes[0].result,'INTERPRETATION_FAILED');assert.equal(current.researchLinkOutcomes[0].sourceClassification,'PROVIDER_SOURCE');assert.equal(current.researchLinkOutcomes[0].sourceReason,'SAME_PROVIDER_REGISTRABLE_DOMAIN');assert.equal(current.researchLinkOutcomes[0].reason,'V2_INTERPRETATION_FAILED');assert.equal(current.acquisitionOutcomes[0].countryV3Evaluation.reason,'V2_INTERPRETATION_FAILED');
+});
+
 test('GLOBAL route acquires NO and SE separately and never shares target market observation',async t=>{
  const seen=[];for(const market of ['NO','SE'])await runOpenWebResearch({directory:path.join(temporary(t),market),targets:[target(market,{researchLinks:[global]})],maxActions:1,search:never,read:never,acquire:async({target:current})=>{seen.push(current.market);return {classification:'CONTENT_NOT_COMMERCIAL',sourceClassification:{status:'UNKNOWN_SOURCE'},verified:[]};}});
  assert.deepEqual(seen,['NO','SE']);
