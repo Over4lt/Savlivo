@@ -24,6 +24,7 @@ const evaluateCountry=(body=html(),options)=>{const fixture=countryFixture(body,
 
 test('country authoritative source reaches the shared V3 adapter and unchanged evaluate',()=>{
  const {result}=evaluateCountry();assert.equal(result.v3Observation.kind,'PROVIDER');assert.equal(result.v3Observation.context.transport,'DECODO');assert(result.v3Observation.candidateCount>0);assert.equal(result.v3Truth.prices.NO.propositions.PRICE_AMOUNT.value,79.99);assert.equal(result.v3Catalog.offeringState,'OFFERING_FOUND');assert.equal(result.v3Catalog.state,'CATALOG_UNRESOLVED');assert.equal(result.v3Catalog.scope,'UNRESOLVED');
+ assert.equal(result.v3SuggestedCandidates[0]?.researchEvidence.exactOfferId,'gold');
 });
 
 test('canonical country context lets existing Truth establish target market',()=>{
@@ -43,12 +44,26 @@ test('family-classified final provider source can reach unchanged V3 truth with 
 test('country-bound provider help price list establishes separate monthly plans without add-ons',()=>{
  const pageUrl='https://help.example.com/en/plans',targetValue=target({providerSourceIdentityHosts:['example.com'],authorities:[]}),fixture=countryFixture(listedPricing(),{targetValue,pageUrl}),result=evaluateCountryProviderTruth(fixture),established=projectEstablishedV3Offerings({...targetValue,...result});
  assert.deepEqual(established.map(row=>[row.name,row.ordinaryRecurringPrice.amount,row.ordinaryRecurringPrice.currency]),[['Basic',119,'NOK'],['Standard',149,'NOK'],['Premium',219,'NOK']]);
+ assert.deepEqual(new Set(result.v3SuggestedCandidates.map(row=>row.researchEvidence.exactOfferId)),new Set(established.map(row=>row.id)));
  assert(established.every(row=>row.propositionStates.TARGET_MARKET==='ESTABLISHED'&&row.propositionStates.MONTHLY_SUBSCRIPTION==='ESTABLISHED'&&row.propositionStates.MONTHLY_CADENCE==='ESTABLISHED'));
 });
 
 test('country-bound Euro price list with symbol suffix establishes its own plans',()=>{
  const pageUrl='https://help.example.com/en/plans',targetValue=target({market:'DE',providerSourceIdentityHosts:['example.com'],authorities:[]}),body=listedPricing('Standard with ads: 6.99€ / month|Standard: 15.99€ / month|Premium: 21.99€ / month').replace('Pricing (Norwegian Krone)','Pricing (Euro)'),result=evaluateCountryProviderTruth(countryFixture(body,{targetValue,pageUrl}));
  assert.deepEqual(projectEstablishedV3Offerings({...targetValue,...result}).map(row=>[row.name,row.ordinaryRecurringPrice.amount,row.ordinaryRecurringPrice.currency]),[['Standard with ads',6.99,'EUR'],['Standard',15.99,'EUR'],['Premium',21.99,'EUR']]);
+});
+
+test('country-bound dollar and Euro price lists with the same provider page shape establish three plans',()=>{
+ const pageUrl='https://help.example.com/en/plans';
+ for(const [market,heading,prices,currency] of [['US','US Dollar',['$8.99','$19.99','$26.99'],'USD'],['ES','Euro',['8.99€','14.99€','21.99€'],'EUR']]){
+  const targetValue=target({market,providerSourceIdentityHosts:['example.com'],authorities:[]}),body=listedPricing(`Standard with ads: ${prices[0]} / month|Standard: ${prices[1]} / month|Premium: ${prices[2]} / month`).replace('Pricing (Norwegian Krone)',`Pricing (${heading})`),result=evaluateCountryProviderTruth(countryFixture(body,{targetValue,pageUrl})),established=projectEstablishedV3Offerings({...targetValue,...result});
+  assert.deepEqual(established.map(row=>[row.name,row.ordinaryRecurringPrice.currency]),[['Standard with ads',currency],['Standard',currency],['Premium',currency]]);assert.equal(result.v3Truth.established,true);
+ }
+});
+
+test('ambiguous dollar sign without an explicit currency heading cannot become a price',()=>{
+ const pageUrl='https://help.example.com/en/plans',targetValue=target({market:'US',providerSourceIdentityHosts:['example.com'],authorities:[]}),body=listedPricing('Standard with ads: $8.99 / month|Standard: $19.99 / month|Premium: $26.99 / month').replace('Pricing (Norwegian Krone)','Pricing'),result=evaluateCountryProviderTruth(countryFixture(body,{targetValue,pageUrl}));
+ assert.equal(projectEstablishedV3Offerings({...targetValue,...result}).length,0);
 });
 
 test('provider URL locale never establishes target market for an unbound Direct price list',()=>{
@@ -98,6 +113,12 @@ test('requested and verified country mismatch fails closed',()=>{
 
 test('country source hash mismatch fails closed',()=>{
  const fixture=countryFixture();fixture.sourceCheck.receipt.bodyHash='0'.repeat(64);assert.throws(()=>evaluateCountryProviderTruth(fixture),/COUNTRY_PROVIDER_HASH_MISMATCH/);
+});
+
+test('a timed-out country acquisition without a retained page cannot create V3 prices',()=>{
+ const fixture=countryFixture();fixture.attempt.outcome='TIMEOUT';fixture.attempt.page=null;
+ const result=evaluateVerifiedCountryRun({target:fixture.target,verification:{sourceChecks:[]},records:[{type:'V2_ACQUISITION_RESULT',payload:{target:fixture.target,result:{attempts:[fixture.attempt]}}}]});
+ assert.equal(result.countryV3Evaluation.status,'UNRESOLVED');assert.equal(result.v3Truth,undefined);assert.equal(result.v3SuggestedCandidates,undefined);
 });
 
 test('wrong exact host cannot create provider Truth',()=>{

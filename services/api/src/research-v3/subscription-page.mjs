@@ -142,10 +142,14 @@ function componentIdentities(parsed,providerName){
 }
 
 const symbolCurrency=new Map([['€','EUR'],['£','GBP'],['¥','JPY'],['CA$','CAD'],['A$','AUD'],['US$','USD']]);
+const currencyNames=new Map();
+const displayCurrencies=new Intl.DisplayNames(['en'],{type:'currency'});
+for(const code of Intl.supportedValuesOf('currency')){const name=displayCurrencies.of(code)?.toLocaleLowerCase('en');if(name)currencyNames.set(name,currencyNames.has(name)?null:code);}
+function headingCurrency(text){const name=/^pricing\s*\(([^)]+)\)/iu.exec(text)?.[1]?.trim().toLocaleLowerCase('en'),code=name?currencyNames.get(name):null;return code&&new Intl.NumberFormat('en',{style:'currency',currency:code,currencyDisplay:'narrowSymbol'}).formatToParts(1).find(part=>part.type==='currency')?.value==='$'?code:null;}
 function number(raw){const value=raw.replace(/[\u00a0\u202f ]/gu,'');if(/^\d+$/.test(value))return Number(value);if(/^\d+[.,]\d{1,2}$/.test(value))return Number(value.replace(',','.'));if(/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(value))return Number(value.replaceAll(',',''));if(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(value))return Number(value.replaceAll('.','').replace(',','.'));return null;}
 const money=/((?:[A-Z]{3}|CA\$|A\$|US\$|[$€£¥])\s*)?(\d+(?:[ .\u00a0\u202f]\d{3})*(?:[.,]\d{1,2})?)\s*((?:[A-Z]{3}|[$€£¥]))?/gu;
-function charges(text){
- const rows=[];for(const match of text.matchAll(money)){const mark=normalized((match[1]??'')||(match[3]??'')),currency=/^[A-Z]{3}$/.test(mark)?mark:symbolCurrency.get(mark)??null;if(!currency)continue;const amount=number(match[2]);if(amount===null)continue;
+function charges(text,currencyHint=null){
+ const rows=[];for(const match of text.matchAll(money)){const mark=normalized((match[1]??'')||(match[3]??'')),currency=/^[A-Z]{3}$/.test(mark)?mark:symbolCurrency.get(mark)??(mark==='$'?currencyHint:null);if(!currency)continue;const amount=number(match[2]);if(amount===null)continue;
   const after=text.slice(match.index+match[0].length,match.index+match[0].length+48),cadenceMatch=after.match(/^\s*(?:(?:\/|per\s+|a\s+|each\s+|every\s+)\s*)?(months?|monthly|mo\b|years?|yearly|annually|annual\b|yr\b)/iu);if(!cadenceMatch)continue;const cadence=/month|monthly|\bmo\b/iu.test(cadenceMatch[1])?'MONTHLY':'YEARLY',left=Math.max(0,match.index-64),right=Math.min(text.length,match.index+match[0].length+cadenceMatch[0].length+96),context=text.slice(left,right),trial=/\b(?:trial|introductory|first\s+(?:month|\d+\s+months?))\b/iu.test(context),nonCharge=/\b(?:save|saving|discount|credit|benefit|worth|value)\b[^.;]{0,32}$/iu.test(text.slice(left,match.index));if(nonCharge)continue;
   const billing=[...context.matchAll(/\b(?:billed|billing|charged|paid|pay|payment(?:s)?)\s+(?:[^.;]{0,32}?)(monthly|yearly|annually|every month|every year|per month|per year)\b|\b(monthly|yearly|annual)\s+(?:billing|payments?)\b/giu)].map(m=>/month/iu.test(m[1]??m[2])?'MONTHLY':'YEARLY'),prefix=text.slice(Math.max(0,match.index-32),match.index),stated=/(?:\bis\b|\bcosts?\b|\bpriced\s+at\b|\bor\b)\s*$/iu.test(prefix)?cadence:null,unique=[...new Set([...billing,...(stated?[stated]:[])])];
   const billingCadence=unique.length===1?unique[0]:'UNKNOWN';rows.push({amount,currency,cadence,billingCadence,consumer:true,relationship:'SUBSCRIPTION',role:trial?'TRIAL':'ORDINARY',monetaryKind:trial?'TRIAL_CHARGE':'SUBSCRIPTION_CHARGE',amountDerivation:billingCadence!=='UNKNOWN'&&billingCadence!==cadence?'ARITHMETIC':'EXPLICIT',text:match[0]+cadenceMatch[0]});
@@ -177,6 +181,7 @@ function planCards(parsed){
 function pricingLists(parsed){
  const rows=[],billingStatements=parsed.segments.filter(row=>/\bplans?\s+(?:are|is)\s+(?:billed|charged|paid)\s+(?:monthly|yearly|annually)\b/iu.test(row.text)).map(row=>row.text),monthly=billingStatements.some(row=>/\bplans?\s+(?:are|is)\s+(?:billed|charged|paid)\s+monthly\b/iu.test(row)),yearly=billingStatements.some(row=>/\bplans?\s+(?:are|is)\s+(?:billed|charged|paid)\s+(?:yearly|annually)\b/iu.test(row));
  for(const heading of parsed.nodes.filter(node=>/^h[2-4]$/.test(node.tag)&&!node.hidden&&/^pricing(?:\s|$|\()/iu.test(parsed.text(node))&&!ancestors(node).some(parent=>peripheral.has(parent.tag)))){
+  const currencyHint=headingCurrency(parsed.text(heading));
   const scope=/\bfor (?:customers|members|subscribers|consumers|residents) in ([\p{L} .-]+)$/iu.exec(parsed.text(heading))?.[1]?.trim().replace(/^the\s+/iu,'')??null,regions=new Intl.DisplayNames(['en'],{type:'region'}),market=scope?([...Array(26)].flatMap((_,a)=>[...Array(26)].map((_,b)=>String.fromCharCode(65+a,65+b))).find(code=>regions.of(code).toLocaleLowerCase('en')===scope.toLocaleLowerCase('en'))??null):null;
   const next=parsed.nodes.filter(node=>node.parent===heading.parent&&node.start>=heading.end&&!node.hidden).sort((a,b)=>a.start-b.start)[0];
   if(next?.tag!=='ul'&&next?.tag!=='ol')continue;
@@ -186,7 +191,7 @@ function pricingLists(parsed){
    const own=parsed.within(item).filter(segment=>!ancestors(segment.parent).some(node=>node!==item&&node.tag==='li'));
    const value=own.map(segment=>segment.text).join(' ').replace(/\s+/gu,' ').trim(),match=/^([\p{L}\p{N}][\p{L}\p{N} &'’+.-]{0,79}?)\s*:\s*/u.exec(value);
    if(!match)continue;
-   const name=match[1].trim(),parsedCharges=charges(value.slice(match[0].length));
+   const name=match[1].trim(),parsedCharges=charges(value.slice(match[0].length),currencyHint);
    if(parsedCharges.length!==1||parsedCharges[0].role!=='ORDINARY')continue;
    const raw=parsed.body.slice(item.openEnd,item.contentEnd),nameAt=raw.indexOf(name);
    if(nameAt<0)continue;

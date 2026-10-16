@@ -5,6 +5,7 @@ const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex
 const compact=value=>String(value??'').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,' ').trim();
 function identity(provider,market,plan){let name=compact(plan).replace(/\bmonthly\b/g,'').replace(/\bmonth\b/g,'').trim();const owner=compact(provider);if(name.startsWith(owner+' '))name=name.slice(owner.length+1);return [owner,market.toLowerCase(),name].join(':');}
 function normalize(row,provider,market,kind,defaultProvenance){const value={...structuredClone(row),provider:row.provider??provider,market:row.market??market,plan:String(row.plan),amount:Number(row.amount??row.suggestedAmount),currency:String(row.currency??row.suggestedCurrency),provenance:row.provenance??defaultProvenance};value.planIdentity=row.planIdentity??identity(value.provider,value.market,value.plan);value[kind+'Id']=row[kind+'Id']??kind+':'+hash([value.planIdentity,value.amount,value.currency,value.provenance,row.sourceUrl??null]);return value;}
+export function normalizeSuggestedResearchRow(row,provider,market){return normalize(row,provider,market,'suggested',sourceBasis({...row,amount:Number(row.amount??row.suggestedAmount),currency:row.currency??row.suggestedCurrency})?'V3_SOURCE_RESEARCH':'V3_RESEARCH');}
 const priceKey=row=>row.currency+':'+row.amount;
 const monthly=value=>['monthly','monthly_recurring'].includes(String(value??'').toLowerCase());
 const exact=value=>String(value??'').toUpperCase()==='EXACT';
@@ -63,7 +64,7 @@ export function mergeResearch({snapshot,v3Result={},existingVerified=[]}){
   if(snapshot?.kind!=='V4SuggestedSnapshot')throw Error('V4_SNAPSHOT_REQUIRED');
   const before=structuredClone(snapshot);
   const v4Suggested=snapshot.suggested.map(row=>normalize(row,snapshot.provider,snapshot.market,'suggested','GOOGLE_AI_V4')),origins=new Map(v4Suggested.map(row=>[row.suggestedId,row]));
-  const v3Suggested=(v3Result.suggested??[]).map(row=>{const normalized=normalize(row,snapshot.provider,snapshot.market,'suggested',sourceBasis({...row,amount:Number(row.amount??row.suggestedAmount),currency:row.currency??row.suggestedCurrency})?'V3_SOURCE_RESEARCH':'V3_RESEARCH'),origin=lineageOrigin(normalized,origins);return origin?{...normalized,planIdentity:origin.planIdentity,lineageConflicts:lineageContradictions(normalized,origin)}:normalized;});
+  const v3Suggested=(v3Result.suggested??[]).map(row=>{const normalized=normalizeSuggestedResearchRow(row,snapshot.provider,snapshot.market),origin=lineageOrigin(normalized,origins);if(!origin)return normalized;const lineageConflicts=lineageContradictions(normalized,origin);return {...normalized,planIdentity:lineageConflicts.length?(normalized.planIdentity===origin.planIdentity?'lineage-conflict:'+normalized.suggestedId:normalized.planIdentity):origin.planIdentity,lineageConflicts};});
   const suggested=[...v4Suggested,...v3Suggested];
   const verified=[...existingVerified.map(row=>normalize(row,snapshot.provider,snapshot.market,'verified','EXISTING_VERIFIED')),...(v3Result.verified??[]).map(row=>normalize(row,snapshot.provider,snapshot.market,'verified','V3_VERIFIED'))];
   const contradictions=structuredClone(v3Result.contradictions??[]);

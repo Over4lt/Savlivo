@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mergeProductPlans} from '../product-pricing.ts';
-import {runAdminV4FirstResearch,v3ResultFromTarget} from './admin-live-pipeline.mjs';
+import {runAdminV4FirstResearch,v3ResultFromTarget,reconcileV3PlanIdentities} from './admin-live-pipeline.mjs';
 import {digest} from '../research-v3/model.mjs';
 import {reviewedProviderNamespacesFor} from '../research-v3/reviewed-provider-namespaces.mjs';
 import {buildGoogleAiQuery} from './v4-query.mjs';
 import {catalogPlanIdentity} from '../../../../packages/contracts/src/product-pricing.ts';
+import {createV4SuggestedSnapshot} from './research-handoff.mjs';
+import {canonicalPlanEvidenceCounts,mergeResearch} from './monotonic-merge.mjs';
 
 const target={id:'example-price-DE',service:'example',serviceName:'Example',market:'DE'};
 const plan={planName:'Individual',amount:10.99,currency:'EUR',paymentCadence:'MONTHLY_RECURRING',commitment:'NONE',ordinaryRecurringPrice:10.99,introPrice:null,introDuration:null,sourceUrl:'https://example.test/de/pricing',sourceEvidence:'Individual EUR 10.99 monthly',marketEvidence:'Germany',billingBasis:'charged monthly',annualOnly:false,freeTier:false,summary:'Monthly subscription',warnings:[],market:'DE',sourceReferences:['https://example.test/de/pricing']};
@@ -130,4 +132,46 @@ test('service without reviewed namespace keeps the existing Gemini query and han
  await runAdminV4FirstResearch({targets:[target],artifactDirectory:null,apiKey:'test',acquireGoogle:async args=>{seen=args.providerNamespace;return acquisition('GOOGLE_AI_NO_PRICE',[]);},...stores(),runDownstream:async({handoffs})=>{handoff=handoffs[target.id];return {result:{},v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}};}});
  assert.equal(seen,null);
  assert.deepEqual(handoff.researchLeads.providerDiscoveryUrls,[]);
+});
+
+const chessTarget={id:'chess-no',service:'chess-com',serviceName:'Chess.com',market:'NO'};
+const chessIds=['gold_monthly_032022','platinum_monthly_032022','diamond_monthly_032022'];
+const chessNames=['Gold Membership (Monthly)','Platinum Membership (Monthly)','Diamond Membership (Monthly)'];
+const chessVerified=chessIds.map((id,index)=>({plan:id,amount:[79.99,129.99,199.99][index],currency:'NOK',paymentCadence:'MONTHLY_RECURRING',sourceUrl:'https://www.chess.com/membership',verifiedAt:'2026-10-16T10:15:00Z',verificationEvidence:{exactOfferId:id}}));
+const chessSuggested=(id,index,{currency='NOK',amount=[79.99,129.99,199.99][index],hash='country',marketAlignment='EXACT',name=chessNames[index]}={})=>({provider:'Chess.com',market:'NO',plan:name,amount,currency,paymentCadence:'MONTHLY_RECURRING',sourceUrl:'https://www.chess.com/membership',sourceHash:hash,provenance:'V3_SOURCE_RESEARCH',researchEvidence:{acquired:true,sourceBound:true,observationId:hash,exactOfferId:id,amountBasis:'EXPLICIT',cadence:'MONTHLY_RECURRING',priceRole:'ORDINARY_RECURRING',sourceOwnership:'FIRST_PARTY',providerAlignment:'EXACT',planAlignment:'EXACT',marketAlignment,billingRouteAlignment:'UNRESOLVED'}});
+
+test('Chess NO exact source offers reconcile six observations to three Suggested and three Verified plans across repeated runs',async()=>{
+ const persisted=chessVerified.map(row=>({serviceSlug:'chess-com',planSlug:row.plan.replaceAll('_','-'),planName:row.plan,billingProviderSlug:'direct',countryCode:'NO',currency:'NOK',monthlyPriceMinor:Math.round(row.amount*100),planIdentity:catalogPlanIdentity({serviceSlug:'chess-com',planSlug:row.plan.replaceAll('_','-'),billingProviderSlug:'direct',countryCode:'NO',currency:'NOK'}),sourceUrl:row.sourceUrl,updatedAt:row.verifiedAt}));
+ const stored=new Map(),store={persistSuggested:async plans=>{for(const plan of plans)for(const row of [...plan.suggestedHistory,...(plan.suggested?[plan.suggested]:[])])stored.set(row.suggestedId,{planIdentity:plan.planIdentity,row});},loadSuggested:async()=>[],loadVerified:async()=>structuredClone(persisted),persistVerified:async()=>({})};
+ for(let run=0;run<3;run++){
+  const suggested=chessIds.flatMap((id,index)=>[chessSuggested(id,index,{currency:'EUR',amount:[6.99,11,17.99][index],hash:'direct-'+run,marketAlignment:'UNRESOLVED'}),chessSuggested(id,index,{hash:'country-'+run})]);
+  const result=await runAdminV4FirstResearch({targets:[chessTarget],...store,acquireGoogle:async()=>({status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:{timestamp:'2026-10-16T10:15:00Z',request:{requestCount:1,status:'HTTP_402'}}}),runDownstream:async()=>({result:{targets:{}},v3Results:{[chessTarget.id]:{suggested,verified:chessVerified,contradictions:[],operationalFailures:[]}}})});
+  const row=result.targets[0];assert.deepEqual(row.planCounts,{suggestedPlans:3,verifiedPlans:3});assert.equal(row.combined.plans.length,3);assert.equal(row.combined.suggested.length,6);assert(row.combined.plans.every(plan=>plan.suggested.length===2&&plan.verified.length>=1&&plan.suggested.some(item=>item.currency==='EUR')&&plan.suggested.some(item=>item.currency==='NOK')));assert.deepEqual(new Set(row.combined.plans.map(plan=>plan.planIdentity)),new Set(persisted.map(plan=>plan.planIdentity)));
+ }
+ assert.equal([...stored.values()].filter(item=>item.row.currency==='NOK').length,3);
+});
+
+test('exact V4 lineage with different display strings inherits one canonical Verified identity',()=>{
+ const snapshot=createV4SuggestedSnapshot({provider:'Chess.com',market:'NO',suggested:[{plan:'Gold',amount:79.99,currency:'NOK',provenance:'GOOGLE_AI_V4',planIdentity:'catalog:chess-com:no:gold:direct:nok'}]});
+ const original=snapshot.suggested[0],v3=chessSuggested(chessIds[0],0,{name:'Gold Membership (Monthly)'});v3.originSuggestedId=original.suggestedId;v3.researchEvidence.lineage={kind:'V4_SUGGESTED_ORIGIN',originSuggestedId:original.suggestedId,truthAuthority:'NONE'};
+ const stored=[{serviceSlug:'chess-com',planSlug:'gold-monthly-032022',billingProviderSlug:'direct',countryCode:'NO',currency:'NOK',planIdentity:'catalog:chess-com:no:gold-monthly-032022:direct:nok'}];
+ const resolved=reconcileV3PlanIdentities(chessTarget,snapshot,{suggested:[v3],verified:[chessVerified[0]]},stored),merged=mergeResearch({...resolved});assert.deepEqual(canonicalPlanEvidenceCounts(merged),{suggestedPlans:1,verifiedPlans:1});assert.equal(merged.plans.length,1);assert.equal(merged.plans[0].suggested.length,2);assert.equal(merged.plans[0].planIdentity,stored[0].planIdentity);
+ const changed=chessSuggested(chessIds[0],0,{hash:'new-source',amount:89.99});changed.originSuggestedId=original.suggestedId;changed.researchEvidence.lineage={kind:'V4_SUGGESTED_ORIGIN',originSuggestedId:original.suggestedId,truthAuthority:'NONE'};const next=reconcileV3PlanIdentities(chessTarget,snapshot,{suggested:[changed],verified:[{...chessVerified[0],amount:89.99}]},stored);assert.deepEqual(canonicalPlanEvidenceCounts(mergeResearch(next)),{suggestedPlans:1,verifiedPlans:1});
+});
+
+test('three V4, three source-bound V3 and three Verified offers stay three logical plans',()=>{
+ const snapshot=createV4SuggestedSnapshot({provider:'Chess.com',market:'NO',suggested:chessIds.map((id,index)=>({plan:['Gold','Platinum','Diamond'][index],amount:chessVerified[index].amount,currency:'NOK',paymentCadence:'MONTHLY_RECURRING',provenance:'GOOGLE_AI_V4',planIdentity:priceIdentityForChess(id)}))});
+ for(let run=0;run<3;run++){
+  const suggested=chessIds.map((id,index)=>{const row=chessSuggested(id,index,{hash:'observation-'+run,amount:chessVerified[index].amount+(run===1&&index===0?1:0)}),origin=snapshot.suggested[index];row.originSuggestedId=origin.suggestedId;row.researchEvidence.lineage={kind:'V4_SUGGESTED_ORIGIN',originSuggestedId:origin.suggestedId,truthAuthority:'NONE'};return row;});
+  const verifiedRows=chessVerified.map((row,index)=>({...row,amount:row.amount+(run===1&&index===0?1:0)}));
+  const resolved=reconcileV3PlanIdentities(chessTarget,snapshot,{suggested,verified:verifiedRows}),combined=mergeResearch(resolved);
+  assert.deepEqual(canonicalPlanEvidenceCounts(combined),{suggestedPlans:3,verifiedPlans:3});assert.equal(combined.plans.length,3);assert(combined.plans.every(plan=>plan.suggested.length===2&&plan.verified.length===1));
+ }
+});
+const priceIdentityForChess=id=>catalogPlanIdentity({serviceSlug:'chess-com',planSlug:id.replaceAll('_','-'),billingProviderSlug:'direct',countryCode:'NO',currency:'NOK'});
+
+test('exact offer identity keeps equal-price distinct plans separate and rejects contradictory lineage',()=>{
+ const snapshot=createV4SuggestedSnapshot({provider:'Chess.com',market:'NO',suggested:[{plan:'Gold',amount:79.99,currency:'NOK',provenance:'GOOGLE_AI_V4',planIdentity:'catalog:chess-com:no:gold:direct:nok'}]});
+ const samePrice=chessIds.slice(0,2).map((id,index)=>chessSuggested(id,index,{amount:79.99})),verifiedRows=chessVerified.slice(0,2).map(row=>({...row,amount:79.99})),resolved=reconcileV3PlanIdentities(chessTarget,createV4SuggestedSnapshot({provider:'Chess.com',market:'NO',suggested:[]}),{suggested:samePrice,verified:verifiedRows});assert.deepEqual(canonicalPlanEvidenceCounts(mergeResearch(resolved)),{suggestedPlans:2,verifiedPlans:2});
+ const contradiction=chessSuggested(chessIds[0],0);contradiction.originSuggestedId=snapshot.suggested[0].suggestedId;contradiction.researchEvidence.lineage={kind:'V4_SUGGESTED_ORIGIN',originSuggestedId:contradiction.originSuggestedId,truthAuthority:'NONE'};contradiction.researchEvidence.planAlignment='MISMATCH';const conflicting=reconcileV3PlanIdentities(chessTarget,snapshot,{suggested:[contradiction],verified:[chessVerified[0]]});assert.equal(conflicting.snapshot.suggested[0].planIdentity,snapshot.suggested[0].planIdentity);assert.equal(mergeResearch(conflicting).plans.length,3);
 });

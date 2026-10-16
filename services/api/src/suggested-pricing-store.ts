@@ -108,7 +108,7 @@ export async function persistSuggestedProductPlans(plans: ProductPlanPricing[]) 
           researched_at,warnings,active) VALUES(
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15)
           ON CONFLICT(suggested_id) DO UPDATE SET
-          plan_name=EXCLUDED.plan_name,provenance=EXCLUDED.provenance,source_url=EXCLUDED.source_url,
+          plan_identity=EXCLUDED.plan_identity,plan_name=EXCLUDED.plan_name,provenance=EXCLUDED.provenance,source_url=EXCLUDED.source_url,
           researched_at=EXCLUDED.researched_at,warnings=EXCLUDED.warnings,active=EXCLUDED.active,
           updated_at=now()`, [
           value.suggestedId,

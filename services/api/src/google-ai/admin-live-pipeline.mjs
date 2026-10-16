@@ -8,7 +8,7 @@ import {persistVerifiedLivePrices,loadPersistedVerifiedPrices} from '../pricing-
 import {projectV3VerificationEvidence} from '../research-v2/inventory/v3-result-projection.mjs';
 import {verifyCandidates,buildSuggested} from './v4-normalization.mjs';
 import {createV4SuggestedSnapshot,createV3Handoff} from './research-handoff.mjs';
-import {canonicalPlanEvidenceCounts,mergeResearch} from './monotonic-merge.mjs';
+import {canonicalPlanEvidenceCounts,mergeResearch,normalizeSuggestedResearchRow} from './monotonic-merge.mjs';
 import {researchMonthlyRecurringWithRecovery} from './monthly-recurring.mjs';
 import {reviewedProviderNamespacesFor,reviewedNamespaceMatches} from '../research-v3/reviewed-provider-namespaces.mjs';
 
@@ -75,6 +75,37 @@ function alignVerifiedWithPersisted(target,rows,persisted){
   return rows.map(row=>({...row,planIdentity:byKey.get([slug(row.plan),row.currency].join('\u0000'))??pricePlanIdentity(target,row.plan,row.currency)}));
 }
 
+const contradictory=value=>['CONFLICT','MISMATCH','DISTINCT'].includes(String(value??'').toUpperCase());
+function validOrigin(row,origins,target){
+ const lineage=row.researchEvidence?.lineage,origin=origins.get(row.originSuggestedId);
+ if(!origin||lineage?.kind!=='V4_SUGGESTED_ORIGIN'||lineage.originSuggestedId!==row.originSuggestedId||lineage.truthAuthority!=='NONE'||row.market!==target.market||row.paymentCadence!=='MONTHLY_RECURRING'||row.researchEvidence?.cadence!=='MONTHLY_RECURRING'||row.researchEvidence?.priceRole!=='ORDINARY_RECURRING')return null;
+ if(['providerAlignment','planAlignment','marketAlignment','billingRouteAlignment'].some(field=>contradictory(row.researchEvidence?.[field])))return null;
+ return origin;
+}
+
+// Resolve exact source-offer and V4 lineage links once, before merge or persistence.
+// The original Suggested IDs survive rekeying so an earlier persisted row moves
+// to the canonical plan rather than creating a second observation.
+export function reconcileV3PlanIdentities(target,snapshot,v3Result,persistedVerified=[]){
+ const verified=alignVerifiedWithPersisted(target,v3Result.verified??[],persistedVerified);
+ const originals=(v3Result.suggested??[]).map(row=>normalizeSuggestedResearchRow({...row,planIdentity:row.planIdentity??pricePlanIdentity(target,row.plan,row.currency)},snapshot.provider,snapshot.market));
+ const origins=new Map(snapshot.suggested.map(row=>[row.suggestedId,row]));
+ const byOffer=new Map();
+ for(const row of verified){const id=row.verificationEvidence?.exactOfferId;if(typeof id!=='string'||!id)continue;const identities=byOffer.get(id)??new Set();identities.add(row.planIdentity);byOffer.set(id,identities);}
+ const v4Rekeys=new Map(),ambiguousV4=new Set();
+ const suggested=originals.map(row=>{
+  const evidence=row.researchEvidence??{},id=evidence.exactOfferId,origin=validOrigin(row,origins,target),verifiedIdentities=typeof id==='string'?byOffer.get(id):null;
+  if(['providerAlignment','planAlignment','marketAlignment','billingRouteAlignment'].some(field=>contradictory(evidence[field]))||row.paymentCadence!=='MONTHLY_RECURRING')return row;
+  if(verifiedIdentities?.size>1)return row;
+  const canonicalVerified=verifiedIdentities?.size===1?[...verifiedIdentities][0]:null;
+  const identity=canonicalVerified??origin?.planIdentity??(typeof id==='string'&&id?pricePlanIdentity(target,id,countryCurrencies[target.market]??row.currency):row.planIdentity);
+  if(origin&&canonicalVerified){const prior=v4Rekeys.get(origin.suggestedId);if(prior&&prior!==canonicalVerified)ambiguousV4.add(origin.suggestedId);else v4Rekeys.set(origin.suggestedId,canonicalVerified);}
+  return {...row,planIdentity:identity};
+ });
+ for(const id of ambiguousV4)v4Rekeys.delete(id);
+ return {snapshot:{...snapshot,suggested:snapshot.suggested.map(row=>v4Rekeys.has(row.suggestedId)?{...row,planIdentity:v4Rekeys.get(row.suggestedId)}:row)},v3Result:{...v3Result,suggested,verified}};
+}
+
 export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,acquireGoogle=researchMonthlyRecurringWithRecovery,persistSuggested=persistSuggestedProductPlans,persistVerified=persistVerifiedLivePrices,loadSuggested=loadSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices,runDownstream,beforeGoogle=null}={}){
   if(!Array.isArray(targets)||!targets.length||targets.length>adminGooglePipelineLimits.targets||typeof runDownstream!=='function')throw Error('ADMIN_V4_PIPELINE_INPUT_INVALID');
   const scoped=targets.map(safeTarget),priority=beforeGoogle?await beforeGoogle():null,sessions=[];
@@ -93,8 +124,8 @@ export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,
   for(const session of sessions){
     const {target,state,acquisition}=session,v3Result=downstream?.v3Results?.[target.id]??{suggested:[],verified:[],contradictions:[],operationalFailures:[{kind:'V3_RESULT_UNAVAILABLE'}]},currency=countryCurrencies[target.market]??v3Result.suggested?.[0]?.currency??state.snapshot.suggested[0]?.currency??'';
     let persistedVerified=[];if(currency)try{persistedVerified=(await loadVerified(target.market,currency)).filter(row=>row.serviceSlug===target.service);}catch{persistedVerified=[];}
-    const existing=existingVerifiedRows(persistedVerified,target),alignedV3Result={...v3Result,suggested:(v3Result.suggested??[]).map(row=>({...row,planIdentity:pricePlanIdentity(target,row.plan,row.currency)})),verified:alignVerifiedWithPersisted(target,v3Result.verified??[],persistedVerified)};
-    const combined=mergeResearch({snapshot:state.snapshot,v3Result:alignedV3Result,existingVerified:existing}),productPlans=projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined});
+    const existing=existingVerifiedRows(persistedVerified,target),resolved=reconcileV3PlanIdentities(target,state.snapshot,v3Result,persistedVerified),alignedV3Result=resolved.v3Result;
+    const combined=mergeResearch({snapshot:resolved.snapshot,v3Result:alignedV3Result,existingVerified:existing}),productPlans=projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined});
     if(productPlans.some(plan=>plan.suggested||plan.suggestedHistory.length))await persistSuggested(productPlans);
     const acceptedVerified=verifiedAdapters(target,alignedV3Result.verified);if(acceptedVerified.length)await persistVerified(acceptedVerified);
     let observedPlans=productPlans;if(currency)try{const storedVerified=(await loadVerified(target.market,currency)).filter(row=>row.serviceSlug===target.service);observedPlans=mergeProductPlans(await loadSuggested(target.market,currency),projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined:mergeResearch({snapshot:createV4SuggestedSnapshot({provider:target.serviceName,market:target.market,suggested:[]}),existingVerified:existingVerifiedRows(storedVerified,target)})}));}catch{/* Persistence result remains explicit below. */}

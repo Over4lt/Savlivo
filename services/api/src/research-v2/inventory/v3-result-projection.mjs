@@ -64,6 +64,7 @@ export function projectV3VerificationEvidence(target){
    serviceId:typeof target?.service==='string'?target.service:null,
    targetMarket:typeof target?.market==='string'?target.market:null,
    plan:row.name??row.id,
+   exactOfferId:row.id,
    offerIdentityName:row.offerIdentity?.name??null,
    amount:row.ordinaryRecurringPrice.amount,
    currency:row.ordinaryRecurringPrice.currency,

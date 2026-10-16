@@ -29,7 +29,7 @@ function identityContext(observation,targetMarket){
  };
 }
 
-function candidate({observation,objective,targetMarket,plan,amount,currency,locator,acquiredAt=null,warnings=[]}){
+function candidate({observation,objective,targetMarket,plan,amount,currency,locator,offerId=null,acquiredAt=null,warnings=[]}){
  const identity=identityContext(observation,targetMarket);
  return {
   provider:objective.serviceName,market:identity.market,plan,amount:Number(amount),currency,
@@ -40,7 +40,8 @@ function candidate({observation,objective,targetMarket,plan,amount,currency,loca
    acquired:true,sourceBound:true,observationId:observation.id,amountBasis:'EXPLICIT',
    cadence:'MONTHLY_RECURRING',cadenceEvidence:structuredClone(locator),priceRole:'ORDINARY_RECURRING',
    sourceOwnership:'FIRST_PARTY',providerAlignment:'EXACT',planAlignment:'EXACT',
-   marketAlignment:identity.marketAlignment,billingRouteAlignment:'UNRESOLVED'
+   marketAlignment:identity.marketAlignment,billingRouteAlignment:'UNRESOLVED',
+   ...(offerId?{exactOfferId:offerId}:{})
   }
  };
 }
@@ -53,7 +54,7 @@ function truthCandidates(observation,objective,targetMarket,truth,projection,acq
   const ref=referenceOf(p.PRICE_AMOUNT),sourceOffer=projection.source.offers.find((row,index)=>row.id===offer.id||ref?.pointer==='/offers/'+index);
   const plan=sourceOffer?.name??sourceName(ref)??offer.name??offer.plan??offer.id;
   if(!plan||!Number.isFinite(p.PRICE_AMOUNT.value)||p.PRICE_AMOUNT.value<=0||!currencies.has(p.CURRENCY.value)||ref?.observation!==observation.id||ref?.sha256!==observation.sha256)continue;
-  rows.push(candidate({observation,objective,targetMarket,plan,amount:p.PRICE_AMOUNT.value,currency:p.CURRENCY.value,acquiredAt,
+  rows.push(candidate({observation,objective,targetMarket,plan,amount:p.PRICE_AMOUNT.value,currency:p.CURRENCY.value,acquiredAt,offerId:sourceOffer?.id===offer.id?offer.id:null,
    locator:{kind:'V3_TRUTH_REFERENCE',pointer:ref.pointer??null,source:structuredClone(ref.source??null)},
    warnings:truth.established?[]:['VERIFIED_TRUTH_UNRESOLVED']}));
  }
@@ -66,7 +67,7 @@ function projectedOfferCandidates(observation,objective,targetMarket,projection,
   if(!monthlyOffer(offer))continue;
   const binding=projection.bindings['/offers/'+index],plan=offer.name??binding?.offer??offer.id;
   if(!plan||binding?.observation&&binding.observation!==observation.id||binding?.sourceHash&&binding.sourceHash!==observation.sha256)continue;
-  rows.push(candidate({observation,objective,targetMarket,plan,amount:offer.amount,currency:offer.currency,acquiredAt,
+  rows.push(candidate({observation,objective,targetMarket,plan,amount:offer.amount,currency:offer.currency,acquiredAt,offerId:offer.id,
    locator:{kind:'V3_PROJECTED_OFFER',pointer:'/offers/'+index,source:structuredClone(binding??null)}}));
  }
  return rows;

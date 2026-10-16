@@ -58,8 +58,15 @@ test("Suggested history remains available while Verified price stays authoritati
     assert.equal((await pool.query("SELECT count(*)::int n FROM suggested_provider_prices")).rows[0].n, 2);
     assert.equal((await pool.query("SELECT count(*)::int n FROM suggested_provider_prices WHERE active")).rows[0].n, 1);
 
+    const canonicalPlan={...plan,planIdentity:"catalog:fixture-service:de:premium:direct:eur"};
+    await persistSuggestedProductPlans([canonicalPlan]);
+    const rekeyed=await loadSuggestedProductPlans("DE","EUR");
+    assert.equal(rekeyed.length,1);
+    assert.equal(rekeyed[0]?.planIdentity,canonicalPlan.planIdentity);
+    assert.equal((await pool.query("SELECT count(*)::int n FROM suggested_provider_prices")).rows[0].n,2);
+
     await persistVerifiedLivePrices([{
-      planIdentity: plan.planIdentity,
+      planIdentity: canonicalPlan.planIdentity,
       serviceSlug: plan.serviceSlug,
       planSlug: "premium",
       planName: plan.planName,
