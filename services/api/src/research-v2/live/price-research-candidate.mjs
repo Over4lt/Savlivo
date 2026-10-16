@@ -15,6 +15,7 @@ export function priceResearchAcquisitionCandidate(target,value){
  const discovered=lead&&['SEARCH','CHILD'].includes(lead.originKind)&&candidateRelevant(target,lead);
  const routed=lead&&candidateRelevant(target,lead)&&(lead.providerRootSeed===true||lead.learnedProviderPricingRoute===true||lead.providerSeedObjectiveLead===true||lead.sourceBoundCandidate===true||lead.originSuggestedIds?.length>0||/^GOOGLE_AI_/u.test(lead.origin??''));
  const known=(target.knownCommercialUrls??[]).some(row=>same(row,url))&&candidateRelevant(target,{url});
- if(!suggested&&!discovered&&!routed&&!known)return null;
- return {url,eligible:true,reason:'PRICE_RESEARCH_SOURCE_CANDIDATE',truthAuthority:'NONE',origin:suggested?'V4_SUGGESTED_SOURCE':lead?.origin??lead?.originKind??'KNOWN_COMMERCIAL_URL'};
+ const researchLink=(target.researchLinks??[]).find(row=>row.enabled===true&&row.truthAuthority==='NONE'&&same(row.url,url)&&(row.marketScope==='GLOBAL'||row.marketScope==='MARKET_SPECIFIC'&&row.marketCode===target.market));
+ if(!suggested&&!discovered&&!routed&&!known&&!researchLink)return null;
+ return {url,eligible:true,reason:'PRICE_RESEARCH_SOURCE_CANDIDATE',truthAuthority:'NONE',origin:researchLink?'USER_RESEARCH_LINK':suggested?'V4_SUGGESTED_SOURCE':lead?.origin??lead?.originKind??'KNOWN_COMMERCIAL_URL',...(researchLink?{researchLinkId:researchLink.id,researchLinkKind:researchLink.kind}:{})};
 }

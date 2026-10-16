@@ -96,6 +96,13 @@ li {margin:.4rem 0;color:var(--muted)}
 /* Mature V2 targeting uses the existing Admin typography and controls. */
 .ops-research-builder{width:100%;display:grid;gap:1rem;margin:1.5rem 0}
 .ops-presets,.ops-facets,.ops-facet-options{display:flex;flex-wrap:wrap;gap:.6rem}
+.ops-canonical-tools{position:relative}
+.ops-research-links-panel{position:absolute;z-index:5;top:2.5rem;left:.75rem;width:min(42rem,calc(100vw - 3rem));max-height:min(70vh,38rem);overflow:auto;border:1px solid var(--border,#d5dce3);border-radius:.5rem;padding:1rem;background:var(--surface,#fff);box-shadow:0 .5rem 1.5rem #0002}
+.ops-research-links-panel[hidden]{display:none}
+.ops-research-link-row{border-top:1px solid var(--border,#d5dce3);padding:.6rem 0;overflow-wrap:anywhere}
+.ops-research-link-row p{margin:.2rem 0}
+.ops-research-link-row button,.ops-research-links-panel>button{margin:.25rem .4rem .25rem 0}
+.ops-research-links-editor{display:grid;gap:.5rem;margin-top:.6rem}
 
 .ops-facets>details{flex:1;min-width:14rem}
 .ops-facet-options{max-height:16rem;overflow:auto;padding:.75rem 0}

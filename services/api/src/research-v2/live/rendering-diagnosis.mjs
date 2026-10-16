@@ -23,9 +23,9 @@ export function activeRenderingNeed(target){
  return attempted?null:need;
 }
 
-export function reconcileRenderingNeed(target,{required=false,url=null,runDirectory=null,transport=null,sourceHash=null}={}){
+export function reconcileRenderingNeed(target,{required=false,url=null,runDirectory=null,transport=null,sourceHash=null,navigationUrl=null}={}){
  const before=target.demonstratedRendering===true,truth=target.v3Truth,remaining=unresolvedRenderingNeeds(truth),material=required===true&&(!truth||remaining.length>0);
- if(material){target.demonstratedRendering=true;target.renderingNeed={kind:'RENDERED_REPRESENTATION',url,runDirectory,transport:transport??target.v3Observation?.context?.transport??'DIRECT',market:target.market,sourceHash:sourceHash??target.v3Observation?.sha256??null,motivatingNeeds:remaining.map(row=>({id:row.id,offerId:row.offerId??null,proposition:row.proposition,market:row.market??null,state:row.state}))};target.researchDiagnosis='RENDERING_REQUIRED';}
+ if(material){target.demonstratedRendering=true;target.renderingNeed={kind:'RENDERED_REPRESENTATION',url,runDirectory,transport:transport??target.v3Observation?.context?.transport??'DIRECT',market:target.market,sourceHash:sourceHash??target.v3Observation?.sha256??null,navigationUrl,motivatingNeeds:remaining.map(row=>({id:row.id,offerId:row.offerId??null,proposition:row.proposition,market:row.market??null,state:row.state}))};target.researchDiagnosis='RENDERING_REQUIRED';}
  else {target.demonstratedRendering=false;delete target.renderingNeed;if(target.researchDiagnosis==='RENDERING_REQUIRED')target.researchDiagnosis=truth?.established?'V3_TRUTH_ESTABLISHED':'V3_LATEST_NEEDS_RECONCILED';}
  target.capabilityReconciliation={kind:'RENDERED_REPRESENTATION',historicalDiagnosis:required===true||before,actionable:material,remainingNeeds:remaining.map(row=>row.id),basis:material?'LATEST_V3_UNRESOLVED_NEEDS':'LATEST_V3_NEEDS_SATISFIED'};
  return target.capabilityReconciliation;

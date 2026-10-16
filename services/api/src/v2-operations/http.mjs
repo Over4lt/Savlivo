@@ -3,6 +3,7 @@ import {humanLeadsRequest} from './human-leads.mjs';
 import {jobStatus,priceResearchTargetEvidence,terminationDiagnostic} from './job-status.mjs';
 import {beginPreflight,beginStart,preflightStatus} from './preflight-operations.mjs';
 import {marketPriceStatus} from './market-price-status.mjs';
+import {researchLinksRequest} from './research-links.mjs';
 import {storageView} from '../research-v2/storage/runtime.mjs';
 import {historyIndex} from '../research-v2/storage/history.mjs';
 import {Operations,settings,OperationError} from './control.mjs';import {publicRun,json,lifecycleEvents} from './artifacts.mjs';import path from 'node:path';
@@ -14,6 +15,7 @@ export async function operationsRequest({method,url,body,actor},ops=operations()
  if(method==='GET'&&route==='/history'){const {offset,limit}=page(),index=historyIndex(ops.config.repo);return {status:index.status??'AVAILABLE',total:index.rows.length,rows:index.rows.slice(offset,offset+limit)};}
  if(['GET','POST'].includes(method)&&route==='/price-research/targeting')return ops.priceResearchTargeting(method==='POST'?body??{}:{});
  if(method==='POST'&&route==='/price-research/market-price-status')return marketPriceStatus(body,ops);
+ if(parts[0]==='price-research'&&parts[1]==='research-links'&&parts.length<=3&&['GET','POST','PATCH','DELETE'].includes(method))return researchLinksRequest({method,serviceId:url.searchParams.get('serviceId')??body?.serviceId,linkId:parts[2]??null,body:body&&Object.fromEntries(Object.entries(body).filter(([key])=>key!=='serviceId')),ops,actor});
  if(['GET','POST'].includes(method)&&route==='/targeting')return ops.targeting(method==='POST'?body??{}:{});
  if(method==='GET'&&route==='/summary')return ops.summary();
  if(method==='GET'&&route==='/runs'){const {offset,limit}=page();let rows=ops.index().map(publicRun);for(const k of ['objective','status','origin'])if(url.searchParams.get(k))rows=rows.filter(r=>r[k]===url.searchParams.get(k));return {total:rows.length,rows:rows.slice(offset,offset+limit)};}

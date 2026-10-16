@@ -3,6 +3,7 @@ import {revalidateTargetAdmission} from '../intelligence/service-admission.mjs';
 import {pendingMarketProof,marketProofContradicted} from '../live/market-proof-continuation.mjs';
 import {currentRetainedPriceReview,targetMarketPriceReview} from '../live/retained-pricing.mjs';
 import {readPriceEvidenceNeeds} from '../intelligence/price-evidence-needs.mjs';
+import {projectEstablishedV3Offerings} from './v3-result-projection.mjs';
 import {usableResearchMemory} from '../live/research-memory.mjs';
 import {managementInformation,missingCatalogFields} from '../intelligence/management-targeting.mjs';
 import {mergeTargetCapabilities} from '../intelligence/login-manage.mjs';
@@ -57,7 +58,7 @@ export function v4VerificationStatus(t){
  const satisfied=(t.verified?.length??0)>0||t.retainedPriceReview?.sourceBound===true&&t.retainedPriceReview?.market===t.market;
  return {required:true,attempted,satisfied};
 }
-function pricingSufficiency(t,targets=[t],state=null){const verification=v4VerificationStatus(t);if(verification.required&&!verification.satisfied)return null;if(state&&priceResearchDecodoVerification(t,{executionContext:targetExecutionContext(state,t)}).status==='PENDING')return null;const review=targets.filter(x=>x.market===t.market).map(x=>t.market?targetMarketPriceReview(t,x.retainedPriceReview):currentRetainedPriceReview(t,x.retainedPriceReview)).find(Boolean);if(!review||marketProofContradicted(t)||pendingMarketProof(t).length&&review.market!==t.market)return null;return t.priceStrategy==='USER_PRICE_PREFERRED'?'USER_PRICE_PREFERRED_SUFFICIENT':review.confidence==='HIGH'?'HIGH_SUFFICIENT':'MEDIUM_SUFFICIENT';}
+function pricingSufficiency(t,targets=[t],state=null){if(!marketProofContradicted(t)&&(t.researchLinkOutcomes??[]).some(row=>row.result==='VERIFIED')&&((t.verified??[]).length>0||projectEstablishedV3Offerings(t).some(row=>row.market===t.market)))return 'HIGH_SUFFICIENT';const verification=v4VerificationStatus(t);if(verification.required&&!verification.satisfied)return null;if(state&&priceResearchDecodoVerification(t,{executionContext:targetExecutionContext(state,t)}).status==='PENDING')return null;const review=targets.filter(x=>x.market===t.market).map(x=>t.market?targetMarketPriceReview(t,x.retainedPriceReview):currentRetainedPriceReview(t,x.retainedPriceReview)).find(Boolean);if(!review||marketProofContradicted(t)||pendingMarketProof(t).length&&review.market!==t.market)return null;return t.priceStrategy==='USER_PRICE_PREFERRED'?'USER_PRICE_PREFERRED_SUFFICIENT':review.confidence==='HIGH'?'HIGH_SUFFICIENT':'MEDIUM_SUFFICIENT';}
 function actionKey(service,p){return JSON.stringify([service,p.route,['DIRECT','DECODO','PARK_RENDERING'].includes(p.route)?resourceKey(p.url):p.url??p.query,p.retainedKey,...(p.route==='DECODO'?[p.targetMarket]:[])]);}
 export function assessAdaptiveService(state,service){
  const s=state.services[service],ts=Object.values(state.targets).filter(t=>t.service===service),enough=sufficient(state,service),signature=hash(ts.map(t=>[t.id,counts(t),t.retainedPriceReview,t.v4VerificationRequirement,t.researchDiagnosis,t.capabilityReconciliation,t.renderingOutcomes,t.blockedOrigins,t.catalogEligibility,readPriceEvidenceNeeds(t)?.evidenceDigest??null])),rows=[];

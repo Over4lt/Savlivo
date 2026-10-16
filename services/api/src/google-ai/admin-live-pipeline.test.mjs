@@ -33,6 +33,16 @@ test('A: V4 Suggested persists before downstream and remains active',async()=>{
  const {row,earlySnapshot,final}=await execute();assert.equal(earlySnapshot.suggested.length,1);assert.equal(row.combined.resultClass,'SUGGESTED');assert.deepEqual(row.analyticsStates.map(x=>x.status),['SUGGESTED_ONLY']);assert.equal(final.verifiedRows.length,0);
 });
 
+test('priority Research link runs before Gemini and a V3 Verified result avoids broad discovery',async()=>{
+ const events=[],store=stores(),result=await runAdminV4FirstResearch({targets:[target],...store,beforeGoogle:async()=>{events.push('LINK_DECODO');return {satisfiedTargetIds:[target.id],downstream:{result:{targets:{[target.id]:{researchLinks:[{id:'link'}],researchLinkOutcomes:[{id:'link',result:'VERIFIED'}]}}},v3Results:{[target.id]:{suggested:[],verified:[verified()],contradictions:[],operationalFailures:[]}}}};},acquireGoogle:async()=>{events.push('GEMINI');throw Error('UNEXPECTED_GEMINI');},runDownstream:async()=>{events.push('BROAD_DISCOVERY');throw Error('UNEXPECTED_DISCOVERY');}});
+ assert.deepEqual(events,['LINK_DECODO']);assert.equal(result.targets[0].googleRequests,0);assert.equal(result.targets[0].googleStatus,'RESEARCH_LINK_VERIFIED');assert.equal(result.targets[0].combined.resultClass,'VERIFIED');assert.equal(store.state().verifiedRows.length,1);
+});
+
+test('unresolved priority Research link falls through to Gemini and ordinary downstream research',async()=>{
+ const events=[],result=await runAdminV4FirstResearch({targets:[target],...stores(),beforeGoogle:async()=>{events.push('LINK_DECODO');return {satisfiedTargetIds:[]};},acquireGoogle:async()=>{events.push('GEMINI');return acquisition('GOOGLE_AI_NO_PRICE',[]);},runDownstream:async()=>{events.push('BROAD_DISCOVERY');return {result:{},v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}};}});
+ assert.deepEqual(events,['LINK_DECODO','GEMINI','BROAD_DISCOVERY']);assert.equal(result.targets[0].combined.resultClass,'NO_RESULT');
+});
+
 test('B: downstream unresolved cannot remove the already persisted V4 Suggested',async()=>{
  const {row,earlySnapshot,final}=await execute({v3:{suggested:[],verified:[],contradictions:[],operationalFailures:[{kind:'UNRESOLVED'}]}});assert.equal(earlySnapshot.suggested[0].suggested?.monthlyPriceMinor,1099);assert.equal(final.suggested[0].suggested?.monthlyPriceMinor,1099);assert.equal(row.combined.operationalFailures.length,1);
 });

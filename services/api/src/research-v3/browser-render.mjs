@@ -147,9 +147,19 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             const page=await context.newPage();
             page.on('dialog',dialog=>dialog.dismiss().catch(()=>{}));
             page.on('popup',popup=>popup.close().catch(()=>{}));
-            const response=await page.goto(action.url,{waitUntil:'domcontentloaded',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
+            let response=await page.goto(action.url,{waitUntil:'domcontentloaded',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
             if(!response||response.status()!==200||!providerBound(objective,page.url()))throw Error('RENDERED_PAGE_INVALID');
             await page.waitForLoadState('networkidle',{timeout:4000}).catch(()=>{});
+            if(action.navigationUrl){
+                const destination=normalizeUrl(action.navigationUrl);
+                if(!destination||new URL(destination).origin!==origin||!providerBound(objective,destination))throw Error('RENDERED_NAVIGATION_UNSAFE');
+                const nextPolicy=[404,410].includes(robots.status)?{decision:'ALLOWED',reason:'ROBOTS_ABSENT'}:robots.status===200?evaluateAcquisitionRobots(parseAcquisitionRobots(robots.text),destination):{decision:'REVIEW_REQUIRED'};
+                if(nextPolicy.decision!=='ALLOWED')throw Error('RENDERED_ROBOTS_NOT_ALLOWED');
+                access.push({destinationOrigin:origin,destinationHash:digest(destination),status:robots.status,decision:nextPolicy.decision,reason:nextPolicy.reason??null});
+                response=await page.goto(destination,{waitUntil:'domcontentloaded',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
+                if(!response||response.status()!==200||!providerBound(objective,page.url()))throw Error('RENDERED_NAVIGATION_FAILED');
+                await page.waitForLoadState('networkidle',{timeout:4000}).catch(()=>{});
+            }
             const finalUrl=normalizeUrl(page.url()),body=await response.body();
             if(body.length>limits.bodyBytes)throw Error('RENDERED_BODY_BOUND');
             const extent=await page.evaluate(()=>({width:Math.max(document.documentElement.scrollWidth,document.body?.scrollWidth??0),height:Math.max(document.documentElement.scrollHeight,document.body?.scrollHeight??0)}));
@@ -161,7 +171,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             const transport=country?{kind:'DECODO',requestedCountry:country,verifiedCountry:country,verification:'BRACKET_VERIFIED',exitAddressHash:digest(before)}:{kind:'DIRECT',verification:'UNBOUND'};
             const acquiredAt=clock();
             const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:country?'DECODO':'DIRECT',requestedCountry:country,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:!!country,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
-            const receipt={url:finalUrl,requestedUrl:action.url,body:body.toString('utf8'),httpStatus:200,contentType:response.headers()['content-type']??'text/html',completeness:'COMPLETE',acquiredAt,transport,access,redirects:[],responseMetadata:{browser:'PLAYWRIGHT',mainDocumentSha256:digest(body.toString('utf8')),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64),networkSessionBinding:sessionBinding},acquisitionTiming:{elapsedMs:Math.round(performance.now()-started)}};
+            const receipt={url:finalUrl,requestedUrl:action.navigationUrl??action.url,body:body.toString('utf8'),httpStatus:200,contentType:response.headers()['content-type']??'text/html',completeness:'COMPLETE',acquiredAt,transport,access,redirects:[],responseMetadata:{browser:'PLAYWRIGHT',mainDocumentSha256:digest(body.toString('utf8')),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64),networkSessionBinding:sessionBinding},acquisitionTiming:{elapsedMs:Math.round(performance.now()-started)}};
             sessions.set(action.id,{browser,context,page,receipt,geo:country?geo:null,imageSha256:imageHash(pngBytes)});keep=true;
             return {page:receipt,finalUrl,pngBytes,capture:{capturedAt:clock(),browserBuild:browser.version(),captureRevision:'playwright-fullpage-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([finalUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:ledger,networkSession};
         } finally {if(!keep)await context?.close().catch(()=>{});}

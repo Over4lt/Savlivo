@@ -12,6 +12,7 @@ import {retainRenderedObservation} from '../../research-v3/rendered-research.mjs
 import {evaluate} from '../../research-v3/truth.mjs';
 import {refreshCatalog} from '../../research-v3/subscription-catalog.mjs';
 import {sourceBoundContinuations} from './provider-source-v3.mjs';
+import {interactiveNavigationDestination} from './interactive-research-route.mjs';
 
 export const hybridRenderedLimits=Object.freeze({actions:1,browserActions:1,networkRequests:256,countryActions:1,retries:0,perAttemptNetworkRequests:256});
 export const hybridRenderedContract=Object.freeze({version:1,scheduler:'RESEARCH_V2',executor:'RESEARCH_V3_PLAYWRIGHT',truth:'EXISTING_RESEARCH_V3',authority:'PREEXISTING_EXACT_HOST'});
@@ -80,7 +81,9 @@ export async function runHybridRenderedAcquisition({directory,target,objective,p
  if(journal.events.some(row=>row.type==='ACTION_RESULT'&&row.outcome==='OBSERVED'))return {outcome:'NOT_SCHEDULED',reason:'RENDERED_ACQUISITION_ALREADY_COMPLETED'};
  let last='BROWSER_ACQUISITION_FAILED';
  for(let attempt=0;attempt<=limits.retries;attempt++){
-  const action={id:'hybrid-render-'+digest([target.id,url,transport,clock(),attempt]).slice(0,24),kind:'RENDER',mode:'OVERVIEW',observation:parent.id,url};
+  const navigationUrl=target.renderingNeed?.navigationUrl??null;
+  if(navigationUrl&&interactiveNavigationDestination(parent.body,parent.url)!==navigationUrl)throw Error('RENDERED_NAVIGATION_SOURCE_INVALID');
+  const action={id:'hybrid-render-'+digest([target.id,url,transport,navigationUrl,clock(),attempt]).slice(0,24),kind:'RENDER',mode:'OVERVIEW',observation:parent.id,url,...(navigationUrl?{navigationUrl}:{})};
   try{
    journal.reserve('actions');journal.reserve('browserActions');journal.reserve('networkRequests',limits.perAttemptNetworkRequests);if(transport==='DECODO')journal.reserve('countryActions');
    journal.append('ACTION_STARTED',{actionId:action.id,attempt,urlHash:digest(url),transport,country:transport==='DECODO'?target.market:null,dispatched:true});
