@@ -9,7 +9,7 @@ import {browserRenderLimits,createPlaywrightRenderedCapability,providerReadOnlyP
 import {hybridRenderedLimits,runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
 import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
 import {digest} from '../../research-v3/model.mjs';
-import {marketName,validateProviderSelectedMarketReceipt} from '../../research-v3/provider-market-evidence.mjs';
+import {chooseProviderMarketOption,marketName,validateProviderSelectedMarketReceipt} from '../../research-v3/provider-market-evidence.mjs';
 import {interpretSubscriptionPage} from '../../research-v3/subscription-page.mjs';
 import {retainedProviderSelectorAuthority,researchLinkPriorityTarget} from './retained-render-source.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
@@ -32,8 +32,8 @@ const objective=market=>({kind:'PRICE',serviceId:service,serviceName,providerHos
 const parent=()=>({id:'retained-shell',kind:'PROVIDER',url,context:{transport:'DIRECT',networkGeography:'UNBOUND',representation:'PROVIDER_PAGE'},outcome:'OK',body:shell,sha256:digest(shell)});
 const temp=t=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'provider-market-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;};
 const png=()=>{const image=new PNG({width:800,height:600,colorType:6,inputColorType:6,inputHasAlpha:true});image.data.fill(255);return PNG.sync.write(image);};
-function capability(market,{selectorCount=1,options=['Norway (English)','United Kingdom (English)','Australia (English)','United States (English)'],hiddenOptionIndexes=[],disabledOptionIndexes=[],unchanged=false,wrongState=false,crossOrigin=false,lateCrossOriginAfterScreenshot=false,robots='User-agent: *\nAllow: /',foreignPrices=false,initialSelected=null,blockingOverlay=false,contentDelayMs=0,contentNever=false,contentQuietMs=0,contentTimeoutMs=250,contentNoise=false,lateContentDuringScreenshot=false,shellAfterClick=false,extraRequests=0,articleReadRequired=false,revertAfterScreenshot=false}={}){
- const state={selectorClicks:0,optionClicks:0,selected:initialSelected??(market==='NO'?'GB':'NO'),routes:[],contexts:[],contentReady:false,contentSamples:0,captureBeforeReady:0,noiseTicks:0,extraText:'',lateCrossOrigin:false,readPostContinued:false};
+function capability(market,{selectorCount=1,options=['Norway (English)','United Kingdom (English)','Australia (English)','United States (English)'],selectedOptionLabels=[],documentLang=null,hiddenOptionIndexes=[],disabledOptionIndexes=[],unchanged=false,wrongState=false,crossOrigin=false,lateCrossOriginAfterScreenshot=false,robots='User-agent: *\nAllow: /',foreignPrices=false,initialSelected=null,blockingOverlay=false,contentDelayMs=0,contentNever=false,contentQuietMs=0,contentTimeoutMs=250,contentNoise=false,lateContentDuringScreenshot=false,shellAfterClick=false,extraRequests=0,articleReadRequired=false,revertAfterScreenshot=false}={}){
+ const state={selectorClicks:0,optionClicks:0,clickedLabel:null,selected:initialSelected??(market==='NO'?'GB':'NO'),routes:[],contexts:[],contentReady:false,contentSamples:0,captureBeforeReady:0,noiseTicks:0,extraText:'',lateCrossOrigin:false,readPostContinued:false};
  const pre=foreignPrices?source('NO'):initialSelected===market?source(market):shell.replace('</body>',selector(state.selected)+'</body>');
  const finalBody=()=>shellAfterClick?`<html><body>${selector(state.selected)}<h1>Page not found</h1><p>${'Unavailable article. '.repeat(20)}</p></body></html>`:source(wrongState?'AU':state.selected,{bundle:true,annual:true}).replace('</body>',state.extraText+'</body>');
  const chromium={async launch(){return {version:()=> 'fixture-browser',async close(){},async newContext(config){state.contexts.push(config);let routeHandler;
@@ -41,9 +41,9 @@ function capability(market,{selectorCount=1,options=['Norway (English)','United 
    on(){},url:()=>crossOrigin&&state.optionClicks||state.lateCrossOrigin?'https://other.example/pricing':url,
    async goto(destination){let continued=false;await routeHandler({request:()=>({url:()=>destination,method:()=> 'GET',resourceType:()=> 'document'}),continue:async()=>{continued=true;},abort:async()=>{}});state.routes.push({destination,continued});for(let i=0;i<extraRequests;i++)await routeHandler({request:()=>({url:()=>`https://help.orbit.com/assets/${i}.js`,method:()=> 'GET',resourceType:()=> 'script'}),continue:async()=>{},abort:async()=>{}});return {status:()=>continued?200:403,body:async()=>Buffer.from(shell),headers:()=>({'content-type':'text/html'})};},
    async content(){if(state.optionClicks&&!state.contentReady)state.captureBeforeReady++;return state.optionClicks?(state.contentReady?finalBody():shell.replace('</body>',selector(state.selected)+'</body>')):pre;},async waitForLoadState(){},
-   async evaluate(fn){if(fn.name==='consentDialogNames')return blockingOverlay?['Privacy Preference Center']:[];if(fn.name==='marketContentState'){state.contentSamples++;if(contentNoise)state.noiseTicks++;const body=state.optionClicks?(state.contentReady?finalBody():shell.replace('</body>',selector(state.selected)+'</body>')):pre;return {text:body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),semantic:state.optionClicks?state.contentReady&&!shellAfterClick:foreignPrices||initialSelected===market,ready:true,busy:false};}return String(fn).includes('createTreeWalker')?[{text:'Orbit plans',role:'h1',bboxPx:[2,2,200,30],ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null}]:{width:800,height:600};},
-   locator(query){assert.equal(query,'button[aria-haspopup="listbox"]');return {count:async()=>selectorCount,nth:()=>({isVisible:async()=>true,getAttribute:async()=>`Change country or language. Current country ${state.selected}`,click:async options=>{if(blockingOverlay)throw Error('OVERLAY_INTERCEPTS_POINTER');if(!options?.trial)state.selectorClicks++;}})};},
-   getByRole(role){assert.equal(role,'option');return {count:async()=>options.length,nth:i=>({isVisible:async()=>!hiddenOptionIndexes.includes(i),isEnabled:async()=>!disabledOptionIndexes.includes(i),innerText:async()=>options[i],click:async()=>{state.optionClicks++;if(!unchanged)state.selected=market;if(articleReadRequired)await routeHandler({request:()=>({url:()=> 'https://help.orbit.com/api/execute',method:()=> 'POST',resourceType:()=> 'fetch',headers:()=>({'content-type':'application/json'}),postData:()=>JSON.stringify({method:'loadArticle',params:{country:market}})}),continue:async()=>{state.readPostContinued=true;},abort:async()=>{}});if(!contentNever&&(!articleReadRequired||state.readPostContinued)){if(contentDelayMs)setTimeout(()=>{state.contentReady=true;},contentDelayMs);else state.contentReady=true;}}})};},
+   async evaluate(fn){if(fn.name==='consentDialogNames')return blockingOverlay?['Privacy Preference Center']:[];if(fn.name==='providerDocumentLanguage')return documentLang;if(fn.name==='marketContentState'){state.contentSamples++;if(contentNoise)state.noiseTicks++;const body=state.optionClicks?(state.contentReady?finalBody():shell.replace('</body>',selector(state.selected)+'</body>')):pre;return {text:body.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),semantic:state.optionClicks?state.contentReady&&!shellAfterClick:foreignPrices||initialSelected===market,ready:true,busy:false};}return String(fn).includes('createTreeWalker')?[{text:'Orbit plans',role:'h1',bboxPx:[2,2,200,30],ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null}]:{width:800,height:600};},
+   locator(query){if(query==='[role="option"][aria-selected="true"]')return {count:async()=>selectedOptionLabels.length,nth:i=>({isVisible:async()=>true,isEnabled:async()=>true,innerText:async()=>selectedOptionLabels[i]})};assert.equal(query,'button[aria-haspopup="listbox"]');return {count:async()=>selectorCount,nth:()=>({isVisible:async()=>true,getAttribute:async()=>`Change country or language. Current country ${state.selected}`,click:async options=>{if(blockingOverlay)throw Error('OVERLAY_INTERCEPTS_POINTER');if(!options?.trial)state.selectorClicks++;}})};},
+   getByRole(role){assert.equal(role,'option');return {count:async()=>options.length,nth:i=>({isVisible:async()=>!hiddenOptionIndexes.includes(i),isEnabled:async()=>!disabledOptionIndexes.includes(i),innerText:async()=>options[i],click:async()=>{state.optionClicks++;state.clickedLabel=options[i];if(!unchanged)state.selected=market;if(articleReadRequired)await routeHandler({request:()=>({url:()=> 'https://help.orbit.com/api/execute',method:()=> 'POST',resourceType:()=> 'fetch',headers:()=>({'content-type':'application/json'}),postData:()=>JSON.stringify({method:'loadArticle',params:{country:market}})}),continue:async()=>{state.readPostContinued=true;},abort:async()=>{}});if(!contentNever&&(!articleReadRequired||state.readPostContinued)){if(contentDelayMs)setTimeout(()=>{state.contentReady=true;},contentDelayMs);else state.contentReady=true;}}})};},
    async screenshot(){if(lateContentDuringScreenshot&&state.optionClicks)state.extraText='<p>Additional provider article detail</p>';if(revertAfterScreenshot&&state.optionClicks)state.contentReady=false;if(lateCrossOriginAfterScreenshot&&state.optionClicks)state.lateCrossOrigin=true;return png();}
   };}};
  }};}};
@@ -75,6 +75,50 @@ test('already-selected provider market issues a final source-bound receipt witho
  assert.equal(result.marketSelection.finalSourceSha256,result.observation.sha256);
  assert.equal(validateProviderSelectedMarketReceipt(result.marketSelection,{observationId:result.observation.id,url:result.observation.url,body:result.observation.body,sourceHash:result.observation.sha256,targetMarket:'NO'}).targetMarket,'NO');
  assert.equal(result.v3SuggestedCandidates.length,3);assert.equal(projectEstablishedV3Offerings({...target('NO'),...result}).length,3);
+});
+
+for(const [market,english,other] of [
+ ['NO','Norway (English)','Norway (Norsk)'],
+ ['US','United States (English)','United States (Español)'],
+])for(const ordered of [[english,other],[other,english]])test(`${market} preserves selected provider language independent of option order: ${ordered.join(', ')}`,async t=>{
+ const {result,state}=await run(t,market,{initialSelected:'SE',options:['Sweden (English)',...ordered],selectedOptionLabels:['Sweden (English)'],documentLang:'en-GB'});
+ assert.equal(result.marketSelection?.selectedOption,english);
+ assert.equal(result.marketSelection?.targetMarket,market);
+ assert.equal(state.clickedLabel,english);
+ assert.equal(state.optionClicks,1);
+ assert.equal(result.v3SuggestedCandidates.length,3);
+ assert.equal(projectEstablishedV3Offerings({...target(market),...result}).length,3);
+});
+
+test('provider selected language outranks conflicting document language',()=>{
+ assert.deepEqual(chooseProviderMarketOption({target:'US',currentCode:'SE',candidates:['United States (English)','United States (Español)'],selectedOptions:['Sweden (English)'],documentLang:'es'}),{index:0,basis:'SELECTED_OPTION_LANGUAGE'});
+});
+
+test('explicit document language resolves a same-country tie when selected option has no language',()=>{
+ assert.deepEqual(chooseProviderMarketOption({target:'US',currentCode:'SE',candidates:['United States (English)','United States (Español)'],selectedOptions:['Sweden'],documentLang:'es'}),{index:1,basis:'DOCUMENT_LANGUAGE'});
+ assert.deepEqual(chooseProviderMarketOption({target:'NO',currentCode:'SE',candidates:['Norway (English)','Norway (Norsk)'],selectedOptions:['Sweden'],documentLang:'no'}),{index:1,basis:'DOCUMENT_LANGUAGE'});
+});
+
+for(const [label,options] of [
+ ['neither language matches',{options:['Norway (English)','Norway (Norsk)'],selectedOptionLabels:['Sweden (Français)'],documentLang:'fr'}],
+ ['both options normalize to English',{options:['Norway (English)','Norway (en)'],selectedOptionLabels:['Sweden (English)'],documentLang:'en-GB'}],
+ ['URL locale is the only language clue',{options:['Norway (English)','Norway (Norsk)']}],
+ ['selected option conflicts with current country',{options:['Norway (English)','Norway (Norsk)'],selectedOptionLabels:['Germany (English)'],documentLang:'en-GB'}],
+])test(`${label} leaves duplicate target options unresolved`,async t=>{
+ const {result,state}=await run(t,'NO',{initialSelected:'SE',...options});
+ assert.equal(state.optionClicks,0);assert.equal(result.marketSelection,null);
+ assert.equal(result.v3Truth.established,false);
+});
+
+test('language cannot resolve candidates from different countries',()=>{
+ assert.equal(chooseProviderMarketOption({target:'NO',currentCode:'SE',candidates:['Norway (English)','Sweden (English)'],selectedOptions:['Sweden (English)'],documentLang:'en-GB'}),null);
+});
+
+test('already-selected target with language variants remains zero-click',async t=>{
+ const {result,state}=await run(t,'NO',{initialSelected:'NO',options:['Norway (English)','Norway (Norsk)'],selectedOptionLabels:['Norway (Norsk)'],documentLang:'no'});
+ assert.equal(result.marketSelection?.selectionMode,'ALREADY_SELECTED');
+ assert.equal(state.selectorClicks,0);assert.equal(state.optionClicks,0);
+ assert.equal(result.v3SuggestedCandidates.length,3);
 });
 
 test('already-selected receipt rejects wrong selected state and stale final hash',async t=>{

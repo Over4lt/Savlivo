@@ -6,7 +6,7 @@ import {publicAddress,researchUserAgent} from '../research-v1/public-network.mjs
 import {digest,normalizeUrl,providerBound} from './model.mjs';
 import {parseAcquisitionRobots,evaluateAcquisitionRobots} from './acquisition-robots.mjs';
 import {safeRenderedControl} from './rendered-interactions.mjs';
-import {exactMarketOption,marketCodeMatches} from './provider-market-evidence.mjs';
+import {chooseProviderMarketOption,exactMarketOption,marketCodeMatches} from './provider-market-evidence.mjs';
 export {safeRenderedControl} from './rendered-interactions.mjs';
 
 // A hydrated app shell and one market navigation can exceed 256 requests;
@@ -39,6 +39,7 @@ function marketContentState(){
  const text=String(content?.innerText??document.body?.innerText??'').replace(/\s+/g,' ').trim().slice(0,20000);
  return {text,semantic:!!content,ready:document.readyState==='complete',busy:!!document.querySelector('[aria-busy="true"]')};
 }
+function providerDocumentLanguage(){return document.documentElement.lang||null;}
 
 async function waitForMarketContent(page,before,{timeoutMs=8000,quietMs=400}={}){
  const until=Date.now()+timeoutMs;let last=null,unchangedSince=0;
@@ -217,9 +218,18 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                         const label=(await option.innerText()).replace(/\s+/gu,' ').trim();
                         if(exactMarketOption(target,label))matches.push({option,label});
                     }
-                    if(matches.length!==1)throw Error('PROVIDER_MARKET_OPTION_UNRESOLVED');
-                    await matches[0].option.click({timeout:Math.min(10000,maxRenderMs)});
-                    selectedOption=matches[0].label;
+                    let choice=matches.length===1?{index:0}:null;
+                    if(matches.length>1){
+                        const selected=page.locator('[role="option"][aria-selected="true"]'),selectedCount=await selected.count(),selectedOptions=[];
+                        if(selectedCount>256)throw Error('PROVIDER_MARKET_OPTIONS_BOUND');
+                        for(let i=0;i<selectedCount;i++){
+                            const option=selected.nth(i);if(await option.isVisible()&&await option.isEnabled())selectedOptions.push((await option.innerText()).replace(/\s+/gu,' ').trim());
+                        }
+                        choice=chooseProviderMarketOption({target,currentCode:selector.code,candidates:matches.map(row=>row.label),selectedOptions,documentLang:await page.evaluate(providerDocumentLanguage)});
+                    }
+                    if(!choice)throw Error('PROVIDER_MARKET_OPTION_UNRESOLVED');
+                    await matches[choice.index].option.click({timeout:Math.min(10000,maxRenderMs)});
+                    selectedOption=matches[choice.index].label;
                     await page.waitForLoadState('networkidle',{timeout:6000}).catch(()=>{});
                 }
                 const finalUrl=normalizeUrl(page.url());

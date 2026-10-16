@@ -17,6 +17,35 @@ export function exactMarketOption(target,label){
  if(!name||!text)return false;
  return normalized(text)===normalized(name)||normalized(text).startsWith(normalized(name)+' (')&&text.endsWith(')');
 }
+const optionLanguage=label=>/\(([^()]*)\)\s*$/u.exec(String(label??''))?.[1]?.trim()||null;
+const localeLanguage=value=>{try{const code=new Intl.Locale(value).language.toLowerCase();return /^[a-z]{2,3}$/.test(code)?code:null;}catch{return null;}};
+function languageKey(value,documentLang){
+ const text=normalized(value),code=localeLanguage(documentLang);
+ if(!text)return null;
+ if(code){
+  const english=new Intl.DisplayNames(['en'],{type:'language'}).of(code),native=new Intl.DisplayNames([code],{type:'language'}).of(code);
+  if([code,english,native].some(alias=>normalized(alias)===text))return 'locale:'+code;
+ }
+ return 'label:'+text;
+}
+
+// Language only resolves a tie after every candidate has the exact target
+// country identity. The selected provider option outranks document language.
+export function chooseProviderMarketOption({target,currentCode,candidates,selectedOptions=[],documentLang=null}){
+ if(!Array.isArray(candidates)||candidates.length<1||candidates.length>256||candidates.some(label=>!exactMarketOption(target,label)))return null;
+ if(candidates.length===1)return {index:0,basis:'UNIQUE_COUNTRY'};
+ const currentMarkets=[...names.keys()].filter(code=>marketCodeMatches(code,currentCode));
+ if(currentMarkets.length!==1||!Array.isArray(selectedOptions)||selectedOptions.length>1)return null;
+ if(selectedOptions.length===1&&!exactMarketOption(currentMarkets[0],selectedOptions[0]))return null;
+ const selectedLanguage=selectedOptions.length===1?optionLanguage(selectedOptions[0]):null;
+ const documentCode=localeLanguage(documentLang),preference=selectedLanguage??documentCode;
+ if(!preference)return null;
+ const key=languageKey(preference,documentLang),matches=candidates.flatMap((label,index)=>{
+  const language=optionLanguage(label);
+  return language&&languageKey(language,documentLang)===key?[index]:[];
+ });
+ return matches.length===1?{index:matches[0],basis:selectedLanguage?'SELECTED_OPTION_LANGUAGE':'DOCUMENT_LANGUAGE'}:null;
+}
 export function selectedMarketControl(body){
  if(typeof body!=='string'||body.length>8_000_000)return null;
  const rows=[];
