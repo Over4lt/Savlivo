@@ -75,6 +75,7 @@ const retryableVerificationReasons=new Set(['NO_EXECUTABLE_PROGRESS_RECONCILE'])
 const usageKeys=['reads','searches','acquisitions','retainedReviews','bytes'];
 const allUsageKeys=['actions',...usageKeys];
 const uniqueRows=rows=>[...new Map(rows.map(row=>[JSON.stringify(row),row])).values()];
+export const researchLinkPriorityTarget=(baseTarget,capabilities)=>({...baseTarget,urls:[],leads:[],knownCommercialUrls:[],capabilities:{...capabilities,direct:false,tavily:false}});
 function adaptiveUsage(state){
  const usage={actions:Number.isSafeInteger(state?.turn)?state.turn:0,reads:0,searches:0,acquisitions:0,retainedReviews:0,bytes:0},initial=state?.budgetScope==='CAMPAIGN'?state.initialUsage??{}:{};
  for(const key of usageKeys)usage[key]=Number.isSafeInteger(initial[key])?initial[key]:0;
@@ -113,7 +114,7 @@ async function executeSinglePriceResearch({job,directory,apiKey,client,shouldSto
  const baseTarget={...target,...namespaceSeed,operationsObjective:'PRICE_RESEARCH',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},knownCommercialUrls:[],authorities:[],gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],reads:[],queries:[],decisions:[],verified:[],blockedOrigins:[],capabilities:config.capabilities,persistedVerifiedCount:linkState.persistedVerifiedCount,researchLinks:linkState.links,researchLinkOutcomes:[]};
  let priorityState=null;
  const beforeGoogle=linkState.links.length?async()=>{
-  const priorityTarget={...baseTarget,urls:[],leads:[],knownCommercialUrls:[],capabilities:{...config.capabilities,direct:false,tavily:false}},campaignDirectory=path.join(directory,'priority-research-links');
+  const priorityTarget=researchLinkPriorityTarget(baseTarget,config.capabilities),campaignDirectory=path.join(directory,'priority-research-links');
   priorityState=await runAdaptiveCampaign({directory:campaignDirectory,manifest:{targets:[priorityTarget],conditionalFollowupTargets:[]},profile:'PRODUCTION',maxActions:Math.min(40,linkState.links.length*2),createAdapters:args=>adapters({...args,stage:'RESEARCH_LINK_PRIORITY'}),onTransition:()=>{if(shouldStop())throw Error('PRICE_RESEARCH_STOPPED');}});
   const current=priorityState.targets?.[target.id];for(const row of current?.researchLinkOutcomes??[])await recordResearchLinkResult({id:row.id,attemptedAt:row.at,result:row.result,client});
   const v3Result=v3ResultFromTarget(current),satisfied=v3Result.verified.length>0;

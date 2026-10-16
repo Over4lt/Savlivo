@@ -7,6 +7,10 @@ import path from 'node:path';
 import {executePriceResearchBatch,readPriceResearchBatchProgress} from './price-research-batch.mjs';
 import {TargetResearchFailure} from '../research-v2/live/target-research-failure.mjs';
 import {providerPricingRoutesForTarget} from '../research-v2/live/hybrid-provider-resource-memory.mjs';
+import {createPriceResearchAdapters} from './price-research-live.mjs';
+import {researchLinkPriorityTarget} from './price-research.mjs';
+import {recordResearchLinkResult} from './research-links.mjs';
+import {runOpenWebResearch} from '../research-v2/live/open-web-discovery.mjs';
 
 const capabilities={direct:true,tavily:true,decodo:false,browser:false,groq:false};
 const target=(serviceId,targetMarket)=>({id:`price-research:${serviceId}:${targetMarket}`,serviceId,serviceName:serviceId,targetMarket,marketApplicabilityEstablished:false});
@@ -18,6 +22,29 @@ test('batch executes one child at a time in deterministic namespaces and complet
  const result=await executePriceResearchBatch({...f,executeTarget});assert.equal(result.status,'COMPLETE');assert.equal(maximum,1);assert.deepEqual(order,['alpha:DE','alpha:NO','beta:DE']);assert.equal(new Set(directories).size,3);for(const directory of directories)assert(fs.existsSync(path.join(directory,'result.json')));
  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(directories[0],'result.json'))),{retainedSuggested:true,verifiedUntouched:true});
  const recovered=await executePriceResearchBatch({...f,executeTarget:async()=>{throw Error('DUPLICATE_EXECUTION');}});assert.equal(recovered.status,'COMPLETE');assert.deepEqual(order,['alpha:DE','alpha:NO','beta:DE']);
+});
+
+test('one-market canonical batch reaches Research-link priority adapters and persists its attempted outcome',async t=>{
+ const f=fixture(t,[target('streamco','DE')]),link={id:'11111111-1111-4111-8111-111111111111',url:'https://help.streamco.example/pricing',kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true,truthAuthority:'NONE'},calls=[],updates=[];
+ f.job.config.capabilities={direct:true,tavily:true,decodo:true,browser:false,groq:false};
+ const result=await executePriceResearchBatch({...f,executeTarget:async({job,directory})=>{
+  const caps=job.config.capabilities,priority=researchLinkPriorityTarget({id:`price-research:${job.config.serviceId}:${job.config.market}`,service:job.config.serviceId,serviceName:'StreamCo',market:job.config.market,operationsObjective:'PRICE_RESEARCH',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[],leads:[],knownCommercialUrls:[],authorities:[],gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],reads:[],queries:[],decisions:[],verified:[],blockedOrigins:[],researchLinks:[link],researchLinkOutcomes:[],persistedVerifiedCount:0},caps);
+  const factory=await createPriceResearchAdapters({market:job.config.market,capabilities:caps,env:{DECODO_USERNAME:'fixturebase',DECODO_PASSWORD:'private-sentinel'}},{createDiscovery:async()=>({bind:()=>({search:()=>assert.fail('priority Tavily must stay disabled'),read:()=>assert.fail('priority Direct must stay disabled'),classify:async()=>({}),consumeProvider:async()=>({}),acquire:async args=>{calls.push({route:args.route,url:args.candidate.url,truthAuthority:args.candidate.authority.truthAuthority});return {classification:'CONTENT_NOT_COMMERCIAL',sourceClassification:{status:'PROVIDER_SOURCE'},verified:[],acquisitionBytes:0};}})})});
+  const adapters=await factory({stage:'RESEARCH_LINK_PRIORITY',directory,targets:[priority]});
+  const state=await runOpenWebResearch({...adapters,directory,targets:[priority],maxActions:1});
+  for(const row of state.targets[0].researchLinkOutcomes)await recordResearchLinkResult({id:row.id,attemptedAt:row.at,result:row.result,client:{query:async(sql,args)=>{updates.push({sql,args});return {rows:[]};}}});
+  return {researchLinkOutcomes:state.targets[0].researchLinkOutcomes};
+ }});
+ assert.equal(result.status,'COMPLETE');assert.equal(result.outcomes[0].status,'COMPLETE');
+ assert.deepEqual(calls,[{route:'DECODO',url:link.url,truthAuthority:'NONE'}]);
+ assert.equal(updates.length,1);assert.match(updates[0].sql,/last_used_at=\$2,last_result=\$3/);assert.equal(updates[0].args[0],link.id);assert.equal(updates[0].args[2],'PROVIDER_SOURCE_NO_VERIFIED');
+ const child=JSON.parse(fs.readFileSync(path.join(f.directory,result.outcomes[0].artifactDirectory,'result.json')));assert.equal(child.researchLinkOutcomes[0].result,'PROVIDER_SOURCE_NO_VERIFIED');
+});
+
+test('invalid priority adapter stage remains a job-global batch failure',async t=>{
+ const f=fixture(t,[target('streamco','DE')]);
+ await assert.rejects(executePriceResearchBatch({...f,executeTarget:async({directory})=>{const factory=await createPriceResearchAdapters({market:'DE',capabilities:{direct:false,tavily:false,decodo:false,browser:false,groq:false}});return factory({stage:'UNRECOGNIZED_RESEARCH_LINK_STAGE',directory});}}),/PRICE_RESEARCH_BATCH_CHILD_FAILED/);
+ const progress=readPriceResearchBatchProgress(f.job.config,f.directory);assert.equal(progress.status,'FAILED');assert.equal(progress.outcomes[0].failureCode,'UNKNOWN_ADAPTER_STAGE');assert.equal(progress.outcomes[0].failureScope,'JOB');
 });
 
 test('completed child route metadata is rebuilt for the next market after resume',async t=>{

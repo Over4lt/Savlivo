@@ -6,12 +6,35 @@ import path from 'node:path';
 import {openMarketRunStore,digest} from '../research-v1/market-run-store.mjs';
 import {createTavilyDiscovery} from '../research-v2/live/tavily-discovery.mjs';
 import {createPriceResearchAdapters,priceResearchCapabilityPreflight,priceResearchChildEnvironment} from './price-research-live.mjs';
+import {researchLinkPriorityTarget} from './price-research.mjs';
 
 const capabilities=browser=>({direct:true,tavily:true,decodo:false,browser,groq:false});
 const target={id:'fixture-de',service:'fixture',serviceName:'Fixture',market:'DE',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:['https://provider.example/pricing'],authorities:[{hostname:'provider.example',provider:'Fixture',sourceType:'OFFICIAL_PROVIDER'}],gaps:['amount'],reads:[],queries:[],decisions:[],capabilities:capabilities(true)};
 const temp=t=>{const directory=fs.mkdtempSync(path.join(os.tmpdir(),'price-live-browser-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));return directory;};
 
 function discoveryFixture(seen){return {bind({dependencies}){seen.dependencies=dependencies;return {search(){},read(){},classify(){},consumeProvider(){},acquire(){},async render(input){seen.render=input;return dependencies.createRenderedBrowser(input);}};}};}
+
+test('Research-link priority shares known-service Decodo and classification adapters without changing target permissions',async t=>{
+ const directory=temp(t),seen=[],caps={...capabilities(true),decodo:true},env={DECODO_USERNAME:'fixturebase',DECODO_PASSWORD:'private-sentinel',SAVLIVO_BROWSER_RUNTIME:'LOCAL_CONTAINER'},marker=()=>{};
+ const factory=await createPriceResearchAdapters({market:'DE',capabilities:caps,env},{createDiscovery:async options=>({bind:context=>{seen.push({options,context});return {search:marker,read:marker,classify:marker,consumeProvider:marker,acquire:marker,render:marker};}}),createRenderedBrowser:()=>marker});
+ const priority=researchLinkPriorityTarget({...target,urls:['https://provider.example/pricing'],leads:[{url:'https://provider.example/pricing'}],knownCommercialUrls:['https://provider.example/pricing']},caps);
+ assert.equal(priority.capabilities.direct,false);assert.equal(priority.capabilities.tavily,false);assert.equal(priority.capabilities.decodo,true);assert.equal(priority.capabilities.browser,true);assert.deepEqual(priority.urls,[]);assert.deepEqual(priority.leads,[]);assert.deepEqual(priority.knownCommercialUrls,[]);
+ const priorityAdapters=await factory({stage:'RESEARCH_LINK_PRIORITY',directory,targets:[priority]});
+ const knownAdapters=await factory({stage:'KNOWN_SERVICE_CHILD',directory,targets:[target]});
+ assert.deepEqual(Object.keys(priorityAdapters).sort(),Object.keys(knownAdapters).sort());
+ for(const name of ['search','read','classify','consumeProvider','acquire','render'])assert.equal(priorityAdapters[name],marker);
+ assert.equal(seen.length,2);assert(seen.every(row=>row.context.runtime&&row.context.bundle.provider.ready&&row.context.bundle.verifier.approved));
+ assert.equal(seen[0].options.inventory[0].capabilities.direct,false);assert.equal(seen[0].options.inventory[0].capabilities.tavily,false);
+ assert.equal(typeof seen[0].context.dependencies.createRenderedBrowser,'function');
+});
+
+test('provider seed stays separate and unknown adapter stages fail explicitly',async t=>{
+ const directory=temp(t),seen={},factory=await createPriceResearchAdapters({market:'DE',capabilities:capabilities(false)},{createDiscovery:async()=>discoveryFixture(seen)});
+ const seed=await factory({stage:'PROVIDER_SEED',directory,targets:[target]});assert.deepEqual(Object.keys(seed).sort(),['read','search']);
+ assert.equal('acquire' in seed,false);assert.equal('classify' in seed,false);
+ await assert.rejects(factory({stage:'RESEARCH_LINK_PRIORTY',directory,targets:[target]}),/UNKNOWN_ADAPTER_STAGE/);
+ assert.equal('dependencies' in seen,false,'invalid stages must fail before discovery adapter binding');
+});
 
 test('KNOWN_SERVICE_CHILD exposes render only when Browser is enabled',async t=>{
  const directory=temp(t),disabledSeen={},disabledFactory=await createPriceResearchAdapters({market:'DE',capabilities:capabilities(false)},{createDiscovery:async()=>discoveryFixture(disabledSeen),createRenderedBrowser:()=>assert.fail('browser=false must never initialize local-container browser')}),disabled=await disabledFactory({stage:'KNOWN_SERVICE_CHILD',directory,targets:[target]});assert.equal('render' in disabled,false);assert.equal('createRenderedBrowser' in disabledSeen.dependencies,false);
