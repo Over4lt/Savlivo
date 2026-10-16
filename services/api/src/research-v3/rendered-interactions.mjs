@@ -4,6 +4,11 @@ export function safeRenderedControl(row,kind,selectedPeer=null) {
     const label=[row.text,row.ariaLabel??''].join(' ').normalize('NFKC').toLowerCase();
     if(/\b(?:buy|purchase|subscribe|checkout|payment|pay now|start trial|sign in|log in|delete|cancel subscription|submit order)\b/.test(label))return false;
     if(kind==='COOKIE_REJECT')return row.role==='button'&&/\b(?:cookies?|consent|privacy)\b/.test([label,row.contextText??''].join(' ').toLowerCase())&&/\b(?:reject|decline|deny|only necessary|necessary only|essential only|continue without accepting)\b/.test(label);
+    if(kind==='COOKIE_COMPLETE'){
+        const name=String(row.consentDialogName??'').toLowerCase();
+        const intent=String(row.ariaLabel||row.text).normalize('NFKC').replace(/\s+/g,' ').trim().toLowerCase();
+        return row.role==='button'&&/\b(?:cookies?|consent|privacy|preference)\b/.test(name)&&/^(?:close(?: (?:preference|privacy|cookie|consent)(?: center| settings)?)?|done|save(?: (?:preferences|settings|choices))?|confirm(?: (?:preferences|settings|choices))?|reject all)$/.test(intent);
+    }
     // Selectable role and explicit unselected state, not English billing words.
     if(kind==='PRESENTATION_SELECT'){
         if(['tab','radio'].includes(row.role))return row.selected===false;

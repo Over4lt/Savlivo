@@ -54,6 +54,24 @@ async function waitForMarketContent(page,before,{timeoutMs=8000,quietMs=400}={})
  throw Error('PROVIDER_MARKET_CONTENT_UNRESOLVED');
 }
 
+function consentDialogNames(){
+ const visible=element=>{const style=getComputedStyle(element),rect=element.getBoundingClientRect();return style.display!=='none'&&style.visibility!=='hidden'&&Number(style.opacity)!==0&&rect.width>0&&rect.height>0;};
+ return [...document.querySelectorAll('[role="dialog"],[aria-modal="true"]')].filter(visible).map(element=>element.getAttribute('aria-label')||document.getElementById(element.getAttribute('aria-labelledby'))?.innerText||'').filter(Boolean).slice(0,8);
+}
+
+async function consentBlockingState(page,{timeoutMs=1200}={}){
+ const until=Date.now()+timeoutMs;
+ do{
+  const dialogs=await page.evaluate(consentDialogNames);
+  const selector=await providerMarketSelector(page);
+  let selectorInteractable=null;
+  if(selector){try{await selector.locator.click({trial:true,timeout:Math.min(350,Math.max(100,until-Date.now()))});selectorInteractable=true;}catch{selectorInteractable=false;}}
+  if(selectorInteractable===true||selectorInteractable===null&&dialogs.length===0)return {blocking:false,dialogs,selectorInteractable};
+  if(Date.now()>=until)return {blocking:true,dialogs,selectorInteractable};
+  await new Promise(resolve=>setTimeout(resolve,Math.min(100,Math.max(1,until-Date.now()))));
+ }while(true);
+}
+
 const controlLabel=text=>String(text??'').normalize('NFKC').replace(/\p{Cf}/gu,'').replace(/\s+/g,' ').trim();
 
 async function sourceBoundLocator(page,source,selectedPeer) {
@@ -69,10 +87,19 @@ async function sourceBoundLocator(page,source,selectedPeer) {
         return label===expected.text&&box.every((value,i)=>Math.abs(value-expected.box[i])<=3)?[index]:[];
     }),{text:controlLabel(source.text),box:source.bboxPx});
     if(matches.length!==1)throw Error('RENDERED_INTERACTION_UNSAFE');
+    if(typeof page.getByRole==='function'){
+        const named=page.getByRole(source.role,{name:controlLabel(source.ariaLabel||source.text),exact:true});
+        if(await named.count()===1){
+            const box=await named.boundingBox();
+            if(box&&[Math.floor(box.x+await page.evaluate(()=>scrollX)),Math.floor(box.y+await page.evaluate(()=>scrollY)),Math.ceil(box.width),Math.ceil(box.height)].every((value,index)=>Math.abs(value-source.bboxPx[index])<=3))return named;
+        }
+        throw Error('RENDERED_INTERACTION_UNSAFE');
+    }
     return candidates.nth(matches[0]);
 }
 
-const visibleDom=()=>{
+export const visibleDom=()=>{
+    if(!document.body)return [];
     const rows=[],seen=new Set();
     const add=(element,text,rect,role)=>{
         if(rows.length>=512||!text||!rect||rect.width<1||rect.height<1)return;
@@ -81,6 +108,8 @@ const visibleDom=()=>{
         const x=Math.max(0,Math.floor(rect.x+scrollX)),y=Math.max(0,Math.floor(rect.y+scrollY)),width=Math.ceil(rect.width),height=Math.ceil(rect.height);
         const key=[text,x,y,width,height].join('|');if(seen.has(key))return;seen.add(key);
         let contextText=null;
+        const dialog=element.closest('[role="dialog"],[aria-modal="true"]');
+        const consentDialogName=dialog&&(dialog.getAttribute('aria-label')||document.getElementById(dialog.getAttribute('aria-labelledby'))?.innerText||'')||null;
         if(element.matches('button,input,[role="button"],[role="tab"],[role="radio"],[role="switch"]')){
             let ancestor=element.parentElement;
             for(let depth=0;ancestor&&depth<6;ancestor=ancestor.parentElement,depth++){
@@ -96,10 +125,16 @@ const visibleDom=()=>{
         const disabled=element.matches(':disabled')||element.getAttribute('aria-disabled')==='true'||styledDisabled?true:element.matches('button,input,select,[role="button"],[role="tab"],[role="radio"],[role="switch"],a[href]')?false:null;
         const ancestry=[];for(let parent=element.parentElement;parent&&ancestry.length<8;parent=parent.parentElement)ancestry.push(parent.tagName.toLowerCase()+':'+[...parent.parentElement?.children??[]].indexOf(parent));
         const groupId=ancestry.length?ancestry.reverse().join('/')+':children':null;
-        rows.push({text:text.slice(0,2048),role:role??element.getAttribute('role')??element.tagName.toLowerCase(),ariaLabel:element.getAttribute('aria-label'),contextText,groupId,selected,disabled,bboxPx:[x,y,width,height]});
+        rows.push({text:text.slice(0,2048),role:role??element.getAttribute('role')??element.tagName.toLowerCase(),ariaLabel:element.getAttribute('aria-label'),contextText,consentDialogName,groupId,selected,disabled,bboxPx:[x,y,width,height]});
     };
     const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
-    while(walker.nextNode()&&rows.length<440){const node=walker.currentNode,text=node.textContent?.replace(/\s+/g,' ').trim();if(!text)continue;const parent=node.parentElement;if(!parent)continue;const range=document.createRange();range.selectNodeContents(node);const rect=range.getBoundingClientRect();add(parent,text,rect);}
+    while(walker.nextNode()&&rows.length<440){const node=walker.currentNode,text=node.textContent?.replace(/\s+/g,' ').trim();if(!text)continue;const parent=node.parentElement;if(!parent)continue;
+        // A text range inside a button is not the clickable button rectangle.
+        // Only a real interactive ancestor may supply that control below.
+        let ancestor=parent,interactive=false;
+        for(let depth=0;ancestor&&depth<4;ancestor=ancestor.parentElement,depth++)if(ancestor.matches('button,[role="button"],[role="tab"],[role="radio"],[role="switch"]')){interactive=true;break;}
+        if(interactive)continue;
+        const range=document.createRange();range.selectNodeContents(node);const rect=range.getBoundingClientRect();add(parent,text,rect);}
     for(const element of document.querySelectorAll('button,[role="button"],[role="tab"],[role="radio"],[role="switch"],input,a')){
         if(rows.length>=512)break;const text=(element.innerText||element.value||element.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim();add(element,text,element.getBoundingClientRect(),element.getAttribute('role')??element.tagName.toLowerCase());
     }
@@ -165,24 +200,29 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             const {page,browser,context,receipt,ledger,sessionBinding}=session,initialUrl=receipt.requestedUrl,preHash=digest(parent.body);
             try{
                 const selector=await providerMarketSelector(page);
-                if(!selector||marketCodeMatches(target,selector.code))throw Error('PROVIDER_MARKET_SELECTOR_UNRESOLVED');
-                const preContent=await page.evaluate(marketContentState);
-                await selector.locator.click({timeout:Math.min(10000,maxRenderMs)});
-                const options=page.getByRole('option'),count=await options.count();
-                if(count<1||count>256)throw Error('PROVIDER_MARKET_OPTIONS_BOUND');
-                const matches=[];
-                for(let i=0;i<count;i++){
-                    const option=options.nth(i);if(!await option.isVisible())continue;
-                    const label=(await option.innerText()).replace(/\s+/gu,' ').trim();
-                    if(exactMarketOption(target,label))matches.push({option,label});
+                if(!selector)throw Error('PROVIDER_MARKET_SELECTOR_UNRESOLVED');
+                if((await consentBlockingState(page,{timeoutMs:limits.consentSettleTimeoutMs??1200})).blocking)throw Error('PROVIDER_MARKET_SELECTOR_BLOCKED');
+                const alreadySelected=marketCodeMatches(target,selector.code),preContent=alreadySelected?{text:''}:await page.evaluate(marketContentState);
+                let selectedOption=null;
+                if(!alreadySelected){
+                    await selector.locator.click({timeout:Math.min(10000,maxRenderMs)});
+                    const options=page.getByRole('option'),count=await options.count();
+                    if(count<1||count>256)throw Error('PROVIDER_MARKET_OPTIONS_BOUND');
+                    const matches=[];
+                    for(let i=0;i<count;i++){
+                        const option=options.nth(i);if(!await option.isVisible())continue;
+                        const label=(await option.innerText()).replace(/\s+/gu,' ').trim();
+                        if(exactMarketOption(target,label))matches.push({option,label});
+                    }
+                    if(matches.length!==1)throw Error('PROVIDER_MARKET_OPTION_UNRESOLVED');
+                    await matches[0].option.click({timeout:Math.min(10000,maxRenderMs)});
+                    selectedOption=matches[0].label;
+                    await page.waitForLoadState('networkidle',{timeout:6000}).catch(()=>{});
                 }
-                if(matches.length!==1)throw Error('PROVIDER_MARKET_OPTION_UNRESOLVED');
-                await matches[0].option.click({timeout:Math.min(10000,maxRenderMs)});
-                await page.waitForLoadState('networkidle',{timeout:6000}).catch(()=>{});
                 const finalUrl=normalizeUrl(page.url());
                 if(!finalUrl||new URL(finalUrl).origin!==new URL(parent.url).origin||!providerBound(objective,finalUrl))throw Error('PROVIDER_MARKET_NAVIGATION_UNSAFE');
                 const post=await providerMarketSelector(page);
-                if(!post||!marketCodeMatches(target,post.code)||post.code===selector.code)throw Error('PROVIDER_MARKET_STATE_UNCHANGED');
+                if(!post||!marketCodeMatches(target,post.code)||!alreadySelected&&post.code===selector.code)throw Error('PROVIDER_MARKET_STATE_UNCHANGED');
                 await waitForMarketContent(page,preContent,{timeoutMs:Math.min(maxRenderMs,limits.marketContentTimeoutMs??8000),quietMs:limits.marketContentQuietMs??400});
                 const extent=await page.evaluate(() => ({width:Math.max(document.documentElement.scrollWidth,document.body?.scrollWidth??0),height:Math.max(document.documentElement.scrollHeight,document.body?.scrollHeight??0)}));
                 if(extent.height>limits.documentHeight||extent.width>32768||extent.width*extent.height>50_000_000)throw Error('RENDERED_PAGE_BOUND');
@@ -190,11 +230,11 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                 if(pngBytes.length>limits.imageBytes)throw Error('RENDERED_IMAGE_BOUND');
                 await waitForMarketContent(page,preContent,{timeoutMs:Math.min(maxRenderMs,limits.marketContentTimeoutMs??8000),quietMs:limits.marketContentQuietMs??400});
                 const retainedUrl=normalizeUrl(page.url()),retainedSelector=await providerMarketSelector(page);
-                if(!retainedUrl||new URL(retainedUrl).origin!==new URL(parent.url).origin||!providerBound(objective,retainedUrl)||!retainedSelector||!marketCodeMatches(target,retainedSelector.code)||retainedSelector.code!==post.code)throw Error('PROVIDER_MARKET_FINAL_STATE_INVALID');
+                if(!retainedUrl||new URL(retainedUrl).origin!==new URL(parent.url).origin||!providerBound(objective,retainedUrl)||!retainedSelector||!marketCodeMatches(target,retainedSelector.code)||retainedSelector.code!==post.code||(await consentBlockingState(page,{timeoutMs:350})).blocking)throw Error('PROVIDER_MARKET_FINAL_STATE_INVALID');
                 const dom=await page.evaluate(visibleDom);
                 const renderedBody=await page.content(),bodyHash=digest(renderedBody);
-                if(bodyHash===preHash||Buffer.byteLength(renderedBody)>limits.bodyBytes)throw Error('PROVIDER_MARKET_SOURCE_INVALID');
-                const acquiredAt=clock(),marketSelection={kind:'PROVIDER_SELECTED_MARKET',observationId:action.id,targetMarket:target,transport:'DIRECT_BROWSER',initialUrl,finalUrl:retainedUrl,providerHost:new URL(retainedUrl).hostname,preSourceSha256:preHash,finalSourceSha256:bodyHash,preSelectedCode:selector.code,selectedCode:retainedSelector.code,selectedOption:matches[0].label,selectorLabel:retainedSelector.label};
+                if(!alreadySelected&&bodyHash===preHash||Buffer.byteLength(renderedBody)>limits.bodyBytes)throw Error('PROVIDER_MARKET_SOURCE_INVALID');
+                const acquiredAt=clock(),marketSelection={kind:'PROVIDER_SELECTED_MARKET',selectionMode:alreadySelected?'ALREADY_SELECTED':'SELECTED_OPTION',observationId:action.id,targetMarket:target,transport:'DIRECT_BROWSER',initialUrl,finalUrl:retainedUrl,providerHost:new URL(retainedUrl).hostname,preSourceSha256:preHash,finalSourceSha256:bodyHash,preSelectedCode:selector.code,selectedCode:retainedSelector.code,selectedOption,selectorLabel:retainedSelector.label};
                 const stateReceipt={...structuredClone(receipt),url:retainedUrl,body:renderedBody,acquiredAt,responseMetadata:{...receipt.responseMetadata,renderedDomSha256:bodyHash,requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64)}};
                 const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:'DIRECT',requestedCountry:null,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:false,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
                 session.receipt=stateReceipt;session.imageSha256=imageHash(pngBytes);sessions.delete(parent.id);sessions.set(action.id,session);
@@ -218,6 +258,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                 await locator.click({timeout:Math.min(10000,maxRenderMs)});
                 await page.waitForLoadState('networkidle',{timeout:4000}).catch(()=>{});
                 if(normalizeUrl(page.url())!==parent.url)throw Error('RENDERED_INTERACTION_NAVIGATION_UNSUPPORTED');
+                const consentState=action.interaction.kind.startsWith('COOKIE_')?await consentBlockingState(page,{timeoutMs:limits.consentSettleTimeoutMs??1200}):null;
                 const extent=await page.evaluate(()=>({width:Math.max(document.documentElement.scrollWidth,document.body?.scrollWidth??0),height:Math.max(document.documentElement.scrollHeight,document.body?.scrollHeight??0)}));
                 if(extent.height>limits.documentHeight||extent.width>32768||extent.width*extent.height>50_000_000)throw Error('RENDERED_PAGE_BOUND');
                 const dom=await page.evaluate(visibleDom),pngBytes=await page.screenshot({type:'png',fullPage:true,animations:'disabled',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
@@ -229,7 +270,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                 const stateReceipt={...structuredClone(receipt),body:renderedBody,acquiredAt:executedAt,responseMetadata:{...receipt.responseMetadata,renderedDomSha256:digest(renderedBody),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64)}};
                 const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:country?'DECODO':'DIRECT',requestedCountry:country,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:!!country,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
                 session.receipt=stateReceipt;sessions.delete(parent.id);sessions.set(action.id,session);
-                return {page:stateReceipt,finalUrl:parent.url,pngBytes,capture:{capturedAt:executedAt,browserBuild:browser.version(),captureRevision:'playwright-state-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,executedAt]).slice(0,24),parentRenderId:prior.id,stateFingerprint:digest([parent.url,dom.map(row=>[row.text,row.selected,row.disabled]).slice(0,128)]),interactions:[{actionId:action.id,kind:action.interaction.kind,parentRenderId:prior.id,sourceControlRef:{kind:'IMAGE_REGION',renderId:prior.id,imageSha256:prior.image.sha256,regionId:action.interaction.sourceRegionId},intendedPresentationVariant:source.text.slice(0,256),policyDecisionRef:digest(['SAFE_RENDERED_CONTROL',action.interaction.kind,source.id,source.text,selectedPeer?.id??null,selectedPeer?.text??null]),executedAt,executionOutcome:'COMPLETED',resultingRenderId:'',observedStateRefs:[],navigationReceiptRef:null}]},dom,browserLedger:structuredClone(ledger),networkSession,marketSelector:await providerMarketSelector(page).then(value=>value?{kind:'PROVIDER_MARKET_SELECTOR',label:value.label,code:value.code}:null)};
+                return {page:stateReceipt,finalUrl:parent.url,pngBytes,capture:{capturedAt:executedAt,browserBuild:browser.version(),captureRevision:'playwright-state-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,executedAt]).slice(0,24),parentRenderId:prior.id,stateFingerprint:digest([parent.url,dom.map(row=>[row.text,row.selected,row.disabled]).slice(0,128)]),interactions:[{actionId:action.id,kind:action.interaction.kind,parentRenderId:prior.id,sourceControlRef:{kind:'IMAGE_REGION',renderId:prior.id,imageSha256:prior.image.sha256,regionId:action.interaction.sourceRegionId},intendedPresentationVariant:source.text.slice(0,256),policyDecisionRef:digest(['SAFE_RENDERED_CONTROL',action.interaction.kind,source.id,source.text,selectedPeer?.id??null,selectedPeer?.text??null]),executedAt,executionOutcome:'COMPLETED',resultingRenderId:'',observedStateRefs:[],navigationReceiptRef:null}]},dom,browserLedger:structuredClone(ledger),networkSession,consentState,marketSelector:await providerMarketSelector(page).then(value=>value?{kind:'PROVIDER_MARKET_SELECTOR',label:value.label,code:value.code}:null)};
             } catch(error){sessions.delete(parent.id);await context.close().catch(()=>{});throw error;}
         }
         const started=performance.now(),country=parent.context.transport==='DECODO'?parent.context.networkGeography:null,proxy=country?proxyFor(parent.context):null;

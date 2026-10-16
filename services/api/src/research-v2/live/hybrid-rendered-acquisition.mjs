@@ -17,9 +17,8 @@ import {sourceBoundContinuations} from './provider-source-v3.mjs';
 import {projectV3SuggestedCandidates} from '../../research-v3/suggested-projection.mjs';
 import {sourceBoundLineageBindings} from '../../research-v3/source-lineage.mjs';
 import {interactiveNavigationDestination} from './interactive-research-route.mjs';
-import {marketCodeMatches} from '../../research-v3/provider-market-evidence.mjs';
 
-export const hybridRenderedLimits=Object.freeze({actions:1,browserActions:3,networkRequests:256,countryActions:1,retries:0,perAttemptNetworkRequests:256});
+export const hybridRenderedLimits=Object.freeze({actions:1,browserActions:4,networkRequests:256,countryActions:1,retries:0,perAttemptNetworkRequests:256});
 export const hybridRenderedContract=Object.freeze({version:1,scheduler:'RESEARCH_V2',executor:'RESEARCH_V3_PLAYWRIGHT',truth:'EXISTING_RESEARCH_V3',authority:'EXACT_HOST_OR_RETAINED_PROVIDER_SOURCE'});
 
 const iso=value=>typeof value==='string'&&/^[A-Z]{2}$/.test(value);
@@ -114,10 +113,27 @@ export async function runHybridRenderedAcquisition({directory,target,objective,p
      const next=await browser(stateAction,{parent:observation,objective}),nextAcquisition=validateSession(next,transport,target.market,limits.perAttemptNetworkRequests);
      const nextObservation=adaptV2CurrentSource(phase1Input({action:stateAction,target,objective,result:next,acquisition:nextAcquisition}),objective);nextObservation.action=stateAction.id;
      const nextRetained=retainRenderedObservation(nextObservation,next);nextObservation.renderedArtifacts=[nextRetained.artifact];nextObservation.renderedOverviews=[nextRetained.overview];nextObservation.domSnapshot=nextRetained.dom;nextObservation.renderedControlRegions=[nextRetained.controlRegions];
-     result=next;acquisition=nextAcquisition;observation=nextObservation;retained=nextRetained;completedAction=stateAction;consent={attempted:true,outcome:'COMPLETED',parentRenderId:priorArtifacts.observation.renderId,renderId:retained.artifact.id};journal.append('CONSENT_ACTION_RESULT',{actionId:stateAction.id,outcome:'COMPLETED',renderId:retained.artifact.id});
+     result=next;acquisition=nextAcquisition;observation=nextObservation;retained=nextRetained;completedAction=stateAction;consent={attempted:true,outcome:next.consentState?.blocking===false?'COMPLETED':next.consentState?.blocking===true?'PENDING_COMPLETION':'UNRESOLVED',actions:1,parentRenderId:priorArtifacts.observation.renderId,renderId:retained.artifact.id,blockingDialogs:next.consentState?.dialogs??[]};journal.append('CONSENT_ACTION_RESULT',{actionId:stateAction.id,outcome:consent.outcome,renderId:retained.artifact.id});
     }catch(error){consent={attempted:true,outcome:'FAILED',reason:safeCode(error)};journal.append('CONSENT_ACTION_RESULT',{actionId:stateAction.id,outcome:'FAILED',reason:consent.reason});}
    }
-   if(transport==='DIRECT'&&result.marketSelector?.kind==='PROVIDER_MARKET_SELECTOR'&&!marketCodeMatches(target.market,result.marketSelector.code)&&!evaluate({objective,observations:[observation],attempts:[],policyBlocks:[],stop:null}).established){
+   if(consent?.outcome==='PENDING_COMPLETION'){
+    const candidates=retained.dom.filter(row=>safeRenderedControl(row,'COOKIE_COMPLETE')&&retained.controlRegions.regions.some(region=>region.id==='control-'+row.id&&canonical(region.bboxPx)===canonical(row.bboxPx)));
+    const preferred=candidates.filter(row=>!/^(?:reject all)$/i.test(String(row.ariaLabel||row.text).trim()));
+    const completion=(preferred.length?preferred:candidates).length===1?(preferred.length?preferred:candidates)[0]:null;
+    if(!completion){consent={...consent,outcome:'UNRESOLVED',reason:'CONSENT_COMPLETION_AMBIGUOUS'};journal.append('CONSENT_ACTION_RESULT',{outcome:'UNRESOLVED',reason:consent.reason});}
+    else{
+     const completionAction={id:action.id+'-consent-complete',kind:'RENDER',mode:'STATE',observation:observation.id,url:observation.url,interaction:{kind:'COOKIE_COMPLETE',controlId:completion.id,selectedControlId:null,sourceRenderId:retained.artifact.id,sourceRegionId:'control-'+completion.id}};
+     try{
+      journal.reserve('browserActions');journal.append('CONSENT_COMPLETION_STARTED',{actionId:completionAction.id,parentRenderId:retained.artifact.id,controlId:completion.id});
+      const next=await browser(completionAction,{parent:observation,objective}),nextAcquisition=validateSession(next,transport,target.market,limits.perAttemptNetworkRequests);
+      const nextObservation=adaptV2CurrentSource(phase1Input({action:completionAction,target,objective,result:next,acquisition:nextAcquisition}),objective);nextObservation.action=completionAction.id;
+      const nextRetained=retainRenderedObservation(nextObservation,next);nextObservation.renderedArtifacts=[nextRetained.artifact];nextObservation.renderedOverviews=[nextRetained.overview];nextObservation.domSnapshot=nextRetained.dom;nextObservation.renderedControlRegions=[nextRetained.controlRegions];
+      result=next;acquisition=nextAcquisition;observation=nextObservation;retained=nextRetained;completedAction=completionAction;
+      consent={...consent,outcome:next.consentState?.blocking===false?'COMPLETED':'UNRESOLVED',actions:2,renderId:retained.artifact.id,blockingDialogs:next.consentState?.dialogs??[]};journal.append('CONSENT_COMPLETION_RESULT',{actionId:completionAction.id,outcome:consent.outcome,renderId:retained.artifact.id});
+     }catch(error){consent={...consent,outcome:'FAILED',reason:safeCode(error)};journal.append('CONSENT_COMPLETION_RESULT',{actionId:completionAction.id,outcome:'FAILED',reason:consent.reason});}
+    }
+   }
+   if(transport==='DIRECT'&&result.marketSelector?.kind==='PROVIDER_MARKET_SELECTOR'&&(!consent||consent.outcome==='COMPLETED')&&!evaluate({objective,observations:[observation],attempts:[],policyBlocks:[],stop:null}).established){
     const marketAction={id:action.id+'-market',kind:'RENDER',mode:'MARKET',observation:observation.id,url:observation.url,targetMarket:target.market};
     try{
      journal.reserve('browserActions');journal.append('PROVIDER_MARKET_ACTION_STARTED',{actionId:marketAction.id,parentObservation:observation.id,targetMarket:target.market});

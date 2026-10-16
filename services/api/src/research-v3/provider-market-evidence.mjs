@@ -33,7 +33,11 @@ export function validateProviderSelectedMarketReceipt(receipt,{observationId,url
  if(!receipt||receipt.kind!=='PROVIDER_SELECTED_MARKET'||receipt.observationId!==observationId||receipt.targetMarket!==targetMarket||!names.has(targetMarket)||receipt.transport!=='DIRECT_BROWSER')throw Error('PROVIDER_SELECTED_MARKET_RECEIPT_INVALID');
  const finalUrl=normalizeUrl(url),initialUrl=normalizeUrl(receipt.initialUrl);
  if(!finalUrl||!initialUrl||receipt.finalUrl!==finalUrl||new URL(finalUrl).origin!==new URL(initialUrl).origin||receipt.providerHost!==new URL(finalUrl).hostname||receipt.finalSourceSha256!==sourceHash||digest(body)!==sourceHash||!/^([a-f0-9]{64})$/.test(receipt.preSourceSha256??''))throw Error('PROVIDER_SELECTED_MARKET_SOURCE_INVALID');
- if(!exactMarketOption(targetMarket,receipt.selectedOption)||!marketCodeMatches(targetMarket,receipt.selectedCode)||marketCodeMatches(targetMarket,receipt.preSelectedCode)||receipt.preSelectedCode===receipt.selectedCode||receipt.preSourceSha256===sourceHash)throw Error('PROVIDER_SELECTED_MARKET_STATE_INVALID');
+ const alreadySelected=receipt.selectionMode==='ALREADY_SELECTED';
+ if(alreadySelected){
+  if(receipt.selectedOption!==null||!marketCodeMatches(targetMarket,receipt.preSelectedCode)||receipt.preSelectedCode!==receipt.selectedCode)throw Error('PROVIDER_SELECTED_MARKET_STATE_INVALID');
+ }else if(receipt.selectionMode&&receipt.selectionMode!=='SELECTED_OPTION'||!exactMarketOption(targetMarket,receipt.selectedOption)||marketCodeMatches(targetMarket,receipt.preSelectedCode)||receipt.preSelectedCode===receipt.selectedCode||receipt.preSourceSha256===sourceHash)throw Error('PROVIDER_SELECTED_MARKET_STATE_INVALID');
+ if(!marketCodeMatches(targetMarket,receipt.selectedCode))throw Error('PROVIDER_SELECTED_MARKET_STATE_INVALID');
  const control=selectedMarketControl(body);
  if(!control||control.code!==receipt.selectedCode||control.label!==receipt.selectorLabel)throw Error('PROVIDER_SELECTED_MARKET_SOURCE_INVALID');
  return {kind:'PROVIDER_SELECTED_MARKET',targetMarket,selectedCode:control.code,selectedOption:receipt.selectedOption,selectorLabel:control.label,observationId,sourceHash,finalUrl,providerHost:receipt.providerHost};

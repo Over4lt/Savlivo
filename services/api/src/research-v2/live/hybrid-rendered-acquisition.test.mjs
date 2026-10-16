@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
 import pngjs from 'pngjs';
-import {createPlaywrightRenderedCapability} from '../../research-v3/browser-render.mjs';
+import {browserRenderLimits,createPlaywrightRenderedCapability} from '../../research-v3/browser-render.mjs';
 import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.mjs';
 import {authorityBinding} from '../../research-v3/discovery-authority.mjs';
 import {digest} from '../../research-v3/model.mjs';
@@ -23,16 +23,16 @@ const parent=()=>({id:'ordinary-parent',kind:'PROVIDER',url,context:{transport:'
 const temp=t=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'phase4-browser-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;};
 const png=()=>{const image=new PNG({width:800,height:600,colorType:6,inputColorType:6,inputHasAlpha:true});image.data.fill(255);return PNG.sync.write(image);};
 
-function fakeChromium({body=establishedBody,renderedBody=body,postConsentBody=establishedBody,finalUrl=url,country='NO',consent=false,consentLabel='Reject all',robotsRedirect=false,additionalRequests=[]}={}) {
- const state={contexts:[],routes:[],gotos:[],clicks:0};
+function fakeChromium({body=establishedBody,renderedBody=body,postConsentBody=establishedBody,finalUrl=url,country='NO',consent=false,consentLabel='Reject all',overlayAfterReject=false,completionLabels=[],robotsRedirect=false,additionalRequests=[]}={}) {
+ const state={contexts:[],routes:[],gotos:[],clicks:0,completionClicks:0};
  const chromium={async launch(){return {version:()=> 'offline-playwright',async close(){},async newContext(options){state.contexts.push(options);let routeHandler;
-  const context={request:{async get(requested){if(requested.includes('ipwho.is'))return {status:()=>200,body:async()=>Buffer.from(JSON.stringify({success:true,ip:'203.0.113.9',country_code:country})),headers:()=>({})};if(robotsRedirect&&requested.endsWith('/csp/robots.txt'))return {status:()=>200,body:async()=>Buffer.from('User-agent: *\nAllow: /'),headers:()=>({})};if(robotsRedirect&&requested.endsWith('/robots.txt'))return {status:()=>301,body:async()=>Buffer.alloc(0),headers:()=>({location:'/csp/robots.txt'})};return {status:()=>404,body:async()=>Buffer.alloc(0),headers:()=>({})};}},async route(_pattern,handler){routeHandler=handler;},async close(){},async newPage(){let clicked=false;const dom=()=>[{text:serviceName,role:'h1',ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null,bboxPx:[1,1,100,20]},...(consent&&!clicked?[{text:consentLabel,role:'button',ariaLabel:null,contextText:'Cookie consent preferences',groupId:'consent',selected:null,disabled:false,bboxPx:[10,40,120,30]}]:[])];return {on(){},url:()=>finalUrl,async goto(destination){state.gotos.push(destination);const requests=[[destination,'document',{}],['https://assets.example/app.js','script',{}],['https://api.example/data','fetch',{}],['https://assets.example/card.png','image',{}],...additionalRequests];for(const [requestUrl,type,details] of requests){let continued=false,aborted=false;await routeHandler({request:()=>({url:()=>requestUrl,method:()=>details.method??'GET',resourceType:()=>type,headers:()=>details.headers??{},postData:()=>details.postData??null}),continue:async()=>{continued=true;},abort:async()=>{aborted=true;}});state.routes.push({requestUrl,type,continued,aborted,method:details.method??'GET'});}return {status:()=>200,body:async()=>Buffer.from(body),headers:()=>({'content-type':'text/html'})};},async content(){return clicked?postConsentBody:renderedBody;},async waitForLoadState(){},async evaluate(fn){return String(fn).includes('createTreeWalker')?dom():{width:800,height:600};},locator(){return {async evaluateAll(){return [0];},nth(){return {async count(){return 1;},async isEnabled(){return true;},async click(){clicked=true;state.clicks++;}};}};},async screenshot(){return png();}};}};
+  const context={request:{async get(requested){if(requested.includes('ipwho.is'))return {status:()=>200,body:async()=>Buffer.from(JSON.stringify({success:true,ip:'203.0.113.9',country_code:country})),headers:()=>({})};if(robotsRedirect&&requested.endsWith('/csp/robots.txt'))return {status:()=>200,body:async()=>Buffer.from('User-agent: *\nAllow: /'),headers:()=>({})};if(robotsRedirect&&requested.endsWith('/robots.txt'))return {status:()=>301,body:async()=>Buffer.alloc(0),headers:()=>({location:'/csp/robots.txt'})};return {status:()=>404,body:async()=>Buffer.alloc(0),headers:()=>({})};}},async route(_pattern,handler){routeHandler=handler;},async close(){},async newPage(){let clicked=false,completed=false;const dom=()=>[{text:serviceName,role:'h1',ariaLabel:null,contextText:null,groupId:null,selected:null,disabled:null,bboxPx:[1,1,100,20]},...(consent&&!clicked?[{text:consentLabel,role:'button',ariaLabel:null,contextText:'Cookie consent preferences',consentDialogName:'Your Privacy Settings',groupId:'consent',selected:null,disabled:false,bboxPx:[10,40,120,30]}]:[]),...(clicked&&overlayAfterReject&&!completed?completionLabels.map((text,index)=>({text,role:'button',ariaLabel:text,contextText:null,consentDialogName:'Privacy Preference Center',groupId:'completion',selected:null,disabled:false,bboxPx:[10+index*130,40,120,30]})):[])];return {on(){},url:()=>finalUrl,async goto(destination){state.gotos.push(destination);const requests=[[destination,'document',{}],['https://assets.example/app.js','script',{}],['https://api.example/data','fetch',{}],['https://assets.example/card.png','image',{}],...additionalRequests];for(const [requestUrl,type,details] of requests){let continued=false,aborted=false;await routeHandler({request:()=>({url:()=>requestUrl,method:()=>details.method??'GET',resourceType:()=>type,headers:()=>details.headers??{},postData:()=>details.postData??null}),continue:async()=>{continued=true;},abort:async()=>{aborted=true;}});state.routes.push({requestUrl,type,continued,aborted,method:details.method??'GET'});}return {status:()=>200,body:async()=>Buffer.from(body),headers:()=>({'content-type':'text/html'})};},async content(){return clicked?postConsentBody:renderedBody;},async waitForLoadState(){},async evaluate(fn){return fn.name==='consentDialogNames'?(clicked&&overlayAfterReject&&!completed?['Privacy Preference Center']:[]):String(fn).includes('createTreeWalker')?dom():{width:800,height:600};},locator(){return {async evaluateAll(){return [0];},nth(){return {async count(){return 1;},async isEnabled(){return true;},async click(){if(clicked){completed=true;state.completionClicks++;}clicked=true;state.clicks++;}};}};},async screenshot(){return png();}};}};
   return context;}};}};
  return {chromium,state};
 }
 
 function capability(options={}) {
- const fake=fakeChromium(options),browser=createPlaywrightRenderedCapability({chromium:fake.chromium,proxyFor:()=>({server:'http://decodo.invalid:7000',username:'fixture',password:'fixture'}),hostAllowed:async()=>true,clock:()=> '2026-10-09T10:00:00.000Z'});
+ const fake=fakeChromium(options),browser=createPlaywrightRenderedCapability({chromium:fake.chromium,proxyFor:()=>({server:'http://decodo.invalid:7000',username:'fixture',password:'fixture'}),hostAllowed:async()=>true,clock:()=> '2026-10-09T10:00:00.000Z',limits:{...browserRenderLimits,consentSettleTimeoutMs:20}});
  return {browser,state:fake.state};
 }
 
@@ -98,6 +98,21 @@ test('consent policy recognizes reject and necessary-only controls only inside c
  for(const label of ['Reject','Reject all','Decline','Decline all','Only necessary','Necessary only','Continue without accepting'])assert.equal(safeRenderedControl(control(label),'COOKIE_REJECT'),true,label);
  for(const label of ['No','Accept all','Close','Buy now'])assert.equal(safeRenderedControl(control(label),'COOKIE_REJECT'),false,label);
  assert.equal(safeRenderedControl({...control('Reject all'),contextText:null},'COOKIE_REJECT'),false);
+});
+
+test('remaining consent overlay cannot be marked complete without an explicit safe control',async t=>{
+ const c=capability({body:insufficientBody,consent:true,overlayAfterReject:true,completionLabels:[]}),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DECODO',browser:c.browser});
+ assert.equal(result.consent.outcome,'UNRESOLVED');assert.equal(result.consent.actions,1);assert.equal(c.state.clicks,1);assert.equal(c.state.completionClicks,0);
+});
+
+test('one source-bound close control completes consent in at most two actions',async t=>{
+ const c=capability({body:insufficientBody,consent:true,overlayAfterReject:true,completionLabels:['Close preference center']}),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DECODO',browser:c.browser});
+ assert.equal(result.consent.outcome,'COMPLETED',JSON.stringify(result.consent));assert.equal(result.consent.actions,2);assert.equal(c.state.clicks,2);assert.equal(c.state.completionClicks,1);
+});
+
+for(const completionLabels of [['Close preference center','Done'],['Subscribe now'],['Manage account']])test(`ambiguous or unsafe consent completion ${completionLabels.join(', ')} stops`,async t=>{
+ const c=capability({body:insufficientBody,consent:true,overlayAfterReject:true,completionLabels}),result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DECODO',browser:c.browser});
+ assert.equal(result.consent.outcome,'UNRESOLVED');assert.equal(result.consent.actions,1);assert.equal(c.state.completionClicks,0);
 });
 
 test('DECODO constrains every relevant request to one proxied browser context and canonical country receipt',async t=>{

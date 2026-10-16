@@ -81,7 +81,7 @@ function captureValid(capture) {
 
 function interactionValid(row,artifact) {
     if(!exact(row,['actionId','kind','parentRenderId','sourceControlRef','intendedPresentationVariant','policyDecisionRef','executedAt','executionOutcome','resultingRenderId','observedStateRefs','navigationReceiptRef']))return false;
-    if(!text(row.actionId,256)||!['COOKIE_REJECT','PRESENTATION_SELECT'].includes(row.kind)||!text(row.parentRenderId,256)||!text(row.intendedPresentationVariant,256)||!text(row.policyDecisionRef,256)||!text(row.executedAt)||!Number.isFinite(Date.parse(row.executedAt)))return false;
+    if(!text(row.actionId,256)||!['COOKIE_REJECT','COOKIE_COMPLETE','PRESENTATION_SELECT'].includes(row.kind)||!text(row.parentRenderId,256)||!text(row.intendedPresentationVariant,256)||!text(row.policyDecisionRef,256)||!text(row.executedAt)||!Number.isFinite(Date.parse(row.executedAt)))return false;
     if(!['COMPLETED','FAILED','UNKNOWN'].includes(row.executionOutcome)||row.resultingRenderId!==artifact.id||!Array.isArray(row.observedStateRefs)||row.observedStateRefs.length>32||!row.observedStateRefs.every(v=>text(v,256))||!(row.navigationReceiptRef===null||text(row.navigationReceiptRef,256)))return false;
     return exact(row.sourceControlRef,['kind','renderId','imageSha256','regionId'])&&row.sourceControlRef.kind==='IMAGE_REGION'&&row.sourceControlRef.renderId===row.parentRenderId&&text(row.sourceControlRef.imageSha256,64)&&text(row.sourceControlRef.regionId,256);
 }

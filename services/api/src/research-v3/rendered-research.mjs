@@ -64,7 +64,7 @@ export function retainedDomSnapshot(input) {
         if(!row||typeof row!=='object'||typeof row.text!=='string'||row.text.length>renderedResearchLimits.domText||!Array.isArray(row.bboxPx)||row.bboxPx.length!==4||!row.bboxPx.every(Number.isFinite))return [];
         const [x,y,width,height]=row.bboxPx;
         if(x<0||y<0||width<=0||height<=0)return [];
-        return [{id:'dom-'+index,text:row.text,role:typeof row.role==='string'?row.role.slice(0,128):null,ariaLabel:typeof row.ariaLabel==='string'?row.ariaLabel.slice(0,512):null,contextText:typeof row.contextText==='string'?row.contextText.slice(0,1024):null,groupId:typeof row.groupId==='string'?row.groupId.slice(0,256):null,selected:row.selected===true?true:row.selected===false?false:null,disabled:row.disabled===true?true:row.disabled===false?false:null,bboxPx:[x,y,width,height],truthAuthority:'NONE'}];
+        return [{id:'dom-'+index,text:row.text,role:typeof row.role==='string'?row.role.slice(0,128):null,ariaLabel:typeof row.ariaLabel==='string'?row.ariaLabel.slice(0,512):null,contextText:typeof row.contextText==='string'?row.contextText.slice(0,1024):null,consentDialogName:typeof row.consentDialogName==='string'?row.consentDialogName.slice(0,256):null,groupId:typeof row.groupId==='string'?row.groupId.slice(0,256):null,selected:row.selected===true?true:row.selected===false?false:null,disabled:row.disabled===true?true:row.disabled===false?false:null,bboxPx:[x,y,width,height],truthAuthority:'NONE'}];
     });
 }
 
