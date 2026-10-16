@@ -38,6 +38,20 @@ export function destinationInformation(t,url,{diagnosis=null,unresolvedFields=[]
 }
 const localeOrder=value=>value==='TARGET'?0:value==='UNKNOWN'?1:2;
 const compareDestination=(a,b)=>Number(b.objectiveRole==='LEARNED_PRICING_ROUTE')-Number(a.objectiveRole==='LEARNED_PRICING_ROUTE')||(a.objectiveRelevanceTier??3)-(b.objectiveRelevanceTier??3)||localeOrder(a.localeCompatibility)-localeOrder(b.localeCompatibility)||Number(b.objectiveAnchor===true)-Number(a.objectiveAnchor===true)||(a.branchPreference??0)-(b.branchPreference??0)||b.value-a.value||a.discoveryRank-b.discoveryRank||a.traversalOrder-b.traversalOrder||a.url.localeCompare(b.url);
+// A transport obligation for PRICE_RESEARCH, never a price or market truth predicate.
+// The persisted reservation makes a failed acquisition bounded on resume.
+export function priceResearchDecodoVerification(t,{urls=t.leads?.map(row=>row.url)??t.urls??[],knowledge,executionContext}={}){
+ if(t.operationsObjective!=='PRICE_RESEARCH')return {status:'NOT_REQUIRED'};
+ if((t.decisions??[]).some(row=>row.route==='DECODO'&&row.acquisitionReserved===true)||(t.acquisitionOutcomes??[]).length>0)return {status:'ATTEMPTED'};
+ const blocked=new Set([...(t.blockedOrigins??[]),...(knowledge?.blockedOrigins??[])]);
+ const known=[...new Set([...urls,...(t.urls??[]),...(t.knownCommercialUrls??[]),t.providerSeedCandidateServiceContext?.objectiveResource?.url,...(t.reads??[]).map(row=>row.url??row.requestedUrl)].filter(Boolean).map(norm).filter(Boolean))];
+ const candidates=known.map(url=>destinationInformation(t,url,knowledge)).filter(row=>row.eligible).sort(compareDestination);
+ const candidate=candidates.find(row=>!blocked.has(new URL(row.url).origin));
+ if(!candidate)return {status:'UNAVAILABLE',reason:candidates.length?'PROVIDER_ACCESS_POLICY_STOP':'NO_ADMISSIBLE_PROVIDER_URL'};
+ if(t.decodoVerification?.status==='UNAVAILABLE'&&t.decodoVerification.reason==='PROVIDER_AUTHORITY_REJECTED'&&t.decodoVerification.url===candidate.url)return t.decodoVerification;
+ const capability=executableAction(t,{route:'DECODO',url:candidate.url,reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED'},executionContext);
+ return capability.executable?{status:'PENDING',url:candidate.url}:{status:'UNAVAILABLE',url:candidate.url,reason:capability.reason};
+}
 export function actionableDestinations(t,{knowledge,urls=t.urls??[],executionContext}={}){
  const k=knowledge??{attempts:[],blockedOrigins:[],unresolvedFields:[]},attempts=k.attempts??[],evaluated=[...new Set(urls)].map(url=>{const x=destinationInformation(t,url,k);return {...x,capability:x.url?executableAction(t,{route:t.capabilities?.direct===false&&t.capabilities?.decodo===true?'DECODO':'DIRECT',url:x.url},executionContext):{executable:false,reason:'UNSAFE_URL'}};});
  const valid=evaluated.filter(x=>x.eligible&&!k.blockedOrigins?.includes(new URL(x.url).origin));
@@ -74,6 +88,7 @@ function objectiveLeadAuthorityFrontier(t,executionContext,knowledge){
 }
 export function chooseInformationAction(t,{knowledge,retained=null,configurationDemonstrated=false,renderingDemonstrated=false,urls=t.urls??[],discoveryAllowed=true,discoveryQuery=null,executionContext}={}){
  const {k,attempts,evaluated,valid,completed,seen,refresh,reuse,candidates,budgetBlocked}=actionableDestinations(t,{knowledge,urls,executionContext});
+ const decodoVerification=priceResearchDecodoVerification(t,{urls,knowledge:k,executionContext});
  const authorityFrontier=!hasProviderRoutingAuthority(t)?candidateAuthorityFrontier(t,urls,executionContext,k):{candidates:[],budgetBlocked:[]};
  const continuationFrontier=hasProviderRoutingAuthority(t)?sourceBoundCandidateFrontier(t,executionContext,k):{candidates:[],budgetBlocked:[]};
  const objectiveLeadFrontier=hasProviderRoutingAuthority(t)?objectiveLeadAuthorityFrontier(t,executionContext,k):{candidates:[],budgetBlocked:[]};
@@ -84,7 +99,8 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  const marketStateGap=targetMarketStateGap(t),stateCandidates=marketStateGap?candidates.filter(row=>marketStateContinuationValue(t,(t.leads??[]).find(lead=>norm(lead.url)===row.url),marketStateGap).eligible):[];
  let route,reason,url=null,selectedCountryIntent=null;const renderingNeed=activeRenderingNeed(t);
  const pendingMarket=pendingMarketProof(t),v3MarketNeed=!!pendingV3MarketProof(t),unresolvedV3Need=unresolvedV3TargetNeed(t),sufficientReview=t.market?targetMarketPriceReview(t,retained):currentRetainedPriceReview(t,retained);
- if(!unresolvedV3Need&&(!pendingMarket.length||(!v3MarketNeed&&currentRetainedPriceReview(t,retained)?.market===t.market))&&!marketProofContradicted(t)&&!catalogObjective(t)&&sufficientReview?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
+ if(decodoVerification.status==='PENDING'&&((t.reads??[]).length>0||!candidates.length||sufficientReview?.sourceBound)){route='DECODO';url=decodoVerification.url;reason='PRICE_RESEARCH_VERIFICATION_REQUIRED';}
+ else if(!unresolvedV3Need&&(!pendingMarket.length||(!v3MarketNeed&&currentRetainedPriceReview(t,retained)?.market===t.market))&&!marketProofContradicted(t)&&!catalogObjective(t)&&sufficientReview?.sourceBound&&['HIGH','MEDIUM'].includes(retained.confidence)&&(retained.market===t.market||retained.objective==='SERVICE_COVERAGE')){route='RETAINED_SUFFICIENT';reason='SOURCE_BOUND_PRICE_ALREADY_AVAILABLE';}
  else if(marketProofContradicted(t)){route='STOP';reason='MARKET_CONTRADICTED';}
  else if(k.memoryRejected){route='STOP';reason='RESEARCH_MEMORY_RECONCILIATION_REQUIRED';}
  else if(t.researchObjective==='CATALOG_ONLY'&&t.loginManageEstablished===true){route='STOP';reason='CATALOG_OBJECTIVE_ALREADY_SATISFIED';}
@@ -119,5 +135,5 @@ export function chooseInformationAction(t,{knowledge,retained=null,configuration
  else if(!executableAction(t,{route:'DISCOVERY'},executionContext).executable){route='STOP';reason=executableAction(t,{route:'DISCOVERY'},executionContext).reason;}
  else {route='DISCOVERY';reason='NO_USEFUL_PROVIDER_DESTINATION';}
  }
- return {route,reason,url,renderingNeed:route==='PARK_RENDERING'?renderingNeed:null,query:reason==='UNRESOLVED_CANDIDATE_AUTHORITY_RESEARCH'?authorityQuery:null,authorityEvidenceFor:reason==='UNRESOLVED_CANDIDATE_AUTHORITY_RESEARCH'||reason==='AUTHORITY_EVIDENCE_SOURCE_AVAILABLE'?authorityHost:null,objective:(!hasProviderRoutingAuthority(t)||authorityResearch)&&['AUTHORITY_DISCOVERY','STOP'].includes(route)?authorityAcquisitionObjective:providerStageRoutingObjective(t),authorityCandidates:[...(authorityEvidenceFrontier.candidates??[]),...(authorityFrontier.candidates??[])],objectiveLeadCandidates:objectiveLeadFrontier.candidates??[],sourceBoundCandidates:continuationFrontier.candidates??[],...(marketStateGap?{marketStateGap}:{}),marketProofIdentityKeys:selectedCountryIntent?.intent.marketProofIdentityKeys??pendingMarketProof(t).map(o=>o.key),retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DECODO','DISCOVERY','AUTHORITY_DISCOVERY','REUSE_RETAINED','PARK_RENDERING'].includes(route),evaluated,candidates,budgetBlocked:[...budgetBlocked,...authorityEvidenceFrontier.budgetBlocked,...authorityFrontier.budgetBlocked,...objectiveLeadFrontier.budgetBlocked,...continuationFrontier.budgetBlocked],attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5,rendering:5},ordinalOnly:true};
+ return {route,reason,url,decodoVerification,renderingNeed:route==='PARK_RENDERING'?renderingNeed:null,query:reason==='UNRESOLVED_CANDIDATE_AUTHORITY_RESEARCH'?authorityQuery:null,authorityEvidenceFor:reason==='UNRESOLVED_CANDIDATE_AUTHORITY_RESEARCH'||reason==='AUTHORITY_EVIDENCE_SOURCE_AVAILABLE'?authorityHost:null,objective:(!hasProviderRoutingAuthority(t)||authorityResearch)&&['AUTHORITY_DISCOVERY','STOP'].includes(route)?authorityAcquisitionObjective:providerStageRoutingObjective(t),authorityCandidates:[...(authorityEvidenceFrontier.candidates??[]),...(authorityFrontier.candidates??[])],objectiveLeadCandidates:objectiveLeadFrontier.candidates??[],sourceBoundCandidates:continuationFrontier.candidates??[],...(marketStateGap?{marketStateGap}:{}),marketProofIdentityKeys:selectedCountryIntent?.intent.marketProofIdentityKeys??pendingMarketProof(t).map(o=>o.key),retainedKey:route==='REUSE_RETAINED'?reuse.key:null,runnable:['DIRECT','DECODO','DISCOVERY','AUTHORITY_DISCOVERY','REUSE_RETAINED','PARK_RENDERING'].includes(route),evaluated,candidates,budgetBlocked:[...budgetBlocked,...authorityEvidenceFrontier.budgetBlocked,...authorityFrontier.budgetBlocked,...objectiveLeadFrontier.budgetBlocked,...continuationFrontier.budgetBlocked],attemptsConsidered:attempts.length,avoidedRepeatedDestinations:valid.filter(x=>seen.has(x.url)&&!refresh).length,refreshApplied:refresh,relativeCosts:{retained:0,direct:1,discovery:3,conditionalDecodo:5,rendering:5},ordinalOnly:true};
 }

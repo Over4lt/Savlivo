@@ -32,6 +32,12 @@ test('complete consumer monthly offering becomes established through unchanged T
  const {result}=evaluateCountry(),price=result.v3Truth.prices.NO;assert.equal(price.propositions.MONTHLY_SUBSCRIPTION.value,true);assert.equal(price.propositions.CONSUMER_SUBSCRIPTION.value,true);assert.equal(price.established,true);assert.equal(result.v3Truth.established,true);
 });
 
+test('annual prepaid country acquisition does not become monthly recurring',()=>{
+ const annual=product('annual',{product:{id:'annual',name:'Annual',productType:'PRODUCT_TYPE_MEMBERSHIP',consumer:true,subscription:{length:1,unit:'years'}},totalAmountWithTaxes:{amount:'95988',currencyCode:'NOK'},monthlyEquivalent:{amount:'7999',currencyCode:'NOK'}});
+ const price=evaluateCountry(html([annual])).result.v3Truth.prices.NO;
+ assert.notEqual(price.propositions.MONTHLY_SUBSCRIPTION.state,'ESTABLISHED');
+});
+
 test('fresh country source uses its own amount and currency instead of stale Direct facts',()=>{
  const oldBody=html([product('gold',{totalAmount:{amount:'799',currencyCode:'USD'},taxAmount:{amount:'200',currencyCode:'USD'},totalAmountWithTaxes:{amount:'999',currencyCode:'USD'}})]),oldHash=digest(oldBody),t=target();
  const direct=evaluateProviderSourceTruth({target:t,retained:{url,requestedUrl:url,httpStatus:200,contentType:'text/html',bodyHash:oldHash,sourceIntegrity:{sha256:oldHash},rawSource:{text:oldBody},accessDecisions:[{decision:'ALLOWED'}]},acquisition:{route:'DIRECT'},observationId:'old-direct'});

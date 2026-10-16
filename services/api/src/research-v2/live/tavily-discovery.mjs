@@ -50,14 +50,15 @@ export async function createTavilyDiscovery({inventory,env=process.env,readKeych
     const semantic=route==='DECODO'&&reason==='TARGET_MARKET_OBSERVATION_REQUIRED'?targetMarketAcquisition(target,candidate.url):null;
     if(semantic){if(target.capabilities?.decodo!==true)throw Error('CAPABILITY_DISABLED_DECODO');direct={needsGeo:true,acquisitionEscalation:semantic};}
     const independent=route==='DECODO'&&reason==='DIRECT_PROHIBITED_DECODO_PERMITTED';
+    const verification=route==='DECODO'&&reason==='PRICE_RESEARCH_VERIFICATION_REQUIRED'&&target.operationsObjective==='PRICE_RESEARCH'&&target.capabilities?.decodo===true;
     // Reservation already exists at dispatch; validate permission again without treating this reservation as a duplicate.
     if(independent&&!(target.capabilities?.direct===false&&target.capabilities?.decodo===true))throw Error('INDEPENDENT_DECODO_PERMISSION_REQUIRED');
-    if(!independent&&(!direct?.needsGeo||!direct.acquisitionEscalation?.eligible))throw Error('DISCOVERY_ACQUISITION_FAILURE_PROOF_REQUIRED');
-    const admitted=admittedDiscoveryCandidate(candidate,target);try{journal.reserve(target.id,'pages');}catch(error){if(String(error?.message).startsWith('DISCOVERY_BOUND_'))return {classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO',direct,channel:independent?'INDEPENDENT_DECODO':'DIRECT_THEN_GEO',routingReason:independent?reason:direct.acquisitionEscalation.primaryFailureReason};throw error;}
-    journal.append(independent?'INDEPENDENT_DECODO_ADMITTED':'GEO_ESCALATION_ELIGIBLE',{target:target.id,url:admitted.url,reason:independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent?{proof:direct.acquisitionEscalation,blockers:direct.blockers}:{})});
+    if(!independent&&!verification&&(!direct?.needsGeo||!direct.acquisitionEscalation?.eligible))throw Error('DISCOVERY_ACQUISITION_FAILURE_PROOF_REQUIRED');
+    const admitted=admittedDiscoveryCandidate(candidate,target);try{journal.reserve(target.id,'pages');}catch(error){if(String(error?.message).startsWith('DISCOVERY_BOUND_'))return {classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO',direct,channel:verification?'PRICE_RESEARCH_DECODO':independent?'INDEPENDENT_DECODO':'DIRECT_THEN_GEO',routingReason:verification||independent?reason:direct.acquisitionEscalation.primaryFailureReason};throw error;}
+    journal.append(verification?'PRICE_RESEARCH_DECODO_ADMITTED':independent?'INDEPENDENT_DECODO_ADMITTED':'GEO_ESCALATION_ELIGIBLE',{target:target.id,url:admitted.url,reason:verification||independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent&&!verification?{proof:direct.acquisitionEscalation,blockers:direct.blockers}:{})});
     const start=journal.events.length,geo=await acquire({target,candidate:admitted,journal,maxBytes});
     if(journal.events.slice(start).some(e=>e.type==='BOUND_STOP'))return {...geo,classification:'BUDGET_STOP',hardStop:false,followUp:'NEEDS_DECODO',direct};
-    return {...geo,channel:independent?'INDEPENDENT_DECODO':'DIRECT_THEN_GEO',routingReason:independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent?{direct}:{})};
+    return {...geo,channel:verification?'PRICE_RESEARCH_DECODO':independent?'INDEPENDENT_DECODO':'DIRECT_THEN_GEO',routingReason:verification||independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent&&!verification?{direct}:{})};
    },
    async render({target,directory,need=activeRenderingNeed(target)}){
     if(!need||!need.runDirectory)throw Error('RENDERED_PARENT_REQUIRED');
