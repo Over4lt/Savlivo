@@ -3,12 +3,24 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {createHash} from 'node:crypto';
 import {Operations} from './control.mjs';
-import {priceResearchPlan,reviewedNamespacePriceResearchSeed,runBoundedV3Verification} from './price-research.mjs';
+import {priceResearchPlan,reviewedNamespacePriceResearchSeed,runBoundedV3Verification,priorityRetainedV3Evidence} from './price-research.mjs';
 import {runAdminV4FirstResearch} from '../google-ai/admin-live-pipeline.mjs';
 import {reviewedProviderNamespacesFor} from '../research-v3/reviewed-provider-namespaces.mjs';
+import {applyResearchHandoff} from '../research-v2/inventory/reviewed-cohort-execution.mjs';
 
 const caps={direct:false,tavily:false,decodo:false,browser:false,groq:false};
+test('unresolved priority V3 evidence crosses phases only with the exact retained source hash',t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-priority-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const directory=path.join(root,'priority-research-links','acquisition'),body='<html>Provider source</html>',sha=value=>createHash('sha256').update(value).digest('hex'),hash=sha(body),observation={id:'country-source',url:'https://help.example.com/plans',sha256:hash,context:{transport:'DECODO',networkGeography:'NO'}},truth={needs:[{proposition:'PRICE_AMOUNT',state:'UNRESOLVED'}],offers:[],eligibility:{NO:{result:'UNRESOLVED'}}},target={id:'example-NO',service:'example',market:'NO'};
+ fs.mkdirSync(path.join(directory,'raw'),{recursive:true});fs.writeFileSync(path.join(directory,'raw',hash+'.body'),body);
+ const lead={url:'https://help.example.com/next',sourceBoundCandidate:true,truthAuthority:'NONE',authoritative:false,from:{bodyHash:hash,observation:observation.id},source:{start:6,end:14,sha256:sha(body.slice(6,14))}},priorityState={targets:{[target.id]:{v3Observation:observation,v3Truth:truth,leads:[lead],acquisitionOutcomes:[{researchLinkId:'link',sourceHash:hash,sourceClassification:{status:'PROVIDER_SOURCE',finalUrl:observation.url},countryV3Evaluation:{status:'EVALUATED',receiptStatus:'HASH_VERIFIED',geoClass:'G1'},runDirectory:directory}]}}};
+ const evidence=priorityRetainedV3Evidence({priorityState,target,root});assert.deepEqual(evidence.v3Truth,truth);assert.equal(evidence.leads.length,1);assert.equal(evidence.v3Observation.sha256,hash);
+ const downstream=applyResearchHandoff({...target,serviceName:'Example',...evidence},{kind:'V4_TO_V3_RESEARCH_HANDOFF',provider:'Example',targetMarket:'NO',researchLeads:{candidatePlans:[]},adaptiveTargetPatch:{urls:['https://example.com/plans'],leads:[{url:'https://example.com/plans',truthAuthority:'NONE',authoritative:false}],researchCandidateLineage:[]}});
+ assert.deepEqual(downstream.v3Truth,truth);assert.equal(downstream.v3Observation.sha256,hash);assert.deepEqual(downstream.leads.map(row=>row.url),[lead.url,'https://example.com/plans']);
+ fs.writeFileSync(path.join(directory,'raw',hash+'.body'),'tampered');assert.equal(priorityRetainedV3Evidence({priorityState,target,root}),null);
+});
 const fixture=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-operations-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:root,root:path.join(root,'.savlivo/v2-operations'),lifecycleInput:null,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',env:{},runtimeReadiness:{readGemini:async()=>null}});};
 
 test('provider seed Preflight retains seed status and cannot manufacture a service identity',async t=>{

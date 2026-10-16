@@ -5,6 +5,7 @@ import {runAdminV4FirstResearch,v3ResultFromTarget} from './admin-live-pipeline.
 import {digest} from '../research-v3/model.mjs';
 import {reviewedProviderNamespacesFor} from '../research-v3/reviewed-provider-namespaces.mjs';
 import {buildGoogleAiQuery} from './v4-query.mjs';
+import {catalogPlanIdentity} from '../../../../packages/contracts/src/product-pricing.ts';
 
 const target={id:'example-price-DE',service:'example',serviceName:'Example',market:'DE'};
 const plan={planName:'Individual',amount:10.99,currency:'EUR',paymentCadence:'MONTHLY_RECURRING',commitment:'NONE',ordinaryRecurringPrice:10.99,introPrice:null,introDuration:null,sourceUrl:'https://example.test/de/pricing',sourceEvidence:'Individual EUR 10.99 monthly',marketEvidence:'Germany',billingBasis:'charged monthly',annualOnly:false,freeTier:false,summary:'Monthly subscription',warnings:[],market:'DE',sourceReferences:['https://example.test/de/pricing']};
@@ -60,6 +61,24 @@ test('result counts one V4 and one V3 Suggested representation as one Verified l
  assert.equal(row.combined.suggested.length,2);assert.equal(row.combined.verified.length,1);assert.equal(row.combined.plans.length,1);assert.deepEqual(row.planCounts,{suggestedPlans:1,verifiedPlans:1});assert.deepEqual(row.persisted,{suggestedPlans:1,verified:1});assert.equal(row.combined.resultClass,'VERIFIED');
 });
 
+test('three persisted catalog plans and three fresh V3 plans remain three across repeated runs and price changes',async()=>{
+ assert.notEqual(catalogPlanIdentity({serviceSlug:'example',planSlug:'gold-monthly',billingProviderSlug:'direct',countryCode:'DE',currency:'EUR'}),catalogPlanIdentity({serviceSlug:'example',planSlug:'gold-annual',billingProviderSlug:'direct',countryCode:'DE',currency:'EUR'}));
+ const names=['gold_monthly_032022','platinum_monthly_032022','diamond_monthly_032022'],rows=new Map(names.map((name,index)=>{const planSlug=name.replaceAll('_','-'),item={serviceSlug:'example',planSlug,planName:name,billingProviderSlug:'direct',countryCode:'DE',currency:'EUR',monthlyPriceMinor:[799,1299,1999][index],planIdentity:`catalog:example:de:${planSlug}:direct:eur`,sourceUrl:'https://example.test/plans',updatedAt:'2026-10-13T00:00:00.000Z'};return [planSlug,item];}));
+ const store={persistSuggested:async()=>({}),loadSuggested:async()=>[],loadVerified:async()=>[...rows.values()].map(row=>structuredClone(row)),persistVerified:async items=>{for(const item of items)rows.set(item.planSlug,{...item});return {persisted:items.length};}};
+ for(let run=1;run<=3;run++){
+  const v3={suggested:[],verified:names.map((name,index)=>({...verified([7.99,12.99,19.99][index]+(run===2&&index===0?1:0)),plan:name,planIdentity:`fresh-observation:${run}:${index}`})),contradictions:[],operationalFailures:[]};
+  const result=await runAdminV4FirstResearch({targets:[target],...store,acquireGoogle:async()=>acquisition('GOOGLE_AI_ACCESS_FAILURE'),runDownstream:async()=>({result:{},v3Results:{[target.id]:v3}})}),current=result.targets[0];
+  assert.deepEqual(current.planCounts,{suggestedPlans:0,verifiedPlans:3});assert.equal(current.combined.plans.length,3);assert.equal(rows.size,3);
+  assert.deepEqual(current.combined.plans.map(row=>row.planIdentity).sort(),[...rows.values()].map(row=>row.planIdentity).sort());
+ }
+});
+
+test('three valid Gemini plans survive unresolved V3 as Suggested',async()=>{
+ const plans=['Gold','Platinum','Diamond'].map((name,index)=>({...plan,planName:name,amount:[7.99,12.99,19.99][index],ordinaryRecurringPrice:[7.99,12.99,19.99][index]}));
+ const {row,earlySnapshot}=await execute({google:acquisition('GOOGLE_AI_SUCCESS',plans),v3:{suggested:[],verified:[],contradictions:[],operationalFailures:[{kind:'UNRESOLVED'}]}});
+ assert.equal(earlySnapshot.suggested.length,3);assert.equal(row.earlySuggestedPersisted,3);assert.deepEqual(row.planCounts,{suggestedPlans:3,verifiedPlans:0});assert.equal(row.combined.suggested.filter(item=>item.provenance==='GOOGLE_AI_V4').length,3);
+});
+
 test('E: differing Suggested remains diagnostic while Verified is authoritative',async()=>{
  const {row}=await execute({v3:{suggested:[],verified:[verified(12.99)],contradictions:[],operationalFailures:[]}});assert.deepEqual(row.analyticsStates.map(x=>x.status),['VERIFIED_ONLY']);assert.equal(row.combined.resultClass,'VERIFIED');assert.equal(row.combined.plans[0].activePrice.amount,12.99);assert.equal(row.combined.plans[0].suggestedMismatch,true);assert.equal(row.combined.plans[0].suggested[0].amount,10.99);
 });
@@ -82,7 +101,7 @@ test('I: acquisition budget stop preserves useful V3 Suggested through publicati
 
 test('exact established V3 offer identity reaches the Verified adapter unchanged',()=>{
  const observation='wahoo-provider',bodyHash='c'.repeat(64),offerIdentity=name=>({kind:'SPAN',start:10,end:10+name.length,quote:name,sha256:digest(name)}),reference=name=>({observation,sha256:bodyHash,pointer:'/offers/'+name.toLowerCase(),source:{offer:name,offerIdentity:offerIdentity(name)}}),proposition=(name,value)=>({state:'ESTABLISHED',value,evidence:[{value,reference:reference(name)}],contradictions:[]}),offer=(name,amount)=>({id:digest(name),market:'DE',propositions:{SERVICE_IDENTITY:{state:'ESTABLISHED',value:true,evidence:[]},PRICE_AMOUNT:proposition(name,amount),CURRENCY:proposition(name,'EUR'),MONTHLY_CADENCE:{state:'UNRESOLVED',value:null,evidence:[]},MONTHLY_SUBSCRIPTION:proposition(name,true),CONSUMER_SUBSCRIPTION:proposition(name,true),TARGET_MARKET:proposition(name,'DE')}}),offers=[offer('Core',4.99),offer('Pro',17.99)],current={serviceName:'Wahoo App',market:'DE',v3Observation:{id:observation,url:'https://provider.example/pricing',sha256:bodyHash,context:{transport:'DIRECT'}},v3Truth:{offers,eligibility:{DE:{result:'ELIGIBLE'}}}},result=v3ResultFromTarget(current);
- assert.deepEqual(result.verified.map(row=>[row.plan,row.planIdentity]),[['Core','wahoo app:de:core'],['Pro','wahoo app:de:pro']]);assert(result.verified.every(row=>row.verificationEvidence?.verification==='authoritative-provider'&&row.verificationEvidence.verifiedAt===row.verifiedAt));
+ assert.deepEqual(result.verified.map(row=>[row.plan,row.planIdentity]),[['Core','catalog:wahoo-app:de:core:direct:eur'],['Pro','catalog:wahoo-app:de:pro:direct:eur']]);assert(result.verified.every(row=>row.verificationEvidence?.verification==='authoritative-provider'&&row.verificationEvidence.verifiedAt===row.verifiedAt));
 });
 
 

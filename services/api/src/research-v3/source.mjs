@@ -157,10 +157,10 @@ export function projectWebSource(observation, objective) {
     const pointer=n=>({start:n.start,end:n.end,sha256:digest(observation.body.slice(n.start,n.end))});
     const identity=nodes.find(n=>['title','h1','p'].includes(n.tag)&&name.test(n.text));
     if(identity) {source.serviceId=objective.serviceId; bindings['/serviceId']=pointer(identity);}
-    const subscriptionPage=interpretSubscriptionPage({body:observation.body,url:observation.url}),pageService=subscriptionPage.services.find(row=>normalized(row.name)===normalized(objective.serviceName));
+    const subscriptionPage=interpretSubscriptionPage({body:observation.body,url:observation.url,providerName:objective.serviceName}),pageService=subscriptionPage.services.find(row=>normalized(row.name)===normalized(objective.serviceName));
     if(pageService&&source.serviceId===objective.serviceId)for(const offering of subscriptionPage.offerings)for(const [chargeIndex,charge]of offering.charges.entries()){
         const p='/offers/'+source.offers.length,id=digest([new URL(observation.url).hostname,normalized(objective.serviceName),normalized(offering.name),charge.cadence,charge.amount,charge.currency,chargeIndex]);
-        source.offers.push({id,amount:charge.amount,currency:charge.currency,cadence:charge.cadence,billingCadence:charge.billingCadence,consumer:charge.consumer,relationship:charge.relationship,role:charge.role,monetaryKind:charge.monetaryKind,amountDerivation:charge.amountDerivation,market:null});
+        source.offers.push({id,amount:charge.amount,currency:charge.currency,cadence:charge.cadence,billingCadence:charge.billingCadence,consumer:charge.consumer,relationship:charge.relationship,role:charge.role,monetaryKind:charge.monetaryKind,amountDerivation:charge.amountDerivation,market:offering.market??null});
         bindings[p]={start:offering.presentation.start,end:offering.presentation.end,sha256:offering.presentation.sha256,offer:offering.name,offerIdentity:offering.nameLocator,nativePageStructure:true,charge:{text:charge.text,cadence:charge.cadence,billingCadence:charge.billingCadence,...(charge.composition?{composition:charge.composition}:{})}};
         if(charge.billingCadence==='UNKNOWN')ambiguities.push({pointer:p,reasons:['PAYMENT_CADENCE_UNRESOLVED'],source:bindings[p]});
     }

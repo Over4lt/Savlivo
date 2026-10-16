@@ -171,12 +171,49 @@ function planCards(parsed){
  return [...groups.values()].filter(rows=>rows.length>=2||rows[0].node.attrs.itemtype).flat();
 }
 
+// Some provider help pages publish the plans as sibling list items under a
+// pricing heading. Keep each top-level item as its own source presentation;
+// nested list items describe add-ons and must never become subscription plans.
+function pricingLists(parsed){
+ const rows=[],billingStatements=parsed.segments.filter(row=>/\bplans?\s+(?:are|is)\s+(?:billed|charged|paid)\s+(?:monthly|yearly|annually)\b/iu.test(row.text)).map(row=>row.text),monthly=billingStatements.some(row=>/\bplans?\s+(?:are|is)\s+(?:billed|charged|paid)\s+monthly\b/iu.test(row)),yearly=billingStatements.some(row=>/\bplans?\s+(?:are|is)\s+(?:billed|charged|paid)\s+(?:yearly|annually)\b/iu.test(row));
+ for(const heading of parsed.nodes.filter(node=>/^h[2-4]$/.test(node.tag)&&!node.hidden&&/^pricing(?:\s|$|\()/iu.test(parsed.text(node))&&!ancestors(node).some(parent=>peripheral.has(parent.tag)))){
+  const scope=/\bfor (?:customers|members|subscribers|consumers|residents) in ([\p{L} .-]+)$/iu.exec(parsed.text(heading))?.[1]?.trim().replace(/^the\s+/iu,'')??null,regions=new Intl.DisplayNames(['en'],{type:'region'}),market=scope?([...Array(26)].flatMap((_,a)=>[...Array(26)].map((_,b)=>String.fromCharCode(65+a,65+b))).find(code=>regions.of(code).toLocaleLowerCase('en')===scope.toLocaleLowerCase('en'))??null):null;
+  const next=parsed.nodes.filter(node=>node.parent===heading.parent&&node.start>=heading.end&&!node.hidden).sort((a,b)=>a.start-b.start)[0];
+  if(next?.tag!=='ul'&&next?.tag!=='ol')continue;
+  const items=parsed.nodes.filter(node=>node.tag==='li'&&node.parent===next&&!node.hidden);
+  if(items.length<2||items.length>24)continue;
+  for(const item of items){
+   const own=parsed.within(item).filter(segment=>!ancestors(segment.parent).some(node=>node!==item&&node.tag==='li'));
+   const value=own.map(segment=>segment.text).join(' ').replace(/\s+/gu,' ').trim(),match=/^([\p{L}\p{N}][\p{L}\p{N} &'’+.-]{0,79}?)\s*:\s*/u.exec(value);
+   if(!match)continue;
+   const name=match[1].trim(),parsedCharges=charges(value.slice(match[0].length));
+   if(parsedCharges.length!==1||parsedCharges[0].role!=='ORDINARY')continue;
+   const raw=parsed.body.slice(item.openEnd,item.contentEnd),nameAt=raw.indexOf(name);
+   if(nameAt<0)continue;
+   const charge=parsedCharges[0];
+   if(charge.billingCadence==='UNKNOWN'&&monthly&&!yearly&&charge.cadence==='MONTHLY')charge.billingCadence='MONTHLY';
+   rows.push({name,nameLocator:locator(parsed.body,item.openEnd+nameAt,item.openEnd+nameAt+name.length),presentation:locator(parsed.body,item.start,item.end),market,charges:[charge]});
+  }
+ }
+ return rows;
+}
+
+function pricingPageIdentity(parsed,providerName,lists){
+ if(!providerName||lists.length<2)return null;
+ const fields=fieldRows(parsed),title=uniqueRow(fields.filter(row=>row.kind==='TITLE')),description=uniqueRow(fields.filter(row=>row.kind==='DESCRIPTION'));
+ if(!title||!description||!exactWord(title.value,providerName)||!exactWord(description.value,providerName)||!/\b(?:plans?|pricing)\b/iu.test(title.value)||!/\bplans?\b/iu.test(description.value)||!/\b(?:prices?|costs?|subscriptions?)\b/iu.test(description.value))return null;
+ const bill=parsed.segments.find(row=>exactWord(row.text,providerName)&&new RegExp(escaped(providerName)+'\\s+plans?\\s+(?:are|is)\\s+(?:billed|charged|paid)\\s+monthly\\b','iu').test(row.text));
+ const identity=exactLocator(parsed,title,providerName),relation=bill&&/\bplans?\b/iu.exec(bill.text),at=relation?parsed.body.slice(bill.start,bill.end).indexOf(relation[0]):-1;
+ if(!bill||!identity||at<0)return null;
+ return {name:providerName,type:'Service',identity,subscription:{kind:'EXPLICIT_SUBSCRIPTION',locator:locator(parsed.body,bill.start+at,bill.start+at+relation[0].length)},support:['PAGE_TITLE','PRODUCT_DESCRIPTION','MONTHLY_PLAN_BILLING']};
+}
+
 function enrichFromProse(parsed,offerings){
  for(const segment of parsed.segments){const sentences=segment.text.split(/(?<=[.!?])\s+/u);for(const sentence of sentences){const owners=offerings.filter(o=>exactWord(sentence,o.name));if(owners.length!==1)continue;for(const charge of charges(sentence)){const key=[charge.amount,charge.currency,charge.cadence,charge.role].join('|'),at=owners[0].charges.findIndex(row=>[row.amount,row.currency,row.cadence,row.role].join('|')===key),composition=locator(parsed.body,segment.start,segment.end);if(at<0)owners[0].charges.push({...charge,prose:true,composition});else if(owners[0].charges[at].billingCadence==='UNKNOWN'&&charge.billingCadence!=='UNKNOWN')owners[0].charges[at]={...owners[0].charges[at],billingCadence:charge.billingCadence,amountDerivation:charge.amountDerivation,composition};}}
  }
 }
 
 export function interpretSubscriptionPage({body,url,providerName=null}){
- if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges}));enrichFromProse(parsed,offerings);
+ if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed),lists=cards.length?[]:pricingLists(parsed),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists];enrichFromProse(parsed,offerings);
  return {services,offerings,limited:parsed.limited};
 }

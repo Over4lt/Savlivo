@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
 import {digest} from '../../research-v3/model.mjs';
 import {evaluateCountryProviderTruth,evaluateProviderSourceTruth,evaluateVerifiedCountryRun} from './provider-source-v3.mjs';
+import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
 
 const service='aurora',serviceName='Aurora',market='NO',host='provider.example',url=`https://${host}/membership`;
@@ -10,6 +11,7 @@ const authority={hostname:host,provider:serviceName,sourceType:'OFFICIAL_PROVIDE
 const target=(extra={})=>({id:'aurora-no',service,serviceName,market,researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[url],authorities:[authority],gaps:['market'],reads:[{requestedUrl:url,url,outcome:'OK',accessDecisions:[{decision:'ALLOWED'}]}],queries:[],decisions:[],capabilities:{direct:true,tavily:false,decodo:true,browser:false,groq:false},marketProof:{version:1,objectives:[{key:'basic',status:'MARKET_NOT_VERIFIED',identity:{plan:'Gold'}}]},...extra});
 const product=(id='gold',extra={})=>({product:{id,name:'Gold',productType:'PRODUCT_TYPE_MEMBERSHIP',consumer:true,subscription:{length:1,unit:'months'}},totalAmount:{amount:'6399',currencyCode:'NOK'},taxAmount:{amount:'1600',currencyCode:'NOK'},totalAmountWithTaxes:{amount:'7999',currencyCode:'NOK'},incentive:{name:'BAU Trial',freeTime:{length:7,unit:'days'}},...extra});
 const html=(products=[product()],serviceTitle=serviceName)=>`<html lang="nb-NO"><head><title>${serviceTitle}</title></head><body><script>window.catalog=${JSON.stringify({currenciesSubunit:{NOK:2,EUR:2,USD:2},offeredProducts:{months:products}})};</script></body></html>`;
+const listedPricing=(rows='Basic: NOK 119 / month|Standard: NOK 149 / month|Premium: NOK 219 / month')=>`<html><head><title>Plans and Pricing | Aurora Help Center</title><meta name="description" content="Discover the different streaming plans Aurora offers and how much Aurora costs."></head><body><main><h1>Plans and Pricing</h1><p>Aurora plans are billed monthly on the signup date. We do not offer annual membership plans.</p><h3>Pricing (Norwegian Krone)</h3><ul>${rows.split('|').map(row=>`<li><p><span>${row}</span></p>${row.startsWith('Standard')?'<ul><li>Add an extra member for NOK 49 / month</li></ul>':''}</li>`).join('')}</ul></main></body></html>`;
 
 function countryFixture(body=html(),{targetValue=target(),pageUrl=url}={}){
  const hash=digest(body),attemptId='geo-fixture-country',continuityRef='session-fixture',beforeHash='1'.repeat(64),afterHash='2'.repeat(64);
@@ -36,6 +38,33 @@ test('family-classified final provider source can reach unchanged V3 truth with 
  const pageUrl='https://help.example.com/membership',targetValue=target({providerSourceIdentityHosts:['example.com'],authorities:[]}),body=html().replace('<title>Aurora</title>','<title>Help and pricing</title><h1>Aurora monthly membership</h1>'),fixture=countryFixture(body,{targetValue,pageUrl}),result=evaluateCountryProviderTruth(fixture);
  assert.equal(result.v3Truth.established,true);assert.equal(result.v3Truth.prices.NO.propositions.PRICE_AMOUNT.value,79.99);
  assert.equal(result.v3Truth.prices.NO.propositions.CURRENCY.value,'NOK');assert.equal(result.v3Truth.prices.NO.propositions.TARGET_MARKET.state,'ESTABLISHED');
+});
+
+test('country-bound provider help price list establishes separate monthly plans without add-ons',()=>{
+ const pageUrl='https://help.example.com/en/plans',targetValue=target({providerSourceIdentityHosts:['example.com'],authorities:[]}),fixture=countryFixture(listedPricing(),{targetValue,pageUrl}),result=evaluateCountryProviderTruth(fixture),established=projectEstablishedV3Offerings({...targetValue,...result});
+ assert.deepEqual(established.map(row=>[row.name,row.ordinaryRecurringPrice.amount,row.ordinaryRecurringPrice.currency]),[['Basic',119,'NOK'],['Standard',149,'NOK'],['Premium',219,'NOK']]);
+ assert(established.every(row=>row.propositionStates.TARGET_MARKET==='ESTABLISHED'&&row.propositionStates.MONTHLY_SUBSCRIPTION==='ESTABLISHED'&&row.propositionStates.MONTHLY_CADENCE==='ESTABLISHED'));
+});
+
+test('country-bound Euro price list with symbol suffix establishes its own plans',()=>{
+ const pageUrl='https://help.example.com/en/plans',targetValue=target({market:'DE',providerSourceIdentityHosts:['example.com'],authorities:[]}),body=listedPricing('Standard with ads: 6.99€ / month|Standard: 15.99€ / month|Premium: 21.99€ / month').replace('Pricing (Norwegian Krone)','Pricing (Euro)'),result=evaluateCountryProviderTruth(countryFixture(body,{targetValue,pageUrl}));
+ assert.deepEqual(projectEstablishedV3Offerings({...targetValue,...result}).map(row=>[row.name,row.ordinaryRecurringPrice.amount,row.ordinaryRecurringPrice.currency]),[['Standard with ads',6.99,'EUR'],['Standard',15.99,'EUR'],['Premium',21.99,'EUR']]);
+});
+
+test('provider URL locale never establishes target market for an unbound Direct price list',()=>{
+ const body=listedPricing(),hash=digest(body);
+ for(const locale of ['en','nl','no']){
+  const sourceUrl=`https://help.example.com/${locale}/plans`,result=evaluateProviderSourceTruth({target:target({providerSourceIdentityHosts:['example.com'],authorities:[]}),retained:{url:sourceUrl,requestedUrl:sourceUrl,httpStatus:200,contentType:'text/html',bodyHash:hash,sourceIntegrity:{sha256:hash},rawSource:{text:body},accessDecisions:[{decision:'ALLOWED'}]},acquisition:{route:'DIRECT'},observationId:'direct-'+locale});
+  assert.equal(projectEstablishedV3Offerings({...target(),...result}).length,0,locale);
+  assert.equal(result.v3Truth.prices.NO.propositions.TARGET_MARKET.state,'UNRESOLVED',locale);
+ }
+});
+
+test('a monthly display billed yearly and a country mismatch cannot become country Verified',()=>{
+ const annual=listedPricing().replace('Aurora plans are billed monthly','Aurora plans are billed yearly'),annualResult=evaluateCountry(annual).result;
+ assert.equal(projectEstablishedV3Offerings({...target(),...annualResult}).length,0);
+ const usOnly=listedPricing().replace('Pricing (Norwegian Krone)','Pricing for customers in the United States').replaceAll('NOK','USD'),other=evaluateCountry(usOnly).result;
+ assert.equal(projectEstablishedV3Offerings({...target(),...other}).length,0);
 });
 
 test('annual prepaid country acquisition does not become monthly recurring',()=>{

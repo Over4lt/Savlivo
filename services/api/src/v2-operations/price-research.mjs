@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import {countryCurrencies} from '../../../../packages/contracts/src/markets.ts';
 import {resolveCapabilities} from '../research-v2/capabilities/config.mjs';
@@ -77,6 +78,17 @@ const usageKeys=['reads','searches','acquisitions','retainedReviews','bytes'];
 const allUsageKeys=['actions',...usageKeys];
 const uniqueRows=rows=>[...new Map(rows.map(row=>[JSON.stringify(row),row])).values()];
 export const researchLinkPriorityTarget=(baseTarget,capabilities)=>({...baseTarget,urls:[],leads:[],knownCommercialUrls:[],capabilities:{...capabilities,direct:false,tavily:false}});
+export function priorityRetainedV3Evidence({priorityState,target,root}){
+ const current=priorityState?.targets?.[target.id],observation=current?.v3Observation,source=(current?.acquisitionOutcomes??[]).findLast(row=>row.researchLinkId&&row.sourceHash===observation?.sha256&&row.sourceClassification?.status==='PROVIDER_SOURCE'&&row.sourceClassification.finalUrl===observation?.url&&row.countryV3Evaluation?.status==='EVALUATED'&&row.countryV3Evaluation?.receiptStatus==='HASH_VERIFIED'&&row.countryV3Evaluation?.geoClass==='G1');
+ if(!source||!current.v3Truth||!/^[a-f0-9]{64}$/.test(observation?.sha256??''))return null;
+ try{
+  const allowed=fs.realpathSync(path.join(root,'priority-research-links')),directory=fs.realpathSync(source.runDirectory),file=fs.realpathSync(path.join(directory,'raw',observation.sha256+'.body'));
+  if(!directory.startsWith(allowed+path.sep)||!file.startsWith(directory+path.sep)||fs.statSync(file).size>8_000_000)return null;
+  const body=fs.readFileSync(file,'utf8');if(createHash('sha256').update(body).digest('hex')!==observation.sha256)return null;
+  const leads=(current.leads??[]).filter(row=>row.sourceBoundCandidate===true&&row.from?.bodyHash===observation.sha256&&row.from?.observation===observation.id&&row.truthAuthority==='NONE'&&row.authoritative===false&&Number.isSafeInteger(row.source?.start)&&Number.isSafeInteger(row.source?.end)&&row.source.start>=0&&row.source.end<=body.length&&row.source.start<row.source.end&&createHash('sha256').update(body.slice(row.source.start,row.source.end)).digest('hex')===row.source.sha256);
+  return {v3Truth:structuredClone(current.v3Truth),v3Observation:structuredClone(observation),...(current.v3Catalog?{v3Catalog:structuredClone(current.v3Catalog)}:{}),v3SuggestedCandidates:structuredClone(current.v3SuggestedCandidates??[]),v3ResearchLineage:structuredClone(current.v3ResearchLineage??null),sourceBoundContinuationParents:structuredClone((current.sourceBoundContinuationParents??[]).filter(row=>row.id===observation.id&&row.sha256===observation.sha256)),leads:structuredClone(leads)};
+ }catch{return null;}
+}
 function adaptiveUsage(state){
  const usage={actions:Number.isSafeInteger(state?.turn)?state.turn:0,reads:0,searches:0,acquisitions:0,retainedReviews:0,bytes:0},initial=state?.budgetScope==='CAMPAIGN'?state.initialUsage??{}:{};
  for(const key of usageKeys)usage[key]=Number.isSafeInteger(initial[key])?initial[key]:0;
@@ -121,7 +133,7 @@ async function executeSinglePriceResearch({job,directory,apiKey,client,shouldSto
   const v3Result=v3ResultFromTarget(current),satisfied=v3Result.verified.length>0;
   return {satisfiedTargetIds:satisfied?[target.id]:[],downstream:satisfied?{result:priorityState,v3Results:{[target.id]:v3Result},verificationRetry:{maximumPerTarget:1,attemptedTargetIds:[],targets:{[target.id]:{attempted:false,count:0,verifiedAttempt:1}}}}:null};
  }:null;
- const execute=async(handoffs={},options={})=>{const campaignDirectory=path.join(directory,options.attempt===2?'known-service-v3-verification-retry-1':'known-service'),input={...baseTarget,researchLinkOutcomes:options.priorResearchLinkOutcomes?.[target.id]??priorityState?.targets?.[target.id]?.researchLinkOutcomes??[]},initialUsage=options.attempt===2?options.initialUsage:priorityState?adaptiveUsage(priorityState):null,state=await runAdaptiveCampaign({directory:campaignDirectory,manifest:{targets:[applyResearchHandoff(input,handoffs[target.id])],conditionalFollowupTargets:[]},profile:'PRODUCTION',...(initialUsage?{budgetScope:'CAMPAIGN',initialUsage}:{}),providerPricingRouteMemory,createAdapters:args=>adapters({...args,stage:'KNOWN_SERVICE_CHILD'}),onTransition:()=>{if(shouldStop())throw Error('PRICE_RESEARCH_STOPPED');}});learnProviderPricingRoutesFromTarget({memory:providerPricingRouteMemory,target:state.targets?.[target.id],directory:path.join(campaignDirectory,'targets',target.id,'open-web-discovery')});for(const row of state.targets?.[target.id]?.researchLinkOutcomes??[])await recordResearchLinkResult({id:row.id,attemptedAt:row.at,result:row.result,client});return state;};return runPipeline({targets:[target],execute,beforeGoogle});
+ const execute=async(handoffs={},options={})=>{const campaignDirectory=path.join(directory,options.attempt===2?'known-service-v3-verification-retry-1':'known-service'),priorityEvidence=priorityRetainedV3Evidence({priorityState,target,root:directory}),input={...baseTarget,...priorityEvidence,researchLinkOutcomes:options.priorResearchLinkOutcomes?.[target.id]??priorityState?.targets?.[target.id]?.researchLinkOutcomes??[]},initialUsage=options.attempt===2?options.initialUsage:priorityState?adaptiveUsage(priorityState):null,state=await runAdaptiveCampaign({directory:campaignDirectory,manifest:{targets:[applyResearchHandoff(input,handoffs[target.id])],conditionalFollowupTargets:[]},profile:'PRODUCTION',...(initialUsage?{budgetScope:'CAMPAIGN',initialUsage}:{}),providerPricingRouteMemory,createAdapters:args=>adapters({...args,stage:'KNOWN_SERVICE_CHILD'}),onTransition:()=>{if(shouldStop())throw Error('PRICE_RESEARCH_STOPPED');}});learnProviderPricingRoutesFromTarget({memory:providerPricingRouteMemory,target:state.targets?.[target.id],directory:path.join(campaignDirectory,'targets',target.id,'open-web-discovery')});for(const row of state.targets?.[target.id]?.researchLinkOutcomes??[])await recordResearchLinkResult({id:row.id,attemptedAt:row.at,result:row.result,client});return state;};return runPipeline({targets:[target],execute,beforeGoogle});
 }
 
 export async function executePriceResearch(options){

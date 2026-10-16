@@ -57,6 +57,20 @@ test('Research-link family source can record provider outcome without inventing 
  const current=state.targets[0];assert.equal(current.researchLinkOutcomes[0].result,'PROVIDER_SOURCE_NO_VERIFIED');assert.equal(current.verified.length,0);
 });
 
+test('legacy verifier rows cannot mark a Research link Verified without established V3 offerings',async context=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'provider-family-legacy-'));context.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const url='https://help.example.com/pricing',link={id:'44444444-4444-4444-8444-444444444444',url,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true,truthAuthority:'NONE'},t=target('example.com',{researchLinks:[link],researchLinkOutcomes:[],persistedVerifiedCount:0});
+ const state=await runOpenWebResearch({directory,targets:[t],maxActions:1,search:async()=>assert.fail('Tavily disabled'),read:async()=>assert.fail('Direct disabled'),acquire:async()=>({classification:'VERIFIED_OUTPUT',sourceClassification:{status:'PROVIDER_SOURCE',reason:'SAME_PROVIDER_REGISTRABLE_DOMAIN'},verified:[{plan:'Basic',amount:9.99,currency:'EUR'}]})});
+ assert.equal(state.targets[0].researchLinkOutcomes[0].result,'PROVIDER_SOURCE_NO_VERIFIED');
+});
+
+test('three established V3 offerings mark a Research link Verified',async context=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'provider-family-v3-'));context.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const url='https://help.example.com/pricing',link={id:'55555555-5555-4555-8555-555555555555',url,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true,truthAuthority:'NONE'},t=target('example.com',{researchLinks:[link],researchLinkOutcomes:[]}),established=value=>({state:'ESTABLISHED',value,evidence:[]}),offers=['Basic','Standard','Premium'].map((name,index)=>({id:name,name,market:'NO',propositions:{SERVICE_IDENTITY:established(true),PRICE_AMOUNT:established([119,149,219][index]),CURRENCY:established('NOK'),MONTHLY_SUBSCRIPTION:established(true),CONSUMER_SUBSCRIPTION:established(true),TARGET_MARKET:established('NO'),MONTHLY_CADENCE:established(true)}}));
+ const state=await runOpenWebResearch({directory,targets:[t],maxActions:1,search:async()=>assert.fail('Tavily disabled'),read:async()=>assert.fail('Direct disabled'),acquire:async()=>({classification:'VERIFIED_OUTPUT',sourceClassification:{status:'PROVIDER_SOURCE',reason:'SAME_PROVIDER_REGISTRABLE_DOMAIN'},verified:[],v3Observation:{id:'country-observation',url,sha256:'a'.repeat(64),context:{transport:'DECODO',networkGeography:'NO'}},v3Truth:{needs:[],offers,eligibility:{NO:{result:'ELIGIBLE'}}}})});
+ assert.equal(state.targets[0].researchLinkOutcomes[0].result,'VERIFIED');assert.equal(state.targets[0].verified.length,0);
+});
+
 test('Decodo Research-link acquisition revalidates family source proof before interpretation',async context=>{
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'provider-family-decodo-'));context.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
  const url='https://help.example.com/pricing',link={id:'22222222-2222-4222-8222-222222222222',url,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true,truthAuthority:'NONE'},t=target('example.com',{researchLinks:[link],researchLinkOutcomes:[],persistedVerifiedCount:0});

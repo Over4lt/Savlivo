@@ -1,19 +1,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {countryCurrencies} from '../../../../packages/contracts/src/markets.ts';
-import {productPriceStatus} from '../../../../packages/contracts/src/product-pricing.ts';
+import {catalogPlanIdentity,productPriceStatus} from '../../../../packages/contracts/src/product-pricing.ts';
 import {projectCombinedResearchProductPlans,mergeProductPlans} from '../product-pricing.ts';
 import {persistSuggestedProductPlans,loadSuggestedProductPlans} from '../suggested-pricing-store.ts';
 import {persistVerifiedLivePrices,loadPersistedVerifiedPrices} from '../pricing-store.ts';
 import {projectV3VerificationEvidence} from '../research-v2/inventory/v3-result-projection.mjs';
 import {verifyCandidates,buildSuggested} from './v4-normalization.mjs';
 import {createV4SuggestedSnapshot,createV3Handoff} from './research-handoff.mjs';
-import {canonicalPlanEvidenceCounts,mergeResearch,planIdentity as canonicalResearchPlanIdentity} from './monotonic-merge.mjs';
+import {canonicalPlanEvidenceCounts,mergeResearch} from './monotonic-merge.mjs';
 import {researchMonthlyRecurringWithRecovery} from './monthly-recurring.mjs';
 import {reviewedProviderNamespacesFor,reviewedNamespaceMatches} from '../research-v3/reviewed-provider-namespaces.mjs';
 
 export const adminGooglePipelineLimits=Object.freeze({targets:32});
 const slug=value=>String(value??'').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,120)||'plan';
+const pricePlanIdentity=(target,plan,currency)=>catalogPlanIdentity({serviceSlug:target.service??slug(target.serviceName),planSlug:slug(plan),billingProviderSlug:'direct',countryCode:target.market,currency});
 const targetKey=target=>target.id??`${target.service}:${target.market}`;
 const safeTarget=target=>{
   if(!target||typeof target.service!=='string'||!/^[a-z0-9-]+$/.test(target.service)||typeof target.serviceName!=='string'||!target.serviceName.trim()||!/^[A-Z]{2}$/.test(target.market??''))throw Error('ADMIN_V4_TARGET_INVALID');
@@ -26,7 +27,7 @@ function v4State(target,acquisition){
   const aiResult=acquisition.recovery?.aiResult??acquisition.aiResult??{provider:target.serviceName,market:target.market,plans:[],sources:[],warnings:[],timestamp:acquisition.audit.timestamp,requestCount:acquisition.audit.request.requestCount};
   const results=verifyCandidates({providerName:target.serviceName,targetMarket:target.market,aiResult,sources:[]});
   const normalized=buildSuggested({providerName:target.serviceName,targetMarket:target.market,aiResult,verificationResults:results});
-  const snapshot=createV4SuggestedSnapshot({provider:target.serviceName,market:target.market,suggested:normalized.suggested});
+  const snapshot=createV4SuggestedSnapshot({provider:target.serviceName,market:target.market,suggested:normalized.suggested.map(row=>({...row,planIdentity:pricePlanIdentity(target,row.plan,row.currency??row.suggestedCurrency)}))});
   const origins=new Map(snapshot.suggested.map(row=>[[row.plan,Number(row.amount),row.currency].join('\u0000'),row.suggestedId]));
   const researchCandidates=results.map(row=>({...row,suggestedId:origins.get([row.plan,Number(row.amount),row.currency].join('\u0000'))})).filter(row=>row.suggestedId);
   const providerDiscoveryUrls=target.providerNamespace?(aiResult.sources??[]).map(row=>row.url).filter(url=>reviewedNamespaceMatches(target.providerNamespace,url)):[];
@@ -37,7 +38,7 @@ function v4State(target,acquisition){
 
 function verifiedFromTarget(target){
   return projectV3VerificationEvidence(target).map(evidence=>{const {offerIdentityName,...verificationEvidence}=evidence,verifiedAt=evidence.verifiedAt??new Date().toISOString();return {
-    plan:evidence.plan,planIdentity:offerIdentityName?canonicalResearchPlanIdentity(target.serviceName,evidence.truthMarket,offerIdentityName):undefined,
+    plan:evidence.plan,planIdentity:pricePlanIdentity({...target,market:evidence.truthMarket},evidence.plan,evidence.currency),
     amount:evidence.amount,currency:evidence.currency,
     paymentCadence:'MONTHLY_RECURRING',sourceUrl:evidence.sourceUrl,
     verifiedAt,provenance:'V3_VERIFIED',verificationEvidence:{...verificationEvidence,verifiedAt}
@@ -65,8 +66,13 @@ function verifiedAdapters(target,rows){
   }));
 }
 
-function existingVerifiedRows(items){
-  return items.map(item=>({plan:item.planName,planIdentity:item.planIdentity,amount:item.monthlyPriceMinor/100,currency:item.currency,paymentCadence:'MONTHLY_RECURRING',sourceUrl:item.sourceUrl,verifiedAt:item.updatedAt,provenance:'EXISTING_VERIFIED'}));
+function existingVerifiedRows(items,target){
+  return items.map(item=>({plan:item.planName,planIdentity:item.planIdentity??pricePlanIdentity(target,item.planName,item.currency),amount:item.monthlyPriceMinor/100,currency:item.currency,paymentCadence:'MONTHLY_RECURRING',sourceUrl:item.sourceUrl,verifiedAt:item.updatedAt,provenance:'EXISTING_VERIFIED'}));
+}
+
+function alignVerifiedWithPersisted(target,rows,persisted){
+  const byKey=new Map(persisted.filter(item=>item.serviceSlug===target.service&&item.billingProviderSlug==='direct'&&item.countryCode===target.market&&item.planIdentity).map(item=>[[item.planSlug,item.currency].join('\u0000'),item.planIdentity]));
+  return rows.map(row=>({...row,planIdentity:byKey.get([slug(row.plan),row.currency].join('\u0000'))??pricePlanIdentity(target,row.plan,row.currency)}));
 }
 
 export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,acquireGoogle=researchMonthlyRecurringWithRecovery,persistSuggested=persistSuggestedProductPlans,persistVerified=persistVerifiedLivePrices,loadSuggested=loadSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices,runDownstream,beforeGoogle=null}={}){
@@ -86,11 +92,12 @@ export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,
   const results=[];
   for(const session of sessions){
     const {target,state,acquisition}=session,v3Result=downstream?.v3Results?.[target.id]??{suggested:[],verified:[],contradictions:[],operationalFailures:[{kind:'V3_RESULT_UNAVAILABLE'}]},currency=countryCurrencies[target.market]??v3Result.suggested?.[0]?.currency??state.snapshot.suggested[0]?.currency??'';
-    let existing=[];if(currency)try{existing=existingVerifiedRows((await loadVerified(target.market,currency)).filter(row=>row.serviceSlug===target.service));}catch{existing=[];}
-    const combined=mergeResearch({snapshot:state.snapshot,v3Result,existingVerified:existing}),productPlans=projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined});
+    let persistedVerified=[];if(currency)try{persistedVerified=(await loadVerified(target.market,currency)).filter(row=>row.serviceSlug===target.service);}catch{persistedVerified=[];}
+    const existing=existingVerifiedRows(persistedVerified,target),alignedV3Result={...v3Result,suggested:(v3Result.suggested??[]).map(row=>({...row,planIdentity:pricePlanIdentity(target,row.plan,row.currency)})),verified:alignVerifiedWithPersisted(target,v3Result.verified??[],persistedVerified)};
+    const combined=mergeResearch({snapshot:state.snapshot,v3Result:alignedV3Result,existingVerified:existing}),productPlans=projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined});
     if(productPlans.some(plan=>plan.suggested||plan.suggestedHistory.length))await persistSuggested(productPlans);
-    const acceptedVerified=verifiedAdapters(target,v3Result.verified??[]);if(acceptedVerified.length)await persistVerified(acceptedVerified);
-    let observedPlans=productPlans;if(currency)try{const storedVerified=(await loadVerified(target.market,currency)).filter(row=>row.serviceSlug===target.service);observedPlans=mergeProductPlans(await loadSuggested(target.market,currency),projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined:mergeResearch({snapshot:createV4SuggestedSnapshot({provider:target.serviceName,market:target.market,suggested:[]}),existingVerified:existingVerifiedRows(storedVerified)})}));}catch{/* Persistence result remains explicit below. */}
+    const acceptedVerified=verifiedAdapters(target,alignedV3Result.verified);if(acceptedVerified.length)await persistVerified(acceptedVerified);
+    let observedPlans=productPlans;if(currency)try{const storedVerified=(await loadVerified(target.market,currency)).filter(row=>row.serviceSlug===target.service);observedPlans=mergeProductPlans(await loadSuggested(target.market,currency),projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined:mergeResearch({snapshot:createV4SuggestedSnapshot({provider:target.serviceName,market:target.market,suggested:[]}),existingVerified:existingVerifiedRows(storedVerified,target)})}));}catch{/* Persistence result remains explicit below. */}
     const planCounts=canonicalPlanEvidenceCounts(combined);
     const result={target,googleStatus:acquisition.status,googleRequests:(acquisition.audit.request.requestCount??0)+(acquisition.recovery?.requestCount??0),strictGeminiRequests:acquisition.audit.request.requestCount??0,simplifiedRecoveryRequests:acquisition.recovery?.requestCount??0,recoveryReason:acquisition.recovery?.reason??null,recoveryOutcome:acquisition.recovery?.outcome??null,earlySuggestedPersisted:session.earlyPersistedPlans,combined,planCounts,sourceAcquisitions:structuredClone(v3Result.sourceAcquisitions??[]),researchLinkAvailable:(downstream?.result?.targets?.[target.id]?.researchLinks??[]).length>0,researchLinks:structuredClone(downstream?.result?.targets?.[target.id]?.researchLinkOutcomes??[]),verificationEvidence:(v3Result.verified??[]).map(row=>row.verificationEvidence).filter(Boolean),verificationRetry:downstream?.verificationRetry?.targets?.[target.id]??null,persisted:{suggestedPlans:productPlans.filter(plan=>plan.suggested||plan.suggestedHistory.length).length,verified:acceptedVerified.length},analyticsStates:observedPlans.filter(plan=>plan.serviceSlug===target.service).map(plan=>({planIdentity:plan.planIdentity,status:productPriceStatus(plan)}))};
     results.push(result);if(artifactDirectory)writeJson(path.join(artifactDirectory,'google-ai-v4',target.id.replace(/[^a-zA-Z0-9_.:-]/g,'_')+'-final.json'),result);

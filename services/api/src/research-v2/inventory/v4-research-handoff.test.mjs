@@ -21,6 +21,11 @@ test('V4 Suggested cannot satisfy adaptive completion without source-bound verif
  value.retainedPriceReview={sourceBound:true,confidence:'HIGH',market:'DE',objective:'SERVICE_COVERAGE'};assert.equal(v4VerificationStatus(value).satisfied,true);
 });
 
+test('PRICE_RESEARCH legacy rows and retained review never satisfy V4 verification without V3 Truth',()=>{
+ const value=applyResearchHandoff({...target,operationsObjective:'PRICE_RESEARCH',researchObjective:'SERVICE_COVERAGE',verified:[{plan:'Basic'}],retainedPriceReview:{sourceBound:true,market:'DE',confidence:'HIGH'}},handoff);
+ assert.deepEqual(v4VerificationStatus(value),{required:true,attempted:false,satisfied:false});
+});
+
 test('handoff refuses target mismatch, credentialed URLs and promoted leads',()=>{
  for(const bad of [
   {...handoff,targetMarket:'NO'},
