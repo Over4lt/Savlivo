@@ -43,7 +43,10 @@ export function evaluateV2Robots(parsed,target,productToken=researchProductToken
   if(parsed.globalIssues?.length)return blocked('AMBIGUOUS_POLICY_STRUCTURE','APPLICABLE_PARSE_AMBIGUITY',[],parsed.globalIssues);
   const token=productToken.toLowerCase();
   // Nonstandard selectors containing our token might apply: never silently discard them.
-  const ambiguous=parsed.groups.flatMap(g=>g.agentIssues).filter(a=>a.value.includes(token)||token.startsWith(a.value.match(/^[a-z_-]+/i)?.[0]??'') );
+  const ambiguous=parsed.groups.flatMap(g=>g.agentIssues).filter(a=>{
+   const prefix=a.value.match(/^[a-z_-]+/i)?.[0];
+   return a.value.includes(token)||!!prefix&&token.startsWith(prefix);
+  });
   if(ambiguous.length)return blocked('AMBIGUOUS_APPLICABLE_AGENT','APPLICABLE_PARSE_AMBIGUITY',[],ambiguous);
   const specific=parsed.groups.filter(g=>g.agents.includes(token));
   const selected=specific.length?specific:parsed.groups.filter(g=>g.agents.includes('*'));

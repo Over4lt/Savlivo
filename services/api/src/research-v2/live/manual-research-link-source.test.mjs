@@ -23,13 +23,15 @@ const target=(market,url)=>({id:'disney-plus-'+market,service:'disney-plus',serv
 const staticBody=(market,currency,base)=>`<!doctype html><html lang="en-${market}"><head><title>Plans and Pricing | Disney+ Help Center</title><meta name="description" content="Discover the different streaming plans Disney+ offers and how much Disney+ costs."></head><body><main><h1>Plans and Pricing</h1><p>Disney+ plans are billed monthly on the signup date.</p><h3>Pricing (${currency})</h3><ul>${['Standard with ads','Standard','Premium'].map((name,index)=>`<li><p><span>${name}: ${currency} ${base+index*5} / month</span></p></li>`).join('')}</ul><section><h2>Annual options</h2><p>${currency} ${base*10} / year, billed yearly. Monthly equivalent ${currency} ${(base*10/12).toFixed(2)} / month, billed yearly.</p></section><section><h2>Bundle options</h2><p>Disney+ + Other service bundle: ${currency} 99 / month.</p></section></main></body></html>`;
 const fail=()=>assert.fail('Broad discovery ran before the manual source was inspected');
 
-async function fixture(t,{market='US',requestedUrl=rootUrl,finalUrl=requestedUrl,body=staticBody(market,'USD',11),geoCountry=market,maxActions=1,render=null}={}){
+async function fixture(t,{market='US',requestedUrl=rootUrl,finalUrl=requestedUrl,body=staticBody(market,'USD',11),geoCountry=market,maxActions=1,render=null,robotsPolicy='User-agent: *\nAllow: /',robotsRedirect=false}={}){
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'manual-source-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
  const current=target(market,requestedUrl),wire=[];
  assert.deepEqual([planResearch(current).route,planResearch(current).url],['DECODO',requestedUrl]);
  const bundle=createDecodoProvider({env:runtime,resolveHost:async()=>[{address:'93.184.216.34',family:4}],requestHop:async r=>{
   const url=r.url.href;wire.push({url,country:r.targetCountry});let result;
-  if(url===origin+'/robots.txt'||url==='https://ipwho.is/robots.txt')result=response('User-agent: *\nAllow: /','text/plain');
+  if(url===origin+'/robots.txt'&&robotsRedirect)result=response('','text/plain',302,{location:'/policy/robots.txt'});
+  else if(url===origin+'/robots.txt'||url===origin+'/policy/robots.txt')result=response(robotsPolicy,'text/plain');
+  else if(url==='https://ipwho.is/robots.txt')result=response('User-agent: *\nAllow: /','text/plain');
   else if(url==='https://ipwho.is/?fields=success,ip,country_code')result=response(JSON.stringify({success:true,ip:'93.184.216.34',country_code:geoCountry}),'application/json');
   else if(url===requestedUrl&&requestedUrl!==finalUrl)result=response('','text/html',302,{location:finalUrl});
   else if(url===finalUrl)result=response(body);
@@ -97,6 +99,20 @@ test('manual root app shell is inspected before Browser diagnosis, while ordinar
  const plainResult=await fixture(t,{body:'<html><head><title>Disney+ Help</title></head><body><main><p>Choose a plan to learn more.</p></main></body></html>'}),plainOutcome=assertRetainedSource(plainResult);
  assert.equal(v3ResultFromTarget(plainResult.current).verified.length,0);assert.equal(plainOutcome.renderingRequired,false);assert.equal(plainResult.current.researchLinkOutcomes[0].result,'PROVIDER_SOURCE_NO_VERIFIED');
  assert.notEqual(planResearch(plainResult.current)?.reason,'PRICE_RESEARCH_VERIFICATION_REQUIRED');
+});
+
+test('manual root survives irrelevant numeric robot group and checked same-origin robots redirect',async t=>{
+ const result=await fixture(t,{robotsPolicy:'User-agent: 360spider\nDisallow: /\nUser-agent: *\nAllow: /',robotsRedirect:true}),outcome=assertRetainedSource(result),canonical=v3ResultFromTarget(result.current);
+ assert.equal(canonical.suggested.length,3);assert.equal(canonical.verified.length,3);
+ assert.equal(outcome.renderingRequired,false);
+ assert.equal(result.wire.filter(row=>row.url===origin+'/robots.txt').length,1);
+ assert.equal(result.wire.filter(row=>row.url===origin+'/policy/robots.txt').length,1);
+});
+
+test('manual root stays blocked when applicable robots policy disallows it',async t=>{
+ const result=await fixture(t,{robotsPolicy:'User-agent: *\nDisallow: /'}),outcome=result.current.acquisitionOutcomes[0];
+ assert.equal(outcome.classification,'POLICY_BLOCKED');assert.equal(v3ResultFromTarget(result.current).verified.length,0);
+ assert.equal(result.wire.some(row=>row.url===rootUrl),false);
 });
 
 test('invalid G1 cannot establish a manual root source as canonical truth',async t=>{
