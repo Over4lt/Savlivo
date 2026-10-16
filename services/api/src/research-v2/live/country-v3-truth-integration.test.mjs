@@ -61,6 +61,29 @@ test('country-bound dollar and Euro price lists with the same provider page shap
  }
 });
 
+test('country-bound price lists retain grouped amounts and local currency symbols',()=>{
+ const pageUrl='https://help.example.com/en/plans',cases=[
+  ['BR','Brazilian Real',['R$25,90','R$51,90'],'BRL',[25.9,51.9]],
+  ['CZ','Czech Crowns',['259,00 Kč','339,00 Kč'],'CZK',[259,339]],
+  ['JP','Japanese Yen',['1,590 JPY','2,290 JPY'],'JPY',[1590,2290]],
+  ['KR','South Korean Won',['7,000 KRW','13,500 KRW'],'KRW',[7000,13500]],
+  ['ID','Indonesian Rupiah',['54,000 IDR','120,000 IDR'],'IDR',[54000,120000]],
+  ['VN','Vietnamese Dong',['74,000 VND','231,000 VND'],'VND',[74000,231000]],
+  ['CL','Chilean Peso',['7,190 CLP','12,990 CLP'],'CLP',[7190,12990]],
+  ['CO','Colombian Peso',['18,900 COP','50,900 COP'],'COP',[18900,50900]],
+ ];
+ for(const [market,heading,prices,currency,amounts] of cases){
+  const targetValue=target({market,providerSourceIdentityHosts:['example.com'],authorities:[]}),body=listedPricing(`Standard: ${prices[0]} / month|Premium: ${prices[1]} / month`).replace('Pricing (Norwegian Krone)',`Pricing (${heading})`),result=evaluateCountryProviderTruth(countryFixture(body,{targetValue,pageUrl})),established=projectEstablishedV3Offerings({...targetValue,...result});
+  assert.deepEqual(established.map(row=>[row.name,row.ordinaryRecurringPrice.amount,row.ordinaryRecurringPrice.currency]),[['Standard',amounts[0],currency],['Premium',amounts[1],currency]],market);
+  assert.deepEqual(new Set(result.v3SuggestedCandidates.map(row=>row.researchEvidence.exactOfferId)),new Set(established.map(row=>row.id)),market);
+ }
+});
+
+test('malformed grouped price cannot split into a fabricated zero charge',()=>{
+ const pageUrl='https://help.example.com/en/plans',targetValue=target({market:'JP',providerSourceIdentityHosts:['example.com'],authorities:[]}),body=listedPricing('Standard: 1,59,0 JPY / month|Premium: 2,29,0 JPY / month').replace('Pricing (Norwegian Krone)','Pricing (Japanese Yen)'),result=evaluateCountryProviderTruth(countryFixture(body,{targetValue,pageUrl}));
+ assert.deepEqual(projectEstablishedV3Offerings({...targetValue,...result}),[]);
+});
+
 test('ambiguous dollar sign without an explicit currency heading cannot become a price',()=>{
  const pageUrl='https://help.example.com/en/plans',targetValue=target({market:'US',providerSourceIdentityHosts:['example.com'],authorities:[]}),body=listedPricing('Standard with ads: $8.99 / month|Standard: $19.99 / month|Premium: $26.99 / month').replace('Pricing (Norwegian Krone)','Pricing'),result=evaluateCountryProviderTruth(countryFixture(body,{targetValue,pageUrl}));
  assert.equal(projectEstablishedV3Offerings({...targetValue,...result}).length,0);

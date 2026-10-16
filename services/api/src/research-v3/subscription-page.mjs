@@ -141,13 +141,13 @@ function componentIdentities(parsed,providerName){
  const byName=new Map();for(const row of found.sort((a,b)=>a.range-b.range))if(!byName.has(comparable(row.name)))byName.set(comparable(row.name),row);return [...byName.values()].map(({range,...row})=>row);
 }
 
-const symbolCurrency=new Map([['€','EUR'],['£','GBP'],['¥','JPY'],['CA$','CAD'],['A$','AUD'],['US$','USD']]);
+const symbolCurrency=new Map([['€','EUR'],['£','GBP'],['¥','JPY'],['CA$','CAD'],['A$','AUD'],['US$','USD'],['R$','BRL'],['Kč','CZK']]);
 const currencyNames=new Map();
 const displayCurrencies=new Intl.DisplayNames(['en'],{type:'currency'});
 for(const code of Intl.supportedValuesOf('currency')){const name=displayCurrencies.of(code)?.toLocaleLowerCase('en');if(name)currencyNames.set(name,currencyNames.has(name)?null:code);}
 function headingCurrency(text){const name=/^pricing\s*\(([^)]+)\)/iu.exec(text)?.[1]?.trim().toLocaleLowerCase('en'),code=name?currencyNames.get(name):null;return code&&new Intl.NumberFormat('en',{style:'currency',currency:code,currencyDisplay:'narrowSymbol'}).formatToParts(1).find(part=>part.type==='currency')?.value==='$'?code:null;}
 function number(raw){const value=raw.replace(/[\u00a0\u202f ]/gu,'');if(/^\d+$/.test(value))return Number(value);if(/^\d+[.,]\d{1,2}$/.test(value))return Number(value.replace(',','.'));if(/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(value))return Number(value.replaceAll(',',''));if(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(value))return Number(value.replaceAll('.','').replace(',','.'));return null;}
-const money=/((?:[A-Z]{3}|CA\$|A\$|US\$|[$€£¥])\s*)?(\d+(?:[ .\u00a0\u202f]\d{3})*(?:[.,]\d{1,2})?)\s*((?:[A-Z]{3}|[$€£¥]))?/gu;
+const money=/((?:[A-Z]{3}|CA\$|A\$|US\$|R\$|Kč|[$€£¥])\s*)?(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[ .\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d.,])\s*((?:[A-Z]{3}|R\$|Kč|[$€£¥]))?/gu;
 function charges(text,currencyHint=null){
  const rows=[];for(const match of text.matchAll(money)){const mark=normalized((match[1]??'')||(match[3]??'')),currency=/^[A-Z]{3}$/.test(mark)?mark:symbolCurrency.get(mark)??(mark==='$'?currencyHint:null);if(!currency)continue;const amount=number(match[2]);if(amount===null)continue;
   const after=text.slice(match.index+match[0].length,match.index+match[0].length+48),cadenceMatch=after.match(/^\s*(?:(?:\/|per\s+|a\s+|each\s+|every\s+)\s*)?(months?|monthly|mo\b|years?|yearly|annually|annual\b|yr\b)/iu);if(!cadenceMatch)continue;const cadence=/month|monthly|\bmo\b/iu.test(cadenceMatch[1])?'MONTHLY':'YEARLY',left=Math.max(0,match.index-64),right=Math.min(text.length,match.index+match[0].length+cadenceMatch[0].length+96),context=text.slice(left,right),trial=/\b(?:trial|introductory|first\s+(?:month|\d+\s+months?))\b/iu.test(context),nonCharge=/\b(?:save|saving|discount|credit|benefit|worth|value)\b[^.;]{0,32}$/iu.test(text.slice(left,match.index));if(nonCharge)continue;
