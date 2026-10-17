@@ -12,14 +12,15 @@ const value=flag=>{const at=args.indexOf(flag);return at<0?undefined:args[at+1];
 const service=value('--service'),market=value('--market'),apply=args.includes('--apply'),expected=value('--expect-digest');
 if(!/^[a-z0-9-]+$/.test(service??'')||!(/^[A-Z]{2}$/).test(market??'')||apply&&!/^[a-f0-9]{64}$/.test(expected??'')||!apply&&expected)throw Error('REPAIR_ARGUMENTS_INVALID');
 
-const current=row=>({serviceSlug:row.service_slug,planSlug:row.plan_slug,planName:row.plan_name,
+const current=row=>({serviceSlug:row.service_slug,planSlug:row.plan_slug,planIdentity:row.plan_identity,planName:row.plan_name,
  billingProviderSlug:row.billing_provider_slug,countryCode:row.country_code,currency:row.currency,
- monthlyPriceMinor:row.monthly_price_minor,verification:row.verification,sourceCount:row.source_count,
+ monthlyPriceMinor:row.monthly_price_minor,source:row.source,sourceUrl:row.source_url,verification:row.verification,sourceCount:row.source_count,
  verifiedByAgreement:row.verified_by_agreement,verifiedAt:row.verified_at_exact,
  lastCheckedAt:row.last_checked_at_exact});
 const observation=row=>({serviceSlug:row.service_slug,planSlug:row.plan_slug,planName:row.plan_name,
  billingProviderSlug:row.billing_provider_slug,countryCode:row.country_code,currency:row.currency,
- monthlyPriceMinor:row.monthly_price_minor,verification:row.verification,
+ monthlyPriceMinor:row.monthly_price_minor,source:row.source,sourceUrl:row.source_url,verification:row.verification,
+ sourceCount:row.source_count,verifiedByAgreement:row.verified_by_agreement,
  providerVerifiedAt:row.provider_verified_at_exact});
 const compact=plan=>({digest:plan.digest,ready:plan.ready,candidateCount:plan.candidateCount,deleteCount:plan.deleteCount,
  groups:plan.groups.map(({keep,remove,missingHistory})=>({keep:{planSlug:keep.planSlug,planName:keep.planName,amount:keep.monthlyPriceMinor,currency:keep.currency,verifiedAt:keep.verifiedAt},remove:{planSlug:remove.planSlug,planName:remove.planName,amount:remove.monthlyPriceMinor,currency:remove.currency,verifiedAt:remove.verifiedAt},missingHistory})),refused:plan.refused});

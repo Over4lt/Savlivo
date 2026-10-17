@@ -26,8 +26,8 @@ export function equivalentVerifiedPlan(a,b,serviceName){
 
 const timestamp=row=>Date.parse(row.verifiedAt??'');
 const identity=row=>[row.serviceSlug,row.planSlug,row.billingProviderSlug,row.countryCode,row.currency].join('\u0000');
-const observationMatches=(observation,row)=>['serviceSlug','planSlug','planName','billingProviderSlug','countryCode','currency','monthlyPriceMinor'].every(field=>observation[field]===row[field])&&observation.verification===row.verification&&observation.providerVerifiedAt===row.verifiedAt;
-export const verifiedSnapshotDigest=rows=>createHash('sha256').update(JSON.stringify(rows.map(row=>[identity(row),row.planName,row.monthlyPriceMinor,row.verification,row.verifiedAt,row.lastCheckedAt]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))))).digest('hex');
+const observationMatches=(observation,row)=>['serviceSlug','planSlug','planName','billingProviderSlug','countryCode','currency','monthlyPriceMinor','source','sourceUrl','verification','sourceCount','verifiedByAgreement'].every(field=>observation[field]===row[field])&&observation.providerVerifiedAt===row.verifiedAt;
+export const verifiedSnapshotDigest=rows=>createHash('sha256').update(JSON.stringify(rows.map(row=>[identity(row),row.planIdentity,row.planName,row.monthlyPriceMinor,row.source,row.sourceUrl,row.verification,row.sourceCount,row.verifiedByAgreement,row.verifiedAt,row.lastCheckedAt]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))))).digest('hex');
 
 export function planVerifiedCurrentRepair(rows,observations,serviceName){
  const digest=verifiedSnapshotDigest(rows),seen=new Set(),groups=[],refused=[];
