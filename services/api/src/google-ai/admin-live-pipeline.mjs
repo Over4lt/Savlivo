@@ -11,6 +11,7 @@ import {createV4SuggestedSnapshot,createV3Handoff} from './research-handoff.mjs'
 import {canonicalPlanEvidenceCounts,mergeResearch,normalizeSuggestedResearchRow} from './monotonic-merge.mjs';
 import {researchMonthlyRecurringWithRecovery} from './monthly-recurring.mjs';
 import {reviewedProviderNamespacesFor,reviewedNamespaceMatches} from '../research-v3/reviewed-provider-namespaces.mjs';
+import {equivalentVerifiedPlan} from '../verified-price-reconciliation.mjs';
 
 export const adminGooglePipelineLimits=Object.freeze({targets:32});
 const slug=value=>String(value??'').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,120)||'plan';
@@ -60,7 +61,7 @@ export function readLifecycleV3Results(output,targets){
 function verifiedAdapters(target,rows){
   return rows.filter(row=>row.sourceUrl&&Number(row.amount)>0&&/^[A-Z]{3}$/.test(row.currency??'')).map(row=>({
     planIdentity:row.planIdentity,
-    serviceSlug:target.service,planSlug:slug(row.plan),planName:String(row.plan),billingProviderSlug:'direct',countryCode:target.market,
+    serviceSlug:target.service,serviceName:target.serviceName,planSlug:slug(row.plan),planName:String(row.plan),billingProviderSlug:'direct',countryCode:target.market,
     currency:row.currency,monthlyPriceMinor:Math.round(Number(row.amount)*100),updatedAt:row.verifiedAt??new Date().toISOString(),
     source:'v3-truth',sourceUrl:row.sourceUrl,confidence:'official-provider-adapter',priceType:'exact',verification:'authoritative-provider',sourceCount:1,verifiedByAgreement:false
   }));
@@ -68,6 +69,20 @@ function verifiedAdapters(target,rows){
 
 function existingVerifiedRows(items,target){
   return items.map(item=>({plan:item.planName,planIdentity:item.planIdentity??pricePlanIdentity(target,item.planName,item.currency),amount:item.monthlyPriceMinor/100,currency:item.currency,paymentCadence:'MONTHLY_RECURRING',sourceUrl:item.sourceUrl,verifiedAt:item.updatedAt,provenance:'EXISTING_VERIFIED'}));
+}
+
+function currentRowsBeforeVerifiedWrite(persisted,incoming,serviceName){
+ const replacements=new Map();
+ for(const fresh of incoming){
+  const scoped=persisted.filter(old=>old.serviceSlug===fresh.serviceSlug&&old.billingProviderSlug===fresh.billingProviderSlug&&old.countryCode===fresh.countryCode&&old.currency===fresh.currency&&old.verification===fresh.verification);
+  const aliases=scoped.filter(old=>equivalentVerifiedPlan(old,fresh,serviceName));
+  if(aliases.length>1)continue;
+  const exact=scoped.find(old=>old.planSlug===fresh.planSlug);
+  if(exact&&Date.parse(fresh.updatedAt)>=Date.parse(exact.updatedAt))replacements.set(exact,(replacements.get(exact)??0)+1);
+  const alias=aliases[0];
+  if(alias&&Date.parse(fresh.updatedAt)>=Date.parse(alias.updatedAt))replacements.set(alias,(replacements.get(alias)??0)+1);
+ }
+ return persisted.filter(old=>replacements.get(old)!==1);
 }
 
 function alignVerifiedWithPersisted(target,rows,persisted){
@@ -124,7 +139,9 @@ export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,
   for(const session of sessions){
     const {target,state,acquisition}=session,v3Result=downstream?.v3Results?.[target.id]??{suggested:[],verified:[],contradictions:[],operationalFailures:[{kind:'V3_RESULT_UNAVAILABLE'}]},currency=countryCurrencies[target.market]??v3Result.suggested?.[0]?.currency??state.snapshot.suggested[0]?.currency??'';
     let persistedVerified=[];if(currency)try{persistedVerified=(await loadVerified(target.market,currency)).filter(row=>row.serviceSlug===target.service);}catch{persistedVerified=[];}
-    const existing=existingVerifiedRows(persistedVerified,target),resolved=reconcileV3PlanIdentities(target,state.snapshot,v3Result,persistedVerified),alignedV3Result=resolved.v3Result;
+    const incomingVerified=verifiedAdapters(target,v3Result.verified??[]);
+    const currentExisting=currentRowsBeforeVerifiedWrite(persistedVerified,incomingVerified,target.serviceName);
+    const existing=existingVerifiedRows(currentExisting,target),resolved=reconcileV3PlanIdentities(target,state.snapshot,v3Result,persistedVerified),alignedV3Result=resolved.v3Result;
     const combined=mergeResearch({snapshot:resolved.snapshot,v3Result:alignedV3Result,existingVerified:existing}),productPlans=projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined});
     if(productPlans.some(plan=>plan.suggested||plan.suggestedHistory.length))await persistSuggested(productPlans);
     const acceptedVerified=verifiedAdapters(target,alignedV3Result.verified);if(acceptedVerified.length)await persistVerified(acceptedVerified);

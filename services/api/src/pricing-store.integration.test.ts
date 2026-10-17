@@ -248,6 +248,29 @@ test(
   }
 );
 
+test("service-prefixed Verified successor keeps one current row and two historical prices", async () => {
+  const slugs=["integration-test-standard","integration-test-netflix-standard"];
+  const clear=async()=>{
+    await pool.query("DELETE FROM verified_provider_prices WHERE service_slug='netflix' AND country_code='DE' AND plan_slug=ANY($1::text[])",[slugs]);
+    await pool.query("DELETE FROM verified_price_observations WHERE service_slug='netflix' AND country_code='DE' AND plan_slug=ANY($1::text[])",[slugs]);
+  };
+  await clear();
+  try {
+    const old=price({planSlug:slugs[0],planName:"Standard",monthlyPriceMinor:1399,
+      updatedAt:"2026-08-30T13:39:54.000Z",verification:"authoritative-provider",sourceCount:1,verifiedByAgreement:false});
+    const current=price({planSlug:slugs[1],planName:"Netflix Standard",monthlyPriceMinor:1499,
+      updatedAt:"2026-10-16T23:33:45.000Z",verification:"authoritative-provider",sourceCount:1,verifiedByAgreement:false});
+    await persistVerifiedLivePrices([old]);
+    await persistVerifiedLivePrices([current]);
+    await persistVerifiedLivePrices([current]);
+    const rows=(await pool.query("SELECT plan_slug,monthly_price_minor FROM verified_provider_prices WHERE service_slug='netflix' AND country_code='DE' AND plan_slug=ANY($1::text[])",[slugs])).rows;
+    const observations=(await pool.query("SELECT plan_slug,monthly_price_minor,provider_verified_at FROM verified_price_observations WHERE service_slug='netflix' AND country_code='DE' AND plan_slug=ANY($1::text[]) ORDER BY id",[slugs])).rows;
+    assert.deepEqual(rows.map(row=>[row.plan_slug,row.monthly_price_minor]),[[slugs[1],1499]]);
+    assert.deepEqual(observations.map(row=>[row.plan_slug,row.monthly_price_minor]),[[slugs[0],1399],[slugs[1],1499]]);
+    assert.equal(new Date(observations[0].provider_verified_at).toISOString(),old.updatedAt);
+  } finally { await clear(); }
+});
+
 test.after(async () => {
   await cleanup();
   await pool.end();

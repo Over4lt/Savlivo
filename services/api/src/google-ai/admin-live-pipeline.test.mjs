@@ -75,6 +75,23 @@ test('three persisted catalog plans and three fresh V3 plans remain three across
  }
 });
 
+test('new service-prefixed Verified plans do not double the current Disney NO result',async()=>{
+ const disney={id:'disney-plus-NO',service:'disney-plus',serviceName:'Disney+',market:'NO'};
+ const names=['Standard with Ads','Standard','Premium'],amounts=[69,109,159],newAmounts=[89,129,179];
+ const stored=names.flatMap((name,index)=>[
+  {serviceSlug:'disney-plus',planSlug:name.toLowerCase().replaceAll(' ','-'),planName:name,billingProviderSlug:'direct',countryCode:'NO',currency:'NOK',monthlyPriceMinor:amounts[index]*100,verification:'authoritative-provider',updatedAt:'2026-09-23T09:25:11Z',planIdentity:catalogPlanIdentity({serviceSlug:'disney-plus',planSlug:name.toLowerCase().replaceAll(' ','-'),billingProviderSlug:'direct',countryCode:'NO',currency:'NOK'})},
+  {serviceSlug:'disney-plus',planSlug:`disney-${name.toLowerCase().replaceAll(' ','-')}`,planName:`Disney+ ${name}`,billingProviderSlug:'direct',countryCode:'NO',currency:'NOK',monthlyPriceMinor:newAmounts[index]*100,verification:'authoritative-provider',updatedAt:'2026-10-16T23:33:45Z',planIdentity:catalogPlanIdentity({serviceSlug:'disney-plus',planSlug:`disney-${name.toLowerCase().replaceAll(' ','-')}`,billingProviderSlug:'direct',countryCode:'NO',currency:'NOK'})}
+ ]);
+ const incoming=names.map((name,index)=>({plan:`Disney+ ${name}`,amount:newAmounts[index],currency:'NOK',sourceUrl:'https://provider.example/no/plans',verifiedAt:'2026-10-17T00:00:00Z',provenance:'V3_VERIFIED'}));
+ for(let run=0;run<2;run++){
+  const result=await runAdminV4FirstResearch({targets:[disney],...stores(),loadVerified:async()=>structuredClone(stored),acquireGoogle:async()=>acquisition('GOOGLE_AI_ACCESS_FAILURE'),runDownstream:async()=>({result:{},v3Results:{[disney.id]:{suggested:[],verified:incoming,contradictions:[],operationalFailures:[]}}})});
+  const current=result.targets[0];
+  assert.deepEqual(current.planCounts,{suggestedPlans:0,verifiedPlans:3});
+  assert.equal(current.combined.plans.length,3);
+  assert.deepEqual(new Set(current.combined.plans.map(plan=>plan.activePrice.amount)),new Set(newAmounts));
+ }
+});
+
 test('three valid Gemini plans survive unresolved V3 as Suggested',async()=>{
  const plans=['Gold','Platinum','Diamond'].map((name,index)=>({...plan,planName:name,amount:[7.99,12.99,19.99][index],ordinaryRecurringPrice:[7.99,12.99,19.99][index]}));
  const {row,earlySnapshot}=await execute({google:acquisition('GOOGLE_AI_SUCCESS',plans),v3:{suggested:[],verified:[],contradictions:[],operationalFailures:[{kind:'UNRESOLVED'}]}});

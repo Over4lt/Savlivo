@@ -32,6 +32,7 @@ export type BillingProviderSlug =
 export type AdapterPrice = {
   planIdentity?: string;
   serviceSlug: string;
+  serviceName?: string;
   planSlug: string;
   planName: string;
   billingProviderSlug: BillingProviderSlug;
