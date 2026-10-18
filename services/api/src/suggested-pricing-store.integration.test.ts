@@ -45,8 +45,10 @@ test("Suggested history remains available while Verified price stays authoritati
   try {
     await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public");
     await pool.query(sql("db/schema.sql"));
+    await pool.query(sql("db/migrations/014_verified_price_observations.sql"));
     await pool.query(sql("db/migrations/019_suggested_provider_prices.sql"));
     await pool.query(sql("db/migrations/019_suggested_provider_prices.sql"));
+    await pool.query(sql("db/migrations/023_durable_verified_price_history.sql"));
 
     assert.deepEqual(await persistSuggestedProductPlans([plan]), {receivedPlans: 1, persisted: 2});
     assert.deepEqual(await persistSuggestedProductPlans([plan]), {receivedPlans: 1, persisted: 2});

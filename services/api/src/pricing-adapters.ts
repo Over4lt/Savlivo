@@ -31,6 +31,7 @@ export type BillingProviderSlug =
 
 export type AdapterPrice = {
   planIdentity?: string;
+  billingInterval?: "MONTHLY_RECURRING" | "ANNUAL_RECURRING";
   serviceSlug: string;
   serviceName?: string;
   planSlug: string;

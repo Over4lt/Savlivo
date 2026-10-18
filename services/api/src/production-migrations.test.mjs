@@ -80,6 +80,15 @@ test('022 adds only per-service market exclusions and preserves pricing/history 
  assert.doesNotMatch(sql,/\b(?:DELETE|TRUNCATE|DROP TABLE|UPDATE)\b[^;]*(?:verified_provider_prices|suggested_provider_prices|verified_price_observations)/i);
 });
 
+test('023 adds series metadata without backfilling or changing existing prices and observations',()=>{
+ assert.equal(migrationFiles.filter(file=>file.endsWith('023_durable_verified_price_history.sql')).length,1);
+ const sql=fs.readFileSync(productionRoot+'db/migrations/023_durable_verified_price_history.sql','utf8');
+ for(const field of ['history_series_id','plan_identity','billing_interval','history_event_kind','provider_effective_at'])
+  assert.match(sql,new RegExp('\\b'+field+'\\b'));
+ assert.match(sql,/verified_price_observations_series_time_unique/);
+ assert.doesNotMatch(sql,/\b(?:DELETE|TRUNCATE|DROP TABLE|UPDATE|INSERT INTO)\b/i);
+});
+
 test('fresh and repeated startup apply each migration once; Research links GET uses migrated shape',async()=>{
  const db=new MigrationDatabase(),first=await runProductionMigrations(db),second=await runProductionMigrations(db);
  assert.equal(first.applied,migrationFiles.length+1);assert.equal(second.applied,0);assert.equal(second.skipped,migrationFiles.length+1);
@@ -99,7 +108,7 @@ test('fresh and repeated startup apply each migration once; Research links GET u
 
 test('verified legacy schema is baselined without replaying old data migrations, then additive migrations run',async()=>{
  const db=new MigrationDatabase({legacy:true}),result=await runProductionMigrations(db);
- assert.equal(result.baselined,15);assert.equal(result.applied,5);assert.equal(db.links,true);
+ assert.equal(result.baselined,15);assert.equal(result.applied,6);assert.equal(db.links,true);
  assert.equal(db.queries.some(row=>row.sql.includes("DO UPDATE SET\n  name = EXCLUDED.name")),false);
  assert.equal((await runProductionMigrations(db)).applied,0);
 });

@@ -1,10 +1,12 @@
 import { pool } from "./db.js";
+import { createHash } from "node:crypto";
 import type { AdapterPrice } from "./pricing-adapters.js";
 import { catalogPlanIdentity } from "../../../packages/contracts/src/product-pricing.js";
 import { serviceCatalog } from "../../../packages/contracts/src/catalog.js";
 import { equivalentVerifiedPlan, semanticVerifiedAlias } from "./verified-price-reconciliation.mjs";
 
 const currentRow = (row: any) => ({
+  planIdentity: row.plan_identity, historySeriesId: row.history_series_id ?? null,
   serviceSlug: row.service_slug, planSlug: row.plan_slug, planName: row.plan_name,
   billingProviderSlug: row.billing_provider_slug, countryCode: row.country_code,
   currency: row.currency, monthlyPriceMinor: row.monthly_price_minor,
@@ -14,7 +16,45 @@ const currentRow = (row: any) => ({
   lastCheckedAt: row.last_checked_at_exact ?? new Date(row.last_checked_at).toISOString()
 });
 
-async function preserveObservation(client: any, row: ReturnType<typeof currentRow>) {
+type HistoryRow = ReturnType<typeof currentRow>;
+const strong = (row: HistoryRow) => row.verification === "authoritative-provider" ||
+  row.verification === "multi-source" && row.verifiedByAgreement === true && row.sourceCount >= 2;
+const seriesId = (row: HistoryRow, restartAt?: string) => "vh:" + createHash("sha256").update(JSON.stringify([
+  row.serviceSlug,row.countryCode,row.billingProviderSlug,row.currency,"MONTHLY_RECURRING",
+  row.planIdentity ?? catalogPlanIdentity(row),row.planSlug,restartAt??null
+])).digest("hex");
+
+async function latestHistory(client: any, id: string) {
+  const result = await client.query(`SELECT monthly_price_minor,provider_verified_at
+    FROM verified_price_observations WHERE history_series_id=$1
+    ORDER BY provider_verified_at DESC LIMIT 1`,[id]);
+  return result.rows[0] ?? null;
+}
+
+async function appendHistory(client: any, row: HistoryRow, id: string,
+  kind: "BASELINE" | "BOOTSTRAP_BASELINE" | "PRICE_CHANGE") {
+  const args=[id,kind,row.planIdentity ?? catalogPlanIdentity(row),row.serviceSlug,row.planSlug,
+    row.planName,row.billingProviderSlug,row.countryCode,row.currency,row.monthlyPriceMinor,
+    row.source,row.sourceUrl,row.verification,row.sourceCount,row.verifiedByAgreement,row.verifiedAt];
+  const inserted=await client.query(`INSERT INTO verified_price_observations
+    (history_series_id,history_event_kind,plan_identity,billing_interval,
+     service_slug,plan_slug,plan_name,billing_provider_slug,country_code,currency,
+     monthly_price_minor,source,source_url,verification,source_count,verified_by_agreement,provider_verified_at)
+    VALUES($1,$2,$3,'MONTHLY_RECURRING',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::timestamptz)
+    ON CONFLICT (history_series_id,provider_verified_at) WHERE history_series_id IS NOT NULL DO NOTHING
+    RETURNING id`,args);
+  if(inserted.rowCount)return;
+  const existing=await client.query(`SELECT monthly_price_minor,currency,history_event_kind
+    FROM verified_price_observations WHERE history_series_id=$1 AND provider_verified_at=$2::timestamptz`,
+    [id,row.verifiedAt]);
+  if(existing.rows.length!==1 || existing.rows[0].monthly_price_minor!==row.monthlyPriceMinor ||
+    existing.rows[0].currency!==row.currency || existing.rows[0].history_event_kind!==kind)
+    throw new Error("VERIFIED_HISTORY_EVENT_CONFLICT");
+}
+
+// A pre-migration dual-current alias can have an older, separate price. Keep
+// that original evidence without assigning it to a series by guesswork.
+async function preserveLegacyAlias(client: any, row: HistoryRow) {
   await client.query(`INSERT INTO verified_price_observations
     (service_slug,plan_slug,plan_name,billing_provider_slug,country_code,currency,
      monthly_price_minor,source,source_url,verification,source_count,verified_by_agreement,provider_verified_at)
@@ -48,6 +88,8 @@ export async function persistVerifiedLivePrices(
   let persisted = 0;
 
   for (const item of verified) {
+    if(item.billingInterval && item.billingInterval!=="MONTHLY_RECURRING")
+      throw new Error("VERIFIED_PRICE_BILLING_INTERVAL_UNSUPPORTED");
     const observedAt = Date.parse(item.updatedAt);
     if (!Number.isFinite(observedAt)) throw new Error("VERIFIED_PRICE_TIMESTAMP_INVALID");
     const serviceName = serviceCatalog.find(service => service.slug === item.serviceSlug)?.name ?? item.serviceName;
@@ -76,8 +118,32 @@ export async function persistVerifiedLivePrices(
         await client.query("COMMIT");
         continue;
       }
-      if (alias) await preserveObservation(client,alias);
-      if (exact && exact.verification !== "registry" && (exact.monthlyPriceMinor !== item.monthlyPriceMinor || exact.planName !== item.planName)) await preserveObservation(client,exact);
+      const existingIds=[...new Set([exact?.historySeriesId,alias?.historySeriesId].filter(Boolean))];
+      if(existingIds.length>1)throw new Error("VERIFIED_HISTORY_SERIES_AMBIGUOUS");
+      const predecessor=exact&&strong(exact)?exact:alias??null;
+      const incoming:HistoryRow={planIdentity:item.planIdentity??catalogPlanIdentity(item),historySeriesId:null,
+        serviceSlug:item.serviceSlug,planSlug:item.planSlug,planName:item.planName,
+        billingProviderSlug:item.billingProviderSlug,countryCode:item.countryCode,currency:item.currency,
+        monthlyPriceMinor:item.monthlyPriceMinor,source:item.source,sourceUrl:item.sourceUrl,
+        verification:item.verification,sourceCount:item.sourceCount,verifiedByAgreement:item.verifiedByAgreement,
+        verifiedAt:item.updatedAt,lastCheckedAt:item.updatedAt};
+      let historySeriesId=existingIds[0]??seriesId(alias??predecessor??incoming);
+      let prior=await latestHistory(client,historySeriesId);
+      // A current row can have been explicitly removed while its immutable
+      // history remains. A later fresh admission starts a new series.
+      if(!predecessor&&prior){historySeriesId=seriesId(incoming,item.updatedAt);prior=await latestHistory(client,historySeriesId);}
+      if(predecessor){
+        if(!prior&&alias&&exact&&strong(exact)){
+          if(Date.parse(alias.verifiedAt)>=Date.parse(exact.verifiedAt))
+            throw new Error("VERIFIED_HISTORY_DUAL_CURRENT_ORDER_AMBIGUOUS");
+          await appendHistory(client,alias,historySeriesId,"BOOTSTRAP_BASELINE");
+          if(alias.monthlyPriceMinor!==exact.monthlyPriceMinor)
+            await appendHistory(client,exact,historySeriesId,"PRICE_CHANGE");
+        } else if(!prior)await appendHistory(client,predecessor,historySeriesId,"BOOTSTRAP_BASELINE");
+        else if(prior.monthly_price_minor!==predecessor.monthlyPriceMinor)
+          throw new Error("VERIFIED_HISTORY_CURRENT_MISMATCH");
+      } else if(prior)throw new Error("VERIFIED_HISTORY_ORPHAN_SERIES");
+      if(alias&&exact&&prior)await preserveLegacyAlias(client,alias);
       if (alias) await client.query(`DELETE FROM verified_provider_prices WHERE service_slug=$1 AND plan_slug=$2
         AND billing_provider_slug=$3 AND country_code=$4 AND currency=$5`,
         [alias.serviceSlug,alias.planSlug,alias.billingProviderSlug,alias.countryCode,alias.currency]);
@@ -85,6 +151,7 @@ export async function persistVerifiedLivePrices(
       `
         INSERT INTO verified_provider_prices (
           plan_identity,
+          history_series_id,
           service_slug,
           plan_slug,
           plan_name,
@@ -101,7 +168,7 @@ export async function persistVerifiedLivePrices(
           last_checked_at
         )
         VALUES (
-          $1, $2, $3, $4, $5, $6, $7,
+          $1, $15, $2, $3, $4, $5, $6, $7,
           $8, $9, $10, $11, $12, $13,
           $14::timestamptz, $14::timestamptz
         )
@@ -118,6 +185,7 @@ export async function persistVerifiedLivePrices(
             THEN EXCLUDED.plan_identity
             ELSE verified_provider_prices.plan_identity
           END,
+          history_series_id = EXCLUDED.history_series_id,
           plan_name = EXCLUDED.plan_name,
           monthly_price_minor =
             EXCLUDED.monthly_price_minor,
@@ -151,15 +219,13 @@ export async function persistVerifiedLivePrices(
         item.verification,
         item.sourceCount,
         item.verifiedByAgreement,
-        item.updatedAt
+        item.updatedAt,
+        historySeriesId
       ]
     );
-      if (alias || exact && (exact.monthlyPriceMinor !== item.monthlyPriceMinor || exact.planName !== item.planName))
-        await preserveObservation(client,{serviceSlug:item.serviceSlug,planSlug:item.planSlug,planName:item.planName,
-          billingProviderSlug:item.billingProviderSlug,countryCode:item.countryCode,currency:item.currency,
-          monthlyPriceMinor:item.monthlyPriceMinor,source:item.source,sourceUrl:item.sourceUrl,
-          verification:item.verification,sourceCount:item.sourceCount,verifiedByAgreement:item.verifiedByAgreement,
-          verifiedAt:item.updatedAt,lastCheckedAt:item.updatedAt});
+      if(!predecessor)await appendHistory(client,incoming,historySeriesId,"BASELINE");
+      else if(predecessor.monthlyPriceMinor!==item.monthlyPriceMinor)
+        await appendHistory(client,incoming,historySeriesId,"PRICE_CHANGE");
       await client.query("COMMIT");
       persisted += 1;
     } catch (error) {
