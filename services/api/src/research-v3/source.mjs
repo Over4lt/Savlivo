@@ -6,6 +6,9 @@ import {digest, pricePropositions, servicePropositions} from './model.mjs';
 import {presentationCapacity as capacity} from './acquisition-contract.mjs';
 import {interpretSubscriptionPage} from './subscription-page.mjs';
 import {providerSelectedDollarCurrency} from './currency-sources.mjs';
+import {providerSelectedMarketContext} from './provider-market-evidence.mjs';
+import {verifiedCountryContext} from './truth-contract.mjs';
+import {compatibleCurrencies} from './market-currencies.mjs';
 const documents=new WeakMap(),semanticMaterials=new WeakMap();
 function observationDocument(o){const old=documents.get(o),cached=old?.parsed.deref();if(cached&&old.body===o.body&&old.contentType===o.contentType)return cached;const parsed=document(o.body,o.contentType);documents.set(o,{body:o.body,contentType:o.contentType,parsed:new WeakRef(parsed)});return parsed;}
 
@@ -159,7 +162,8 @@ export function projectWebSource(observation, objective) {
     const identity=nodes.find(n=>['title','h1','p'].includes(n.tag)&&name.test(n.text));
     if(identity) {source.serviceId=objective.serviceId; bindings['/serviceId']=pointer(identity);}
     const dollarCurrency=providerSelectedDollarCurrency(observation,objective);
-    const subscriptionPage=interpretSubscriptionPage({body:observation.body,url:observation.url,providerName:objective.serviceName,currencyHint:dollarCurrency?.code??null}),pageService=subscriptionPage.services.find(row=>normalized(row.name)===normalized(objective.serviceName));
+    const verifiedMarket=providerSelectedMarketContext(observation)??verifiedCountryContext(observation),compatible=verifiedMarket?compatibleCurrencies(verifiedMarket):[],marketCurrencyHint=compatible.length===1?compatible[0]:null;
+    const subscriptionPage=interpretSubscriptionPage({body:observation.body,url:observation.url,providerName:objective.serviceName,currencyHint:dollarCurrency?.code??null,marketCurrencyHint}),pageService=subscriptionPage.services.find(row=>normalized(row.name)===normalized(objective.serviceName));
     if(pageService&&source.serviceId===objective.serviceId)for(const offering of subscriptionPage.offerings)for(const [chargeIndex,charge]of offering.charges.entries()){
         const p='/offers/'+source.offers.length,id=digest([new URL(observation.url).hostname,normalized(objective.serviceName),normalized(offering.name),charge.cadence,charge.amount,charge.currency,chargeIndex]);
         source.offers.push({id,amount:charge.amount,currency:charge.currency,cadence:charge.cadence,billingCadence:charge.billingCadence,consumer:charge.consumer,relationship:charge.relationship,role:charge.role,monetaryKind:charge.monetaryKind,amountDerivation:charge.amountDerivation,market:offering.market??null});

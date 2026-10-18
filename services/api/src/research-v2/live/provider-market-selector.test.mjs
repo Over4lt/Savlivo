@@ -21,7 +21,7 @@ const service='orbit',serviceName='Orbit';
 const link={id:'11111111-1111-4111-8111-111111111111',url,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',enabled:true,truthAuthority:'NONE'};
 const shell='<html><head><title>Orbit Help</title><script src="/app.js"></script><script src="/other.js"></script></head><body><div id="app"></div></body></html>';
 const selector=code=>`<button type="button" aria-haspopup="listbox" aria-label="Change country or language. Current country ${code}">Country</button>`;
-const prices={US:{code:'USD',symbol:'USD ',amounts:[9.99,15.99,19.99]},NO:{code:'NOK',symbol:'NOK ',amounts:[79,109,139]},GB:{code:'GBP',symbol:'£',amounts:[6.99,10.99,13.99]},AU:{code:'AUD',symbol:'A$',amounts:[9.99,13.99,17.99]},CZ:{code:'CZK',symbol:'Kč ',amounts:[259,339,429]}};
+const prices={US:{code:'USD',symbol:'USD ',amounts:[9.99,15.99,19.99]},NO:{code:'NOK',symbol:'NOK ',amounts:[79,109,139]},GB:{code:'GBP',symbol:'£',amounts:[6.99,10.99,13.99]},AU:{code:'AUD',symbol:'A$',amounts:[9.99,13.99,17.99]},CZ:{code:'CZK',symbol:'Kč ',amounts:[259,339,429]},TR:{code:'TRY',symbol:'TRY ',amounts:[99,149,199]}};
 const source=(market,{bundle=false,annual=false}={})=>{
  const {symbol,amounts}=prices[market];
  const rows=['Standard','Plus','Premium'].map((name,index)=>`<tr><td>${name}</td><td><p>Monthly: ${symbol}${amounts[index]}</p><p>Annual: ${symbol}${amounts[index]*10}</p><button>Select a plan</button></td></tr>`).join('');
@@ -56,6 +56,24 @@ test('Czech Republic alias preserves the selected English language and issues a 
  const {result,state}=await run(t,'CZ',{initialSelected:'US',options:['United States (English)','Czech Republic (čeština)','Czech Republic (English)'],selectedOptionLabels:['United States (English)'],documentLang:'en-US'});
  assert.equal(state.clickedLabel,'Czech Republic (English)');assert.equal(result.marketSelection?.targetMarket,'CZ');
  assert.equal(projectEstablishedV3Offerings({...target('CZ'),...result}).length,3);
+});
+
+test('provider Turkey option selects canonical Türkiye and binds the final TR receipt',async t=>{
+ assert.equal(marketName('TR'),'Türkiye');
+ const {result,state}=await run(t,'TR',{initialSelected:'US',options:['United States (English)','Turkey (English)'],selectedOptionLabels:['United States (English)'],documentLang:'en-US'});
+ assert.equal(state.clickedLabel,'Turkey (English)');
+ assert.equal(result.marketSelection?.targetMarket,'TR');
+ assert.equal(result.marketSelection?.selectedOption,'Turkey (English)');
+ assert.equal(result.marketSelection?.finalSourceSha256,result.observation.sha256);
+ assert.equal(result.v3Truth.established,true);
+ assert.equal(projectEstablishedV3Offerings({...target('TR'),...result}).length,3);
+});
+
+for(const [label,options] of [['absent',['United States (English)','Germany (English)']],['ambiguous',['Turkey (English)','Turkey (Türkçe)']]])test(`${label} Turkey options produce no receipt or TR truth`,async t=>{
+ const {result,state}=await run(t,'TR',{initialSelected:'US',options});
+ assert.equal(state.optionClicks,0);
+ assert.equal(result.marketSelection,null);
+ assert.equal(result.v3Truth.established,false);
 });
 
 test('absent India option remains unresolved and retains bounded candidate diagnostics',async t=>{

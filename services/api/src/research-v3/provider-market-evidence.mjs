@@ -6,7 +6,7 @@ import {digest,normalizeUrl} from './model.mjs';
 const names=new Map(countryCurrencyData.map(([code,name])=>[code,name]));
 // Country selectors can use a former official English name for a canonical
 // market. These aliases identify the country only; they confer no price truth.
-const alternateNames=new Map([['CZ',['Czech Republic']]]);
+const alternateNames=new Map([['CZ',['Czech Republic']],['TR',['Turkey']]]);
 const regions=new Intl.DisplayNames(['en'],{type:'region'});
 const normalized=value=>String(value??'').normalize('NFKC').replace(/\s+/gu,' ').trim().toLocaleLowerCase('en');
 const attr=(tag,name)=>new RegExp('\\b'+name+'\\s*=\\s*(["\'])(.*?)\\1','iu').exec(tag)?.[2]??null;

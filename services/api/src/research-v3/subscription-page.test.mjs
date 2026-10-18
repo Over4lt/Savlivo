@@ -126,7 +126,7 @@ test('captured SG help-table structure keeps only distinct monthly S$ choices',(
 function selectedHelpTruth(market,body,{receipt=true,changedHash=false}={}){
  const sourceUrl='https://help.example.com/en-GB/article/price?redirect=true',id='selected-'+market;
  const selected=body.replace('<body>',`<body><button aria-haspopup="listbox" aria-label="Change country or language. Current country ${market}">Country</button>`),sha=digest(selected);
- const selectedOptions={BR:'Brazil (Português)',MY:'Malaysia (English)',PL:'Poland (English)',SG:'Singapore (English)'};
+ const selectedOptions={BR:'Brazil (Português)',MY:'Malaysia (English)',PL:'Poland (English)',SG:'Singapore (English)',TW:'Taiwan (English)',AE:'United Arab Emirates (English)',PH:'Philippines (English)',SA:'Saudi Arabia (English)',MX:'Mexico (Español)',ID:'Indonesia (English)',ZA:'South Africa (English)',IL:'Israel (English)',QA:'Qatar (English)',EG:'Egypt (English)',RO:'Romania (English)',CL:'Chile (Español)',CO:'Colombia (Español)'};
  const marketSelection={kind:'PROVIDER_SELECTED_MARKET',selectionMode:'SELECTED_OPTION',observationId:id,targetMarket:market,transport:'DIRECT_BROWSER',initialUrl:sourceUrl,finalUrl:sourceUrl,providerHost:'help.example.com',preSourceSha256:digest('initial shell'),finalSourceSha256:changedHash?'0'.repeat(64):sha,preSelectedCode:'US',selectedCode:market,selectedOption:selectedOptions[market],selectorLabel:`Change country or language. Current country ${market}`};
  const observation={id,kind:'PROVIDER',authority:'REVIEWED_PROVIDER',url:sourceUrl,context:context('DIRECT'),outcome:'OK',truncated:false,completeness:'COMPLETE',format:'WEB',contentType:'text/html',httpStatus:200,access:[{decision:'ALLOWED'}],body:selected,sha256:sha,...(receipt?{marketSelection}:{})};
  const objective={kind:'PRICE',serviceId:'disney-plus',serviceName:'Disney+',providerHosts:['help.example.com'],markets:[market],seeds:[sourceUrl]};
@@ -161,6 +161,38 @@ for(const [market,body,expected] of [
   const blocked=selectedHelpTruth(market,body,options);
   assert.equal(blocked.truth.established,false);
   assert.equal(blocked.truth.offers.some(row=>row.propositions.TARGET_MARKET?.state==='ESTABLISHED'),false);
+ }
+});
+
+const monthlyRow=(name,price,{label='Monthly',action='Select plan',annual=null}={})=>helpRow(name,`<strong>${label}:</strong><p>${price}</p><a>${action}</a>${annual?`<strong>Annual:</strong><p>${annual}</p><a>${action}</a>`:''}`);
+const spanishHelpTable=(market,rows)=>`<html><head><title>Planes y precios de Disney+ | ${market}</title><meta name="description" content="Los precios de la suscripción de Disney+ dependen del plan."></head><body><h1>Planes y precios de Disney+</h1><h2>Planes de Disney+</h2><table><tr><th>Plan</th><th>Precio</th></tr>${rows.join('')}</table></body></html>`;
+for(const [market,body,expected] of [
+ ['TW',retainedHelpTable('TW',[monthlyRow('Disney+ Standard','NTD 285'),monthlyRow('Disney+ Premium','NTD 335')]),[[285,'TWD'],[335,'TWD']]],
+ ['AE',retainedHelpTable('AE',[monthlyRow('Disney+ Premium','AED 49.99')]),[[49.99,'AED']]],
+ ['PH',retainedHelpTable('PH',[monthlyRow('Disney+ Standard','₱289'),monthlyRow('Disney+ Premium','₱599')]),[[289,'PHP'],[599,'PHP']]],
+ ['SA',retainedHelpTable('SA',[monthlyRow('Disney+ Premium','SAR 49.99')]),[[49.99,'SAR']]],
+ ['MX',spanishHelpTable('MX',[monthlyRow('Disney+ Estándar con anuncios','MXN 159',{label:'Mensual',action:'Seleccionar plan'}),monthlyRow('Disney+ Estándar','MXN 259',{label:'Mensual',action:'Seleccionar plan'}),monthlyRow('Disney+ Premium','MXN 339',{label:'Mensual',action:'Seleccionar plan'})]),[[159,'MXN'],[259,'MXN'],[339,'MXN']]],
+ ['ID',retainedHelpTable('ID',[monthlyRow('Disney+ Standard','Rp 65,000'),monthlyRow('Disney+ Premium','Rp 119,000')]),[[65000,'IDR'],[119000,'IDR']]],
+ ['ZA',retainedHelpTable('ZA',[monthlyRow('Disney+ Premium','R179'),helpRow('Disney+ Basic','<strong>Monthly:</strong><p>R49</p><p>No longer available to purchase</p>')]),[[179,'ZAR']]],
+ ['IL',retainedHelpTable('IL',[monthlyRow('Disney+ Premium','NIS 49.90',{label:'Monthly payment plan',action:'Select payment plan'})]),[[49.9,'ILS']]],
+ ['QA',retainedHelpTable('QA',[monthlyRow('Disney+ Premium','QAR 49.99')]),[[49.99,'QAR']]],
+ ['EG',retainedHelpTable('EG',[monthlyRow('Disney+ Premium','EGP 170')]),[[170,'EGP']]],
+ ['RO',retainedHelpTable('RO',[monthlyRow('Disney+ Standard','34.99 Lei'),monthlyRow('Disney+ Premium','59.99 Lei'),monthlyRow('Extra Member','20.99 Lei')]),[[34.99,'RON'],[59.99,'RON']]],
+ ['CL',spanishHelpTable('CL',[monthlyRow('Disney+ Estándar con anuncios','CLP 8,490',{label:'Mensual',action:'Seleccionar plan'}),monthlyRow('Disney+ Estándar','CLP 10,990',{label:'Mensual',action:'Seleccionar plan'}),monthlyRow('Disney+ Premium','CLP 15,990',{label:'Mensual',action:'Seleccionar plan'})]),[[8490,'CLP'],[10990,'CLP'],[15990,'CLP']]],
+ ['CO',spanishHelpTable('CO',[monthlyRow('Disney+ Estándar con anuncios','COP 25,900',{label:'Mensual',action:'Seleccionar plan'}),monthlyRow('Disney+ Estándar','COP 36,900',{label:'Mensual',action:'Seleccionar plan'}),monthlyRow('Disney+ Premium','COP 54,900',{label:'Mensual',action:'Seleccionar plan'})]),[[25900,'COP'],[36900,'COP'],[54900,'COP']]],
+])test(`${market} localized monthly plans establish source-bound V3 truth`,()=>{
+ const accepted=selectedHelpTruth(market,body);
+ assert.deepEqual(accepted.projection.source.offers.map(row=>[row.amount,row.currency]),expected);
+ assert.equal(accepted.truth.established,true);
+ assert.deepEqual(accepted.truth.offers.filter(row=>row.propositions.PRICE_AMOUNT.state==='ESTABLISHED').map(row=>[row.propositions.PRICE_AMOUNT.value,row.propositions.CURRENCY.value]),expected);
+ for(const options of [{receipt:false},{changedHash:true}])assert.equal(selectedHelpTruth(market,body,options).truth.established,false);
+});
+
+test('ambiguous R and Lei markers need a validated market receipt',()=>{
+ for(const [market,amount,mark] of [['ZA',179,'R'],['RO',34.99,'Lei']]){
+  const body=retainedHelpTable(market,[monthlyRow('Disney+ Standard',mark==='R'?`${mark}${amount}`:`${amount} ${mark}`)]);
+  assert.deepEqual(interpretSubscriptionPage({body,url:'https://help.example.com/article/price',providerName:'Disney+'}).offerings,[]);
+  assert.equal(selectedHelpTruth(market,body).truth.established,true);
  }
 });
 
