@@ -11,7 +11,7 @@ import {operationsRequest} from './http.mjs';
 const lifecycleInput='docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/lifecycle-input.json';
 class ReadOnlyDb{
  constructor(rows=[]){this.rows=rows;this.queries=[];}
- async query(sql){this.queries.push(sql);if(!sql.includes('ORDER BY canonical_slug, research_service_id'))throw Error('UNEXPECTED_SQL');return {rows:this.rows};}
+ async query(sql){this.queries.push(sql);if(sql.includes('FROM price_research_market_exclusions'))return {rows:[]};if(!sql.includes('ORDER BY canonical_slug, research_service_id'))throw Error('UNEXPECTED_SQL');return {rows:this.rows};}
 }
 const database=(id,status)=>({research_service_id:id,canonical_slug:id.replace(/^research-/,''),canonical_name:id,normalized_name:id,identity_type:'Service',status,aliases:[],provider_host:'provider.example',provider_binding_digest:'a'.repeat(64),provider_observation:'observation',source_url:'https://provider.example',source_body_sha256:'b'.repeat(64),relationship:'PROVIDER_PRESENTS_SERVICE',extraction_mechanism:'STRUCTURED_DATA',admission_version:1,created_at:'2026-10-14T00:00:00.000Z',updated_at:'2026-10-14T00:00:00.000Z'});
 
@@ -52,6 +52,18 @@ test('scope hints affect all-market ordering but never membership',()=>{
  const explicit=projectPriceResearchTargeting(projection,{services:['hinted'],markets:['FR','DE']});assert.deepEqual(explicit.targets.map(row=>row.targetMarket),['FR','DE']);
 });
 
+test('per-service exclusions remove only future eligible pairs without changing canonical market selection',()=>{
+ const projection=projectResearchServices({baseline:[{service:'disney-plus',name:'Disney+'},{service:'chess-com',name:'Chess.com'}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+ const input={services:['disney-plus','chess-com'],markets:['IN','NO']},blocked=[{service_id:'disney-plus',market_code:'IN',reason:null}];
+ const model=projectPriceResearchTargeting(projection,input,blocked);
+ assert.equal(model.selectedMarkets,2);assert.equal(model.excludedTargetCount,1);assert.equal(model.serviceMarketTargets,3);
+ assert.deepEqual(model.targets.map(row=>[row.serviceId,row.targetMarket]),[['disney-plus','NO'],['chess-com','IN'],['chess-com','NO']]);
+ assert.equal(selectPriceResearchTargets(model).logicalTargetCount,3);
+ const restored=projectPriceResearchTargeting(projection,input,[]);assert.equal(restored.targets.length,4);assert.notEqual(restored.revision,model.revision);
+ const none=projectPriceResearchTargeting(projection,{},blocked);assert.equal(none.targets.length,0);assert.equal(none.excludedTargetCount,0);
+ const single=projectPriceResearchTargeting(projection,{services:['disney-plus'],markets:['IN']},blocked);assert.throws(()=>selectPriceResearchTargets(single),/PRICE_RESEARCH_MARKET_EXCLUDED/);
+});
+
 test('full explicit service universe can be previewed as exactly 21,298 read-only targets',async()=>{
  const universe=await loadPriceResearchTargeting({}, {repo:process.cwd(),lifecycleInput,databaseIdentities:[]}),full=await loadPriceResearchTargeting({services:universe.services.map(row=>row.serviceId)}, {repo:process.cwd(),lifecycleInput,databaseIdentities:[]});
  assert.equal(full.targets.length,21298);assert.equal(full.serviceMarketTargets,21298);assert.equal(full.selection.canStart,false);assert(full.targets.every(row=>row.marketApplicabilityEstablished===false));
@@ -73,6 +85,6 @@ test('authenticated GET/POST endpoint is read-only and does not reuse mature tar
  ops.targeting=()=>{throw Error('MATURE_TARGETING_MUST_NOT_RUN');};
  const request=(method,body,actor='admin')=>operationsRequest({method,body,actor,url:new URL('https://offline.invalid/v1/admin/v2-operations/price-research/targeting')},ops);
  const universe=await request('GET');assert.equal(universe.counts.selectableServices,463);assert.equal(universe.targets.length,0);
- const selected=await request('POST',{services:['chess-com'],markets:[]});assert.equal(selected.targets.length,46);assert(!fs.existsSync(root));assert.equal(db.queries.length,2);assert(db.queries.every(sql=>/^SELECT\s+research_service_id,/.test(sql)));
+ const selected=await request('POST',{services:['chess-com'],markets:[]});assert.equal(selected.targets.length,46);assert(!fs.existsSync(root));assert.equal(db.queries.length,3);assert.equal(db.queries.filter(sql=>sql.includes('FROM price_research_market_exclusions')).length,1);
  await assert.rejects(request('GET',undefined,null),/UNAUTHORIZED/);await assert.rejects(request('PUT'),/NOT_FOUND/);
 });

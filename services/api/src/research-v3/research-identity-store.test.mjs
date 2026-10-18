@@ -16,6 +16,7 @@ class MemoryDb{
   this.queries.push(sql);
   if(/^(BEGIN|COMMIT|ROLLBACK)/.test(sql)||sql.includes('pg_advisory_xact_lock'))return {rows:[]};
   if(sql.includes('ORDER BY canonical_slug, research_service_id'))return {rows:this.rows};
+  if(sql.includes('FROM price_research_market_exclusions'))return {rows:[]};
   if(sql.includes('WHERE research_service_id=$1'))return {rows:this.rows.filter(row=>row.research_service_id===p[0])};
   if(sql.includes('WHERE canonical_slug=$1'))return {rows:this.rows.filter(row=>row.canonical_slug===p[0]||(row.aliases??[]).includes(p[1]))};
   if(sql.includes('INSERT INTO research_service_identities')){const now='2026-10-14T00:00:00.000Z',row={research_service_id:p[0],canonical_slug:p[1],canonical_name:p[2],normalized_name:p[3],identity_type:p[4],status:'RESEARCHABLE',provider_host:p[5],provider_binding_digest:p[6],provider_binding:JSON.parse(p[7]),provider_observation:p[8],source_url:p[9],source_body_sha256:p[10],source_body:p[11],identity_locator:JSON.parse(p[12]),subscription_locator:JSON.parse(p[13]),relationship:p[14],extraction_mechanism:p[15],admission_version:1,aliases:JSON.parse(p[16]),created_at:now,updated_at:now};this.rows.push(row);return {rows:[row]};}

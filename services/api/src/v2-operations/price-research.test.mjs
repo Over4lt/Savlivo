@@ -21,7 +21,7 @@ test('unresolved priority V3 evidence crosses phases only with the exact retaine
  assert.deepEqual(downstream.v3Truth,truth);assert.equal(downstream.v3Observation.sha256,hash);assert.deepEqual(downstream.leads.map(row=>row.url),[lead.url,'https://example.com/plans']);
  fs.writeFileSync(path.join(directory,'raw',hash+'.body'),'tampered');assert.equal(priorityRetainedV3Evidence({priorityState,target,root}),null);
 });
-const fixture=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-operations-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:root,root:path.join(root,'.savlivo/v2-operations'),lifecycleInput:null,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',env:{},runtimeReadiness:{readGemini:async()=>null}});};
+const fixture=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-operations-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:process.cwd(),root:path.join(root,'.savlivo/v2-operations'),lifecycleInput:null,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',client:{query:async()=>({rows:[]})},marketExclusions:[],env:{},runtimeReadiness:{readGemini:async()=>null}});};
 
 test('provider seed Preflight retains seed status and cannot manufacture a service identity',async t=>{
  const ops=fixture(t),pre=await ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName:'Unlisted Brand',market:'DE',capabilities:caps},'admin');assert.equal(pre.runner,'PRICE_RESEARCH V4-first identity bridge');assert.equal(pre.servicesConsidered,1);const stored=ops.db().preflights[0];assert.equal(stored.config.seedName,'Unlisted Brand');assert.equal(Object.hasOwn(stored.config,'serviceId'),false);
@@ -35,7 +35,7 @@ test('known canonical baseline, product and frozen identities are admitted to PR
 });
 
 const lifecycleInput='docs/catalog/global-47/research-v2/v15-mature-handoff-20260921/lifecycle-input.json';
-function batchFixture(t,databaseIdentities=[]){const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-batch-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:process.cwd(),root,lifecycleInput,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',databaseIdentities,env:{},runtimeReadiness:{readGemini:async()=>null}});}
+function batchFixture(t,databaseIdentities=[]){const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-batch-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:process.cwd(),root,lifecycleInput,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',databaseIdentities,marketExclusions:[],env:{},runtimeReadiness:{readGemini:async()=>null}});}
 const dbIdentity=id=>({research_service_id:id,canonical_slug:id.replace(/^research-/,''),canonical_name:id,normalized_name:id,identity_type:'Service',status:'RESEARCHABLE',aliases:[],provider_host:'provider.example',provider_binding_digest:'a'.repeat(64),provider_observation:'observation',source_url:'https://provider.example',source_body_sha256:'b'.repeat(64),relationship:'PROVIDER_PRESENTS_SERVICE',extraction_mechanism:'STRUCTURED_DATA',admission_version:1,created_at:'2026-10-14T00:00:00.000Z',updated_at:'2026-10-14T00:00:00.000Z'});
 
 test('canonical selection Preflight freezes the exact complete scope and Start queues only that scope',async t=>{
@@ -43,6 +43,52 @@ test('canonical selection Preflight freezes the exact complete scope and Start q
  const pre=await ops.preflight(input,'admin');assert.equal(pre.logicalTargetCount,4);assert.equal(pre.batchTargetCount,4);assert.equal(pre.perTargetRequestCeiling,96);assert.equal(pre.totalSafetyCeiling,384);assert.equal(pre.continuationCursor,null);
  const stored=ops.db().preflights[0].config;assert.deepEqual(stored.batchTargets.map(row=>[row.serviceId,row.targetMarket]),[['1password','DE'],['1password','NO'],['chess-com','DE'],['chess-com','NO']]);assert(stored.batchTargets.every(row=>row.marketApplicabilityEstablished===false));
  const job=await ops.start(pre.token,'admin',true);assert.equal(job.status,'QUEUED');assert.deepEqual(job.config,stored);assert.equal((await ops.start(pre.token,'admin',true)).id,job.id);assert.equal(ops.db().jobs.length,1);const manifest=JSON.parse(fs.readFileSync(path.join(ops.config.root,'runs',job.id,'manifest.json')));assert.equal(manifest.targets.length,4);assert.equal(manifest.limits.perTargetRequests,96);assert.equal(manifest.limits.totalRequests,384);assert(manifest.targets.every(row=>row.marketApplicabilityEstablished===false));
+});
+
+test('exclusions filter Preflight, freeze only eligible targets, and preserve existing job snapshots',async t=>{
+ const ops=batchFixture(t),exclusions=ops.config.marketExclusions;
+ exclusions.push({service_id:'chess-com',market_code:'IN',reason:null});
+ const input={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['chess-com','1password'],markets:['IN','NO'],capabilities:caps};
+ const targeting=await ops.priceResearchTargeting({services:input.services,markets:input.markets});
+ assert.equal(targeting.excludedTargetCount,1);assert.equal(targeting.serviceMarketTargets,3);
+ const pre=await ops.preflight({...input,targetingRevision:targeting.revision},'admin');
+ assert.equal(pre.logicalTargetCount,3);assert.equal(pre.batchTargetCount,3);assert.equal(pre.totalSafetyCeiling,288);
+ assert.deepEqual(ops.db().preflights[0].config.batchTargets.map(row=>[row.serviceId,row.targetMarket]),[['1password','IN'],['1password','NO'],['chess-com','NO']]);
+ const job=await ops.start(pre.token,'admin',true);assert.equal(job.config.batchTargets.length,3);
+ exclusions.push({service_id:'chess-com',market_code:'NO',reason:null});
+ assert.equal(ops.db().jobs[0].config.batchTargets.length,3);
+ assert.deepEqual(ops.db().jobs[0].config.batchTargets.map(row=>row.targetMarket),['IN','NO','NO']);
+ const next=await ops.priceResearchTargeting({services:input.services,markets:input.markets});assert.equal(next.serviceMarketTargets,2);
+ const nextPre=await ops.preflight({...input,targetingRevision:next.revision},'admin');assert.equal(nextPre.batchTargetCount,2);
+});
+
+test('an exclusion added after Preflight blocks Start before any research job is queued',async t=>{
+ const ops=batchFixture(t),input={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['chess-com'],markets:['IN'],capabilities:caps};
+ const targeting=await ops.priceResearchTargeting({services:input.services,markets:input.markets}),pre=await ops.preflight({...input,targetingRevision:targeting.revision},'admin');
+ ops.config.marketExclusions.push({service_id:'chess-com',market_code:'IN',reason:null});
+ await assert.rejects(ops.start(pre.token,'admin',true),/TARGETING_STALE/);assert.equal(ops.db().jobs.length,0);
+ const excluded=await ops.priceResearchTargeting({services:input.services,markets:input.markets});
+ await assert.rejects(ops.preflight({...input,targetingRevision:excluded.revision},'admin'),/PRICE_RESEARCH_MARKET_EXCLUDED/);
+});
+
+test('known-service single-market Preflight rejects exclusion and re-inclusion restores eligibility',async t=>{
+ const ops=fixture(t),input={objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'chess-com',market:'IN',capabilities:caps};
+ ops.config.marketExclusions.push({service_id:'chess-com',market_code:'IN',reason:null});
+ await assert.rejects(ops.preflight(input,'admin'),/PRICE_RESEARCH_MARKET_EXCLUDED/);assert.equal(ops.db().jobs.length,0);
+ ops.config.marketExclusions.length=0;const pre=await ops.preflight(input,'admin');assert.equal(pre.actionable,1);
+});
+
+test('provider seed with an exact known service identity cannot bypass an excluded single market',async t=>{
+ const ops=fixture(t);ops.config.marketExclusions.push({service_id:'chess-com',market_code:'IN',reason:null},{service_id:'disney-plus',market_code:'IN',reason:null});
+ for(const seedName of ['Chess.com','Disney+'])await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName,market:'IN',capabilities:caps},'admin'),/PRICE_RESEARCH_MARKET_EXCLUDED/);
+ assert.equal(ops.db().jobs.length,0);
+});
+
+test('failed V3 verification does not create a market exclusion or remove future targets',async t=>{
+ const ops=batchFixture(t),target={id:'price-research:chess-com:IN',service:'chess-com',market:'IN'};
+ const outcome=await runBoundedV3Verification({targets:[target],handoffs:{[target.id]:{researchLeads:{candidatePlans:[]}}},execute:async()=>({adaptive:{targets:{}},v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[{kind:'V3_VERIFICATION_RETRY_EXHAUSTED'}]}}})});
+ assert.equal(outcome.v3Results[target.id].verified.length,0);assert.deepEqual(ops.config.marketExclusions,[]);
+ const targeting=await ops.priceResearchTargeting({services:['chess-com'],markets:['IN']});assert.equal(targeting.serviceMarketTargets,1);
 });
 
 test('42 explicit markets and all 46 markets are admitted completely with no target-count continuation',async t=>{

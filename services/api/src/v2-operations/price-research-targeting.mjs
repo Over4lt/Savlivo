@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import {countryCurrencyData} from '../../../../packages/contracts/src/markets.ts';
 import {listResearchServiceIdentities} from '../research-v3/research-identity-store.mjs';
 import {loadResearchServiceProjection} from '../research-v3/research-service-projection.mjs';
+import {listMarketExclusions} from './market-exclusions.mjs';
 
 const fail=code=>{throw Object.assign(Error(code),{status:400});};
 const canonicalMarkets=countryCurrencyData.map(([id,name,currency],order)=>({id,name,currency,order}));
@@ -31,32 +32,37 @@ function orderedMarkets(service,explicit){
  return [...hinted,...marketIds.filter(market=>!hintedSet.has(market))];
 }
 
-export function projectPriceResearchTargeting(projection,input={}){
+export function projectPriceResearchTargeting(projection,input={},exclusions=[]){
  if(!projection||!Array.isArray(projection.rows))fail('INVALID_RESEARCH_SERVICE_PROJECTION');
  const requested=selection(input),services=projection.rows.map(serviceView),byId=new Map(services.map(row=>[row.serviceId,row])),marketById=new Map(canonicalMarkets.map(row=>[row.id,row]));
  for(const id of requested.services){const row=byId.get(id);if(!row)fail('UNKNOWN_PRICE_RESEARCH_SERVICE');if(!row.selectable)fail('PRICE_RESEARCH_SERVICE_NOT_SELECTABLE');}
- const selectedIds=new Set(requested.services),selected=services.filter(row=>selectedIds.has(row.serviceId)),targets=[];
+ const selectedIds=new Set(requested.services),selected=services.filter(row=>selectedIds.has(row.serviceId)),targets=[],excludedPairs=[];
+ const blocked=new Set(exclusions.filter(row=>selectedIds.has(row.service_id)&&marketSet.has(row.market_code)).map(row=>row.service_id+'\u0000'+row.market_code));
  for(const service of selected)for(const market of orderedMarkets(service,requested.markets)){
+  if(blocked.has(service.serviceId+'\u0000'+market)){excludedPairs.push({serviceId:service.serviceId,market});continue;}
   const details=marketById.get(market);
   targets.push({id:`price-research:${service.serviceId}:${market}`,serviceId:service.serviceId,serviceName:service.name,targetMarket:market,marketName:details.name,currency:details.currency,marketApplicabilityEstablished:false,researchScopeHints:service.researchScopeHints});
  }
- const selectable=services.filter(row=>row.selectable).length,revision=createHash('sha256').update(JSON.stringify({services:services.map(row=>[row.serviceId,row.status,row.researchable,row.researchScopeHints]),markets:canonicalMarkets})).digest('hex');
+ const selectable=services.filter(row=>row.selectable).length,revision=createHash('sha256').update(JSON.stringify({services:services.map(row=>[row.serviceId,row.status,row.researchable,row.researchScopeHints]),markets:canonicalMarkets,exclusions:[...blocked].sort()})).digest('hex');
  return {
   version:'PRICE_RESEARCH_TARGETING_V1',readOnly:true,meaning:'INVESTIGATION_SCOPE_NOT_AVAILABILITY',revision,
   counts:{canonicalServices:projection.counts?.canonical??services.length,visibleServices:services.length,researchableServices:selectable,selectableServices:selectable,diagnosticServices:services.length-selectable,markets:canonicalMarkets.length,logicalServiceMarketCombinations:selectable*canonicalMarkets.length},
   services,markets:canonicalMarkets.map(({order,...row})=>row),
   selection:{explicitServiceSelection:requested.services.length>0,implicitAllServices:false,requestedServices:requested.services,effectiveServices:selected.map(row=>row.serviceId),requestedMarkets:requested.markets,effectiveMarkets:requested.services.length?(requested.markets.length?requested.markets:marketIds):[],marketMode:requested.services.length?(requested.markets.length?'EXPLICIT':'ALL_CANONICAL'):'NO_SERVICE_SELECTION',canStart:false},
-  selectedServices:selected.length,selectedMarkets:requested.services.length?(requested.markets.length?requested.markets.length:canonicalMarkets.length):0,serviceMarketTargets:targets.length,targets
+  selectedServices:selected.length,selectedMarkets:requested.services.length?(requested.markets.length?requested.markets.length:canonicalMarkets.length):0,excludedTargetCount:excludedPairs.length,serviceMarketTargets:targets.length,targets
  };
 }
 
 export function selectPriceResearchTargets(model){
- if(!model?.selection?.explicitServiceSelection||!Array.isArray(model.targets)||!model.targets.length)fail('PRICE_RESEARCH_SELECTION_REQUIRED');
+ if(!model?.selection?.explicitServiceSelection||!Array.isArray(model.targets))fail('PRICE_RESEARCH_SELECTION_REQUIRED');
+ if(!model.targets.length)fail(model.excludedTargetCount===1&&model.selectedServices===1&&model.selectedMarkets===1?'PRICE_RESEARCH_MARKET_EXCLUDED':'NO_ELIGIBLE_PRICE_RESEARCH_TARGETS');
  return {targets:model.targets,logicalTargetCount:model.targets.length};
 }
 
 export async function loadPriceResearchTargeting(input={},options={}){
+ const requested=selection(input);
  const databaseIdentities=options.databaseIdentities??await listResearchServiceIdentities({client:options.client});
  const projection=loadResearchServiceProjection({repo:options.repo,...(options.lifecycleInput?{lifecycleInput:options.lifecycleInput}:{}),databaseIdentities});
- return projectPriceResearchTargeting(projection,input);
+ const exclusions=options.marketExclusions??(options.databaseIdentities!==undefined&&!options.client?[]:await listMarketExclusions(requested.services,{client:options.client}));
+ return projectPriceResearchTargeting(projection,input,exclusions);
 }

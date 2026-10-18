@@ -61,6 +61,12 @@ test('adversarial 16-17: source-bound Service authority crosses with real proven
  const fabricated=structuredClone(decision);fabricated.authority.reference.kind='V3_AUTONOMOUS_CANDIDATE_REVIEW';assert.throws(()=>admittedDiscoveryCandidate({url:candidateUrl,authority:fabricated},current),/DISCOVERY_AUTHORITY_URL_MISMATCH/);
 });
 
+test('provider-seed admission excludes a service-market before V4 or V3 child research',async t=>{
+ const calls=[],result=await runProviderSeedCampaign({directory:temp(t),researchTarget:researchTarget(),createAdapters:adapters({names:['Orbit'],calls}),capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},operationsObjective:'PRICE_RESEARCH',includeChild:(identity,targetMarket)=>{assert.equal(identity.serviceId,'orbit');assert.equal(targetMarket,'DE');return false;},runResearch:()=>assert.fail('excluded child must never reach V4 or V3')});
+ assert.deepEqual(result.children,[]);assert.deepEqual(result.serviceDiscovery.excluded,[{serviceId:'orbit',market:'DE'}]);assert.deepEqual(result.termination,{kind:'EXCLUDED',reason:'PRICE_RESEARCH_MARKET_EXCLUDED'});
+ assert.equal(calls.filter(row=>row.stage!=='PROVIDER_SEED').length,0);
+});
+
 test('practical provider byte capacity changes no independent work bound',()=>{
  assert.deepEqual(providerSeedCampaignBounds,{reads:4,searches:2,acquisitions:2,retainedReviews:32,turns:512,candidateDestinations:12,providerObservations:8,navigationDepth:4,bytes:2*1024*1024,networkRequests:96,countryAcquisitions:8,browserActions:12});
 });

@@ -273,6 +273,19 @@ test('service summaries use responsive cards, readable reasons; Inspect retains 
  const operations=descendants(root).find(n=>n.id==='v2-operations'),replacements=operations.replacements,requests=calls.length;
  await button(root,'Save research lead').listeners.click();assert.equal(operations.replacements,replacements);assert.equal(document.activeElement,url);assert.equal(root.scrollTop,321);assert(text(root).includes('<script>bad()</script>'));assert(text(root).includes('Unverified'));assert(calls.slice(requests).every(p=>p.endsWith('/leads')));assert(!calls.some(p=>p.includes('/targeting')));
 });
+
+test('Services Markets separates included/excluded countries, searches, and toggles future research eligibility',async t=>{
+ const root=setup(),calls=[],service={service:'disney-plus',name:'Disney+',state:'PARTIAL',evidence:[],pricing:[],requests:0,evidenceCount:0};
+ let excluded=new Set(['IN']);
+ const marketView=()=>({counts:{included:2-excluded.size,excluded:excluded.size},rows:[{id:'IN',name:'India'},{id:'NO',name:'Norway'}].map(row=>({...row,excluded:excluded.has(row.id),reason:null}))});
+ const dispose=await mountOperations(root,async(p,o)=>{calls.push({p,o});if(p.endsWith('/summary'))return {...summary,flags:{read:true,control:true,scheduling:false}};if(p.startsWith('v2-operations/services?'))return {rows:[service],total:1};if(p==='v2-operations/services/disney-plus')return service;if(p.includes('/price-research/market-exclusions')){if(o?.method==='POST'){const body=JSON.parse(o.body);if(body.excluded)excluded.add(body.market);else excluded.delete(body.market);}return marketView();}return {rows:[],total:0};});t.after(dispose);
+ await button(root,'Services').listeners.click();await button(root,'View details').listeners.click();
+ assert(text(root).includes('Included markets (1)'));assert(text(root).includes('Excluded markets (1)'));assert(text(root).includes('India (IN)'));assert(text(root).includes('Norway (NO)'));
+ const search=descendants(root).find(node=>node.placeholder==='Country name or code');search.value='IN';await search.listeners.input();assert(text(root).includes('India (IN)'));assert(!text(root).includes('Norway (NO)'));
+ await button(root,'Include again').listeners.click();assert(text(root).includes('Excluded markets (0)'));assert.equal(excluded.size,0);
+ search.value='NO';await search.listeners.input();await button(root,'Exclude from research').listeners.click();assert.deepEqual([...excluded],['NO']);assert(text(root).includes('Excluded markets (1)'));
+ assert.equal(calls.filter(row=>row.p.endsWith('/preflight')||row.p.endsWith('/start')).length,0);
+});
 test('Preflight displays frozen human leads without trusting them or changing Start payload',async t=>{const {root,calls}=await builder(t,{humanLeads:[{serviceId:'film',type:'PRICING',url:'https://example.com/pricing',marketScope:[],status:'UNVERIFIED'}]});await button(root,'Preflight').listeners.click();assert(text(root).includes('Human research leads: 1'));assert(text(root).includes('https://example.com/pricing'));assert(text(root).includes('V2 must acquire and verify'));assert(!calls.some(c=>c.p.endsWith('/start')));});
 
 test('stored unavailable ON remains visible until explicitly switched off; viewing never rewrites schedule',async t=>{

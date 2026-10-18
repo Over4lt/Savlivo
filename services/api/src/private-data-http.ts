@@ -190,7 +190,7 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
       respond(res,200,{ok:true});return true;
     }
     if (url.pathname.startsWith("/v1/admin/v2-operations/")) {
-      await audit(userId,url.pathname.includes('/price-research/research-links')&&["POST","PATCH","DELETE"].includes(req.method ?? "")?"research_link_changed":"dashboard_read",config.days);
+      await audit(userId,url.pathname.includes('/price-research/market-exclusions')&&req.method==="POST"?"market_exclusion_changed":url.pathname.includes('/price-research/research-links')&&["POST","PATCH","DELETE"].includes(req.method ?? "")?"research_link_changed":"dashboard_read",config.days);
       try {
         const body = ["POST","PATCH"].includes(req.method ?? "") ? await boundedJson(req,32768) : undefined;
         const result = await operationsRequest({method:req.method ?? "GET",url,body,actor:userId});

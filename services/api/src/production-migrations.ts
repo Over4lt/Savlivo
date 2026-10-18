@@ -22,6 +22,7 @@ export const migrationFiles = [
   "db/migrations/015_admin_passkeys.sql",
   "db/migrations/019_suggested_provider_prices.sql",
   "db/migrations/021_price_research_links.sql",
+  "db/migrations/022_price_research_market_exclusions.sql",
   "services/api/src/savlivo-migration-savings-ledger-1.7.0.sql",
   "services/api/migrations/20260824_notifications.sql",
   "services/api/migrations/20260907_password_reset.sql",
