@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {Operations} from './control.mjs';
-import {priceResearchPlan,reviewedNamespacePriceResearchSeed,runBoundedV3Verification,priorityRetainedV3Evidence} from './price-research.mjs';
+import {executePriceResearch,priceResearchPlan,reviewedNamespacePriceResearchSeed,runBoundedV3Verification,priorityRetainedV3Evidence} from './price-research.mjs';
 import {runAdminV4FirstResearch} from '../google-ai/admin-live-pipeline.mjs';
 import {reviewedProviderNamespacesFor} from '../research-v3/reviewed-provider-namespaces.mjs';
 import {applyResearchHandoff} from '../research-v2/inventory/reviewed-cohort-execution.mjs';
@@ -23,13 +23,19 @@ test('unresolved priority V3 evidence crosses phases only with the exact retaine
 });
 const fixture=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-operations-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return new Operations({repo:process.cwd(),root:path.join(root,'.savlivo/v2-operations'),lifecycleInput:null,read:true,control:true,scheduling:false,timezone:'Europe/Oslo',client:{query:async()=>({rows:[]})},marketExclusions:[],env:{},runtimeReadiness:{readGemini:async()=>null}});};
 
-test('provider seed Preflight retains seed status and cannot manufacture a service identity',async t=>{
- const ops=fixture(t),pre=await ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName:'Unlisted Brand',market:'DE',capabilities:caps},'admin');assert.equal(pre.runner,'PRICE_RESEARCH V4-first identity bridge');assert.equal(pre.servicesConsidered,1);const stored=ops.db().preflights[0];assert.equal(stored.config.seedName,'Unlisted Brand');assert.equal(Object.hasOwn(stored.config,'serviceId'),false);
+test('unknown provider seed requires explicit identity-discovery choice before Preflight or Start',async t=>{
+ const ops=fixture(t),input={objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName:'Unlisted Brand',market:'DE',capabilities:caps};
+ await assert.rejects(ops.preflight(input,'admin'),/IDENTITY_DISCOVERY_CONSENT_REQUIRED/);
+ await assert.rejects(ops.preflight({...input,identityDiscoveryConsent:false},'admin'),/IDENTITY_DISCOVERY_CONSENT_REQUIRED/);
+ assert.equal(ops.db().preflights.length,0);assert.equal(ops.db().jobs.length,0);
+ await assert.rejects(executePriceResearch({job:{config:input}}),/IDENTITY_DISCOVERY_CONSENT_REQUIRED/);
+ const pre=await ops.preflight({...input,identityDiscoveryConsent:true},'admin');assert.equal(pre.runner,'PRICE_RESEARCH explicit provider identity discovery');assert.equal(pre.identityDiscovery.status,'UNKNOWN_SERVICE_SEED');assert.equal(pre.identityDiscovery.initialDiscoveryCanConsumeRequests,true);assert.equal(pre.servicesConsidered,1);const stored=ops.db().preflights[0];assert.equal(stored.config.seedName,'Unlisted Brand');assert.equal(stored.config.identityDiscoveryConsent,true);assert.equal(Object.hasOwn(stored.config,'serviceId'),false);
  const job=await ops.start(pre.token,'admin',true);assert.equal(job.config.objective,'PRICE_RESEARCH');assert.equal(job.config.targetKind,'PROVIDER_OR_BRAND_SEED');assert.equal(job.status,'QUEUED');
 });
 
 test('known canonical baseline, product and frozen identities are admitted to PRICE_RESEARCH; free text and malformed market are rejected',async t=>{
  const ops=fixture(t);for(const serviceId of ['strava','1password','chess-com']){const pre=await ops.preflight({objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId,market:'DE',capabilities:caps},'admin');assert.equal(pre.servicesConsidered,1);assert.equal(ops.db().preflights.at(-1).config.serviceId,serviceId);}
+ await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'chess-com',market:'DE',identityDiscoveryConsent:true,capabilities:caps},'admin'),/INVALID_PRICE_RESEARCH_IDENTITY/);
  await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'Strava subscription',market:'DE',capabilities:caps},'admin'));
  await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName:'Brand',market:'Germany',capabilities:caps},'admin'),/INVALID_PRICE_RESEARCH_MARKET/);
 });
@@ -80,7 +86,7 @@ test('known-service single-market Preflight rejects exclusion and re-inclusion r
 
 test('provider seed with an exact known service identity cannot bypass an excluded single market',async t=>{
  const ops=fixture(t);ops.config.marketExclusions.push({service_id:'chess-com',market_code:'IN',reason:null},{service_id:'disney-plus',market_code:'IN',reason:null});
- for(const seedName of ['Chess.com','Disney+'])await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName,market:'IN',capabilities:caps},'admin'),/PRICE_RESEARCH_MARKET_EXCLUDED/);
+ for(const seedName of ['Chess.com','Disney+'])await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName,market:'IN',identityDiscoveryConsent:true,capabilities:caps},'admin'),/PRICE_RESEARCH_MARKET_EXCLUDED/);
  assert.equal(ops.db().jobs.length,0);
 });
 

@@ -52,7 +52,7 @@ test('J/K/L/M: frozen 188 is unchanged and PRICE_RESEARCH admits only known or d
  const known=await priceResearchPlan({objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'strava',market:'DE',capabilities:caps},{repo:process.cwd(),root:'/tmp',client:new MemoryDb()});assert.equal(known.config.serviceId,'strava');
  const db=new MemoryDb(),created=await admitDurableResearchIdentity(admitted(),{client:db}),research=await priceResearchPlan({objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:created.identity.serviceId,market:'DE',capabilities:caps},{repo:process.cwd(),root:'/tmp',client:db});assert.equal(research.config.serviceId,created.identity.serviceId);
  await assert.rejects(priceResearchPlan({objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'unknown',market:'DE',capabilities:caps},{repo:process.cwd(),root:'/tmp',client:db}),/UNKNOWN_PRICE_RESEARCH_IDENTITY/);
- const seed=await priceResearchPlan({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName:'Untrusted Brand',market:'DE',capabilities:caps},{repo:process.cwd(),root:'/tmp',client:db});assert.equal(seed.manifest.targets.length,0);assert.equal(seed.manifest.priceResearch.identity,null);
+ const seed=await priceResearchPlan({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName:'Untrusted Brand',market:'DE',identityDiscoveryConsent:true,capabilities:caps},{repo:process.cwd(),root:'/tmp',client:db});assert.equal(seed.manifest.targets.length,0);assert.equal(seed.manifest.priceResearch.identity,null);
  assert.equal((await resolvePriceResearchIdentity('unknown',{client:db})).status,'UNRESOLVED');
 });
 

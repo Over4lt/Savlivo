@@ -62,9 +62,15 @@ test('adversarial 16-17: source-bound Service authority crosses with real proven
 });
 
 test('provider-seed admission excludes a service-market before V4 or V3 child research',async t=>{
- const calls=[],result=await runProviderSeedCampaign({directory:temp(t),researchTarget:researchTarget(),createAdapters:adapters({names:['Orbit'],calls}),capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},operationsObjective:'PRICE_RESEARCH',includeChild:(identity,targetMarket)=>{assert.equal(identity.serviceId,'orbit');assert.equal(targetMarket,'DE');return false;},runResearch:()=>assert.fail('excluded child must never reach V4 or V3')});
+ let excluded=false;const calls=[],result=await runProviderSeedCampaign({directory:temp(t),researchTarget:researchTarget(),createAdapters:adapters({names:['Orbit'],calls}),capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},operationsObjective:'PRICE_RESEARCH',persistResearchIdentity:async({service})=>{excluded=true;return {status:'RESEARCHABLE',identity:{serviceId:service.serviceId,serviceName:service.serviceName}};},includeChild:async(identity,targetMarket)=>{assert.equal(identity.serviceId,'orbit');assert.equal(targetMarket,'DE');assert.equal(excluded,true);return !excluded;},runResearch:()=>assert.fail('excluded child must never reach V4 or V3')});
  assert.deepEqual(result.children,[]);assert.deepEqual(result.serviceDiscovery.excluded,[{serviceId:'orbit',market:'DE'}]);assert.deepEqual(result.termination,{kind:'EXCLUDED',reason:'PRICE_RESEARCH_MARKET_EXCLUDED'});
  assert.equal(calls.filter(row=>row.stage!=='PROVIDER_SEED').length,0);
+});
+
+test('provider-seed admission keeps an included service-market eligible for child research',async t=>{
+ let admitted=0,researchCalls=0;
+ const result=await runProviderSeedCampaign({directory:temp(t),researchTarget:researchTarget(),createAdapters:adapters({names:['Orbit']}),capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false},operationsObjective:'PRICE_RESEARCH',includeChild:(identity,targetMarket)=>{admitted++;assert.equal(identity.serviceId,'orbit');assert.equal(targetMarket,'DE');return true;},runResearch:async({targets,execute})=>{researchCalls++;assert.equal(targets.length,1);return execute();}});
+ assert.equal(admitted,1);assert.equal(researchCalls,1);assert.equal(result.children.length,1);assert.equal(result.children[0].serviceId,'orbit');assert.equal(result.serviceDiscovery.excluded,undefined);
 });
 
 test('practical provider byte capacity changes no independent work bound',()=>{
