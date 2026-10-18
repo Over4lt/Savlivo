@@ -142,15 +142,16 @@ function componentIdentities(parsed,providerName){
  const byName=new Map();for(const row of found.sort((a,b)=>a.range-b.range))if(!byName.has(comparable(row.name)))byName.set(comparable(row.name),row);return [...byName.values()].map(({range,...row})=>row);
 }
 
-const symbolCurrency=new Map([['€','EUR'],['£','GBP'],['¥','JPY'],['CA$','CAD'],['A$','AUD'],['US$','USD'],['S$','SGD'],['R$','BRL'],['Kč','CZK'],['zł','PLN']]);
+const symbolCurrency=new Map([['€','EUR'],['£','GBP'],['¥','JPY'],['CA$','CAD'],['A$','AUD'],['US$','USD'],['S$','SGD'],['R$','BRL'],['RM','MYR'],['Kč','CZK'],['zł','PLN']]);
+const validCurrencies=new Set(Intl.supportedValuesOf('currency'));
 const currencyNames=new Map();
 const displayCurrencies=new Intl.DisplayNames(['en'],{type:'currency'});
 for(const code of Intl.supportedValuesOf('currency')){const name=displayCurrencies.of(code)?.toLocaleLowerCase('en');if(name)currencyNames.set(name,currencyNames.has(name)?null:code);}
 function headingCurrency(text){const name=/^pricing\s*\(([^)]+)\)/iu.exec(text)?.[1]?.trim().toLocaleLowerCase('en'),code=name?currencyNames.get(name):null;return code&&new Intl.NumberFormat('en',{style:'currency',currency:code,currencyDisplay:'narrowSymbol'}).formatToParts(1).find(part=>part.type==='currency')?.value==='$'?code:null;}
 function number(raw){const value=raw.replace(/[\u00a0\u202f ]/gu,'');if(/^\d+$/.test(value))return Number(value);if(/^\d+[.,]\d{1,2}$/.test(value))return Number(value.replace(',','.'));if(/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(value))return Number(value.replaceAll(',',''));if(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(value))return Number(value.replaceAll('.','').replace(',','.'));return null;}
-const money=/((?:[A-Z]{3}|CA\$|A\$|US\$|S\$|R\$|Kč|zł|[$€£¥])\s*)?(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[ .\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d.,])\s*((?:[A-Z]{3}|S\$|R\$|Kč|zł|[$€£¥]))?/gu;
+const money=/(?<![\p{L}\p{N}])((?:[A-Z]{3}|RM|CA\$|A\$|US\$|S\$|R\$|Kč|zł|[$€£¥])\s*)?(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[ .\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d.,])\s*((?:[A-Z]{3}|RM|S\$|R\$|Kč|zł|[$€£¥]))?(?![\p{L}\p{N}])/gu;
 function charges(text,currencyHint=null){
- const rows=[];for(const match of text.matchAll(money)){const mark=normalized((match[1]??'')||(match[3]??'')),currency=/^[A-Z]{3}$/.test(mark)?mark:symbolCurrency.get(mark)??(mark==='$'?currencyHint:null);if(!currency)continue;const amount=number(match[2]);if(amount===null)continue;
+ const rows=[];for(const match of text.matchAll(money)){const mark=normalized((match[1]??'')||(match[3]??'')),currency=/^[A-Z]{3}$/.test(mark)&&validCurrencies.has(mark)?mark:symbolCurrency.get(mark)??(mark==='$'?currencyHint:null);if(!currency)continue;const amount=number(match[2]);if(amount===null)continue;
   const after=text.slice(match.index+match[0].length,match.index+match[0].length+48),cadenceMatch=after.match(/^\s*(?:(?:\/|per\s+|a\s+|each\s+|every\s+)\s*)?(months?|monthly|mo\b|years?|yearly|annually|annual\b|yr\b)/iu);if(!cadenceMatch)continue;const cadence=/month|monthly|\bmo\b/iu.test(cadenceMatch[1])?'MONTHLY':'YEARLY',left=Math.max(0,match.index-64),right=Math.min(text.length,match.index+match[0].length+cadenceMatch[0].length+96),context=text.slice(left,right),trial=/\b(?:trial|introductory|first\s+(?:month|\d+\s+months?))\b/iu.test(context),nonCharge=/\b(?:save|saving|discount|credit|benefit|worth|value)\b[^.;]{0,32}$/iu.test(text.slice(left,match.index));if(nonCharge)continue;
   const billing=[...context.matchAll(/\b(?:billed|billing|charged|paid|pay|payment(?:s)?)\s+(?:[^.;]{0,32}?)(monthly|yearly|annually|every month|every year|per month|per year)\b|\b(monthly|yearly|annual)\s+(?:billing|payments?)\b/giu)].map(m=>/month/iu.test(m[1]??m[2])?'MONTHLY':'YEARLY'),prefix=text.slice(Math.max(0,match.index-32),match.index),stated=/(?:\bis\b|\bcosts?\b|\bpriced\s+at\b|\bor\b)\s*$/iu.test(prefix)?cadence:null,unique=[...new Set([...billing,...(stated?[stated]:[])])];
   const billingCadence=unique.length===1?unique[0]:'UNKNOWN';rows.push({amount,currency,cadence,billingCadence,consumer:true,relationship:'SUBSCRIPTION',role:trial?'TRIAL':'ORDINARY',monetaryKind:trial?'TRIAL_CHARGE':'SUBSCRIPTION_CHARGE',amountDerivation:billingCadence!=='UNKNOWN'&&billingCadence!==cadence?'ARITHMETIC':'EXPLICIT',text:match[0]+cadenceMatch[0],...(mark==='$'&&currencyHint?{currencyBasis:'CONTEXTUAL_DOLLAR'}:{})});
@@ -206,14 +207,15 @@ function pricingLists(parsed,marketCurrencyHint=null){
 
 
 // Provider pricing tables often put the cadence label before the charge. Keep
-// each row separate and require an actionable plan choice in the same row.
+// each row separate; buttonless rows require explicit monthly billing and a
+// coherent source-bound pricing-table identity.
 function pricingTables(parsed,currencyHint=null,providerName=null){
  const rows=[];
  for(const table of parsed.nodes.filter(node=>node.tag==='table'&&!node.hidden&&!ancestors(node).some(parent=>peripheral.has(parent.tag)))){
   const heading=parsed.nodes.filter(node=>/^h[2-4]$/.test(node.tag)&&!node.hidden&&node.end<=table.start).at(-1);
   const caption=parsed.nodes.find(node=>node.tag==='caption'&&node.start>=table.openEnd&&node.end<=table.contentEnd&&!node.hidden);
   const headingText=heading?parsed.text(heading):'';
-  if(nonStandalonePresentation(headingText,providerName)||caption&&nonStandalonePresentation(parsed.text(caption),providerName)||/^(?:annual|yearly)\b/iu.test(headingText))continue;
+  if(nonStandalonePresentation(headingText,providerName)||caption&&nonStandalonePresentation(parsed.text(caption),providerName)||/^(?:annual|yearly|anual)\b/iu.test(headingText))continue;
   const header=parsed.nodes.filter(node=>node.tag==='th'&&node.start>=table.openEnd&&node.end<=table.contentEnd&&!node.hidden).at(-1);
   const headerText=header?parsed.text(header):'';
   const previous=parsed.nodes.filter(node=>node.parent===table.parent&&node.end<=table.start&&!node.hidden).at(-1);
@@ -224,19 +226,22 @@ function pricingTables(parsed,currencyHint=null,providerName=null){
    const cells=parsed.nodes.filter(node=>node.tag==='td'&&node.parent===row&&!node.hidden).sort((a,b)=>a.start-b.start);
    if(cells.length<2||cells.length>6)continue;
    const nameSegment=parsed.within(cells[0])[0],name=nameSegment?.text??'';
-   if(!name||name.length>80||/^(?:monthly|annual|features?|plans?)$/iu.test(name)||/\b(?:[2-9]|1[0-2]|six)\s*[- ]?\s*months?\b/iu.test(name)||nonStandalonePresentation(name,providerName))continue;
+   if(!name||name.length>80||/^(?:monthly|mensal|annual|anual|features?|plans?|planos?)$/iu.test(name)||/\b(?:[2-9]|1[0-2]|six)\s*[- ]?\s*months?\b/iu.test(name)||/(?:^|[^\p{L}])(?:membros?\s+extras?|promo(?:ç(?:ão|ões)|tional?|cional)?|pacote|combo)(?=$|[^\p{L}])/iu.test(name)||nonStandalonePresentation(name,providerName))continue;
    const priceCell=cells.at(-1),parts=parsed.within(priceCell),priceText=parts.map(part=>part.text).join(' ');
-   if(!/\b(?:select|choose|subscribe|join)\s+(?:a\s+)?plan\b/iu.test(priceText))continue;
+   const hasPlanAction=/\b(?:select|choose|subscribe|join)\s+(?:a\s+)?plan\b/iu.test(priceText);
+   if(!hasPlanAction&&!parts.some(part=>/^(?:monthly|mensal)\s*:/iu.test(part.text)))continue;
    const monthly=[];
    for(let i=0;i<parts.length;i++){
-    const label=/^monthly\s*:\s*(.*)$/iu.exec(parts[i].text);
+    const label=/^(?:monthly|mensal)\s*:\s*(.*)$/iu.exec(parts[i].text);
     if(!label)continue;
     const amountText=label[1]||(parts[i+1]?.text??'');
-    if(/\b(?:annual|yearly|equivalent|billed\s+yearly)\b/iu.test(amountText))continue;
-    const values=charges(amountText+' /month',currencyHint).filter(charge=>charge.cadence==='MONTHLY'&&charge.role==='ORDINARY');
+    if(/(?:annual|yearly|anual|equivalent|equivalente|billed\s+yearly|promo|discount|desconto|trial|introductory|primeiro\s+m[eê]s|bundle|pacote|combo|\*{2,})/iu.test(amountText))continue;
+    const prices=[...amountText.matchAll(money)];
+    if(prices.length!==1)continue;
+    const values=charges(prices[0][0]+' /month',currencyHint).filter(charge=>charge.cadence==='MONTHLY'&&charge.role==='ORDINARY');
     if(values.length===1)monthly.push({...values[0],billingCadence:'MONTHLY',amountDerivation:'EXPLICIT',text:parts[i].text+' '+amountText});
    }
-   if(!monthly.length){
+   if(!monthly.length&&hasPlanAction){
     for(let i=0;i+1<parts.length;i++){
      if(!/\b(?:select|choose|subscribe|join)\s+(?:a\s+)?plan\b/iu.test(parts[i+1].text))continue;
      const display=parts[i].text;
@@ -245,14 +250,14 @@ function pricingTables(parsed,currencyHint=null,providerName=null){
      if(values.length===1)monthly.push({...values[0],billingCadence:'MONTHLY',amountDerivation:'EXPLICIT',text:display+'; '+parts[i+1].text});
     }
    }
-   if(!monthly.length&&sharedMonthly&&!/\b(?:annual|yearly|equivalent|trial|introductory|first month|promo(?:tional)?|discount|one.time|weekly)\b/iu.test(priceText)){
+   if(!monthly.length&&hasPlanAction&&sharedMonthly&&!/\b(?:annual|yearly|equivalent|trial|introductory|first month|promo(?:tional)?|discount|one.time|weekly)\b/iu.test(priceText)){
     const prices=[...priceText.matchAll(money)].filter(match=>/^(?:[A-Z]{3}|CA\$|A\$|US\$|S\$|R\$|Kč|zł|[$€£¥])\s*/u.test(match[0]));
     if(prices.length===1){const values=charges(prices[0][0]+' /month',currencyHint).filter(charge=>charge.cadence==='MONTHLY'&&charge.role==='ORDINARY');if(values.length===1)monthly.push({...values[0],billingCadence:'MONTHLY',amountDerivation:'EXPLICIT',text:prices[0][0]+'; '+(headerText||sectionText)});}
    }
    if(monthly.length!==1)continue;
-   candidates.push({name,nameLocator:locator(parsed.body,nameSegment.start,nameSegment.end),presentation:locator(parsed.body,row.start,row.end),charges:monthly});
+   candidates.push({name,nameLocator:locator(parsed.body,nameSegment.start,nameSegment.end),presentation:locator(parsed.body,row.start,row.end),charges:monthly,hasPlanAction});
   }
-  if(candidates.length>=2&&candidates.length<=24&&new Set(candidates.map(candidate=>comparable(candidate.name))).size===candidates.length)rows.push(...candidates);
+  if(candidates.length>=2&&candidates.length<=24&&new Set(candidates.map(candidate=>comparable(candidate.name))).size===candidates.length&&(candidates.every(candidate=>candidate.hasPlanAction)||pricingTableIdentity(parsed,providerName,candidates)))rows.push(...candidates.map(({hasPlanAction,...candidate})=>candidate));
  }
  return rows;
 }
@@ -260,10 +265,10 @@ function pricingTables(parsed,currencyHint=null,providerName=null){
 function pricingTableIdentity(parsed,providerName,tables){
  if(!providerName||tables.length<2)return null;
  const fields=fieldRows(parsed),title=uniqueRow(fields.filter(row=>row.kind==='TITLE')),description=uniqueRow(fields.filter(row=>row.kind==='DESCRIPTION'));
- if(!title||!description||!exactWord(title.value,providerName)||!exactWord(description.value,providerName)||!/\bplans?\b/iu.test(title.value)||!/\bsubscriptions?\b|\bmemberships?\b/iu.test(description.value))return null;
- const headings=parsed.nodes.filter(node=>node.tag==='h1'&&!node.hidden&&exactWord(parsed.text(node),providerName)&&/\bplans?\b/iu.test(parsed.text(node)));
+ if(!title||!description||!exactWord(title.value,providerName)||!exactWord(description.value,providerName)||!/\b(?:plans?|planos?)\b/iu.test(title.value)||!/\b(?:subscriptions?|memberships?|assinaturas?)\b/iu.test(description.value))return null;
+ const headings=parsed.nodes.filter(node=>node.tag==='h1'&&!node.hidden&&exactWord(parsed.text(node),providerName)&&/\b(?:plans?|planos?)\b/iu.test(parsed.text(node)));
  if(headings.length!==1)return null;
- const identity=exactLocator(parsed,title,providerName),relation=/\bsubscriptions?\b|\bmemberships?\b/iu.exec(description.value);
+ const identity=exactLocator(parsed,title,providerName),relation=/\b(?:subscriptions?|memberships?|assinaturas?)\b/iu.exec(description.value);
  if(!identity||!relation)return null;
  const at=parsed.body.slice(description.start,description.end).toLocaleLowerCase('en').indexOf(relation[0].toLocaleLowerCase('en'));
  if(at<0)return null;
