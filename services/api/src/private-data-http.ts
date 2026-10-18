@@ -1,6 +1,7 @@
 import {operationsDiagnostic} from './v2-operations/diagnostics.mjs';
 import { operationsRequest } from "./v2-operations/http.mjs";
 import { reportingEnabled, reportFilters, globalReport, segmentReport } from "./analytics-v2.js";
+import {parsePriceAnalyticsFilters,priceAnalyticsReport} from "./price-analytics.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { privateDataPool as pool } from "./private-data-db.js";
 import { getAuthUser } from "./auth.js";
@@ -208,6 +209,11 @@ export async function handlePrivateData(req: IncomingMessage, res: ServerRespons
       const filters=reportFilters(url.searchParams,segmented);
       await audit(userId,"dashboard_read",config.days); // Mandatory before any operational/aggregate read.
       respond(res,200,segmented ? await segmentReport(filters.report!,filters.month!) : await globalReport(filters.range!));return true;
+    }
+    if (url.pathname === "/v1/admin/analytics/prices" && req.method === "GET") {
+      const filters=parsePriceAnalyticsFilters(url.searchParams);
+      await audit(userId,"dashboard_read",config.days);
+      respond(res,200,await priceAnalyticsReport(filters));return true;
     }
     if (url.pathname === "/v1/admin/overview" && req.method === "GET") {
       const {market} = dashboardFilters(url);

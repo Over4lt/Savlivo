@@ -6,6 +6,7 @@ const api = location.origin === "https://admin.savlivo.com"
 let token = null;
 let generation = 0;
 let analyticsRange="30d", analyticsMonth="", analyticsSegment="top-services";
+let priceService="",priceMarket="",pricePlan="",pricePeriod="3M",priceMode="actual",priceRequestVersion=0;
 let expiryTimer;
 let disposeOperations;
 let adminViews=null;
@@ -130,6 +131,8 @@ async function refresh() {
       if(current!==generation || !token)return;
       renderAnalytics(analytics,segments);
     } else paragraph(panel,"Analytics reporting is disabled by the API configuration. Enable ANALYTICS_V2_REPORTING_ENABLED, ANALYTICS_PRIVACY_REVIEWED and ANALYTICS_MAINTENANCE_ENABLED on the API to use the prepared Growth, Plans and Product reports. Collection is configured separately. No user-level viewer is provided.");
+    const prices=analyticsSection("Price Analytics / Prisutvikling"),priceBody=document.createElement("div");
+    prices.append(priceBody);void loadPriceAnalytics(priceBody,current);
     adminViews.analyticsLoaded=true;
     message("Loaded.");
   } catch(error) {if(current===generation)message(error.message);}
@@ -277,4 +280,178 @@ function planGraph(parent,history) {
     title.textContent=`${bucket.period}: ${key} ${bucket.plans[key]}`;point.append(title);svg.append(point);
   }
   parent.append(svg);paragraph(parent,"Legend: Preview — mint, large dot; Manual — blue, medium dot; Premium — amber, small dot. Vertical scale: 0 to "+max+" accounts. Dots are not connected across missing history.");
+}
+
+function priceQuery() {
+  const parts=[`period=${encodeURIComponent(pricePeriod)}`];
+  if(priceService)parts.push(`service=${encodeURIComponent(priceService)}`);
+  if(priceMarket)parts.push(`market=${encodeURIComponent(priceMarket)}`);
+  if(pricePlan)parts.push(`plan=${encodeURIComponent(pricePlan)}`);
+  return `analytics/prices?${parts.join("&")}`;
+}
+async function loadPriceAnalytics(body,refreshVersion=generation) {
+  const version=++priceRequestVersion,session=token;
+  body.replaceChildren();paragraph(body,"Loading Verified price history…");
+  try {
+    let data=await request(priceQuery());
+    if(!Array.isArray(data?.services))throw new Error("Price Analytics is unavailable.");
+    if(data.state==="SELECT_SERVICE"&&data.services.length&&!priceService) {
+      if(version!==priceRequestVersion||refreshVersion!==generation||token!==session)return;
+      priceService=data.services[0].slug;
+      data=await request(priceQuery());
+    }
+    if(version!==priceRequestVersion||refreshVersion!==generation||token!==session)return;
+    renderPriceAnalytics(body,data);
+  } catch(error) {
+    if(version!==priceRequestVersion||refreshVersion!==generation||token!==session)return;
+    body.replaceChildren();paragraph(body,`Price Analytics unavailable: ${error.message}`);
+  }
+}
+function priceSelect(form,labelText,options,value,onChange) {
+  const label=document.createElement("label"),select=document.createElement("select");
+  label.textContent=labelText;
+  for(const [key,text] of options) {
+    const option=document.createElement("option");option.value=key;option.textContent=text;select.append(option);
+  }
+  select.value=value;select.addEventListener("change",()=>onChange(select.value));label.append(select);form.append(label);
+  return select;
+}
+function priceMoney(minor,currency) {
+  if(!Number.isSafeInteger(minor)||typeof currency!=="string")return "Unavailable";
+  try {
+    const base=new Intl.NumberFormat(undefined,{style:"currency",currency});
+    const digits=base.resolvedOptions().maximumFractionDigits??2;
+    return (digits<2?new Intl.NumberFormat(undefined,{style:"currency",currency,maximumFractionDigits:2}):base).format(minor/100);
+  } catch {return `${currency} ${(minor/100).toFixed(2)}`;}
+}
+const pricePercent=value=>Number.isFinite(value)?`${value>=0?"+":""}${value.toFixed(1)}%`:"Unavailable";
+const priceDate=value=>value?new Date(value).toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"}):"Unavailable";
+function priceHeading(parent,text) {const h=document.createElement("h3");h.textContent=text;parent.append(h);}
+function priceEvidence(parent,url) {
+  if(typeof url==="string"&&/^https:\/\/[^\s]+$/i.test(url)) {
+    const link=document.createElement("a");link.href=url;link.target="_blank";link.rel="noopener noreferrer";link.textContent="Evidence";parent.append(link);
+  } else parent.textContent="Unavailable";
+}
+function renderPriceAnalytics(body,data) {
+  body.replaceChildren();
+  paragraph(body,"Provider-Verified monthly prices only. Suggested prices and personal overrides are excluded. Verification dates are not proven provider-effective dates.");
+  const controls=document.createElement("div");controls.className="price-analytics-controls";
+  priceSelect(controls,"Service",[["","Choose service"],...(data.services??[]).map(row=>[row.slug,row.name])],priceService,value=>{
+    priceService=value;priceMarket="";pricePlan="";void loadPriceAnalytics(body);
+  });
+  const market=priceSelect(controls,"Market",[["","All markets"],...(data.markets??[]).map(row=>[row.code,`${row.name} (${row.code})`])],priceMarket,value=>{
+    priceMarket=value;pricePlan="";void loadPriceAnalytics(body);
+  });market.disabled=!priceService;
+  const plan=priceSelect(controls,"Subscription plan",[["","All plans"],...(data.planOptions??[]).map(row=>[row.seriesId,`${row.name} · ${row.market} · ${row.currency}`])],pricePlan,value=>{
+    pricePlan=value;void loadPriceAnalytics(body);
+  });plan.disabled=!priceService;
+  priceSelect(controls,"Period",[["3M","3 months"],["6M","6 months"],["1Y","1 year"],["All","All recorded history"]],pricePeriod,value=>{
+    pricePeriod=value;void loadPriceAnalytics(body);
+  });
+  priceSelect(controls,"Display",[["actual","Actual price"],["percent","Percentage change"],["index","Price index (100)"]],priceMode,value=>{
+    priceMode=value;renderPriceAnalytics(body,data);
+  });
+  body.append(controls);
+  if(data.state==="SELECT_SERVICE") {paragraph(body,"Choose a service to inspect its Verified price history.");return;}
+  if(data.state==="NARROW_FILTERS") {paragraph(body,"This selection exceeds the bounded history view. Choose a market or subscription plan.");return;}
+  if(data.state!=="AVAILABLE") {paragraph(body,"Price history is unavailable.");return;}
+  if(data.servicesTruncated||data.planOptionsTruncated)paragraph(body,"Some filter options exceed the bounded list. Narrow the service or market.");
+  const summary=data.summary,metrics=document.createElement("div");metrics.className="price-metrics";
+  for(const [label,value] of [["Markets with current Verified prices",summary.markets],["Current Verified plans",summary.plans],["Price changes in the last 30 days",summary.priceChanges30d]]) {
+    const card=document.createElement("div"),heading=document.createElement("strong"),number=document.createElement("span");
+    heading.textContent=label;number.textContent=String(value);card.append(heading,number);metrics.append(card);
+  }
+  body.append(metrics);
+  for(const [label,rows] of [["Largest increases (30 days)",summary.increases],["Largest decreases (30 days)",summary.decreases]]) {
+    priceHeading(body,label);
+    if(!rows.length)paragraph(body,"No documented price changes in this selection.");
+    else {const list=document.createElement("ul");for(const row of rows){const item=document.createElement("li");item.textContent=`${row.market} · ${row.planName}: ${priceMoney(row.previousMinor,row.currency)} → ${priceMoney(row.newMinor,row.currency)} (${pricePercent(row.percent)})`;list.append(item);}body.append(list);}
+  }
+  priceHeading(body,"Most recent Verified dates");
+  if(!summary.recentVerifications.length)paragraph(body,"No current Verified plans in this selection.");
+  else {const list=document.createElement("ul");for(const row of summary.recentVerifications){const item=document.createElement("li");item.textContent=`${row.market} · ${row.planName}: Verified ${priceDate(row.verifiedAt)}; last checked ${priceDate(row.lastCheckedAt)}`;list.append(item);}body.append(list);}
+  priceHeading(body,"Historical Verified prices");
+  if(data.chartState==="NARROW_FILTERS")paragraph(body,"More than 16 semantic series match. Choose a market or plan to draw a readable chart.");
+  else if(data.chartState==="EMPTY")paragraph(body,"No structured Verified history for this selection. Current prices may exist, but older history is unavailable until an approved as-of bootstrap or a future Verified write.");
+  else priceCharts(body,data.series);
+  if(data.series.some(row=>row.olderHistoryUnavailable))paragraph(body,"Some series begin with an as-of bootstrap. Prices before that recorded baseline are unavailable.");
+  priceHeading(body,"Verified price changes");
+  priceChanges(body,data.changes);
+  if(data.changesTruncated)paragraph(body,"Only the 200 most recent changes are shown. Narrow the filters for a complete view.");
+  priceHeading(body,"Market price movement");
+  paragraph(body,"Each tile compares one semantic plan series with its own Verified baseline. Plans and currencies are never averaged across markets.");
+  priceHeatmap(body,data.heatmap);
+  if(data.heatmapTruncated)paragraph(body,"Only 300 market-plan series are shown. Narrow the filters for a complete view.");
+  paragraph(body,"Horizontal steps show successive recorded Verified values, not proven provider-effective periods. The older 62 unlinked observations are excluded from this series view.");
+}
+function priceCharts(parent,series) {
+  const groups=new Map();
+  for(const row of series) {
+    const key=priceMode==="actual"?row.currency:"comparison",group=groups.get(key)??[];group.push(row);groups.set(key,group);
+  }
+  for(const [key,rows] of groups) {
+    priceHeading(parent,priceMode==="actual"?`Actual prices · ${key}`:priceMode==="percent"?"Change from valid baseline (%)":"Index from valid baseline (100)");
+    const measured=rows.flatMap(row=>row.points.map(point=>priceMode==="actual"?point.amountMinor/100:priceMode==="percent"?point.percent:point.index).filter(Number.isFinite));
+    if(!measured.length){paragraph(parent,"A valid baseline is unavailable for this display mode.");continue;}
+    const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("class","price-step-chart");
+    svg.setAttribute("viewBox","0 0 820 260");svg.setAttribute("role","img");
+    svg.setAttribute("aria-label",`Step chart of ${rows.length} Verified price series. Exact values and dates appear in the change log and point tooltips.`);
+    const dated=rows.flatMap(row=>row.points.map(point=>Date.parse(point.at))).filter(Number.isFinite),
+      left=Math.min(...dated),right=Math.max(...dated,left+86400000,...(rows.some(row=>row.current)?[Date.now()]:[])),
+      bottom=Math.min(...measured,priceMode==="percent"?0:priceMode==="index"?100:Infinity),
+      top=Math.max(...measured,priceMode==="percent"?0:priceMode==="index"?100:0),span=Math.max(1,top-bottom);
+    const x=time=>60+(time-left)/(right-left)*740,y=value=>220-(value-bottom)/span*180;
+    const palette=["#89d9b0","#91ceff","#f1c879","#f39bad","#c5adff","#87dfd8","#f8b982","#b0d781"];
+    for(const [index,row] of rows.entries()) {
+      const points=row.points.filter(point=>Number.isFinite(priceMode==="actual"?point.amountMinor/100:priceMode==="percent"?point.percent:point.index));
+      if(!points.length)continue;
+      const value=point=>priceMode==="actual"?point.amountMinor/100:priceMode==="percent"?point.percent:point.index;
+      let path=`M ${x(Date.parse(points[0].at)).toFixed(1)} ${y(value(points[0])).toFixed(1)}`;
+      for(let i=1;i<points.length;i++)path+=` H ${x(Date.parse(points[i].at)).toFixed(1)} V ${y(value(points[i])).toFixed(1)}`;
+      if(row.current)path+=` H ${x(right).toFixed(1)}`;
+      const line=document.createElementNS("http://www.w3.org/2000/svg","path");line.setAttribute("d",path);
+      line.setAttribute("fill","none");line.setAttribute("stroke",palette[index%palette.length]);line.setAttribute("stroke-width","2.5");
+      if(index>=palette.length)line.setAttribute("stroke-dasharray","7 4");svg.append(line);
+      for(const point of points) {
+        const dot=document.createElementNS("http://www.w3.org/2000/svg","circle"),tip=document.createElementNS("http://www.w3.org/2000/svg","title");
+        dot.setAttribute("cx",x(Date.parse(point.at)).toFixed(1));dot.setAttribute("cy",y(value(point)).toFixed(1));
+        dot.setAttribute("r","4");dot.setAttribute("fill",palette[index%palette.length]);
+        tip.textContent=`${row.market} · ${row.planName} · ${priceDate(point.verifiedAt)} · ${priceMoney(point.amountMinor,row.currency)}${point.kind==="CARRIED_BASELINE"?" (carried from prior Verified baseline)":""}`;
+        dot.append(tip);svg.append(dot);
+      }
+    }
+    parent.append(svg);
+    paragraph(parent,`Scale: ${priceMode==="actual"?`${priceMoney(Math.round(bottom*100),key)} to ${priceMoney(Math.round(top*100),key)}`:`${bottom.toFixed(1)} to ${top.toFixed(1)}${priceMode==="percent"?"%":" index points"}`}. Dates: ${priceDate(new Date(left).toISOString())} to ${priceDate(new Date(right).toISOString())}.`);
+    const legend=document.createElement("ul");legend.className="price-legend";
+    for(const [index,row] of rows.entries()){
+      const item=document.createElement("li"),swatch=document.createElement("span"),label=document.createElement("span");
+      swatch.className=`price-legend-swatch price-color-${index%palette.length}`;swatch.setAttribute("aria-hidden","true");
+      label.textContent=`${row.market} · ${row.planName} (${row.currency})${index>=palette.length?" · dashed":""}${row.baselineKind===null?" · baseline unavailable":""}`;
+      item.append(swatch,label);
+      legend.append(item);
+    }parent.append(legend);
+  }
+}
+function priceChanges(parent,rows) {
+  if(!rows.length){paragraph(parent,"No documented monetary changes in this period. Initial baselines and name-only updates are excluded.");return;}
+  const wrap=document.createElement("div");wrap.className="table-wrap";
+  const tableNode=document.createElement("table"),head=document.createElement("thead"),body=document.createElement("tbody"),header=document.createElement("tr");
+  for(const label of ["Service","Market","Plan","Previous","New","Change","Verified / recorded","Evidence"]){const cell=document.createElement("th");cell.scope="col";cell.textContent=label;header.append(cell);}head.append(header);
+  for(const row of rows) {
+    const line=document.createElement("tr");
+    for(const value of [row.serviceName,row.marketName+` (${row.market})`,row.planName,priceMoney(row.previousMinor,row.currency),priceMoney(row.newMinor,row.currency),`${priceMoney(row.absoluteMinor,row.currency)} (${pricePercent(row.percent)})`,`${priceDate(row.verifiedAt)} / ${priceDate(row.recordedAt)}${row.providerEffectiveAt?` · provider effective ${priceDate(row.providerEffectiveAt)}`:""}`]){
+      const cell=document.createElement("td");cell.textContent=value;line.append(cell);
+    }
+    const evidence=document.createElement("td");priceEvidence(evidence,row.sourceUrl);line.append(evidence);body.append(line);
+  }
+  tableNode.append(head,body);wrap.append(tableNode);parent.append(wrap);
+}
+function priceHeatmap(parent,rows) {
+  if(!rows.length){paragraph(parent,"No structured Verified series in this selection.");return;}
+  const grid=document.createElement("div");grid.className="price-heatmap";
+  for(const row of rows){const tile=document.createElement("div");tile.className=`price-heat-tile ${row.percent===null?"unavailable":row.percent>0?"increase":row.percent<0?"decrease":"flat"}`;
+    const title=document.createElement("strong");title.textContent=`${row.marketName} (${row.market}) · ${row.planName}`;tile.append(title);
+    paragraph(tile,row.percent===null?"Unavailable: no comparable Verified baseline and later value":`${pricePercent(row.percent)} · ${priceMoney(row.baselineMinor,row.currency)} → ${priceMoney(row.lastMinor,row.currency)}`);
+    grid.append(tile);
+  }parent.append(grid);
 }

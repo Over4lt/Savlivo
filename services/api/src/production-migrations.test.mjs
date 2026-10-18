@@ -89,6 +89,14 @@ test('023 adds series metadata without backfilling or changing existing prices a
  assert.doesNotMatch(sql,/\b(?:DELETE|TRUNCATE|DROP TABLE|UPDATE|INSERT INTO)\b/i);
 });
 
+test('024 adds only the bounded Price Analytics service-series read index',()=>{
+ assert.equal(migrationFiles.filter(file=>file.endsWith('024_price_analytics_history_index.sql')).length,1);
+ const sql=fs.readFileSync(productionRoot+'db/migrations/024_price_analytics_history_index.sql','utf8');
+ assert.match(sql,/verified_price_observations_service_series_time_idx/);
+ assert.match(sql,/\(service_slug,history_series_id,provider_verified_at,id\)/);
+ assert.doesNotMatch(sql,/\b(?:DELETE|TRUNCATE|DROP|UPDATE|INSERT)\b/i);
+});
+
 test('fresh and repeated startup apply each migration once; Research links GET uses migrated shape',async()=>{
  const db=new MigrationDatabase(),first=await runProductionMigrations(db),second=await runProductionMigrations(db);
  assert.equal(first.applied,migrationFiles.length+1);assert.equal(second.applied,0);assert.equal(second.skipped,migrationFiles.length+1);
@@ -108,7 +116,7 @@ test('fresh and repeated startup apply each migration once; Research links GET u
 
 test('verified legacy schema is baselined without replaying old data migrations, then additive migrations run',async()=>{
  const db=new MigrationDatabase({legacy:true}),result=await runProductionMigrations(db);
- assert.equal(result.baselined,15);assert.equal(result.applied,6);assert.equal(db.links,true);
+ assert.equal(result.baselined,15);assert.equal(result.applied,7);assert.equal(db.links,true);
  assert.equal(db.queries.some(row=>row.sql.includes("DO UPDATE SET\n  name = EXCLUDED.name")),false);
  assert.equal((await runProductionMigrations(db)).applied,0);
 });

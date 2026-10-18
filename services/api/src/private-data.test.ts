@@ -128,6 +128,46 @@ test("dashboard rejects arbitrary ranges, market text and duplicate filters",()=
   assert.deepEqual(dashboardFilters(new URL("https://x/?market=NO")),{market:"NO"});
   for(const query of ["days=7","days=30","days=90","days=999","market=RU","email=x","days=7&days=30","market=NO&market=US","market=NO&service=netflix","market=NO&category=video","service=netflix&billing=apple"]) assert.throws(()=>dashboardFilters(new URL(`https://x/?${query}`)));
 });
+test("Price Analytics read requires the existing Admin session and audit; filters and queries stay bounded",async t=>{
+  const {privateDataPool}=await import("./private-data-db.js"),previous={...process.env};
+  Object.assign(process.env,productionAdmin);
+  const sql:string[]=[];
+  t.mock.method(privateDataPool,"query",async(query:string)=>{
+    sql.push(query);
+    if(query.includes("SELECT s.user_id FROM admin_sessions"))return {rows:[{user_id:"price-reader"}]};
+    if(query.includes("SELECT service_slug FROM verified_provider_prices"))return {rows:[{service_slug:"disney-plus"}]};
+    if(query.includes("FROM verified_provider_prices WHERE service_slug"))return {rows:[{
+      service_slug:"disney-plus",plan_slug:"standard",plan_name:"Standard",history_series_id:null,
+      country_code:"NO",currency:"NOK",monthly_price_minor:10900,
+      verified_at:"2026-10-01T00:00:00Z",last_checked_at:"2026-10-18T00:00:00Z"
+    }]};
+    return {rows:[]};
+  });
+  async function request(path:string,authorization:string|undefined,origin=productionAdmin.ADMIN_ALLOWED_ORIGIN,method="GET") {
+    const req=Readable.from([]) as IncomingMessage;
+    req.url=path;req.method=method;req.headers={origin,...(authorization?{authorization}:{})};
+    let status=0,body="";
+    await handlePrivateData(req,{setHeader(){},writeHead(code:number){status=code;},end(value:string){body=value;}} as any);
+    return {status,data:body?JSON.parse(body):null};
+  }
+  const path="/v1/admin/analytics/prices?service=disney-plus&period=3M",token="Bearer adm_"+"a".repeat(43);
+  try {
+    assert.equal((await request(path,undefined)).status,401);
+    assert.equal((await request(path,`Bearer ${createToken({id:"customer",email:"customer@example.invalid"})}`)).status,401);
+    assert.equal((await request(path,token,"https://evil.invalid")).status,403);
+    assert.equal((await request(path+"&email=private",token)).status,400);
+    const result=await request(path,token);
+    assert.equal(result.status,200);assert.equal(result.data.summary.plans,1);
+    assert.equal(result.data.summary.markets,1);assert.equal(result.data.chartState,"EMPTY");
+    assert.equal((await request(path,token,productionAdmin.ADMIN_ALLOWED_ORIGIN,"POST")).status,404);
+    assert.ok(sql.some(query=>query.startsWith("INSERT INTO admin_audit")));
+    assert.ok(sql.every(query=>!/(suggested_provider_prices|subscriptions|entitlements|UPDATE verified|DELETE FROM verified)/.test(query)));
+    for(const query of sql.filter(value=>value.includes("FROM verified_provider_prices WHERE service_slug")||value.includes("FROM verified_price_observations WHERE service_slug"))) {
+      assert.match(query,/LIMIT (301|2001|4001)/);assert.match(query,/authoritative-provider/);
+    }
+    assert.ok(sql.some(query=>query.includes("FROM verified_price_observations h")&&query.includes("LIMIT 4001")));
+  }finally{for(const key of Object.keys(process.env))if(!(key in previous))delete process.env[key];Object.assign(process.env,previous);}
+});
 test("private handler leaves existing customer routes unchanged and disabled admin denies",async()=>{
   const req={url:"/v1/assistant",headers:{}} as IncomingMessage;
   assert.equal(await handlePrivateData(req,{} as any),false);

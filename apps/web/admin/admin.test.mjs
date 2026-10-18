@@ -43,7 +43,7 @@ test("Analytics navigation is available after authentication without bypassing d
   assert.ok(elements.some(e=>e.href==="#analytics"&&e.textContent==="Analytics"));
   assert.ok(elements.some(e=>e.id==="analytics"));
   assert.ok(elements.some(e=>e.textContent.includes("ANALYTICS_V2_REPORTING_ENABLED")));
-  assert.equal(requests.some(url=>url.includes("/analytics")),false);
+  assert.equal(requests.some(url=>url.includes("/analytics?")||url.includes("/analytics/segments")),false);
   await nodes.logout.listeners.click();
   assert.equal(nodes.results.children.length,0);
 });
@@ -123,6 +123,70 @@ test("Analytics retains Growth, Plans and Product while excluding provider-price
   for(const value of ["Suggested coverage","Verified coverage","Price model coverage","Provider plan price state","EUR 21.99","EUR 19.99"])assert.equal(analyticsText.includes(value),false,value);
   await viewLink(nodes,"V2 Operations").listeners.click(submit);
   assert.deepEqual(JSON.parse(JSON.stringify(received)),{priceCoverage});
+});
+test("Price Analytics renders native-currency step charts, filters, change log and honest sparse states",async()=>{
+  const requests=[],seriesId="vh:"+"a".repeat(64),otherId="vh:"+"b".repeat(64);
+  const point=(at,amountMinor,percent,index,kind="PRICE_CHANGE")=>({at,verifiedAt:at,recordedAt:at,
+    providerEffectiveAt:null,amountMinor,percent,index,kind,sourceUrl:"https://provider.example/prices"});
+  const first={seriesId,serviceSlug:"disney-plus",serviceName:"Disney+",market:"NO",marketName:"Norway",currency:"NOK",
+    planName:"Disney+ Standard",billingInterval:"MONTHLY_RECURRING",baselineKind:"BASELINE",olderHistoryUnavailable:false,current:true,
+    points:[point("2026-08-01T00:00:00Z",8990,0,100,"BASELINE"),point("2026-09-01T00:00:00Z",10990,22.2469,122.2469)]};
+  const second={...first,seriesId:otherId,market:"SE",marketName:"Sweden",currency:"SEK",planName:"Premium",
+    points:[point("2026-08-01T00:00:00Z",12900,0,100,"BASELINE"),point("2026-09-01T00:00:00Z",13900,7.7519,107.7519)]};
+  const change={...first,previousMinor:8990,newMinor:10990,absoluteMinor:2000,percent:22.2469,
+    verifiedAt:"2026-09-01T00:00:00Z",recordedAt:"2026-09-02T00:00:00Z",providerEffectiveAt:null,sourceUrl:"https://provider.example/prices"};
+  const report={state:"AVAILABLE",services:[{slug:"disney-plus",name:"Disney+"},{slug:"netflix",name:"Netflix"}],markets:[{code:"NO",name:"Norway"},{code:"SE",name:"Sweden"}],
+    planOptions:[{seriesId,name:"Disney+ Standard",market:"NO",currency:"NOK"},{seriesId:otherId,name:"Premium",market:"SE",currency:"SEK"}],
+    summary:{markets:2,plans:2,priceChanges30d:1,increases:[change],decreases:[],recentVerifications:[{market:"NO",planName:"Disney+ Standard",verifiedAt:"2026-09-01T00:00:00Z",lastCheckedAt:"2026-09-02T00:00:00Z"}]},
+    series:[first,second],changes:[change],heatmap:[{...first,baselineMinor:8990,lastMinor:10990,percent:22.2469},{...second,baselineMinor:12900,lastMinor:13900,percent:7.7519}],chartState:"AVAILABLE"};
+  const nodes=harness(async(url,options)=>{
+    requests.push({url,options});
+    if(url.endsWith("authenticate/verify"))return response({token:"adm_test",expiresInSeconds:900});
+    if(url.includes("analytics/prices?")&&!url.includes("service="))return response({state:"SELECT_SERVICE",services:report.services,markets:report.markets});
+    if(url.includes("analytics/prices?"))return response(report);
+    return response({...overview,analyticsV2Enabled:false});
+  });
+  await nodes.login.listeners.submit(submit);await new Promise(resolve=>setImmediate(resolve));
+  const descendants=e=>[e,...e.children.flatMap(descendants)],all=()=>descendants(nodes.results),text=()=>all().map(e=>e.textContent).join(" ");
+  assert.match(text(),/Price Analytics \/ Prisutvikling/);
+  assert.match(text(),/Markets with current Verified prices/);
+  assert.match(text(),/Verified price changes/);
+  assert.match(text(),/Evidence/);
+  const charts=()=>all().filter(e=>e.class==="price-step-chart"||e.className==="price-step-chart");
+  assert.equal(charts().length,2,"native NOK and SEK are graphed on separate actual-price scales");
+  assert.ok(charts().every(chart=>chart.viewBox==="0 0 820 260"));
+  const css=readFileSync(new URL("admin.css",import.meta.url),"utf8");
+  assert.match(css,/\.price-step-chart\{[^}]*width:100%;height:auto/);
+  assert.match(css,/@media\(max-width:480px\)\{\.price-analytics-controls label\{flex-basis:100%/);
+  for(const chart of charts())for(const path of descendants(chart).filter(e=>e.d)){
+    assert.match(path.d,/ H .* V /);assert.doesNotMatch(path.d,/\b[CSQ]\b/);
+  }
+  const display=all().find(e=>e.textContent==="Display").children[0];display.value="percent";display.listeners.change();
+  assert.equal(charts().length,1,"percentage mode can share a comparable scale");
+  const period=all().find(e=>e.textContent==="Period").children[0];period.value="6M";period.listeners.change();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(requests.some(row=>row.url.includes("analytics/prices?period=6M&service=disney-plus")));
+  const market=all().find(e=>e.textContent==="Market").children[0];market.value="NO";market.listeners.change();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(requests.some(row=>row.url.includes("market=NO")));
+  const plan=all().find(e=>e.textContent==="Subscription plan").children[0];plan.value=seriesId;plan.listeners.change();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(requests.some(row=>row.url.includes(`plan=vh%3A${"a".repeat(64)}`)));
+  const service=all().find(e=>e.textContent==="Service").children[0];service.value="netflix";service.listeners.change();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.ok(requests.some(row=>row.url.includes("service=netflix")&&!row.url.includes("market=")),"service change resets market and plan filters");
+  assert.ok(requests.filter(row=>row.url.includes("analytics/prices?")).every(row=>row.options.headers.Authorization==="Bearer adm_test"));
+  await nodes.logout.listeners.click();assert.equal(nodes.results.children.length,0);
+});
+test("Price Analytics empty history keeps current coverage visible without inventing changes",async()=>{
+  const nodes=harness(async url=>url.endsWith("authenticate/verify")?response({token:"adm_test",expiresInSeconds:900}):
+    url.includes("analytics/prices?")?response({state:"AVAILABLE",services:[{slug:"disney-plus",name:"Disney+"}],markets:[],planOptions:[],
+      summary:{markets:1,plans:3,priceChanges30d:0,increases:[],decreases:[],recentVerifications:[]},
+      series:[],changes:[],heatmap:[],chartState:"EMPTY"}):response({...overview,analyticsV2Enabled:false}));
+  await nodes.login.listeners.submit(submit);await new Promise(resolve=>setImmediate(resolve));
+  const texts=e=>[e.textContent,...e.children.flatMap(texts)],all=texts(nodes.results).join(" ");
+  assert.match(all,/Current Verified plans/);assert.match(all,/No structured Verified history/);
+  assert.match(all,/older history is unavailable/);assert.match(all,/No documented monetary changes/);
 });
 test("logout clears sensitive view immediately and rejects late dashboard result",async()=>{
   let complete;let reads=0;

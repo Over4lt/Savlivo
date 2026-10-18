@@ -85,6 +85,27 @@ li {margin:.4rem 0;color:var(--muted)}
 .plan-graph .manual {fill:#8fb7e5}
 .plan-graph .premium {fill:#f1c879}
 
+.price-analytics-controls{display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end;margin:1rem 0}
+.price-analytics-controls label{flex:1 1 11rem}
+.price-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:.75rem;margin:1rem 0}
+.price-metrics>div{display:flex;flex-direction:column;gap:.35rem;padding:1rem;border:1px solid var(--border);border-radius:12px;background:var(--bg)}
+.price-metrics strong{font-size:.85rem;color:var(--muted)}
+.price-metrics span{font-size:1.5rem;font-weight:700}
+.price-step-chart{display:block;width:100%;height:auto;min-height:180px;background:var(--bg);border:1px solid var(--border);border-radius:12px}
+.price-legend{display:flex;flex-wrap:wrap;gap:.25rem 1rem;padding-left:1.3rem}
+.price-legend li{overflow-wrap:anywhere}
+.price-legend-swatch{display:inline-block;width:.8em;height:.8em;margin-right:.4em;border-radius:50%;vertical-align:middle}
+.price-color-0{background:#89d9b0}.price-color-1{background:#91ceff}.price-color-2{background:#f1c879}.price-color-3{background:#f39bad}
+.price-color-4{background:#c5adff}.price-color-5{background:#87dfd8}.price-color-6{background:#f8b982}.price-color-7{background:#b0d781}
+.price-heatmap{display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:.65rem;margin:1rem 0}
+.price-heat-tile{border:1px solid var(--border);border-radius:12px;padding:.75rem;min-width:0;overflow-wrap:anywhere;background:var(--bg)}
+.price-heat-tile p{margin:.25rem 0 0}
+.price-heat-tile.increase{border-left:4px solid #f39bad}
+.price-heat-tile.decrease{border-left:4px solid #89d9b0}
+.price-heat-tile.flat{border-left:4px solid #91ceff}
+.price-heat-tile.unavailable{border-left:4px solid var(--control-muted)}
+@media(max-width:480px){.price-analytics-controls label{flex-basis:100%}}
+
 /* V2 Operations follows the existing admin visual language. */
 #v2-operations nav{display:flex;flex-wrap:wrap;gap:.5rem}
 .ops-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:.75rem;margin:1rem 0}
