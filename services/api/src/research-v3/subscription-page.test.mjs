@@ -48,6 +48,58 @@ test('adversarial 13: support and resource headings cannot become Services witho
 test('adversarial 14: malformed structured data does not create a Service',()=>{const body='<script type="application/ld+json">{"@type":"Service",bad}</script><main><h2>Compare Plans</h2><p>€5 / month</p></main>';assert.deepEqual(discovery(body).services,[]);});
 test('adversarial 15: conflicting page product identities fail closed',()=>{const body=ordinaryPage.replace('content="Orbit Subscription Plans"','content="Pulse Subscription Plans"');assert.deepEqual(page(body).services,[]);assert.deepEqual(discovery(body).services,[]);});
 
+const retainedHelpTable=(market,rows)=>`<html><head><title>Disney+ plans and prices | Disney+ Help Centre | ${market}</title><meta name="description" content="Prices for a Disney+ subscription can vary depending on the plan you sign up for."></head><body><h1>Disney+ plans and prices</h1><h2>Disney+ standalone plans</h2><table><tr><th>Disney+ plan</th><th>Features</th><th>Price</th></tr>${rows.join('')}</table><p>Repeated informational text: Disney+ Premium costs more, but this paragraph is not a plan choice.</p></body></html>`;
+const helpRow=(name,price)=>`<tr><td>${name}</td><td>Ad-free movies and series</td><td>${price}</td></tr>`;
+
+test('captured PL help-table structure keeps two standalone monthly zł charges and excludes annual and Extra Member',()=>{
+ const body=retainedHelpTable('PL',[
+  helpRow('Disney+ Standard','<strong>Monthly:</strong><p>34.99 zł</p><a>Select plan</a><strong>Annual:</strong><p>349.90 zł</p><a>Select plan</a>'),
+  helpRow('Disney+ Premium','<strong>Monthly:</strong><p>59.99 zł</p><a>Select plan</a><strong>Annual:</strong><p>599.90 zł</p><a>Select plan</a>'),
+  helpRow('Extra Member','<strong>Monthly:</strong><p>20.99 zł</p><a>Select plan</a>')]);
+ const result=interpretSubscriptionPage({body,url:'https://help.example.com/article/price',providerName:'Disney+'});
+ assert.deepEqual(result.services.map(row=>row.name),['Disney+']);
+ assert.deepEqual(result.offerings.map(row=>[row.name,...row.charges.map(c=>[c.amount,c.currency,c.cadence,c.billingCadence])]),[
+  ['Disney+ Standard',[34.99,'PLN','MONTHLY','MONTHLY']],['Disney+ Premium',[59.99,'PLN','MONTHLY','MONTHLY']]]);
+});
+
+test('captured SG help-table structure keeps only distinct monthly S$ choices',()=>{
+ const body=retainedHelpTable('SG',[
+  helpRow('Disney+ Standard','<p><span>S$18.98/month</span></p><a>Select plan</a><p><span>S$159.98/year</span></p><a>Select plan</a>'),
+  helpRow('Disney+ Premium','<p><span>S$22.98/month</span></p><a>Select plan</a><p><span>S$189.98/year</span></p><a>Select plan</a>'),
+  helpRow('Extra Member','<p><span>S$7.98/month</span></p><a>Select plan</a>'),
+  helpRow('Six-month Saver','<p><span>S$12.98/month billed every 6 months</span></p><a>Select plan</a>'),
+  helpRow('Disney+ + Sports bundle','<p><span>S$29.98/month</span></p><a>Select plan</a>')]);
+ const result=interpretSubscriptionPage({body,url:'https://help.example.com/article/price',providerName:'Disney+',currencyHint:'SGD'});
+ assert.deepEqual(result.services.map(row=>row.name),['Disney+']);
+ assert.deepEqual(result.offerings.map(row=>[row.name,...row.charges.map(c=>[c.amount,c.currency,c.cadence,c.billingCadence])]),[
+  ['Disney+ Standard',[18.98,'SGD','MONTHLY','MONTHLY']],['Disney+ Premium',[22.98,'SGD','MONTHLY','MONTHLY']]]);
+});
+
+function selectedHelpTruth(market,body,{receipt=true,changedHash=false}={}){
+ const sourceUrl='https://help.example.com/en-GB/article/price?redirect=true',id='selected-'+market;
+ const selected=body.replace('<body>',`<body><button aria-haspopup="listbox" aria-label="Change country or language. Current country ${market}">Country</button>`),sha=digest(selected);
+ const marketSelection={kind:'PROVIDER_SELECTED_MARKET',selectionMode:'SELECTED_OPTION',observationId:id,targetMarket:market,transport:'DIRECT_BROWSER',initialUrl:sourceUrl,finalUrl:sourceUrl,providerHost:'help.example.com',preSourceSha256:digest('initial shell'),finalSourceSha256:changedHash?'0'.repeat(64):sha,preSelectedCode:'US',selectedCode:market,selectedOption:market==='PL'?'Poland (English)':'Singapore (English)',selectorLabel:`Change country or language. Current country ${market}`};
+ const observation={id,kind:'PROVIDER',authority:'REVIEWED_PROVIDER',url:sourceUrl,context:context('DIRECT'),outcome:'OK',truncated:false,completeness:'COMPLETE',format:'WEB',contentType:'text/html',httpStatus:200,access:[{decision:'ALLOWED'}],body:selected,sha256:sha,...(receipt?{marketSelection}:{})};
+ const objective={kind:'PRICE',serviceId:'disney-plus',serviceName:'Disney+',providerHosts:['help.example.com'],markets:[market],seeds:[sourceUrl]};
+ const projection=projectObservation(observation,objective);observation.nativeStructured=projection.nativeStructured;observation.candidates=admittedProjectionCandidates(projection);
+ return {projection,truth:evaluate({objective,observations:[observation],attempts:[],policyBlocks:[],stop:null})};
+}
+
+for(const [market,expected,rows] of [
+ ['PL',[[34.99,'PLN'],[59.99,'PLN']],[helpRow('Disney+ Standard','<strong>Monthly:</strong><p>34.99 zł</p><a>Select plan</a><strong>Annual:</strong><p>349.90 zł</p><a>Select plan</a>'),helpRow('Disney+ Premium','<strong>Monthly:</strong><p>59.99 zł</p><a>Select plan</a><strong>Annual:</strong><p>599.90 zł</p><a>Select plan</a>')]],
+ ['SG',[[18.98,'SGD'],[22.98,'SGD']],[helpRow('Disney+ Standard','<p><span>S$18.98/month</span></p><a>Select plan</a><p><span>S$159.98/year</span></p><a>Select plan</a>'),helpRow('Disney+ Premium','<p><span>S$22.98/month</span></p><a>Select plan</a><p><span>S$189.98/year</span></p><a>Select plan</a>')]],
+])test(`${market} captured table reaches V3 only with an intact selected-market receipt`,()=>{
+ const body=retainedHelpTable(market,rows),accepted=selectedHelpTruth(market,body);
+ assert.deepEqual(accepted.projection.source.offers.map(row=>[row.amount,row.currency]),expected);
+ assert.equal(accepted.truth.established,true);
+ assert.deepEqual(accepted.truth.offers.map(row=>[row.propositions.PRICE_AMOUNT.value,row.propositions.CURRENCY.value,row.propositions.TARGET_MARKET.value]),expected.map(([amount,currency])=>[amount,currency,market]));
+ for(const options of [{receipt:false},{changedHash:true}]){
+  const blocked=selectedHelpTruth(market,body,options);
+  assert.equal(blocked.truth.established,false);
+  assert.equal(blocked.truth.offers.some(row=>row.propositions.TARGET_MARKET?.state==='ESTABLISHED'),false);
+ }
+});
+
 const presented=({name='Aurora',title=`${name} | Personal finance app subscription`,description=`${name} provides consumers access to its budgeting application.`,body='' }={})=>`<html><head><title>${title}</title><meta property="og:title" content="${title}"><meta name="description" content="${description}"><meta property="og:description" content="${description}"></head><body>${body}</body></html>`;
 
 test('ordinary source-bound product presentation yields app membership sibling and distinct multi-Service candidates',()=>{

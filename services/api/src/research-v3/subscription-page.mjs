@@ -142,13 +142,13 @@ function componentIdentities(parsed,providerName){
  const byName=new Map();for(const row of found.sort((a,b)=>a.range-b.range))if(!byName.has(comparable(row.name)))byName.set(comparable(row.name),row);return [...byName.values()].map(({range,...row})=>row);
 }
 
-const symbolCurrency=new Map([['€','EUR'],['£','GBP'],['¥','JPY'],['CA$','CAD'],['A$','AUD'],['US$','USD'],['R$','BRL'],['Kč','CZK']]);
+const symbolCurrency=new Map([['€','EUR'],['£','GBP'],['¥','JPY'],['CA$','CAD'],['A$','AUD'],['US$','USD'],['S$','SGD'],['R$','BRL'],['Kč','CZK'],['zł','PLN']]);
 const currencyNames=new Map();
 const displayCurrencies=new Intl.DisplayNames(['en'],{type:'currency'});
 for(const code of Intl.supportedValuesOf('currency')){const name=displayCurrencies.of(code)?.toLocaleLowerCase('en');if(name)currencyNames.set(name,currencyNames.has(name)?null:code);}
 function headingCurrency(text){const name=/^pricing\s*\(([^)]+)\)/iu.exec(text)?.[1]?.trim().toLocaleLowerCase('en'),code=name?currencyNames.get(name):null;return code&&new Intl.NumberFormat('en',{style:'currency',currency:code,currencyDisplay:'narrowSymbol'}).formatToParts(1).find(part=>part.type==='currency')?.value==='$'?code:null;}
 function number(raw){const value=raw.replace(/[\u00a0\u202f ]/gu,'');if(/^\d+$/.test(value))return Number(value);if(/^\d+[.,]\d{1,2}$/.test(value))return Number(value.replace(',','.'));if(/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(value))return Number(value.replaceAll(',',''));if(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(value))return Number(value.replaceAll('.','').replace(',','.'));return null;}
-const money=/((?:[A-Z]{3}|CA\$|A\$|US\$|R\$|Kč|[$€£¥])\s*)?(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[ .\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d.,])\s*((?:[A-Z]{3}|R\$|Kč|[$€£¥]))?/gu;
+const money=/((?:[A-Z]{3}|CA\$|A\$|US\$|S\$|R\$|Kč|zł|[$€£¥])\s*)?(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[ .\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d.,])\s*((?:[A-Z]{3}|S\$|R\$|Kč|zł|[$€£¥]))?/gu;
 function charges(text,currencyHint=null){
  const rows=[];for(const match of text.matchAll(money)){const mark=normalized((match[1]??'')||(match[3]??'')),currency=/^[A-Z]{3}$/.test(mark)?mark:symbolCurrency.get(mark)??(mark==='$'?currencyHint:null);if(!currency)continue;const amount=number(match[2]);if(amount===null)continue;
   const after=text.slice(match.index+match[0].length,match.index+match[0].length+48),cadenceMatch=after.match(/^\s*(?:(?:\/|per\s+|a\s+|each\s+|every\s+)\s*)?(months?|monthly|mo\b|years?|yearly|annually|annual\b|yr\b)/iu);if(!cadenceMatch)continue;const cadence=/month|monthly|\bmo\b/iu.test(cadenceMatch[1])?'MONTHLY':'YEARLY',left=Math.max(0,match.index-64),right=Math.min(text.length,match.index+match[0].length+cadenceMatch[0].length+96),context=text.slice(left,right),trial=/\b(?:trial|introductory|first\s+(?:month|\d+\s+months?))\b/iu.test(context),nonCharge=/\b(?:save|saving|discount|credit|benefit|worth|value)\b[^.;]{0,32}$/iu.test(text.slice(left,match.index));if(nonCharge)continue;
@@ -224,7 +224,7 @@ function pricingTables(parsed,currencyHint=null,providerName=null){
    const cells=parsed.nodes.filter(node=>node.tag==='td'&&node.parent===row&&!node.hidden).sort((a,b)=>a.start-b.start);
    if(cells.length<2||cells.length>6)continue;
    const nameSegment=parsed.within(cells[0])[0],name=nameSegment?.text??'';
-   if(!name||name.length>80||/^(?:monthly|annual|features?|plans?)$/iu.test(name)||nonStandalonePresentation(name,providerName))continue;
+   if(!name||name.length>80||/^(?:monthly|annual|features?|plans?)$/iu.test(name)||/\b(?:[2-9]|1[0-2]|six)\s*[- ]?\s*months?\b/iu.test(name)||nonStandalonePresentation(name,providerName))continue;
    const priceCell=cells.at(-1),parts=parsed.within(priceCell),priceText=parts.map(part=>part.text).join(' ');
    if(!/\b(?:select|choose|subscribe|join)\s+(?:a\s+)?plan\b/iu.test(priceText))continue;
    const monthly=[];
@@ -236,8 +236,17 @@ function pricingTables(parsed,currencyHint=null,providerName=null){
     const values=charges(amountText+' /month',currencyHint).filter(charge=>charge.cadence==='MONTHLY'&&charge.role==='ORDINARY');
     if(values.length===1)monthly.push({...values[0],billingCadence:'MONTHLY',amountDerivation:'EXPLICIT',text:parts[i].text+' '+amountText});
    }
+   if(!monthly.length){
+    for(let i=0;i+1<parts.length;i++){
+     if(!/\b(?:select|choose|subscribe|join)\s+(?:a\s+)?plan\b/iu.test(parts[i+1].text))continue;
+     const display=parts[i].text;
+     if(/\b(?:annual|yearly|equivalent|trial|introductory|first month|promo(?:tional)?|discount|one.time|weekly|billed\s+yearly)\b/iu.test(display))continue;
+     const values=charges(display,currencyHint).filter(charge=>charge.cadence==='MONTHLY'&&charge.billingCadence!=='YEARLY'&&charge.role==='ORDINARY'&&charge.amountDerivation!=='ARITHMETIC');
+     if(values.length===1)monthly.push({...values[0],billingCadence:'MONTHLY',amountDerivation:'EXPLICIT',text:display+'; '+parts[i+1].text});
+    }
+   }
    if(!monthly.length&&sharedMonthly&&!/\b(?:annual|yearly|equivalent|trial|introductory|first month|promo(?:tional)?|discount|one.time|weekly)\b/iu.test(priceText)){
-    const prices=[...priceText.matchAll(money)].filter(match=>/^(?:[A-Z]{3}|CA\$|A\$|US\$|R\$|Kč|[$€£¥])\s*/u.test(match[0]));
+    const prices=[...priceText.matchAll(money)].filter(match=>/^(?:[A-Z]{3}|CA\$|A\$|US\$|S\$|R\$|Kč|zł|[$€£¥])\s*/u.test(match[0]));
     if(prices.length===1){const values=charges(prices[0][0]+' /month',currencyHint).filter(charge=>charge.cadence==='MONTHLY'&&charge.role==='ORDINARY');if(values.length===1)monthly.push({...values[0],billingCadence:'MONTHLY',amountDerivation:'EXPLICIT',text:prices[0][0]+'; '+(headerText||sectionText)});}
    }
    if(monthly.length!==1)continue;
@@ -277,6 +286,6 @@ function enrichFromProse(parsed,offerings){
 }
 
 export function interpretSubscriptionPage({body,url,providerName=null,currencyHint=null}){
- if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed,currencyHint),lists=cards.length?[]:pricingLists(parsed,currencyHint),tables=cards.length||lists.length?[]:pricingTables(parsed,currencyHint,providerName),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!nonStandalonePresentation(row.name,providerName));enrichFromProse(parsed,offerings);
+ if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),cards=planCards(parsed,currencyHint),lists=cards.length?[]:pricingLists(parsed,currencyHint),tables=cards.length||lists.length?[]:pricingTables(parsed,currencyHint,providerName),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!nonStandalonePresentation(row.name,providerName));enrichFromProse(parsed,offerings.filter(row=>!tables.includes(row)));
  return {services,offerings,limited:parsed.limited};
 }

@@ -4,6 +4,9 @@ import {countryCurrencyData} from '../../../../packages/contracts/src/markets.ts
 import {digest,normalizeUrl} from './model.mjs';
 
 const names=new Map(countryCurrencyData.map(([code,name])=>[code,name]));
+// Country selectors can use a former official English name for a canonical
+// market. These aliases identify the country only; they confer no price truth.
+const alternateNames=new Map([['CZ',['Czech Republic']]]);
 const regions=new Intl.DisplayNames(['en'],{type:'region'});
 const normalized=value=>String(value??'').normalize('NFKC').replace(/\s+/gu,' ').trim().toLocaleLowerCase('en');
 const attr=(tag,name)=>new RegExp('\\b'+name+'\\s*=\\s*(["\'])(.*?)\\1','iu').exec(tag)?.[2]??null;
@@ -15,7 +18,7 @@ export function marketCodeMatches(target,observed){
 export function exactMarketOption(target,label){
  const name=names.get(target),text=String(label??'').normalize('NFKC').replace(/\s+/gu,' ').trim();
  if(!name||!text)return false;
- return normalized(text)===normalized(name)||normalized(text).startsWith(normalized(name)+' (')&&text.endsWith(')');
+ return [name,...(alternateNames.get(target)??[])].some(candidate=>normalized(text)===normalized(candidate)||normalized(text).startsWith(normalized(candidate)+' (')&&text.endsWith(')'));
 }
 const optionLanguage=label=>/\(([^()]*)\)\s*$/u.exec(String(label??''))?.[1]?.trim()||null;
 const localeLanguage=value=>{try{const code=new Intl.Locale(value).language.toLowerCase();return /^[a-z]{2,3}$/.test(code)?code:null;}catch{return null;}};

@@ -202,6 +202,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             const session=sessions.get(parent.id),target=action.targetMarket;
             if(!session||session.country||!/^[A-Z]{2}$/.test(target??'')||session.receipt.body!==parent.body)throw Error('PROVIDER_MARKET_SESSION_INVALID');
             const {page,browser,context,receipt,ledger,sessionBinding}=session,initialUrl=receipt.requestedUrl,preHash=digest(parent.body);
+            let selectorDiagnostic=null;
             try{
                 const selector=await providerMarketSelector(page);
                 if(!selector)throw Error('PROVIDER_MARKET_SELECTOR_UNRESOLVED');
@@ -212,12 +213,16 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                     await selector.locator.click({timeout:Math.min(10000,maxRenderMs)});
                     const options=page.getByRole('option'),count=await options.count();
                     if(count<1||count>256)throw Error('PROVIDER_MARKET_OPTIONS_BOUND');
-                    const matches=[];
+                    const matches=[],observedOptions=[];
                     for(let i=0;i<count;i++){
-                        const option=options.nth(i);if(!await option.isVisible()||!await option.isEnabled())continue;
+                        const option=options.nth(i),visible=await option.isVisible(),enabled=await option.isEnabled();
                         const label=(await option.innerText()).replace(/\s+/gu,' ').trim();
+                        observedOptions.push({label:label.slice(0,120),visible,enabled});
+                        if(!visible||!enabled)continue;
                         if(exactMarketOption(target,label))matches.push({option,label});
                     }
+                    const allMatches=observedOptions.filter(row=>exactMarketOption(target,row.label));
+                    selectorDiagnostic={targetMarket:target,currentCode:selector.code,optionCount:count,actionableMatchCount:matches.length,reason:matches.length>1?'AMBIGUOUS_TARGET_OPTIONS':allMatches.length?'TARGET_OPTION_NOT_ACTIONABLE':'TARGET_OPTION_ABSENT_OR_LABEL_MISMATCH',options:observedOptions};
                     let choice=matches.length===1?{index:0}:null;
                     if(matches.length>1){
                         const selected=page.locator('[role="option"][aria-selected="true"]'),selectedCount=await selected.count(),selectedOptions=[];
@@ -252,7 +257,10 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                 const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:'DIRECT',requestedCountry:null,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:false,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
                 session.receipt=stateReceipt;session.imageSha256=imageHash(pngBytes);sessions.delete(parent.id);sessions.set(action.id,session);
                 return {page:stateReceipt,finalUrl:retainedUrl,pngBytes,capture:{capturedAt:acquiredAt,browserBuild:browser.version(),captureRevision:'playwright-market-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([retainedUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:structuredClone(ledger),networkSession,marketSelection,marketSelector:{kind:'PROVIDER_MARKET_SELECTOR',label:retainedSelector.label,code:retainedSelector.code}};
-            }catch(error){sessions.delete(parent.id);await context.close().catch(()=>{});throw error;}
+            }catch(error){
+                if(error?.message==='PROVIDER_MARKET_OPTION_UNRESOLVED'&&selectorDiagnostic)error.selectorDiagnostic=selectorDiagnostic;
+                sessions.delete(parent.id);await context.close().catch(()=>{});throw error;
+            }
         }
         if(action.mode==='STATE'){
             const session=sessions.get(parent.id),source=parent.domSnapshot?.find(row=>row.id===action.interaction?.controlId),selectedPeer=parent.domSnapshot?.find(row=>row.id===action.interaction?.selectedControlId),prior=parent.renderedArtifacts?.find(row=>row.id===action.interaction?.sourceRenderId);
