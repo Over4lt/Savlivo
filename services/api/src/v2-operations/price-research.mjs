@@ -4,6 +4,7 @@ import path from 'node:path';
 import {countryCurrencies} from '../../../../packages/contracts/src/markets.ts';
 import {resolveCapabilities} from '../research-v2/capabilities/config.mjs';
 import {resolvePriceResearchIdentity,admitDurableResearchIdentity} from '../research-v3/research-identity-store.mjs';
+import {resolveProjectedResearchService} from '../research-v3/research-service-projection.mjs';
 import {providerOrBrandResearchTarget} from '../research-v3/research-target.mjs';
 import {runProviderSeedCampaign} from '../research-v2/inventory/provider-seed-campaign.mjs';
 import {runAdaptiveCampaign} from '../research-v2/inventory/adaptive-campaign.mjs';
@@ -37,7 +38,18 @@ async function singlePriceResearchPlan(input,options={}){
  if(!input||typeof input!=='object'||Array.isArray(input)||input.objective!=='PRICE_RESEARCH'||Object.keys(input).some(key=>!['objective','targetKind','seedName','serviceId','market','capabilities','identityDiscoveryConsent'].includes(key)))fail('INVALID_PRICE_RESEARCH_CONFIG');
  if(typeof input.market!=='string'||!countryCurrencies[input.market])fail('INVALID_PRICE_RESEARCH_MARKET');
  const caps=capabilities(input.capabilities),seed=input.targetKind==='PROVIDER_OR_BRAND_SEED';let identity=null,seedIdentityStatus=null;
- if(seed){if(typeof input.seedName!=='string'||input.seedName.trim().length<2||input.seedName.trim().length>120||input.serviceId!==undefined)fail('INVALID_PROVIDER_SEED');if(input.identityDiscoveryConsent!==true)fail('IDENTITY_DISCOVERY_CONSENT_REQUIRED',409);const name=input.seedName.trim().toLowerCase(),projection=await loadPriceResearchTargeting({},options),matches=projection.services.filter(row=>row.selectable&&[row.serviceId,row.canonicalSlug,row.name,...row.aliases].some(value=>value.toLowerCase()===name));seedIdentityStatus=matches.length===1?'KNOWN_SERVICE_SEED':'UNKNOWN_SERVICE_SEED';if(matches.length===1){const excluded=options.marketExclusions??await listMarketExclusions([matches[0].serviceId],{client});if(excluded.some(row=>row.market_code===input.market))fail('PRICE_RESEARCH_MARKET_EXCLUDED',409);}}
+ if(seed){
+  if(typeof input.seedName!=='string'||input.seedName.trim().length<2||input.seedName.trim().length>120||input.serviceId!==undefined)fail('INVALID_PROVIDER_SEED');
+  if(input.identityDiscoveryConsent!==true)fail('IDENTITY_DISCOVERY_CONSENT_REQUIRED',409);
+  const projection=await loadPriceResearchTargeting({},options),resolved=resolveProjectedResearchService({rows:projection.services},input.seedName.trim(),{includeNames:true});
+  if(resolved.status==='AMBIGUOUS')fail('AMBIGUOUS_PRICE_RESEARCH_IDENTITY',409);
+  if(resolved.status==='UNRESOLVED'&&resolved.matches?.length)fail('UNKNOWN_PRICE_RESEARCH_IDENTITY',409);
+  seedIdentityStatus=resolved.status==='RESEARCHABLE'?'KNOWN_SERVICE_SEED':'UNKNOWN_SERVICE_SEED';
+  if(resolved.status==='RESEARCHABLE'){
+   const excluded=options.marketExclusions??await listMarketExclusions([resolved.identity.serviceId],{client});
+   if(excluded.some(row=>row.market_code===input.market))fail('PRICE_RESEARCH_MARKET_EXCLUDED',409);
+  }
+ }
  else if(input.targetKind==='KNOWN_SERVICE'){if(input.seedName!==undefined||input.identityDiscoveryConsent!==undefined)fail('INVALID_PRICE_RESEARCH_IDENTITY');const resolved=await resolvePriceResearchIdentity(input.serviceId,{client});if(resolved.status!=='RESEARCHABLE')fail('UNKNOWN_PRICE_RESEARCH_IDENTITY');identity=resolved.identity;const excluded=options.marketExclusions??await listMarketExclusions([identity.serviceId],{client});if(excluded.some(row=>row.market_code===input.market))fail('PRICE_RESEARCH_MARKET_EXCLUDED',409);}
  else fail('INVALID_PRICE_RESEARCH_TARGET');
  const config={objective:'PRICE_RESEARCH',targetKind:input.targetKind,...(seed?{seedName:input.seedName.trim(),identityDiscoveryConsent:true}:{serviceId:identity.serviceId}),market:input.market,capabilities:caps},check=await priceResearchCapabilityPreflight(caps,{...options.runtimeReadiness,env:options.env??process.env,markets:[input.market]}),manifest={objective:'PRICE_RESEARCH',catalog:[],targets:identity?[{id:`price-research:${identity.serviceId}:${input.market}`,service:identity.serviceId,serviceName:identity.serviceName,market:input.market}]:[],priceResearch:{targetKind:input.targetKind,seedName:seed?config.seedName:null,identity,market:input.market},limits:{totalRequests:seed?192:96}};

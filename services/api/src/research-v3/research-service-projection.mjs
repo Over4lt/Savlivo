@@ -99,7 +99,7 @@ export function loadResearchServiceProjection({repo=defaultRepository,lifecycleI
  return projectResearchServices({baseline:universe.existing,frozen:[...(universe.new_include??[]),...(universe.research??[])],manifestServiceIds:manifest.serviceIds,databaseIdentities,researchScopes});
 }
 
-export function resolveProjectedResearchService(projection,value,{staticOnly=false}={}){
+export function resolveProjectedResearchService(projection,value,{staticOnly=false,includeNames=false}={}){
  if(!projection||!Array.isArray(projection.rows)||typeof value!=='string'||!value||value.length>160)return {status:'UNRESOLVED',reason:'INVALID_RESEARCH_SERVICE_IDENTITY'};
  const rows=projection.rows.filter(row=>!staticOnly||row.sources.baseline||row.sources.frozen),finish=(matches,basis)=>{
   const uniqueMatches=[...new Map(matches.map(row=>[row.serviceId,row])).values()];
@@ -109,6 +109,6 @@ export function resolveProjectedResearchService(projection,value,{staticOnly=fal
  };
  const exactId=rows.filter(row=>row.serviceId===value||row.sources.database?.serviceId===value);if(exactId.length)return finish(exactId,'EXACT_STABLE_ID');
  const exactSlug=rows.filter(row=>row.canonicalSlug===value);if(exactSlug.length)return finish(exactSlug,'EXACT_CANONICAL_SLUG');
- const key=aliasKey(value),exactAlias=rows.filter(row=>row.aliases.some(alias=>aliasKey(alias)===key));
+ const key=aliasKey(value),exactAlias=rows.filter(row=>row.aliases.some(alias=>aliasKey(alias)===key)||(includeNames&&aliasKey(row.name)===key));
  return finish(exactAlias,'EXACT_REVIEWED_ALIAS');
 }

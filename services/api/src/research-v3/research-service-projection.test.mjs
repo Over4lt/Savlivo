@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {projectResearchServices} from './research-service-projection.mjs';
+import {projectResearchServices,resolveProjectedResearchService} from './research-service-projection.mjs';
 
 const repository=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../../..');
 const read=relative=>JSON.parse(fs.readFileSync(path.join(repository,relative),'utf8'));
@@ -37,6 +37,15 @@ test('stable ID, canonical slug and unique reviewed alias reconcile in precedenc
  assert.equal(result.rows.length,2);
  const product=result.rows.find(row=>row.serviceId==='product-one');assert.equal(product.name,'Product One Canonical');assert.equal(product.sources.database.serviceId,'research-old-alias');assert.equal(product.researchable,true);
  const frozenRow=result.rows.find(row=>row.serviceId==='frozen-one');assert.equal(frozenRow.sources.database.serviceId,'research-old-frozen');assert.equal(frozenRow.researchable,true);
+});
+
+test('seed name matching uses canonical normalization and fails closed on alias/name collisions',()=>{
+ const projection=projectResearchServices({baseline:[{service:'first-service',name:'First Service',aliases:['Shared Plus']},{service:'second-service',name:'Shared_Plus',aliases:[]}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+ assert.equal(resolveProjectedResearchService(projection,'First_Service').status,'UNRESOLVED');
+ assert.equal(resolveProjectedResearchService(projection,'First_Service',{includeNames:true}).identity.serviceId,'first-service');
+ assert.equal(resolveProjectedResearchService(projection,'Shared/Plus').identity.serviceId,'first-service');
+ assert.deepEqual(resolveProjectedResearchService(projection,'Shared/Plus',{includeNames:true}).matches,['first-service','second-service']);
+ assert.equal(resolveProjectedResearchService(projection,'Shared/Plus',{includeNames:true}).status,'AMBIGUOUS');
 });
 
 test('database status cannot deactivate or rename an exact static identity',()=>{

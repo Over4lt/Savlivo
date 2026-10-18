@@ -84,10 +84,30 @@ test('known-service single-market Preflight rejects exclusion and re-inclusion r
  ops.config.marketExclusions.length=0;const pre=await ops.preflight(input,'admin');assert.equal(pre.actionable,1);
 });
 
-test('provider seed with an exact known service identity cannot bypass an excluded single market',async t=>{
+test('known provider names and canonical aliases cannot bypass an excluded market before discovery',async t=>{
  const ops=fixture(t);ops.config.marketExclusions.push({service_id:'chess-com',market_code:'IN',reason:null},{service_id:'disney-plus',market_code:'IN',reason:null});
- for(const seedName of ['Chess.com','Disney+'])await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName,market:'IN',identityDiscoveryConsent:true,capabilities:caps},'admin'),/PRICE_RESEARCH_MARKET_EXCLUDED/);
- assert.equal(ops.db().jobs.length,0);
+ for(const seedName of ['Chess.com','Disney+','Disney_Plus','Disney/Plus','Disney  Plus'])await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName,market:'IN',identityDiscoveryConsent:true,capabilities:caps},'admin'),error=>error.message==='PRICE_RESEARCH_MARKET_EXCLUDED'&&error.status===409);
+ assert.equal(ops.db().preflights.length,0);assert.equal(ops.db().jobs.length,0);
+});
+
+test('known provider aliases remain eligible in included markets and Start rechecks exclusions',async t=>{
+ const ops=fixture(t),input={objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',market:'DE',identityDiscoveryConsent:true,capabilities:caps};
+ let canonicalPreflight,aliasPreflight;
+ for(const seedName of ['Disney+','Disney_Plus']){
+  const pre=await ops.preflight({...input,seedName},'admin');assert.equal(pre.identityDiscovery.status,'KNOWN_SERVICE_SEED');
+  if(seedName==='Disney+')canonicalPreflight=pre;else aliasPreflight=pre;
+ }
+ const job=await ops.start(aliasPreflight.token,'admin',true);assert.equal(job.status,'QUEUED');
+ ops.config.marketExclusions.push({service_id:'disney-plus',market_code:'DE',reason:null});
+ await assert.rejects(ops.start(canonicalPreflight.token,'admin',true),/PRICE_RESEARCH_MARKET_EXCLUDED/);
+ assert.equal(ops.db().jobs.length,1);assert.equal(ops.db().jobs[0].config.market,'DE');
+});
+
+test('ambiguous provider aliases stop before discovery without choosing either identity',async t=>{
+ const one={...dbIdentity('research-alias-one'),aliases:['Shared Seed']},two={...dbIdentity('research-alias-two'),aliases:['Shared_Seed']};
+ const ops=batchFixture(t,[one,two]);
+ await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName:'Shared/Seed',market:'DE',identityDiscoveryConsent:true,capabilities:caps},'admin'),error=>error.message==='AMBIGUOUS_PRICE_RESEARCH_IDENTITY'&&error.status===409);
+ assert.equal(ops.db().preflights.length,0);assert.equal(ops.db().jobs.length,0);
 });
 
 test('failed V3 verification does not create a market exclusion or remove future targets',async t=>{
