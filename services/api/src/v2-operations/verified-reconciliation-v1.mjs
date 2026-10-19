@@ -11,7 +11,12 @@ import {projectV3VerificationEvidence} from '../research-v2/inventory/v3-result-
 import {semanticPlanLabel} from '../verified-price-reconciliation.mjs';
 import {pool} from '../db.ts';
 
-export const reconciliationV1Policy=Object.freeze({version:1,maxSourceAgeMs:24*60*60*1000,productionCommitEnabled:false});
+// These are comparison horizons, never an admission rule. A production
+// freshness policy needs a separate product approval and release.
+export const reconciliationV1Policy=Object.freeze({
+ version:1,approvedMaxSourceAgeMs:null,productionCommitEnabled:false,
+ analysisHorizonsMs:Object.freeze({hours24:24*60*60*1000,hours72:72*60*60*1000,days7:7*24*60*60*1000})
+});
 const sha=value=>createHash('sha256').update(value).digest('hex');
 const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
 const digest=value=>sha(JSON.stringify(canonical(value)));
@@ -41,13 +46,14 @@ export function originalAcquisitionTime(attempt){
  return new Date([...instants][0]).toISOString();
 }
 
-export function sourceAgeAt(acquiredAt,at){
+export function sourceAgeAt(acquiredAt,at,horizons=reconciliationV1Policy.analysisHorizonsMs){
  const age=Date.parse(at)-Date.parse(acquiredAt);
  if(!Number.isFinite(age)||age<0)fail('ACQUISITION_TIME_FUTURE');
- return {ageMs:age,within24Hours:age<=reconciliationV1Policy.maxSourceAgeMs};
+ if(!horizons||Object.values(horizons).some(limit=>!Number.isSafeInteger(limit)||limit<0))fail('FRESHNESS_HORIZON_INVALID');
+ return {ageMs:age,scenarios:Object.fromEntries(Object.entries(horizons).map(([name,limit])=>[name,age<=limit]))};
 }
 
-// Only a completed child in an already closed canonical batch is eligible.
+// Only a completed child in an already closed canonical batch can be inspected.
 // The journal's own hash chain is verified by readMarketRunRecords.
 export function loadRetainedVerifiedEvidence({runsRoot,jobId,service,market,sourceHash}){
  if(!/^[a-f0-9-]{36}$/.test(jobId??'')||!validId(service)||!/^[A-Z]{2}$/.test(market??'')||!validHash(sourceHash))fail('SELECTOR_INVALID');
@@ -146,25 +152,13 @@ export async function preflightRetainedVerifiedV1({evidence,snapshot,atVersion=c
  if(!database||typeof database.at!=='string'||!Number.isFinite(Date.parse(database.at))||!Number.isSafeInteger(database.currentCount)||!Number.isSafeInteger(database.historyCount)||typeof database.identity!=='string')fail('SNAPSHOT_INVALID');
  if(now!==undefined&&Date.parse(now)!==Date.parse(database.at))fail('SNAPSHOT_TIME_MISMATCH');
  const age=sourceAgeAt(acquiredAt,database.at),empty=database.currentCount===0&&database.historyCount===0;
- const result={policyVersion:1,jobId,targetId,service:target.service,market:target.market,sourceUrl,bodyHash,attemptId,journalRecord,acquiredAt,snapshotAt:database.at,admittedAt:null,ageMs:age.ageMs,within24Hours:age.within24Hours,currentVerified:database.currentCount,historyRows:database.historyCount,parserTruthVersion:atVersion,offerings:offerings.map(row=>({id:row.exactOfferId,plan:row.plan,amount:row.amount,currency:row.currency,billingInterval:'MONTHLY_RECURRING',sourceUrl:row.sourceUrl,bodySha256:row.bodySha256,verifiedAt:acquiredAt})),eligible:age.within24Hours&&empty,reason:!age.within24Hours?'SOURCE_OVER_24_HOURS':!empty?'VERIFIED_ALREADY_PRESENT':null,databaseSnapshot:database.identity,productionCommitEnabled:false};
+ const result={policyVersion:1,jobId,targetId,service:target.service,market:target.market,sourceUrl,bodyHash,attemptId,journalRecord,acquiredAt,snapshotAt:database.at,admittedAt:null,ageMs:age.ageMs,freshnessScenarios:age.scenarios,approvedFreshnessPolicy:null,currentVerified:database.currentCount,historyRows:database.historyCount,parserTruthVersion:atVersion,offerings:offerings.map(row=>({id:row.exactOfferId,plan:row.plan,amount:row.amount,currency:row.currency,billingInterval:'MONTHLY_RECURRING',sourceUrl:row.sourceUrl,bodySha256:row.bodySha256,verifiedAt:acquiredAt})),evidenceReady:empty,admissionEligible:false,reason:!empty?'VERIFIED_ALREADY_PRESENT':'FRESHNESS_POLICY_UNAPPROVED',databaseSnapshot:database.identity,productionCommitEnabled:false};
  return {...result,digest:digest(result)};
 }
 
-// This is a read-only rehearsal of the proposed approval handshake. A future
-// write release must repeat it under the same database locks as the ordinary
-// Verified writer before any insert.
-export async function revalidateApprovedDryRunV1({dryRun,approvedDigest,operator,evidence,snapshot,atVersion=currentParserTruthVersion()}={}){
- if(typeof operator!=='string'||!operator.trim()||!validHash(approvedDigest)||!dryRun||dryRun.digest!==approvedDigest)fail('OPERATOR_APPROVAL_REQUIRED');
- const {digest:claimed,...signed}=dryRun;
- if(digest(signed)!==claimed||dryRun.policyVersion!==1||dryRun.eligible!==true)fail('APPROVAL_INVALID');
- const current=await preflightRetainedVerifiedV1({evidence,snapshot,atVersion});
- const stable=value=>{
-  const {digest:ignoredDigest,ageMs:ignoredAge,snapshotAt:ignoredAt,within24Hours:ignoredFreshness,eligible:ignoredEligibility,reason:ignoredReason,...rest}=value;
-  return rest;
- };
- if(!current.eligible||digest(stable(current))!==digest(stable(dryRun)))fail('APPROVAL_STALE');
- return {approvedDigest,operator:operator.trim(),sourceAcquiredAt:current.acquiredAt,admissionCheckedAt:current.snapshotAt,offerings:current.offerings,readyForDisabledCommit:true};
-}
+// The former approval rehearsal is disabled until a freshness policy and a
+// separate atomic write contract have both been approved.
+export async function revalidateApprovedDryRunV1(){fail('FRESHNESS_POLICY_UNAPPROVED');}
 
 // A later release needs its own reviewed, atomic admission contract. No caller
 // can enable production admission with an environment variable in V1.

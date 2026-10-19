@@ -23,7 +23,11 @@ test('exact hash-bound Max US source and original G1 receipt yields deterministi
  const first=await preflightRetainedVerifiedV1({evidence:evidence(),snapshot:snapshot(),atVersion:'version-1'});
  const second=await preflightRetainedVerifiedV1({evidence:evidence(),snapshot:snapshot(),atVersion:'version-1'});
  assert.deepEqual(first,second);
- assert.equal(first.eligible,true);
+ assert.equal(first.evidenceReady,true);
+ assert.equal(first.admissionEligible,false);
+ assert.equal(first.reason,'FRESHNESS_POLICY_UNAPPROVED');
+ assert.equal(first.approvedFreshnessPolicy,null);
+ assert.deepEqual(first.freshnessScenarios,{hours24:true,hours72:true,days7:true});
  assert.equal(first.offerings.length,3);
  assert.deepEqual(first.offerings.map(row=>[row.plan,row.amount,row.currency]),[['Basic with Ads',10.99,'USD'],['Standard',18.49,'USD'],['Premium',22.99,'USD']]);
  assert(first.offerings.every(row=>row.verifiedAt===acquisitionAt&&row.sourceUrl===archived.attempt.page.url&&row.bodySha256===hash));
@@ -32,14 +36,19 @@ test('exact hash-bound Max US source and original G1 receipt yields deterministi
  assert.equal(first.ageMs,60*60*1000);
  assert.equal(first.productionCommitEnabled,false);
  assert.equal(reconciliationV1Policy.productionCommitEnabled,false);
+ assert.equal(reconciliationV1Policy.approvedMaxSourceAgeMs,null);
 });
 
-test('24 hour boundary, old source, future source, missing and conflicting acquisition times fail closed',async()=>{
- assert.equal(sourceAgeAt(acquisitionAt,new Date(Date.parse(acquisitionAt)+24*60*60*1000).toISOString()).within24Hours,true);
+test('freshness horizons are diagnostic only; old and uncertain acquisition times cannot authorize admission',async()=>{
+ assert.deepEqual(sourceAgeAt(acquisitionAt,new Date(Date.parse(acquisitionAt)+24*60*60*1000).toISOString()).scenarios,{hours24:true,hours72:true,days7:true});
  const old=await preflightRetainedVerifiedV1({evidence:evidence(),snapshot:snapshot({at:new Date(Date.parse(acquisitionAt)+24*60*60*1000+1).toISOString()}),atVersion:'version-1'});
- assert.equal(old.eligible,false);
- assert.equal(old.reason,'SOURCE_OVER_24_HOURS');
+ assert.deepEqual(old.freshnessScenarios,{hours24:false,hours72:true,days7:true});
+ assert.equal(old.evidenceReady,true);
+ assert.equal(old.admissionEligible,false);
+ assert.equal(old.reason,'FRESHNESS_POLICY_UNAPPROVED');
+ assert.deepEqual(sourceAgeAt(acquisitionAt,new Date(Date.parse(acquisitionAt)+7*24*60*60*1000+1).toISOString()).scenarios,{hours24:false,hours72:false,days7:false});
  assert.throws(()=>sourceAgeAt(acquisitionAt,new Date(Date.parse(acquisitionAt)-1).toISOString()),/ACQUISITION_TIME_FUTURE/);
+ assert.throws(()=>sourceAgeAt(acquisitionAt,at,{unbounded:Number.POSITIVE_INFINITY}),/FRESHNESS_HORIZON_INVALID/);
  const absent=evidence().attempt;delete absent.page.sourceIntegrity.checkedAt;
  assert.throws(()=>originalAcquisitionTime(absent),/ACQUISITION_TIME_UNKNOWN/);
  const conflict=evidence().attempt;conflict.page.checkedAt=new Date(Date.parse(acquisitionAt)+1).toISOString();
@@ -49,7 +58,8 @@ test('24 hour boundary, old source, future source, missing and conflicting acqui
 test('existing current or historical Verified blocks proposed admission',async()=>{
  for(const value of [{currentCount:1},{historyCount:1}]){
   const result=await preflightRetainedVerifiedV1({evidence:evidence(),snapshot:snapshot(value),atVersion:'version-1'});
-  assert.equal(result.eligible,false);
+  assert.equal(result.evidenceReady,false);
+  assert.equal(result.admissionEligible,false);
   assert.equal(result.reason,'VERIFIED_ALREADY_PRESENT');
  }
 });
@@ -58,8 +68,10 @@ test('wrong market, altered source and version or database changes cannot preser
  const original=await preflightRetainedVerifiedV1({evidence:evidence(),snapshot:snapshot(),atVersion:'version-1'});
  const changedVersion=await preflightRetainedVerifiedV1({evidence:evidence(),snapshot:snapshot(),atVersion:'version-2'});
  const changedSnapshot=await preflightRetainedVerifiedV1({evidence:evidence(),snapshot:snapshot({identity:'another-snapshot'}),atVersion:'version-1'});
+ const laterSnapshot=await preflightRetainedVerifiedV1({evidence:evidence(),snapshot:snapshot({at:new Date(Date.parse(at)+1000).toISOString()}),atVersion:'version-1'});
  assert.notEqual(original.digest,changedVersion.digest);
  assert.notEqual(original.digest,changedSnapshot.digest);
+ assert.notEqual(original.digest,laterSnapshot.digest);
  const wrong=evidence();wrong.sourceCheck.receipt.geo.geoCountry='DE';
  await assert.rejects(preflightRetainedVerifiedV1({evidence:wrong,snapshot:snapshot(),atVersion:'version-1'}),/COUNTRY_PROVIDER_RECEIPT_INVALID/);
  const altered=evidence();altered.attempt.page.rawSource.text+=' ';
@@ -99,21 +111,16 @@ test('loader binds completed job, journal hash, attempt, source, receipt and bod
  assert.throws(()=>loadRetainedVerifiedEvidence(selector),/BODY_HASH_MISMATCH/);
 });
 
-test('production commit stays disabled even with an eligible digest',async()=>{
+test('production commit stays disabled even with a dry-run digest',async()=>{
  await assert.rejects(commitRetainedVerifiedV1({approvedDigest:'a'.repeat(64)}),/PRODUCTION_COMMIT_DISABLED/);
 });
 
-test('approval rehearsal requires exact digest and rejects changed evidence, version, database and expired source',async()=>{
+test('an approved digest cannot activate admission while freshness policy is unapproved',async()=>{
  const dryRun=await preflightRetainedVerifiedV1({evidence:evidence(),snapshot:snapshot(),atVersion:'version-1'});
  const input={dryRun,approvedDigest:dryRun.digest,operator:'admin-example',evidence:evidence(),snapshot:snapshot({at:new Date(Date.parse(at)+60_000).toISOString()}),atVersion:'version-1'};
- const accepted=await revalidateApprovedDryRunV1(input);
- assert.equal(accepted.readyForDisabledCommit,true);
- assert.equal(accepted.sourceAcquiredAt,acquisitionAt);
- await assert.rejects(revalidateApprovedDryRunV1({...input,approvedDigest:'0'.repeat(64)}),/OPERATOR_APPROVAL_REQUIRED/);
- await assert.rejects(revalidateApprovedDryRunV1({...input,operator:''}),/OPERATOR_APPROVAL_REQUIRED/);
- await assert.rejects(revalidateApprovedDryRunV1({...input,atVersion:'version-2'}),/APPROVAL_STALE/);
- await assert.rejects(revalidateApprovedDryRunV1({...input,snapshot:snapshot({identity:'changed-snapshot'})}),/APPROVAL_STALE/);
- await assert.rejects(revalidateApprovedDryRunV1({...input,snapshot:snapshot({at:new Date(Date.parse(acquisitionAt)+24*60*60*1000+1).toISOString()})}),/APPROVAL_STALE/);
+ await assert.rejects(revalidateApprovedDryRunV1(input),/FRESHNESS_POLICY_UNAPPROVED/);
+ await assert.rejects(revalidateApprovedDryRunV1({...input,approvedDigest:'0'.repeat(64)}),/FRESHNESS_POLICY_UNAPPROVED/);
+ await assert.rejects(commitRetainedVerifiedV1(input),/PRODUCTION_COMMIT_DISABLED/);
 });
 
 test('database snapshot is scoped and uses one read-only repeatable-read transaction',async()=>{
