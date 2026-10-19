@@ -31,3 +31,13 @@ export function sourceBoundPriceRoutingBonus(target,lead){
  if(successfulSiblingPath(target,lead))return -30;
  return priceTitle.test(title)?-10:0;
 }
+
+// A complete Direct read can identify a useful article, but it cannot borrow
+// the parent's G1 receipt. This is an acquisition hint only; the article must
+// obtain its own country-bound receipt before V3 may use it as price evidence.
+export function sourceBoundPriceDecodoContinuation(target,lead){
+ if(sourceBoundPriceRoutingBonus(target,lead)>=0)return null;
+ const read=(target.reads??[]).find(row=>row.requestedUrl===lead.url&&row.url===lead.url&&row.outcome==='OK'&&row.httpStatus===200&&row.truncated!==true&&/^[a-f0-9]{64}$/u.test(row.bodyHash??'')&&row.sourceIntegrity?.sha256===row.bodyHash&&row.sourceClassification?.status==='PROVIDER_SOURCE'&&row.sourceClassification.sourceHash===row.bodyHash);
+ if(!read)return null;
+ return {url:lead.url,parentObservation:lead.from.observation,parentHash:lead.from.bodyHash,directSourceHash:read.bodyHash};
+}

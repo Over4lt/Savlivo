@@ -346,6 +346,32 @@ function maxGBHelpPricingRows(parsed,providerName,marketCurrencyHint,url){
  return rows.length>=2&&rows.length<=8&&new Set(rows.map(row=>comparable(row.name))).size===rows.length?rows:[];
 }
 
+// The Ireland help article has a single list of ordinary monthly plans.
+// Its separate Standard with Ads Upgrade paragraph is an add-on, not a plan.
+function maxIEHelpPricingRows(parsed,providerName,marketCurrencyHint,url){
+ if(providerName!=='Max'||parsed.host!=='help.hbomax.com'||marketCurrencyHint!=='EUR')return [];
+ try{if(new URL(url).pathname!=='/ie/Answer/Detail/000002547')return [];}catch{return [];}
+ const selectedCountries=[...parsed.body.matchAll(/HHURL\.config\.selectedCountry\s*=\s*["']([^"']+)["']/gu)].map(match=>match[1].toUpperCase());
+ if(selectedCountries.length!==1||selectedCountries[0]!=='IE'||!parsed.nodes.some(node=>node.tag==='html'&&/^en(?:-IE)?$/iu.test(node.attrs.lang??''))||!parsed.segments.some(row=>row.text==='Ireland'))return [];
+ const title=parsed.nodes.find(node=>node.tag==='h1'&&!node.hidden&&comparable(parsed.text(node))==='all about hbo max plans');
+ const intro=title&&parsed.nodes.find(node=>node.tag==='p'&&!node.hidden&&node.start>title.end&&/^Here are the HBO Max plans:$/iu.test(parsed.text(node)));
+ const list=intro&&parsed.nodes.find(node=>node.tag==='div'&&node.parent===intro.parent&&!node.hidden&&node.start>=intro.end&&node.attrs.class?.split(/\s+/u).includes('itemizedlist'));
+ const ul=list&&parsed.nodes.find(node=>node.tag==='ul'&&node.parent===list);
+ if(!ul)return [];
+ const rows=[];
+ for(const item of parsed.nodes.filter(node=>node.tag==='li'&&node.parent===ul&&!node.hidden)){
+  const links=parsed.nodes.filter(node=>node.tag==='a'&&ancestors(node).includes(item)&&!node.hidden);
+  if(links.length!==1)continue;
+  const link=links[0],name=parsed.text(link),value=parsed.text(item);
+  if(!name||name.length>80||nonStandalonePresentation(name,providerName)||/\b(?:upgrade|bundle|add-?on|student|trial|introductory|promo(?:tional)?|discount|annual|yearly)\b/iu.test(name+' '+value)||!value.startsWith(name+' - '))continue;
+  const monthly=/^€(\d+(?:[.,]\d{2})?)\s*\/\s*month$/iu.exec(value.slice(name.length+3));if(!monthly)continue;
+  const amount=number(monthly[1]);if(amount===null)continue;
+  const raw=parsed.body.slice(link.openEnd,link.contentEnd),nameAt=raw.indexOf(name);if(nameAt<0)continue;
+  rows.push({name,nameLocator:locator(parsed.body,link.openEnd+nameAt,link.openEnd+nameAt+name.length),presentation:locator(parsed.body,item.start,item.end),charges:[{amount,currency:'EUR',cadence:'MONTHLY',billingCadence:'MONTHLY',consumer:true,relationship:'SUBSCRIPTION',role:'ORDINARY',monetaryKind:'SUBSCRIPTION_CHARGE',amountDerivation:'EXPLICIT',text:monthly[0]}]});
+ }
+ return rows.length>=2&&rows.length<=8&&new Set(rows.map(row=>comparable(row.name))).size===rows.length?rows:[];
+}
+
 // The German provider homepage presents three sibling div cards in its
 // monthly picker. Each price is bound to its own plan heading and monthly
 // purchase action, rather than to surrounding hero, bundle or add-on prices.
@@ -419,6 +445,6 @@ function enrichFromProse(parsed,offerings){
 }
 
 export function interpretSubscriptionPage({body,url,providerName=null,currencyHint=null,marketCurrencyHint=null}){
- if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};let maxSpanishSource=false;try{maxSpanishSource=providerName==='Max'&&new URL(url).hostname==='www.hbomax.com'&&/<html\b[^>]*\blang=["']es-ES["']/iu.test(body.slice(0,2048));}catch{/* Invalid URLs use the ordinary parser. */}const parsed=parse(body,url,{maskScripts:maxSpanishSource}),maxRows=[...maxHelpPricingRows(parsed,providerName,currencyHint,marketCurrencyHint),...maxGBHelpPricingRows(parsed,providerName,marketCurrencyHint,url),...maxMonthlyDivCards(parsed,providerName,marketCurrencyHint),...maxSpanishMonthlyCards(parsed,providerName,marketCurrencyHint)],cards=maxRows.length?[]:planCards(parsed,currencyHint,marketCurrencyHint),lists=maxRows.length||cards.length?[]:pricingLists(parsed,currencyHint,marketCurrencyHint),tables=maxRows.length||cards.length||lists.length?[]:pricingTables(parsed,currencyHint,providerName,marketCurrencyHint),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=maxSourceIdentity(parsed,providerName,maxRows)??pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...maxRows,...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!nonStandalonePresentation(row.name,providerName));enrichFromProse(parsed,offerings.filter(row=>!maxRows.includes(row)&&!tables.includes(row)));
+ if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};let maxSpanishSource=false;try{maxSpanishSource=providerName==='Max'&&new URL(url).hostname==='www.hbomax.com'&&/<html\b[^>]*\blang=["']es-ES["']/iu.test(body.slice(0,2048));}catch{/* Invalid URLs use the ordinary parser. */}const parsed=parse(body,url,{maskScripts:maxSpanishSource}),maxRows=[...maxHelpPricingRows(parsed,providerName,currencyHint,marketCurrencyHint),...maxGBHelpPricingRows(parsed,providerName,marketCurrencyHint,url),...maxIEHelpPricingRows(parsed,providerName,marketCurrencyHint,url),...maxMonthlyDivCards(parsed,providerName,marketCurrencyHint),...maxSpanishMonthlyCards(parsed,providerName,marketCurrencyHint)],cards=maxRows.length?[]:planCards(parsed,currencyHint,marketCurrencyHint),lists=maxRows.length||cards.length?[]:pricingLists(parsed,currencyHint,marketCurrencyHint),tables=maxRows.length||cards.length||lists.length?[]:pricingTables(parsed,currencyHint,providerName,marketCurrencyHint),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=maxSourceIdentity(parsed,providerName,maxRows)??pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...maxRows,...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!nonStandalonePresentation(row.name,providerName));enrichFromProse(parsed,offerings.filter(row=>!maxRows.includes(row)&&!tables.includes(row)));
  return {services,offerings,limited:parsed.limited};
 }

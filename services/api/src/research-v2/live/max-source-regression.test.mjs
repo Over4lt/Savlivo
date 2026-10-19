@@ -183,6 +183,36 @@ const gbPlans=[['Basic with Ads',4.99,'GBP'],['Standard with Ads',5.99,'GBP'],['
 const gbItem=(name,price)=>`<li class="listitem"><p><a class="link">${name}</a> - £${price}/month</p></li>`;
 const gbExcerpt=`<html lang="en"><head><title>HBO Max | All about HBO Max plans</title></head><body><script>HHURL.config.selectedCountry = "GB";</script><span>United Kingdom</span><h1>All about HBO Max plans</h1><section><div class="titlepage"><h3 class="title">Saver Plan</h3></div><p>Save on an annual commitment, billed monthly.</p></section><p>You can subscribe to HBO Max through many providers.</p><p>Here are the HBO Max plans and prices:</p><section class="section internal"><div class="titlepage"><div><div class="title"><h3 class="title">HBO Max Entertainment plans</h3></div></div></div><div class="itemizedlist"><ul class="itemizedlist">${gbItem('Basic with Ads','4.99')}${gbItem('Standard with Ads','5.99')}${gbItem('Standard','9.99')}${gbItem('Premium','14.99')}</ul></div></section><section class="section internal"><div class="titlepage"><div><div class="title"><h3 class="title">HBO Max Entertainment &amp; TNT Sports plans</h3></div></div></div><div class="itemizedlist"><ul class="itemizedlist">${gbItem('TNT Sports (UK only)','30.99')}${gbItem('TNT Sports + Premium (UK only)','45.98')}</ul></div><p>HBO Max Standard with Ads Upgrade for £1/month.</p></section></body></html>`;
 
+// Structural excerpt of the hash-checked Direct article retained by IE job
+// 9820789b (full body SHA-256 fca66ae6...b048cbe6). This is not that body
+// and the fixture's G1 receipt below is synthetic, never production evidence.
+const ieUrl='https://help.hbomax.com/ie/Answer/Detail/000002547';
+const iePlans=[['Basic with Ads',5.99,'EUR'],['Standard with Ads',6.99,'EUR'],['Standard',10.99,'EUR'],['Premium',15.99,'EUR']];
+const ieItem=(name,price)=>`<li class="listitem"><p><a class="link">${name}</a> - €${price}/month</p></li>`;
+const ieExcerpt=`<html lang="en"><head><title>HBO Max | All about HBO Max plans</title></head><body><script>HHURL.config.selectedCountry = "IE";</script><span>Ireland</span><h1>All about HBO Max plans</h1><section><p>You can subscribe to HBO Max through many providers.</p><p>Plan pricing varies by country.</p><p>Here are the HBO Max plans:</p><div class="itemizedlist"><ul class="itemizedlist">${ieItem('Basic with Ads','5.99')}${ieItem('Standard with Ads','6.99')}${ieItem('Standard','10.99')}${ieItem('Premium','15.99')}</ul></div><p>HBO Max Standard with Ads Upgrade for €1/month.</p><p>Annual plan €99.99/year.</p></section></body></html>`;
+
+test('Max IE source structure yields four standalone monthly plans, while Direct alone establishes none',()=>{
+ const parsed=interpretSubscriptionPage({body:ieExcerpt,url:ieUrl,providerName:'Max',marketCurrencyHint:'EUR'});
+ assert.deepEqual(parsed.offerings.map(row=>[row.name,row.charges[0].amount,row.charges[0].currency]),iePlans);
+ assert(parsed.offerings.every(row=>row.charges.length===1&&row.charges[0].cadence==='MONTHLY'&&row.charges[0].amountDerivation==='EXPLICIT'));
+ const direct=evaluateProviderSourceTruth({target:target('IE'),retained:{url:ieUrl,requestedUrl:ieUrl,httpStatus:200,contentType:'text/html',bodyHash:digest(ieExcerpt),sourceIntegrity:{sha256:digest(ieExcerpt)},rawSource:{text:ieExcerpt},accessDecisions:[{decision:'ALLOWED'}]},acquisition:{route:'DIRECT'},observationId:'direct-ie-excerpt'});
+ assert.equal(projectEstablishedV3Offerings({...target('IE'),...direct}).length,0);
+ const fixture=countryFixture('IE',{body:ieExcerpt,url:ieUrl}),result=evaluateCountryProviderTruth(fixture),established=projectEstablishedV3Offerings({...fixture.target,...result});
+ assert.deepEqual(established.map(row=>[row.name,row.ordinaryRecurringPrice.amount,row.ordinaryRecurringPrice.currency]),iePlans);
+ assert.equal(result.v3SuggestedCandidates.length,4);
+ assert(result.v3SuggestedCandidates.every(row=>row.provenance==='V3_SOURCE_RESEARCH'));
+});
+
+test('Max IE list rejects absent, conflicting or foreign marker, wrong path and invalid G1',()=>{
+ const parse=(body,url=ieUrl,hint='EUR')=>interpretSubscriptionPage({body,url,providerName:'Max',marketCurrencyHint:hint}).offerings;
+ for(const body of [ieExcerpt.replace('HHURL.config.selectedCountry = "IE";',''),ieExcerpt.replace('selectedCountry = "IE"','selectedCountry = "DE"'),ieExcerpt.replace('selectedCountry = "IE"','selectedCountry = "IE"; HHURL.config.selectedCountry = "IE"'),ieExcerpt.replace('Ireland</span>','Germany</span>')])assert.deepEqual(parse(body),[]);
+ assert.deepEqual(parse(ieExcerpt,ieUrl.replace('/ie/','/de/')),[]);
+ assert.deepEqual(parse(ieExcerpt,ieUrl,'USD'),[]);
+ assert.deepEqual(parse(ieExcerpt.replace('€10.99/month','€10.99/year')).map(row=>row.name),['Basic with Ads','Standard with Ads','Premium']);
+ const wrongCountry=countryFixture('IE',{body:ieExcerpt,url:ieUrl});wrongCountry.sourceCheck.receipt.geo.geoCountry='DE';assert.throws(()=>evaluateCountryProviderTruth(wrongCountry),/COUNTRY_PROVIDER_RECEIPT_INVALID/);
+ const wrongHash=countryFixture('IE',{body:ieExcerpt,url:ieUrl});wrongHash.attempt.page.rawSource.text+=' ';assert.throws(()=>evaluateCountryProviderTruth(wrongHash),/COUNTRY_PROVIDER_HASH_MISMATCH/);
+});
+
 test('Max GB article layout binds four ordinary monthly plans and ignores Saver, Sports and upgrade prices',()=>{
  const parsed=interpretSubscriptionPage({body:gbExcerpt,url:gbUrl,providerName:'Max',marketCurrencyHint:'GBP'});
  assert.deepEqual(parsed.services.map(row=>row.name),['Max']);
