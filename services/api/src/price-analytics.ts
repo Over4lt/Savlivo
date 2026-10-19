@@ -12,6 +12,8 @@ type Event={history_series_id:string;history_event_kind:"BASELINE"|"BOOTSTRAP_BA
 const periods=["3M","6M","1Y","All"] as const;
 const isStrong="(verification='authoritative-provider' OR (verification='multi-source' AND source_count>=2 AND verified_by_agreement))";
 const stamp=(value:string|Date)=>new Date(value).toISOString();
+const eventTime=(row:Event)=>stamp(row.history_event_kind==="BOOTSTRAP_BASELINE"?row.observed_at:row.provider_verified_at);
+const sqlEventTime="(CASE WHEN h.history_event_kind='BOOTSTRAP_BASELINE' THEN h.observed_at ELSE h.provider_verified_at END)";
 const nameOf=(slug:string)=>serviceCatalog.find(service=>service.slug===slug)?.name??slug;
 const marketOf=(code:string)=>countryCurrencyData.find(([id])=>id===code)?.[1]??code;
 
@@ -54,17 +56,17 @@ export function projectPriceAnalytics(current:Current[],events:Event[],filters:P
   const series=[];
   const heatmap=[];
   for(const [id,rows] of seriesMap) {
-    rows.sort((a,b)=>Date.parse(stamp(a.provider_verified_at))-Date.parse(stamp(b.provider_verified_at)));
-    const eligible=rows.filter(row=>Date.parse(stamp(row.provider_verified_at))<=ending);
+    rows.sort((a,b)=>Date.parse(eventTime(a))-Date.parse(eventTime(b)));
+    const eligible=rows.filter(row=>Date.parse(eventTime(row))<=ending);
     if(!eligible.length)continue;
-    const prior=eligible.filter(row=>Date.parse(stamp(row.provider_verified_at))<start).at(-1);
-    const within=eligible.filter(row=>Date.parse(stamp(row.provider_verified_at))>=start);
+    const prior=eligible.filter(row=>Date.parse(eventTime(row))<start).at(-1);
+    const within=eligible.filter(row=>Date.parse(eventTime(row))>=start);
     if(!within.length&&!prior)continue;
     const first=within[0]??prior!;
     const baseline=prior??(first.history_event_kind!=="PRICE_CHANGE"?first:null);
     const timeline=prior?[prior,...within]:within;
     const points=timeline.map((row,index)=>{
-      const at=index===0&&prior&&Number.isFinite(start)?new Date(start).toISOString():stamp(row.provider_verified_at);
+      const at=index===0&&prior&&Number.isFinite(start)?new Date(start).toISOString():eventTime(row);
       const base=baseline?.monthly_price_minor;
       return {at,verifiedAt:stamp(row.provider_verified_at),recordedAt:stamp(row.observed_at),
         providerEffectiveAt:row.provider_effective_at?stamp(row.provider_effective_at):null,
@@ -83,7 +85,7 @@ export function projectPriceAnalytics(current:Current[],events:Event[],filters:P
     for(let i=0;i<eligible.length;i++){
       const row=eligible[i],previous=eligible[i-1];
       if(row.history_event_kind!=="PRICE_CHANGE" || !previous ||
-        row.monthly_price_minor===previous.monthly_price_minor || Date.parse(stamp(row.provider_verified_at))<start)continue;
+        row.monthly_price_minor===previous.monthly_price_minor || Date.parse(eventTime(row))<start)continue;
       changes.push(change(identity,previous,row));
     }
     if(baseline&&timeline.some(row=>row.history_event_kind==="PRICE_CHANGE")&&last.monthly_price_minor!==undefined) {
@@ -127,7 +129,7 @@ export async function priceAnalyticsReport(filters:PriceAnalyticsFilters) {
     `SELECT DISTINCT ON (history_series_id) history_series_id,plan_name,country_code::text,currency::text
       FROM verified_price_observations WHERE service_slug=$1 AND ($2::text IS NULL OR country_code=$2)
         AND history_series_id IS NOT NULL AND ${isStrong}
-      ORDER BY history_series_id,provider_verified_at DESC LIMIT 301`,[filters.service,filters.market]);
+      ORDER BY history_series_id,(CASE WHEN history_event_kind='BOOTSTRAP_BASELINE' THEN observed_at ELSE provider_verified_at END) DESC LIMIT 301`,[filters.service,filters.market]);
   const planOptions=plans.rows.slice(0,300).map(row=>({seriesId:row.history_series_id,
     name:row.plan_name,market:row.country_code,currency:row.currency}));
   if(plans.rows.length>300&&!filters.plan)return {state:"NARROW_FILTERS" as const,services:availableServices,markets,planOptions,filters};
@@ -149,16 +151,16 @@ export async function priceAnalyticsReport(filters:PriceAnalyticsFilters) {
     const prior=ids.length?await pool.query<Event>(`SELECT ${columns} FROM unnest($3::text[]) target(series_id)
       JOIN LATERAL (SELECT * FROM verified_price_observations h WHERE h.history_series_id=target.series_id
         AND h.service_slug=$1 AND ($2::text IS NULL OR h.country_code=$2)
-        AND h.provider_verified_at<$4::timestamptz
+        AND ${sqlEventTime}<$4::timestamptz
         AND h.history_event_kind IN ('BASELINE','BOOTSTRAP_BASELINE','PRICE_CHANGE') AND ${isStrong}
-        ORDER BY h.provider_verified_at DESC,h.id DESC LIMIT 1) h ON true`,
+        ORDER BY ${sqlEventTime} DESC,h.id DESC LIMIT 1) h ON true`,
       [filters.service,filters.market,ids,start]):{rows:[] as Event[]};
     const window=await pool.query<Event>(`SELECT ${columns} FROM verified_price_observations h
       WHERE h.service_slug=$1 AND ($2::text IS NULL OR h.country_code=$2)
         AND ($3::text IS NULL OR h.history_series_id=$3) AND h.history_series_id IS NOT NULL
-        AND h.provider_verified_at>=$4::timestamptz AND h.provider_verified_at<=$5::timestamptz
+        AND ${sqlEventTime}>=$4::timestamptz AND ${sqlEventTime}<=$5::timestamptz
         AND h.history_event_kind IN ('BASELINE','BOOTSTRAP_BASELINE','PRICE_CHANGE') AND ${isStrong}
-      ORDER BY h.history_series_id,h.provider_verified_at,h.id LIMIT 4001`,
+      ORDER BY h.history_series_id,${sqlEventTime},h.id LIMIT 4001`,
     [filters.service,filters.market,filters.plan,start,now]);
     if(window.rows.length>4000)return {state:"NARROW_FILTERS" as const,services:availableServices,markets,planOptions,filters};
     historyRows=[...prior.rows,...window.rows];
@@ -167,7 +169,7 @@ export async function priceAnalyticsReport(filters:PriceAnalyticsFilters) {
       WHERE h.service_slug=$1 AND ($2::text IS NULL OR h.country_code=$2)
         AND ($3::text IS NULL OR h.history_series_id=$3) AND h.history_series_id IS NOT NULL
         AND h.history_event_kind IN ('BASELINE','BOOTSTRAP_BASELINE','PRICE_CHANGE') AND ${isStrong}
-      ORDER BY h.history_series_id,h.provider_verified_at,h.id LIMIT 4001`,[filters.service,filters.market,filters.plan]);
+      ORDER BY h.history_series_id,${sqlEventTime},h.id LIMIT 4001`,[filters.service,filters.market,filters.plan]);
     if(history.rows.length>4000)return {state:"NARROW_FILTERS" as const,services:availableServices,markets,planOptions,filters};
     historyRows=history.rows;
   }

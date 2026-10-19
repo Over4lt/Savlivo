@@ -133,6 +133,8 @@ test("Price Analytics renders native-currency step charts, filters, change log a
     points:[point("2026-08-01T00:00:00Z",8990,0,100,"BASELINE"),point("2026-09-01T00:00:00Z",10990,22.2469,122.2469)]};
   const second={...first,seriesId:otherId,market:"SE",marketName:"Sweden",currency:"SEK",planName:"Premium",
     points:[point("2026-08-01T00:00:00Z",12900,0,100,"BASELINE"),point("2026-09-01T00:00:00Z",13900,7.7519,107.7519)]};
+  second.points[0].kind="BOOTSTRAP_BASELINE";
+  second.points[0].verifiedAt="2026-07-01T00:00:00Z";
   const change={...first,previousMinor:8990,newMinor:10990,absoluteMinor:2000,percent:22.2469,
     verifiedAt:"2026-09-01T00:00:00Z",recordedAt:"2026-09-02T00:00:00Z",providerEffectiveAt:null,sourceUrl:"https://provider.example/prices"};
   const report={state:"AVAILABLE",services:[{slug:"disney-plus",name:"Disney+"},{slug:"netflix",name:"Netflix"}],markets:[{code:"NO",name:"Norway"},{code:"SE",name:"Sweden"}],
@@ -154,6 +156,7 @@ test("Price Analytics renders native-currency step charts, filters, change log a
   assert.match(text(),/Evidence/);
   const charts=()=>all().filter(e=>e.class==="price-step-chart"||e.className==="price-step-chart");
   assert.equal(charts().length,2,"native NOK and SEK are graphed on separate actual-price scales");
+  assert.match(text(),/as-of baseline; provider Verified/);
   assert.ok(charts().every(chart=>chart.viewBox==="0 0 820 260"));
   const css=readFileSync(new URL("admin.css",import.meta.url),"utf8");
   assert.match(css,/\.price-step-chart\{[^}]*width:100%;height:auto/);

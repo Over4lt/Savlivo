@@ -13,8 +13,9 @@ Verified row that predates migration 023 first receives a
 `BOOTSTRAP_BASELINE`, marked as an **as-of initialization**, when that row is
 next written. The row's genuine `verified_at` is retained as
 `provider_verified_at`; `observed_at` is the actual insertion time, and
-`provider_effective_at` remains null. For an as-of baseline, future charts must
-not use `provider_verified_at` as an asserted provider effective date.
+`provider_effective_at` remains null. Price Analytics uses `observed_at` for
+bootstrap ordering, period windows and chart position. `provider_verified_at`
+remains provenance, not an asserted provider effective date.
 Name-only updates and unchanged re-verifications do not append monetary events.
 All current and event writes use one transaction and the existing scoped
 advisory lock. The partial unique index prevents duplicate series events for
@@ -36,28 +37,35 @@ price-change events. The independent optional history sampler can still append
 legacy unlinked observations; structured series events come from the Verified
 writer regardless of `PRICING_HISTORY_ENABLED`.
 
-## Proposed one-time current-state bootstrap (separate approval required)
+## Explicit current-state bootstrap (separate production approval required)
 
-No bootstrap is part of migration 023 or this change. The previous read-only
-audit counted 857 current authoritative-provider Verified rows; that is an
-estimate, not a fixed execution count. Immediately before a separately
-approved bootstrap, run a read-only dry run that counts current rows eligible
-for strong Verified evidence, rows already carrying `history_series_id`, and
-rows with ambiguous semantic aliases. Record a digest of each proposed row's
-current identity, amount, verification timestamp and source reference. Review
-the 62 pre-existing Disney+ observations separately; do not reclassify them.
+The independent entry point is `node --import tsx
+services/api/scripts/bootstrap-verified-history.mjs`. With no flags, it runs a
+repeatable-read, read-only preflight. It reports current eligible semantic
+series, reason-coded exclusions, review flags, and a digest of proposed source,
+identity, value and verification fields. Samples print only source origins.
+It never joins the older product `services` table; canonical research-service
+identities are used, including Chess.com. Cross-currency current prices are
+review flags and retain their actual Verified currencies.
 
-An approved utility should reuse the writer's series derivation and scoped
-advisory lock. In small transactions, lock each still-current row, recheck its
-digest, and assign a series only if it remains unassigned and unambiguous.
-Append one `BOOTSTRAP_BASELINE` for its current Verified amount, with actual
-insertion time, original verification time and null provider effective date.
-Use the same uniqueness rule as the writer so reruns skip identical completed
-rows. Report inserted, skipped, changed and refused counts; never infer older
-prices from today's value or from Suggested prices.
+The only write invocation is explicit: `--execute --confirm=BOOTSTRAP_AS_OF
+--expected-digest=<digest from reviewed dry-run>`. A changed digest refuses the
+entire run. This command requires a fresh SELECT-only production audit and
+separate operator approval. No startup, migration, poller, research or normal
+Verified writer invokes it.
 
-On failure, roll back the affected transaction and retain committed immutable
-observations. Recovery is a reviewed retry from a new dry run, not deletion of
-the prior 62 observations or a speculative historical backfill. Production
-execution, including the dry-run connection and any later write, requires
-separate operator approval.
+Each proposed series is re-read under the writer's scoped advisory transaction
+lock and row locks. Changed or already initialized rows are skipped. Assignment
+and one immutable `BOOTSTRAP_BASELINE` insertion commit together, preserving
+current amount, `verified_at`, `last_checked_at`, source and old observations.
+Migration 025 adds a unique per-series bootstrap index in addition to the
+existing series/time index, so differing verification timestamps cannot create
+two as-of baselines for one series. Batches contain at most 25 independent
+per-series transactions. A failure rolls back the current series while prior
+commits remain; recovery requires a fresh preflight and never deletes events.
+
+The baseline states only that a monthly price was current and provider-Verified
+when the snapshot was recorded. The persisted current-price model does not
+independently re-prove historical billing cadence for every older row. This
+bootstrap creates no earlier effective dates or monetary changes, and leaves
+the 62 previously unlinked observations unclassified.

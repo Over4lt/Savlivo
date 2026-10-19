@@ -72,6 +72,25 @@ test("bootstrap and absent history remain explicit; no fabricated percentage or 
   assert.equal(empty.summary.plans,1);assert.equal(empty.chartState,"EMPTY");
 });
 
+test("an as-of bootstrap uses recording time while retaining original verification provenance",()=>{
+  const a=id("a"),bootstrap=event(a,"BOOTSTRAP_BASELINE",9990,"2026-08-30T00:00:00Z",{
+    observed_at:"2026-10-19T00:00:00Z"});
+  const before=projectPriceAnalytics([current(a)],[bootstrap],filters,new Date("2026-10-18T23:59:59Z"));
+  assert.equal(before.series.length,0);
+  const after=projectPriceAnalytics([current(a)],[bootstrap],filters,now);
+  assert.equal(after.series[0].points[0].at,"2026-10-19T00:00:00.000Z");
+  assert.equal(after.series[0].points[0].verifiedAt,"2026-08-30T00:00:00.000Z");
+  assert.equal(after.series[0].points[0].providerEffectiveAt,null);
+  assert.equal(after.series[0].points[0].percent,0);
+  assert.equal(after.summary.priceChanges30d,0);
+  const next=event(a,"PRICE_CHANGE",10990,"2026-10-20T00:00:00Z",{observed_at:"2026-10-20T00:00:00Z"});
+  const changed=projectPriceAnalytics([current(a,"NO","NOK",10990)],[next,bootstrap],filters,new Date("2026-10-21T00:00:00Z"));
+  assert.deepEqual(changed.series[0].points.map(point=>point.at),[
+    "2026-10-19T00:00:00.000Z","2026-10-20T00:00:00.000Z"]);
+  assert.equal(changed.changes.length,1);
+  assert.ok(Math.abs(changed.changes[0].percent-10.01001)<0.001);
+});
+
 test("name-only current updates keep the series and inconsistent current amounts are not extended",()=>{
   const a=id("a"),base=event(a,"BASELINE",8990,"2026-08-01T00:00:00Z",{plan_name:"Standard"});
   const renamed=projectPriceAnalytics([current(a,"NO","NOK",8990)],[base],filters,now);

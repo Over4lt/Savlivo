@@ -416,7 +416,7 @@ function priceCharts(parent,series) {
         const dot=document.createElementNS("http://www.w3.org/2000/svg","circle"),tip=document.createElementNS("http://www.w3.org/2000/svg","title");
         dot.setAttribute("cx",x(Date.parse(point.at)).toFixed(1));dot.setAttribute("cy",y(value(point)).toFixed(1));
         dot.setAttribute("r","4");dot.setAttribute("fill",palette[index%palette.length]);
-        tip.textContent=`${row.market} · ${row.planName} · ${priceDate(point.verifiedAt)} · ${priceMoney(point.amountMinor,row.currency)}${point.kind==="CARRIED_BASELINE"?" (carried from prior Verified baseline)":""}`;
+        tip.textContent=`${row.market} · ${row.planName} · ${priceDate(point.at)} · ${priceMoney(point.amountMinor,row.currency)}${point.kind==="BOOTSTRAP_BASELINE"?` (as-of baseline; provider Verified ${priceDate(point.verifiedAt)})`:point.kind==="CARRIED_BASELINE"?" (carried from prior Verified baseline)":""}`;
         dot.append(tip);svg.append(dot);
       }
     }

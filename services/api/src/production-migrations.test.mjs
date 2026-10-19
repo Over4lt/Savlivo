@@ -97,6 +97,15 @@ test('024 adds only the bounded Price Analytics service-series read index',()=>{
  assert.doesNotMatch(sql,/\b(?:DELETE|TRUNCATE|DROP|UPDATE|INSERT)\b/i);
 });
 
+test('025 adds one-bootstrap integrity and event-time read index without touching price rows',()=>{
+ assert.equal(migrationFiles.filter(file=>file.endsWith('025_verified_bootstrap_integrity.sql')).length,1);
+ const sql=fs.readFileSync(productionRoot+'db/migrations/025_verified_bootstrap_integrity.sql','utf8');
+ assert.match(sql,/CREATE UNIQUE INDEX IF NOT EXISTS verified_price_observations_one_bootstrap_per_series/);
+ assert.match(sql,/history_event_kind='BOOTSTRAP_BASELINE'/);
+ assert.match(sql,/THEN observed_at ELSE provider_verified_at END/);
+ assert.doesNotMatch(sql,/\b(?:DELETE|TRUNCATE|DROP|UPDATE|INSERT)\b/i);
+});
+
 test('fresh and repeated startup apply each migration once; Research links GET uses migrated shape',async()=>{
  const db=new MigrationDatabase(),first=await runProductionMigrations(db),second=await runProductionMigrations(db);
  assert.equal(first.applied,migrationFiles.length+1);assert.equal(second.applied,0);assert.equal(second.skipped,migrationFiles.length+1);
@@ -116,7 +125,7 @@ test('fresh and repeated startup apply each migration once; Research links GET u
 
 test('verified legacy schema is baselined without replaying old data migrations, then additive migrations run',async()=>{
  const db=new MigrationDatabase({legacy:true}),result=await runProductionMigrations(db);
- assert.equal(result.baselined,15);assert.equal(result.applied,7);assert.equal(db.links,true);
+ assert.equal(result.baselined,15);assert.equal(result.applied,8);assert.equal(db.links,true);
  assert.equal(db.queries.some(row=>row.sql.includes("DO UPDATE SET\n  name = EXCLUDED.name")),false);
  assert.equal((await runProductionMigrations(db)).applied,0);
 });

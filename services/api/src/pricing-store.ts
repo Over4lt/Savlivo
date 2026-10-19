@@ -5,7 +5,7 @@ import { catalogPlanIdentity } from "../../../packages/contracts/src/product-pri
 import { serviceCatalog } from "../../../packages/contracts/src/catalog.js";
 import { equivalentVerifiedPlan, semanticVerifiedAlias } from "./verified-price-reconciliation.mjs";
 
-const currentRow = (row: any) => ({
+export const currentRow = (row: any) => ({
   planIdentity: row.plan_identity, historySeriesId: row.history_series_id ?? null,
   serviceSlug: row.service_slug, planSlug: row.plan_slug, planName: row.plan_name,
   billingProviderSlug: row.billing_provider_slug, countryCode: row.country_code,
@@ -19,7 +19,7 @@ const currentRow = (row: any) => ({
 type HistoryRow = ReturnType<typeof currentRow>;
 const strong = (row: HistoryRow) => row.verification === "authoritative-provider" ||
   row.verification === "multi-source" && row.verifiedByAgreement === true && row.sourceCount >= 2;
-const seriesId = (row: HistoryRow, restartAt?: string) => "vh:" + createHash("sha256").update(JSON.stringify([
+export const verifiedHistorySeriesId = (row: HistoryRow, restartAt?: string) => "vh:" + createHash("sha256").update(JSON.stringify([
   row.serviceSlug,row.countryCode,row.billingProviderSlug,row.currency,"MONTHLY_RECURRING",
   row.planIdentity ?? catalogPlanIdentity(row),row.planSlug,restartAt??null
 ])).digest("hex");
@@ -127,11 +127,11 @@ export async function persistVerifiedLivePrices(
         monthlyPriceMinor:item.monthlyPriceMinor,source:item.source,sourceUrl:item.sourceUrl,
         verification:item.verification,sourceCount:item.sourceCount,verifiedByAgreement:item.verifiedByAgreement,
         verifiedAt:item.updatedAt,lastCheckedAt:item.updatedAt};
-      let historySeriesId=existingIds[0]??seriesId(alias??predecessor??incoming);
+      let historySeriesId=existingIds[0]??verifiedHistorySeriesId(alias??predecessor??incoming);
       let prior=await latestHistory(client,historySeriesId);
       // A current row can have been explicitly removed while its immutable
       // history remains. A later fresh admission starts a new series.
-      if(!predecessor&&prior){historySeriesId=seriesId(incoming,item.updatedAt);prior=await latestHistory(client,historySeriesId);}
+      if(!predecessor&&prior){historySeriesId=verifiedHistorySeriesId(incoming,item.updatedAt);prior=await latestHistory(client,historySeriesId);}
       if(predecessor){
         if(!prior&&alias&&exact&&strong(exact)){
           if(Date.parse(alias.verifiedAt)>=Date.parse(exact.verifiedAt))
