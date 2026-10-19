@@ -12,6 +12,9 @@ import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
 import {activeRenderingNeed} from './rendering-diagnosis.mjs';
 import {priceResearchAcquisitionCandidate} from './price-research-candidate.mjs';
+import {sourceBoundPriceDecodoContinuation} from './source-bound-price-priority.mjs';
+import {providerSourceDomainFamily} from '../../research-v3/provider-source-family.mjs';
+import {executionBounds,resourceKey} from './execution-capabilities.mjs';
 export function nonObservedDirectProviderPage(page,url){
  if(page.outcome==='OK')return null;
  return {url,classification:page.outcome==='ACCESS_CONTROL_STOP'?'DIRECT_ACCESS_BLOCKED':'DIRECT_ACQUISITION_UNRESOLVED',verified:[],needsGeo:false,blockers:[page.failure?.code??page.outcome],channel:'DIRECT_FAILED'};
@@ -53,7 +56,23 @@ export async function createTavilyDiscovery({inventory,env=process.env,readKeych
     const semantic=route==='DECODO'&&reason==='TARGET_MARKET_OBSERVATION_REQUIRED'?targetMarketAcquisition(target,candidate.url):null;
     if(semantic){if(target.capabilities?.decodo!==true)throw Error('CAPABILITY_DISABLED_DECODO');direct={needsGeo:true,acquisitionEscalation:semantic};}
     const independent=route==='DECODO'&&reason==='DIRECT_PROHIBITED_DECODO_PERMITTED';
-    const verification=route==='DECODO'&&reason==='PRICE_RESEARCH_VERIFICATION_REQUIRED'&&target.operationsObjective==='PRICE_RESEARCH'&&target.capabilities?.decodo===true;
+    const continuation=route==='DECODO'&&reason==='SOURCE_BOUND_PRICE_DECODO_CONTINUATION'&&target.operationsObjective==='PRICE_RESEARCH'&&target.capabilities?.decodo===true
+     ?(target.leads??[]).map(lead=>sourceBoundPriceDecodoContinuation(target,lead)).find(proof=>proof?.url===candidate?.url):null;
+    if(reason==='SOURCE_BOUND_PRICE_DECODO_CONTINUATION'){
+     const reserved=(target.decisions??[]).filter(row=>row.route==='DECODO'&&row.acquisitionReserved===true&&row.url===candidate?.url);
+     const proof=reserved[0]?.sourceBoundPriceContinuation,authority=candidate?.authority;
+     const official=continuation&&(providerSourceDomainFamily(target,continuation.url)||providerRoutingAuthority(target,continuation.url));
+     const lead=(target.leads??[]).find(row=>row.url===continuation?.url&&row.from?.observation===continuation.parentObservation);
+     const parent=(target.sourceBoundContinuationParents??[]).find(row=>row.id===continuation?.parentObservation&&row.sha256===continuation.parentHash);
+     const parentSource=(target.acquisitionOutcomes??[]).find(row=>row.sourceClassification?.finalUrl===lead?.from?.url&&row.sourceClassification.sourceHash===continuation?.parentHash);
+     const sameResource=continuation&&(target.acquisitionOutcomes??[]).some(row=>resourceKey(row.url)===resourceKey(continuation.url));
+     if(!continuation||!official||!parent||parent.url!==lead?.from?.url||!parentSource||!/^([A-Z]{2})$/u.test(target.market??'')||target.id!==`price-research:${target.service}:${target.market}`||
+      !authority?.eligible||authority.url!==continuation.url||authority.truthAuthority!=='NONE'||authority.reason!=='PRICE_RESEARCH_SOURCE_CANDIDATE'||
+      reserved.length!==1||reserved[0].routingReason!==reason||canonical(proof)!==canonical(continuation)||
+      (target.decisions??[]).filter(row=>row.acquisitionReserved===true).length>executionBounds.perServiceAcquisitions||sameResource||
+      (target.blockedOrigins??[]).includes(new URL(continuation.url).origin))throw Error('SOURCE_BOUND_PRICE_CONTINUATION_REQUIRED');
+    }
+    const verification=route==='DECODO'&&(reason==='PRICE_RESEARCH_VERIFICATION_REQUIRED'||!!continuation)&&target.operationsObjective==='PRICE_RESEARCH'&&target.capabilities?.decodo===true;
     // Reservation already exists at dispatch; validate permission again without treating this reservation as a duplicate.
     if(independent&&!(target.capabilities?.direct===false&&target.capabilities?.decodo===true))throw Error('INDEPENDENT_DECODO_PERMISSION_REQUIRED');
     if(!independent&&!verification&&(!direct?.needsGeo||!direct.acquisitionEscalation?.eligible))throw Error('DISCOVERY_ACQUISITION_FAILURE_PROOF_REQUIRED');
