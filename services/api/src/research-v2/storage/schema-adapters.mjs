@@ -1,7 +1,7 @@
 import {snapshotDocument} from '../human-leads/snapshot.mjs';
 // Recognize versioned contracts, never grant path semantics by field name alone.
 import path from 'node:path';
-import {safe,read,sha,stableBytes,files,canonical} from './core.mjs';
+import {safe,read,sha,stableBytes,files,canonical,digest} from './core.mjs';
 const stages=['IDENTITY_SUBSCRIPTION','MARKETS','LOGIN','MANAGEMENT','CANCELLATION','PRICING','VALIDATION'];
 // Keep unchanged subgraphs shared with the parsed document; validate every locator.
 function adaptLocators(v){
@@ -18,6 +18,18 @@ function priorInterpretations(root,target,base,references){
  return {...target,providerInterpretations:target.providerInterpretations.map(p=>{if(p.runDirectory==null)return p;safe(root,p.runDirectory);if(typeof p.url!=='string'||!Array.isArray(p.blockers))throw Error('STORAGE_PRIOR_INTERPRETATIONS_SCOPE');if(!p.runDirectory.startsWith(base+'/direct-acquisitions/direct-')){if(!target.id)throw Error('STORAGE_PRIOR_INTERPRETATIONS_SCOPE');const m=read(safe(root,p.runDirectory+'/manifest.json'));if(!target.id||m.version!=='RESEARCH_V2_LIVE_V1'||!m.inventory?.some(t=>t.id===target.id&&t.service===target.service&&t.market===target.market))throw Error('STORAGE_PRIOR_INTERPRETATIONS_SCOPE');}references.push({path:p.runDirectory,format:'TREE',classification:'REFERENCED_EVIDENCE',reason:'PRIOR_PROVIDER_INTERPRETATION'});const {runDirectory,...rest}=p;return rest;})};
 }
 export function adaptDocument(root,value,owner){
+ if(value?.schema==='V2_EVIDENCE_OBSERVATION_V1'){
+  const {contentHash,...payload}=value,blob=value.blob;
+  if(contentHash!==digest(payload)||!/^[a-zA-Z0-9_-]{1,160}$/.test(value.id??'')||!owner.endsWith('/observations/'+value.id+'.json')||blob?.schema!=='V2_BLOB_V1'||!/^blobs\/sha256\/[a-f0-9]{2}\/[a-f0-9]{64}$/.test(blob.path??'')||!blob.path.endsWith('/'+blob.sha256)||!Number.isSafeInteger(blob.bytes)||blob.bytes<0)throw Error('STORAGE_EVIDENCE_OBSERVATION');
+  return {value:{schema:value.schema,id:value.id},references:[{path:path.posix.join(path.posix.dirname(path.posix.dirname(owner)),blob.path),sha256:blob.sha256,format:'BYTES',classification:'REFERENCED_EVIDENCE',reason:'EVIDENCE_OBSERVATION_BLOB'}],schema:value.schema};
+ }
+ if(value?.schema==='V2_PROVIDER_PRICING_ROUTE_MEMORY_V1'){
+  const {contentHash,...payload}=value;
+  if(owner!=='.savlivo/research-v2/storage/provider-pricing-routes-v1.json'||contentHash!==digest(payload)||!Array.isArray(value.entries)||value.entries.length>10000)throw Error('STORAGE_PRICING_ROUTE_MEMORY');
+  const references=[];
+  for(const entry of value.entries){if(!Array.isArray(entry.origins)||entry.origins.length>32)throw Error('STORAGE_PRICING_ROUTE_MEMORY');for(const origin of entry.origins){const id=origin.evidenceObservationId;if(!/^pricing-route-[a-f0-9]{40}$/.test(id??''))throw Error('STORAGE_PRICING_ROUTE_MEMORY');references.push({path:'.savlivo/research-v2/storage/observations/'+id+'.json',format:'JSON',classification:'PERMANENT_HISTORY',reason:'PROVEN_PRICING_ROUTE_SOURCE'});}}
+  return {value:{schema:value.schema},references,schema:value.schema};
+ }
  if(value?.schema==='V2_HUMAN_LEAD_OUTCOME_V1'){const {observationHash,...record}=value;if(sha(JSON.stringify(record))!==observationHash||!['ACQUISITION_ATTEMPTED','ACQUISITION_RESULT','VERIFIER_RESULT'].includes(value.event)||!/^[a-f0-9]{64}$/.test(value.snapshotHash??'')||Object.keys(value).some(k=>!['schema','runId','leadId','snapshotHash','serviceId','market','event','at','route','outcome','bodyHash','source','evidence','verificationHash','verifierOutcome','verifiedCount','observationHash'].includes(k)))throw Error('STORAGE_HUMAN_LEAD_OUTCOME');return {value,references:[{path:'.savlivo/v2-operations-inputs/human-leads/'+value.snapshotHash+'.json',sha256:value.snapshotHash,format:'JSON',classification:'PERMANENT_HISTORY',reason:'HUMAN_LEAD_INPUT'}],schema:value.schema};}
  if(value?.schema==='V2_HUMAN_LEADS_V1'){if(canonical(snapshotDocument(value.context,value.leads))!==canonical(value)||owner!=='.savlivo/v2-operations-inputs/human-leads/'+sha(canonical(value))+'.json')throw Error('STORAGE_HUMAN_LEAD_SCHEMA');return {value:{schema:value.schema},references:[],schema:value.schema};}
 

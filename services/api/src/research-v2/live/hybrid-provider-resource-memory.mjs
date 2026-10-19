@@ -119,6 +119,10 @@ export function recordHybridProviderResourceFailure({root,target,resourceId,outc
 // routing-only batch view. It is rebuilt from completed child checkpoints on
 // resume; no prior-market observation or Truth is passed to a new target.
 export function createProviderPricingRouteMemory(){return {routes:new Map(),byService:new Map()};}
+const validatedPricingRouteRows=new WeakSet();
+export const isValidatedPricingRouteLearning=row=>!!row&&validatedPricingRouteRows.has(row);
+const validatedPricingRouteBodies=new WeakMap();
+export const validatedPricingRouteBody=row=>validatedPricingRouteBodies.get(row)??null;
 const pricingRouteLimit=8;
 const pricingPropositions=new Set(['PRICE_AMOUNT','PRICE_CURRENCY','PRICE_CADENCE','PRICE_ROLE']);
 const routeKey=(service,url)=>service+'|'+url;
@@ -143,15 +147,15 @@ export function learnProviderPricingRoutesFromTarget({memory,target,directory,no
   const priorityAuthority=decision.acquisitionReserved===true&&decision.route==='DECODO'&&acquisition&&derivedCandidate&&truth.established===true&&establishedMonthlyPrice&&observation.context?.transport==='DECODO'&&observation.context?.networkGeography===target.market;
   if(!directAuthority&&!priorityAuthority)continue;
   const page=(target.reads??[]).find(row=>normalizeUrl(row.url)===url&&row.outcome==='OK'&&row.truncated!==true&&row.bodyHash===hash&&row.sourceIntegrity?.sha256===hash);
-  let retained=false;
-  if(page?.bodyFile&&directory){try{const file=path.resolve(directory,page.bodyFile);retained=file.startsWith(path.resolve(directory)+path.sep)&&!fs.lstatSync(file).isSymbolicLink()&&digest(fs.readFileSync(file,'utf8'))===hash;}catch{/* Invalid retained body. */}}
-  if(!retained&&priorityAuthority&&directory){try{const root=fs.realpathSync(path.resolve(directory,'acquisitions')),run=fs.realpathSync(acquisition.runDirectory),file=fs.realpathSync(path.join(run,'raw',hash+'.body'));retained=run.startsWith(root+path.sep)&&file.startsWith(run+path.sep)&&fs.statSync(file).size<=8_000_000&&digest(fs.readFileSync(file,'utf8'))===hash;}catch{/* Invalid retained body. */}}
+  let retained=false,retainedBody=null;
+  if(page?.bodyFile&&directory){try{const file=path.resolve(directory,page.bodyFile);if(file.startsWith(path.resolve(directory)+path.sep)&&!fs.lstatSync(file).isSymbolicLink()){const body=fs.readFileSync(file,'utf8');retained=digest(body)===hash;if(retained)retainedBody=body;}}catch{/* Invalid retained body. */}}
+  if(!retained&&priorityAuthority&&directory){try{const root=fs.realpathSync(path.resolve(directory,'acquisitions')),run=fs.realpathSync(acquisition.runDirectory),file=fs.realpathSync(path.join(run,'raw',hash+'.body'));if(run.startsWith(root+path.sep)&&file.startsWith(run+path.sep)&&fs.statSync(file).size<=8_000_000){const body=fs.readFileSync(file,'utf8');retained=digest(body)===hash;if(retained)retainedBody=body;}}catch{/* Invalid retained body. */}}
   if(!retained&&directAuthority&&interpretation.countryV3Evaluation?.status==='EVALUATED'&&interpretation.countryV3Evaluation.sourceHash===hash&&observation.context?.transport==='DECODO'&&observation.context?.networkGeography===target.market)retained=true;
   if(!retained)continue;
   const key=routeKey(target.service,url),prior=memory.routes.get(key),source={market:target.market,observation:observation.id,sha256:hash};
   const sources=[...(prior?.sources??[]).filter(row=>row.market!==source.market||row.sha256!==source.sha256),source].slice(-8);
   const row={service:target.service,serviceName:target.serviceName,url,host,role:'PRICING',meaning:hybridProviderResourceMemoryContract.meaning,successes:(prior?.successes??0)+Number(!prior?.sources?.some(row=>row.market===source.market&&row.sha256===source.sha256)),failures:prior?.failures??0,lastSuccessAt:now,sources,propositions:[...new Set([...(prior?.propositions??[]),...propositions])].sort(),...(priorityAuthority?{countryRouteEvidenceSha256:derivedCandidate.providerRouteEvidenceSha256}:{})};
-  memory.routes.set(key,row);if(!memory.byService.has(target.service))memory.byService.set(target.service,new Map());memory.byService.get(target.service).set(url,row);learned.push(structuredClone(row));
+  memory.routes.set(key,row);if(!memory.byService.has(target.service))memory.byService.set(target.service,new Map());memory.byService.get(target.service).set(url,row);const validated=structuredClone(row);validatedPricingRouteRows.add(validated);if(retainedBody!==null)validatedPricingRouteBodies.set(validated,Buffer.from(retainedBody));learned.push(validated);
   const serviceRows=routeRows(memory,target.service).sort((a,b)=>(b.successes-b.failures)-(a.successes-a.failures)||b.lastSuccessAt.localeCompare(a.lastSuccessAt)||a.url.localeCompare(b.url));
   for(const stale of serviceRows.slice(pricingRouteLimit)){memory.routes.delete(routeKey(stale.service,stale.url));memory.byService.get(stale.service).delete(stale.url);}
  }

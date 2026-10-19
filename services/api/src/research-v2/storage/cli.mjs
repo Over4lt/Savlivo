@@ -18,6 +18,7 @@ export function lifecycleRoots(root,input,operations='.savlivo/v2-operations'){
  for(const dir of fs.readdirSync(safe(root,config.runsRoot)).filter(n=>/^lifecycle-control-[a-f0-9]+$/.test(n)).sort())for(const name of fs.readdirSync(safe(root,config.runsRoot+'/'+dir)).filter(n=>n.endsWith('.json')).sort())roots.push({path:config.runsRoot+'/'+dir+'/'+name,format:'SNAPSHOT',classification:'RESUME_CRITICAL',reason:'CONTINUATION_FINGERPRINT'});
  if(fs.existsSync(safe(root,operations)))roots.push({path:operations,format:'TREE',classification:'RESUME_CRITICAL',reason:'OPERATIONS_JOBS_SCHEDULES_AND_RESUME'});
  const history='.savlivo/research-v2/storage/history';if(fs.existsSync(safe(root,history)))roots.push({path:history,format:'TREE',classification:'PERMANENT_HISTORY',reason:'PERMANENT_ANALYTICS'});
+ const routeMemory='.savlivo/research-v2/storage/provider-pricing-routes-v1.json';if(fs.existsSync(safe(root,routeMemory)))roots.push({path:routeMemory,format:'JSON',classification:'PERMANENT_HISTORY',reason:'PROVEN_PRICING_ROUTE_MEMORY'});
  return {schema:'V2_STORAGE_ROOTS_V1',roots,runs,scan:roots.map(r=>r.path),coordination:[operations+'/state.json',operations+'/execution.lock',operations+'/control.lock'],candidates:[]};
 }
 export function main(args){const [command,...rest]=args,opts={};for(let i=0;i<rest.length;i+=2){if(!rest[i]?.startsWith('--')||!rest[i+1]||opts[rest[i]])throw Error('STORAGE_ARGUMENTS');opts[rest[i]]=rest[i+1];}

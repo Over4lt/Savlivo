@@ -17,6 +17,7 @@ import {loadPriceResearchTargeting,selectPriceResearchTargets} from './price-res
 import {listMarketExclusions} from './market-exclusions.mjs';
 import {executePriceResearchBatch} from './price-research-batch.mjs';
 import {learnProviderPricingRoutesFromTarget,prioritizeDerivedCountryCandidates} from '../research-v2/live/hybrid-provider-resource-memory.mjs';
+import {loadPricingRouteMemory} from '../research-v2/storage/pricing-route-memory.mjs';
 import {canonicalReviewedProviderRoot} from '../research-v3/reviewed-provider-namespaces.mjs';
 import {baselineProviderSourceHosts} from '../research-v3/provider-source-family.mjs';
 import {researchLinkPriorityTarget} from '../research-v2/live/retained-render-source.mjs';
@@ -163,5 +164,7 @@ async function executeSinglePriceResearch({job,directory,apiKey,client,shouldSto
 
 export async function executePriceResearch(options){
  if(options.job?.config?.targetKind==='CANONICAL_SELECTION')return executePriceResearchBatch({...options,executeTarget:executeSinglePriceResearch});
- return executeSinglePriceResearch(options);
+ let providerPricingRouteMemory=null;
+ if(options.memoryRoot&&options.job?.config?.targetKind==='KNOWN_SERVICE')try{providerPricingRouteMemory=loadPricingRouteMemory(options.memoryRoot,{services:[options.job.config.serviceId]});}catch{/* Invalid hints must not grant authority or interrupt research. */}
+ return executeSinglePriceResearch({...options,providerPricingRouteMemory});
 }
