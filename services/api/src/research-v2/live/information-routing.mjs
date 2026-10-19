@@ -9,6 +9,7 @@ import {retainedSuccesses} from './retained-success.mjs';
 import {directAcquisitionReads,executableAction,exhaustedExecutionBudget} from './execution-capabilities.mjs';
 import {hasProviderRoutingAuthority,providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {priceResearchAcquisitionCandidate} from './price-research-candidate.mjs';
+import {sourceBoundPriceRoutingBonus} from './source-bound-price-priority.mjs';
 import {activeRenderingNeed} from './rendering-diagnosis.mjs';
 import {providerStageRoutingObjective,providerResourceRelevance,providerBranchPreference,providerResourceLocaleHint,targetMarketStateGap,marketStateContinuationValue} from './provider-resource-routing.mjs';
 import {authorityAcquisitionObjective,authorityEvidenceLeads,authorityEvidenceQuery,candidateAuthorityRouting,orderCandidateAuthorityRows,unresolvedAuthorityDestination} from './candidate-authority-routing.mjs';
@@ -31,6 +32,8 @@ export function destinationInformation(t,url,{diagnosis=null,unresolvedFields=[]
  const ranked=Number.isFinite(lead?.navigationPriority);let gain=ranked?Math.max(0,6-lead.navigationPriority/10):sem.priority<=10?5:p==='/'?2:3,reason='COMMERCIAL_DESTINATION';if(support){gain=terms?8:ranked?gain:/pricing|price|plans|membership|subscription|abonnement|tarif/.test(p)?4:1;reason=terms?'RESOLVE_TERM_OR_RENEWAL_FIELD':'SUBSCRIPTION_SUPPORT';}
  if(/cancel|downgrade|delete/.test(p)&&!terms){gain=0;reason='LOW_VALUE_FOR_PRICE_DISCOVERY';}
  if(candidate&&gain===0&&!/cancel|downgrade|delete/.test(p)){gain=1;reason='PRICE_RESEARCH_SOURCE_CANDIDATE';}
+ const sourcePriceBonus=sourceBoundPriceRoutingBonus(t,lead);
+ if(gain>0&&sourcePriceBonus<0){gain+=sourcePriceBonus<=-30?3:1;reason='SOURCE_BOUND_PRICING_DESTINATION_HINT';}
  if(!ranked&&(t.knownCommercialUrls??[]).some(x=>norm(x)===normalized))gain+=1;
  const marketObjective=pendingMarketProof(t).length>0;
  if(marketObjective){const sourceIntent=targetMarketAcquisition(t,normalized),gapCapable=gapCapableLead(t,lead??{url:normalized}),marketRelevant=!!candidate||relevance.tier===0||gapCapable||!!sourceIntent&&sourceIntent.marketProofIdentityKeys.length>0;return {url:normalized,eligible:marketRelevant,informationGain:marketRelevant?9:0,value:marketRelevant?9:0,reason:sourceIntent&&marketRelevant?'SOURCE_BOUND_MARKET_OBJECTIVE':marketRelevant?'RESOLVE_MARKET_PROOF':'NOT_MARKET_PROOF_DESTINATION',objective,objectiveAnchor:relevance.objectiveAnchor===true,objectiveRelevanceTier:relevance.tier,objectiveRole:relevance.role,objectiveSignals:relevance.signals,branchPreference:providerBranchPreference(t,lead,relevance),localeCompatibility:locale.compatibility,discoveryRank:lead?.rank??0,traversalOrder:lead?(t.leads??[]).indexOf(lead):(t.urls??[]).indexOf(url),marketApplicabilityEstablished:false};}
@@ -69,7 +72,16 @@ function candidateAuthorityFrontier(t,urls,executionContext,knowledge){
  const attempted=new Set([...(t.reads??[]).flatMap(r=>[r.requestedUrl,r.url]),...(knowledge?.attempts??[]).flatMap(a=>[a.url,a.finalUrl])].map(norm).filter(Boolean));
  const blocked=new Set(knowledge?.blockedOrigins??t.blockedOrigins??[]);
  const rows=[...new Set(urls)].map((url,index)=>{const normalized=norm(url);if(!normalized||attempted.has(normalized)||blocked.has(new URL(normalized).origin))return null;const lead=(t.leads??[]).find(l=>norm(l.url)===normalized)??{url:normalized,originKind:'SEED',frontierOrder:index},capability=executableAction(t,{route:'AUTHORITY_DISCOVERY',url:normalized},executionContext);return {url:normalized,index,lead,...candidateAuthorityRouting(t,lead,index),capability};}).filter(Boolean),remainingReads=Math.min((executionContext?.bounds?.perServiceReads??Infinity)-directAcquisitionReads(t).length,(executionContext?.bounds?.reads??Infinity)-(executionContext?.usage?.reads??0));
- const order=items=>orderCandidateAuthorityRows(items,{remainingReads}).sort((a,b)=>Number(b.lead?.learnedProviderPricingRoute===true)-Number(a.lead?.learnedProviderPricingRoute===true));
+ const order=items=>orderCandidateAuthorityRows(items,{remainingReads}).sort((a,b)=>{
+  const learned=Number(b.lead?.learnedProviderPricingRoute===true)-Number(a.lead?.learnedProviderPricingRoute===true);if(learned)return learned;
+  // Compare pricing intent only within the same source-bound provider branch;
+  // authority tiers, independent candidates and the existing budget reserve
+  // keep their established order.
+  if(a.authorityRelevanceTier===b.authorityRelevanceTier&&a.branchPreference===b.branchPreference&&a.lead?.from?.bodyHash&&a.lead.from.bodyHash===b.lead?.from?.bodyHash){
+   const price=sourceBoundPriceRoutingBonus(t,a.lead)-sourceBoundPriceRoutingBonus(t,b.lead);if(price)return price;
+  }
+  return 0;
+ });
  return {objective:authorityAcquisitionObjective,candidates:order(rows.filter(row=>row.capability.executable)),budgetBlocked:order(rows.filter(row=>exhaustedExecutionBudget(row.capability)))};
 }
 function sourceBoundCandidateFrontier(t,executionContext,knowledge){

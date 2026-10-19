@@ -54,6 +54,12 @@ test('same-job Max retry skips a previously country-bound unpriced provider page
  assert.deepEqual(current.derivedCountrySourceOutcomes.map(row=>row.url),[gbUrl]);
 });
 
+test('same-job no-progress memory blocks another service only for price research',()=>{
+ const url='https://help.example.com/de/plans',current={...gbTarget([],[]),service:'example',market:'DE',priorNoProgressProviderUrls:[url],providerSourceIdentityHosts:['help.example.com'],capabilities:{direct:false,decodo:true}},action={route:'DECODO',reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED',url},context={available:{decodo:true},bounds:{acquisitions:2,bytes:2*1024*1024,bytesPerPage:2*1024*1024,perServiceAcquisitions:2},usage:{acquisitions:0,bytes:0}};
+ assert.equal(executableAction(current,action,context).reason,'EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');
+ assert.equal(executableAction({...current,operationsObjective:'SERVICE_COVERAGE'},action,context).reason!=='EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED',true);
+});
+
 test('offline Max retry does not issue another Decodo request for the same unpriced URL',async t=>{
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'max-unpriced-retry-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
  const rows=derivedCountrySourceCandidates({service:'max',market:'GB'}),current={...gbTarget([],rows),researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[],leads:[],authorities:[],gaps:['amount'],reads:[],queries:[],blockedOrigins:[],priorNoProgressProviderUrls:[gbUrl]},requested=[];

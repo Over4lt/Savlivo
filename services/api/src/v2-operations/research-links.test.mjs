@@ -18,7 +18,7 @@ function fixture(serviceId='streamco'){
   if(sql.startsWith('DELETE')){rows.splice(rows.findIndex(row=>row.id===args[0]),1);return {rows:[]};}
   if(sql.includes('WHERE id=$1'))return {rows:rows.filter(row=>row.id===args[0])};
   if(sql.includes("last_result='VERIFIED'"))return {rows:rows.filter(row=>row.service_id===args[0]&&row.enabled&&row.market_scope==='MARKET_SPECIFIC'&&row.last_result==='VERIFIED')};
-  if(sql.includes('enabled=true'))return {rows:rows.filter(row=>row.service_id===args[0]&&row.enabled&&(row.market_scope==='GLOBAL'||row.market_code===args[1])).sort((a,b)=>Number(a.market_scope!=='MARKET_SPECIFIC')-Number(b.market_scope!=='MARKET_SPECIFIC'))};
+  if(sql.includes('enabled=true'))return {rows:rows.filter(row=>row.service_id===args[0]&&row.enabled).sort((a,b)=>Number(a.market_code!==args[1]&&a.market_scope!=='GLOBAL')-Number(b.market_code!==args[1]&&b.market_scope!=='GLOBAL')||Number(a.market_scope==='GLOBAL')-Number(b.market_scope==='GLOBAL')).slice(0,20)};
   return {rows:rows.filter(row=>row.service_id===args[0])};
  }};ops.config.client=client;return {rows,calls,ops,client};
 }
@@ -61,6 +61,16 @@ test('Max ES snapshot freezes verified same-service DE link as a routing hint wi
  assert.deepEqual(await researchLinkSnapshot({directory,serviceId:'max',canonicalSlug:'max',market:'ES',client}),first);
  const file=path.join(directory,'research-links-snapshot.json'),saved=JSON.parse(fs.readFileSync(file,'utf8'));saved.patternLinks[0].serviceId='other-service';fs.writeFileSync(file,JSON.stringify(saved));
  await assert.rejects(researchLinkSnapshot({directory,serviceId:'max',canonicalSlug:'max',market:'ES',client}),/RESEARCH_LINK_SNAPSHOT_INVALID/);
+});
+
+test('one bounded service link read also freezes successful sibling hints for other providers',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'generic-link-hints-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const {rows,client,calls}=fixture(),now=new Date();rows.push({id,service_id:'streamco',url:'https://streamco.example/no/plans',kind:'DIRECT_SOURCE',market_scope:'MARKET_SPECIFIC',market_code:'NO',enabled:true,created_at:now,updated_at:now,last_used_at:now,last_result:'VERIFIED'}, {id:'22222222-2222-4222-8222-222222222222',service_id:'streamco',url:'https://streamco.example/',kind:'DIRECT_SOURCE',market_scope:'GLOBAL',market_code:null,enabled:true,created_at:now,updated_at:now,last_result:null});
+ const result=await researchLinkSnapshot({directory,serviceId:'streamco',canonicalSlug:'streamco',market:'SE',client});
+ assert.deepEqual(result.links.map(row=>row.url),['https://streamco.example/']);
+ assert.deepEqual(result.patternLinks.map(row=>row.url),['https://streamco.example/no/plans']);
+ assert.equal(calls.filter(row=>row.sql.includes('FROM price_research_links')&&row.sql.includes('enabled=true')).length,1);
+ rows[0].enabled=false;assert.deepEqual(await researchLinkSnapshot({directory,serviceId:'streamco',canonicalSlug:'streamco',market:'SE',client}),result);
 });
 
 test('Research link validation rejects unsafe URLs, malformed scope and authority-bearing fields',()=>{

@@ -33,6 +33,7 @@ import {projectV3VerificationEvidence} from '../inventory/v3-result-projection.m
 import {authorityAcquisitionRelevance,authorityAcquisitionTiers,candidateAuthorityRouting,candidateIdentityPriority,candidateOriginKind,candidateRelevant,compareCandidateAuthorityRows} from './candidate-authority-routing.mjs';
 import {projectSourceBoundContinuations} from './source-bound-continuation-projection.mjs';
 import {priceResearchAcquisitionCandidate} from './price-research-candidate.mjs';
+import {sourceBoundPriceRoutingBonus} from './source-bound-price-priority.mjs';
 import {classifyRetainedSource,recordSuggestedSourceLifecycle} from './source-classification.mjs';
 export {candidateRelevant,serviceDomainHint,serviceIdentityTokens} from './candidate-authority-routing.mjs';
 export const openWebBounds=Object.freeze({managementReserveOnly:0,services:78,searches:50,reads:80,acquisitions:30,perServiceSearches:5,perServiceReads:8,perServiceAcquisitions:3,leadsPerService:40,linksPerPage:80,bytes:2097152,bytesPerPage:2097152});
@@ -117,7 +118,7 @@ export async function reuseProviderSeedCampaignEvidence({directory,target,provid
 export const reviewedDestination=(t,url)=>!!providerRoutingAuthority(t,url);
 export function destinationPriority(t,lead){return navigationRank(t,lead);}
 const legacyMarketHint=(t,url)=>new RegExp('(?:[/_-])'+t.market+'(?:[/_.-]|$)','i').test(new URL(url).pathname);
-const plannerPriority=(t,l)=>destinationPriority(t,l)*100+(hasProviderRoutingAuthority(t)?0:candidateIdentityPriority(t,l))+score(l)-((hasProviderRoutingAuthority(t)?targetMarketPathHint(t,l.url):legacyMarketHint(t,l.url))?3:0)-(providerRoutingAuthority(t,l.url)?3:0);
+const plannerPriority=(t,l)=>destinationPriority(t,l)*100+(hasProviderRoutingAuthority(t)?0:candidateIdentityPriority(t,l))+score(l)+sourceBoundPriceRoutingBonus(t,l)-((hasProviderRoutingAuthority(t)?targetMarketPathHint(t,l.url):legacyMarketHint(t,l.url))?3:0)-(providerRoutingAuthority(t,l.url)?3:0);
 export function rankPlannerLeads(t){if(t.smartResearch?.version===2)for(const l of t.leads)l.navigationPriority=plannerPriority(t,l)/100;return t;}
 export function usefulProviderDestination(t,lead){
  const routing=providerRoutingAuthority(t,lead.url);if(!routing)return false;

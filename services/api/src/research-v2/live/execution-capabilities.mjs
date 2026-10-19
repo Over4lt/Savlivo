@@ -51,7 +51,7 @@ export function executableAction(t,action,{bounds=executionBounds,usage={reads:0
   if(!(/^[A-Z]{2}$/.test(t.market??'')))return no('DECODO_ADMITTED_MARKET_REQUIRED');
   let url;try{url=t.operationsObjective==='PRICE_RESEARCH'?normalizePublicUrl(action.url):new URL(action.url);}catch{return no('INVALID_URL');}
   if(url.protocol!=='https:'||url.username||url.password)return no('INVALID_URL');
-  if(t.operationsObjective==='PRICE_RESEARCH'&&t.service==='max'&&(t.priorNoProgressProviderUrls??[]).some(prior=>{try{return resourceKey(prior)===resourceKey(url.href);}catch{return false;}}))return no('EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');
+  if(t.operationsObjective==='PRICE_RESEARCH'&&(t.priorNoProgressProviderUrls??[]).some(prior=>{try{return resourceKey(prior)===resourceKey(url.href);}catch{return false;}}))return no('EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');
   if(!providerRoutingAuthority(t,url.href)&&!(verification&&priceResearchAcquisitionCandidate(t,url.href)))return no('AUTHORITY_UNRESOLVED');
   const memory=usableResearchMemory(t);if(memory.rejected)return no('RESEARCH_MEMORY_RECONCILIATION_REQUIRED');
   if([...(t.blockedOrigins??[]),...memory.blockedOrigins].includes(url.origin))return no('PROVIDER_ACCESS_POLICY_STOP');
