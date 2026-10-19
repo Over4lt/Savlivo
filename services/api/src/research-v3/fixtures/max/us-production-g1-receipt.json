@@ -1,0 +1,288 @@
+{
+  "jobId": "ed80a630-0f21-8f5f-520d-b8528567d200",
+  "recordHash": "5ca176c11e20e2659fa1a97112ca4e5cc5b0d55de44f9c62f8329aff43458141",
+  "recordSequence": 17,
+  "target": {
+    "id": "price-research:max:US",
+    "service": "max",
+    "serviceName": "Max",
+    "market": "US",
+    "providerSourceIdentityHosts": [
+      "www.max.com"
+    ],
+    "authorities": [
+      {
+        "hostname": "help.hbomax.com",
+        "provider": "Max",
+        "sourceType": "OFFICIAL_PROVIDER",
+        "sourceUrl": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+        "checkedAt": "2026-10-19T03:13:41.763Z",
+        "discoveryDomainBinding": null,
+        "routingOnly": true
+      }
+    ]
+  },
+  "sourceCheck": {
+    "hash": "664386f1d597a5bfc9b830e5d407362a3614067af5eff85b2e096d40f1ee7c79",
+    "occurrence": "baecbd541fca5b13bc5eaea97231e222c5a4c45161f3fa7fd0c883f388bfee92",
+    "receipt": {
+      "intact": true,
+      "bodyHash": "664386f1d597a5bfc9b830e5d407362a3614067af5eff85b2e096d40f1ee7c79",
+      "service": "max",
+      "serviceEstablished": true,
+      "bindingEstablished": true,
+      "sourceOccurrenceId": "baecbd541fca5b13bc5eaea97231e222c5a4c45161f3fa7fd0c883f388bfee92",
+      "sourceUrl": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+      "record": {
+        "path": "journal/record-00000017.json",
+        "hash": "5ca176c11e20e2659fa1a97112ca4e5cc5b0d55de44f9c62f8329aff43458141",
+        "sequence": 17,
+        "pointer": "/result/attempts/0/page",
+        "trustRoot": {
+          "kind": "LIVE_CAMPAIGN_ROOT_V1",
+          "id": "research-v2-full-decodo-20261019T031341764Z-2e14fa93-e03e-44b5-a1fc-1554cdb42cae"
+        }
+      },
+      "targetReference": {
+        "path": "journal/record-00000017.json",
+        "hash": "5ca176c11e20e2659fa1a97112ca4e5cc5b0d55de44f9c62f8329aff43458141",
+        "sequence": 17,
+        "pointer": "/target",
+        "trustRoot": {
+          "kind": "LIVE_CAMPAIGN_ROOT_V1",
+          "id": "research-v2-full-decodo-20261019T031341764Z-2e14fa93-e03e-44b5-a1fc-1554cdb42cae"
+        }
+      },
+      "serviceEvidence": {
+        "authority": {
+          "status": "CONFIGURED_REVIEWED",
+          "hostname": "help.hbomax.com",
+          "provider": "Max",
+          "sourceType": "OFFICIAL_PROVIDER",
+          "sourceUrl": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+          "checkedAt": "2026-10-19T03:13:41.763Z",
+          "discoveryDomainBinding": null,
+          "routingOnly": true
+        },
+        "targetService": "max",
+        "targetServiceName": "Max",
+        "matchedAuthority": "CONFIGURED_REVIEWED"
+      },
+      "geo": {
+        "version": 1,
+        "occurrenceId": "baecbd541fca5b13bc5eaea97231e222c5a4c45161f3fa7fd0c883f388bfee92",
+        "targetCountry": "US",
+        "bodyHash": "664386f1d597a5bfc9b830e5d407362a3614067af5eff85b2e096d40f1ee7c79",
+        "sourceUrl": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+        "sourceReference": {
+          "path": "journal/record-00000017.json",
+          "hash": "5ca176c11e20e2659fa1a97112ca4e5cc5b0d55de44f9c62f8329aff43458141",
+          "sequence": 17,
+          "pointer": "/result/attempts/0/page",
+          "trustRoot": {
+            "kind": "LIVE_CAMPAIGN_ROOT_V1",
+            "id": "research-v2-full-decodo-20261019T031341764Z-2e14fa93-e03e-44b5-a1fc-1554cdb42cae"
+          }
+        },
+        "classification": "G1",
+        "reasons": [],
+        "attemptId": "geo-100c9a99344c29ac549c12b8",
+        "executionReference": {
+          "path": "journal/record-00000017.json",
+          "recordHash": "5ca176c11e20e2659fa1a97112ca4e5cc5b0d55de44f9c62f8329aff43458141",
+          "pointer": "/result/attempts/0",
+          "trustRoot": {
+            "kind": "LIVE_CAMPAIGN_ROOT_V1",
+            "id": "research-v2-full-decodo-20261019T031341764Z-2e14fa93-e03e-44b5-a1fc-1554cdb42cae"
+          }
+        },
+        "geoCountry": "US",
+        "transport": {
+          "providerId": "decodo",
+          "method": "APPROVED_PROXY",
+          "mode": "SESSION",
+          "endpointHostname": "gate.decodo.com",
+          "stickyPort": 7000,
+          "bindingRef": "geo-100c9a99344c29ac549c12b8"
+        },
+        "receiptIndexes": {
+          "before": 2,
+          "response": 3,
+          "after": 4
+        },
+        "geoProofHashes": {
+          "before": "3ca82b5552cda28c68bc968972239799e5744a06db86bd9572c62b2c9e852e3f",
+          "after": "3ca82b5552cda28c68bc968972239799e5744a06db86bd9572c62b2c9e852e3f"
+        },
+        "checkedAt": "2026-10-19T03:13:41.802Z",
+        "meaning": "Offer observed in a provider response acquired through the independently bracket-verified target-country route; NOT a provider declaration of offer country.",
+        "limitation": "Same observed exit before/after on one approved sticky binding; not cryptographic per-hop proof; transient unobserved rotations cannot be excluded."
+      },
+      "bindings": [
+        {
+          "bindingId": "binding:9df4ad8f741c2f621d38b765a6904d4956887f468f09704a8d19e46c365f8b91",
+          "candidateId": "candidate:67bb39d40de883ed66c32db885c698c2ba78dca7413563d68f9bc435291f4114",
+          "factId": "fact:4773562bd8300ef23a2ce8e3ad5e6d7c68c3c3d079f70972c34dc919bad00a6b",
+          "attemptId": "geo-100c9a99344c29ac549c12b8"
+        },
+        {
+          "bindingId": "binding:19e0d3cb44f133c67105aefd42040af3aec0a643d4c5a701091a1c72437d0c5c",
+          "candidateId": "candidate:5ba26bf97d31266b98762a458c8675a836b540d68bc24088a7f6cf50ebe308d4",
+          "factId": "fact:9a562214ba4ebb3c7e3d6a7b3eaaf812e0d381028e83d8c4fc192a6b8aaea9f5",
+          "attemptId": "geo-100c9a99344c29ac549c12b8"
+        },
+        {
+          "bindingId": "binding:9f4900854878901cc1cd811cced380fac4a02485ea278e3fea2671a6e0f351b2",
+          "candidateId": "candidate:c6a031ad65a37218b1bc47416ecc10b408748b56a16d9a4d9bad3dfb97ee003d",
+          "factId": "fact:43ec257a058f1caa56d9a04c73c7a0263af1cccb734a1bba992418da041bff6c",
+          "attemptId": "geo-100c9a99344c29ac549c12b8"
+        },
+        {
+          "bindingId": "binding:a5170f642e631200dfcbff2064efce5635cd1d3b04dabd483dec0d0e5c88111d",
+          "candidateId": "candidate:52c3427d36aa89ec1933b63cf9607f1b2375834d51cb271b395e886cda41fb7b",
+          "factId": "fact:8f69f3f8681bcc1789f974a22cc9b4ccc1befe0ecea2e92fae27c17a727ed562",
+          "attemptId": "geo-100c9a99344c29ac549c12b8"
+        },
+        {
+          "bindingId": "binding:886ddf798f9c1ba672fb4e542e2562361f4002785d677fe5f7536c5ccb0d1f33",
+          "candidateId": "candidate:17d87ff31425d408235902f74693c95dc7bbe55a84c7d24ddc1bceb85c30ad6f",
+          "factId": "fact:cd3595edae07a8362002cd682e502f71a9e7112557d60011d17b63b49056e33b",
+          "attemptId": "geo-100c9a99344c29ac549c12b8"
+        },
+        {
+          "bindingId": "binding:ff0f59c28b1c820bfcf2e8ec1c60cc5800020bf7c5c883dd8ff37776c776fd61",
+          "candidateId": "candidate:8643179fa6fb54776a0e9b5ae1e14f8c1bd52d5ce9f9b86aaa124f06b1b86c5d",
+          "factId": "fact:3439ff36eda7927e9bdda6dbcec11fcb9b339f17fadf3dbc4b74deae4ce414ef",
+          "attemptId": "geo-100c9a99344c29ac549c12b8"
+        }
+      ]
+    },
+    "status": "HASH_VERIFIED"
+  },
+  "attempt": {
+    "id": "geo-100c9a99344c29ac549c12b8",
+    "providerId": "decodo",
+    "method": "APPROVED_PROXY",
+    "mode": "SESSION",
+    "targetCountry": "US",
+    "bindingRef": "geo-100c9a99344c29ac549c12b8",
+    "sessionRef": "geo-100c9a99344c29ac549c12b8-session",
+    "requestedUrl": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+    "finalUrl": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+    "outcome": "OBSERVED",
+    "cleanup": "RELEASED",
+    "receipts": [
+      {
+        "url": "https://help.hbomax.com/robots.txt",
+        "bindingRef": "geo-100c9a99344c29ac549c12b8",
+        "destinationMode": "PINNED_CONNECT",
+        "continuityRef": "decodo-e604e77905736e62e66bfbe3",
+        "bindingChanged": false,
+        "bodySha256": "a466e6bb5a7d0d9faad49631fda32ccf051ce6d0c76c49cc7a62903f74139571"
+      },
+      {
+        "url": "https://ipwho.is/robots.txt",
+        "bindingRef": "geo-100c9a99344c29ac549c12b8",
+        "destinationMode": "PINNED_CONNECT",
+        "continuityRef": "decodo-e604e77905736e62e66bfbe3",
+        "bindingChanged": false,
+        "bodySha256": "e896174f20405afc374c4e90838d2a3dd80b278a6dd38f0412f1d03ad4a134bb"
+      },
+      {
+        "url": "https://ipwho.is/?fields=success,ip,country_code",
+        "bindingRef": "geo-100c9a99344c29ac549c12b8",
+        "destinationMode": "PINNED_CONNECT",
+        "continuityRef": "decodo-e604e77905736e62e66bfbe3",
+        "bindingChanged": false,
+        "bodySha256": "3ca82b5552cda28c68bc968972239799e5744a06db86bd9572c62b2c9e852e3f"
+      },
+      {
+        "url": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+        "bindingRef": "geo-100c9a99344c29ac549c12b8",
+        "destinationMode": "PINNED_CONNECT",
+        "continuityRef": "decodo-e604e77905736e62e66bfbe3",
+        "bindingChanged": false,
+        "bodySha256": "664386f1d597a5bfc9b830e5d407362a3614067af5eff85b2e096d40f1ee7c79"
+      },
+      {
+        "url": "https://ipwho.is/?fields=success,ip,country_code",
+        "bindingRef": "geo-100c9a99344c29ac549c12b8",
+        "destinationMode": "PINNED_CONNECT",
+        "continuityRef": "decodo-e604e77905736e62e66bfbe3",
+        "bindingChanged": false,
+        "bodySha256": "3ca82b5552cda28c68bc968972239799e5744a06db86bd9572c62b2c9e852e3f"
+      }
+    ],
+    "transportVerification": {
+      "version": 2,
+      "level": "BRACKET_VERIFIED",
+      "providerId": "decodo",
+      "bindingRef": "geo-100c9a99344c29ac549c12b8",
+      "targetCountry": "US",
+      "before": {
+        "status": "MATCH",
+        "country": "US",
+        "address": "71.75.37.0",
+        "method": "ipwho-is-public-v1",
+        "evidence": {
+          "url": "https://ipwho.is/?fields=success,ip,country_code",
+          "checkedAt": "2026-10-19T03:13:43.283Z",
+          "bindingRef": "geo-100c9a99344c29ac549c12b8",
+          "bodySha256": "3ca82b5552cda28c68bc968972239799e5744a06db86bd9572c62b2c9e852e3f",
+          "text": "{\n    \"ip\": \"71.75.37.0\",\n    \"success\": true,\n    \"country_code\": \"US\"\n}"
+        }
+      },
+      "after": {
+        "status": "MATCH",
+        "country": "US",
+        "address": "71.75.37.0",
+        "method": "ipwho-is-public-v1",
+        "evidence": {
+          "url": "https://ipwho.is/?fields=success,ip,country_code",
+          "checkedAt": "2026-10-19T03:13:46.568Z",
+          "bindingRef": "geo-100c9a99344c29ac549c12b8",
+          "bodySha256": "3ca82b5552cda28c68bc968972239799e5744a06db86bd9572c62b2c9e852e3f",
+          "text": "{\n    \"ip\": \"71.75.37.0\",\n    \"success\": true,\n    \"country_code\": \"US\"\n}"
+        }
+      },
+      "target": {
+        "requestedUrl": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+        "finalUrl": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+        "redirects": [],
+        "startedAt": "2026-10-19T03:13:44.641Z",
+        "completedAt": "2026-10-19T03:13:46.524Z",
+        "outcome": "OK"
+      },
+      "equality": true,
+      "continuity": "NO_OBSERVED_CHANGE",
+      "conflicts": []
+    },
+    "page": {
+      "url": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+      "outcome": "OK",
+      "httpStatus": 200,
+      "contentType": "text/html",
+      "targetCountry": "US",
+      "sourceIntegrity": {
+        "version": 1,
+        "sha256": "664386f1d597a5bfc9b830e5d407362a3614067af5eff85b2e096d40f1ee7c79",
+        "checkedAt": "2026-10-19T03:13:44.641Z"
+      },
+      "authority": {
+        "status": "CONFIGURED_REVIEWED",
+        "hostname": "help.hbomax.com",
+        "provider": "Max",
+        "sourceType": "OFFICIAL_PROVIDER",
+        "sourceUrl": "https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926",
+        "checkedAt": "2026-10-19T03:13:41.763Z",
+        "discoveryDomainBinding": null,
+        "routingOnly": true
+      },
+      "accessDecisions": [
+        {
+          "decision": "ALLOWED"
+        }
+      ]
+    }
+  }
+}

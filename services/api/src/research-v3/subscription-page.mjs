@@ -290,7 +290,8 @@ function pricingPageIdentity(parsed,providerName,lists){
 // direct list item; nearby bundle and discount sections are separate content.
 function maxHelpPricingRows(parsed,providerName,currencyHint,marketCurrencyHint){
  if(providerName!=='Max'||parsed.host!=='help.hbomax.com'||marketCurrencyHint!=='USD')return [];
- if(!parsed.nodes.some(node=>node.tag==='html'&&/^en(?:-US)?$/iu.test(node.attrs.lang??''))||!/HHURL\.config\.selectedCountry\s*=\s*["']US["']/u.test(parsed.body)||!parsed.segments.some(row=>row.text==='United States'))return [];
+ const selectedCountries=[...parsed.body.matchAll(/HHURL\.config\.selectedCountry\s*=\s*["']([^"']+)["']/gu)].map(match=>match[1].toUpperCase());
+ if(!parsed.nodes.some(node=>node.tag==='html'&&/^en(?:-US)?$/iu.test(node.attrs.lang??''))||selectedCountries.length!==1||selectedCountries[0]!=='US'||!parsed.segments.some(row=>row.text==='United States'))return [];
  const heading=parsed.nodes.find(node=>node.tag==='h1'&&!node.hidden&&comparable(parsed.text(node))==='hbo max plans and prices');
  const intro=parsed.nodes.find(node=>node.tag==='p'&&!node.hidden&&/^Here are the HBO Max plans and prices:$/iu.test(parsed.text(node))&&heading&&node.start>heading.end);
  const scope=intro?.parent,prior=scope&&parsed.nodes.find(node=>node.tag==='p'&&node.parent===scope&&node.end<=intro.start&&/\bmonthly or yearly billing\b/iu.test(parsed.text(node)));

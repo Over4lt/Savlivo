@@ -24,6 +24,14 @@ const cases={
  DE:{url:'https://www.hbomax.com/de/de',hash:'f6a618d5ab14ea3ce06b599756f707eccb12855b5430d03fc6625a4f5caf00df',file:'de-homepage.html.gz',plans:[['Basis mit Werbung',5.99,'EUR'],['Standard',11.99,'EUR'],['Premium',16.99,'EUR']]}
 };
 for(const row of Object.values(cases))row.body=gunzipSync(fs.readFileSync(path.join(fixtureDir,row.file))).toString('utf8');
+const productionUS={
+ ...cases.US,
+ hash:'664386f1d597a5bfc9b830e5d407362a3614067af5eff85b2e096d40f1ee7c79',
+ body:gunzipSync(fs.readFileSync(path.join(fixtureDir,'us-production-help-pricing.html.gz'))).toString('utf8'),
+ // The production journal's G1 validation fields and record hash; unrelated
+ // transport metadata is omitted, and the retained body is reattached below.
+ receipt:JSON.parse(fs.readFileSync(path.join(fixtureDir,'us-production-g1-receipt.json'),'utf8'))
+};
 const target=market=>({id:'max-'+market,service:'max',serviceName:'Max',market,providerSourceIdentityHosts:baselineProviderSourceHosts('max','Max'),authorities:[]});
 
 function countryFixture(market,{body=cases[market].body,url=cases[market].url}={}){
@@ -56,6 +64,45 @@ for(const [market,row] of Object.entries(cases))test(`authentic ${market} frozen
  assert(parsed.offerings.every(offer=>offer.charges.length===1&&offer.charges[0].cadence==='MONTHLY'&&offer.charges[0].billingCadence==='MONTHLY'&&offer.charges[0].amountDerivation==='EXPLICIT'));
  assert(parsed.offerings.every(offer=>digest(row.body.slice(offer.presentation.start,offer.presentation.end))===offer.presentation.sha256));
  assert.equal(parsed.limited,false);
+});
+
+test('unaltered production Max US source and original G1 receipt establish three monthly offerings',()=>{
+ const row=productionUS;
+ assert.equal(digest(row.body),row.hash);
+ assert.match(row.body,/HHURL\.config\.selectedCountry\s*=\s*["']us["']/u);
+ const parsed=interpretSubscriptionPage({body:row.body,url:row.url,providerName:'Max',marketCurrencyHint:'USD'});
+ assert.deepEqual(parsed.offerings.map(offer=>[offer.name,offer.charges[0].amount,offer.charges[0].currency]),row.plans);
+ assert(parsed.offerings.every(offer=>offer.charges.length===1&&offer.charges[0].cadence==='MONTHLY'&&offer.charges[0].billingCadence==='MONTHLY'));
+ const archived=row.receipt;
+ assert.equal(archived.jobId,'ed80a630-0f21-8f5f-520d-b8528567d200');
+ assert.equal(archived.sourceCheck.hash,row.hash);
+ assert.equal(archived.sourceCheck.receipt.geo.sourceReference.hash,archived.recordHash);
+ assert.equal(archived.sourceCheck.receipt.geo.classification,'G1');
+ const attempt={...archived.attempt,page:{...archived.attempt.page,rawSource:{text:row.body}}};
+ const result=evaluateCountryProviderTruth({target:archived.target,sourceCheck:archived.sourceCheck,attempt});
+ const established=projectEstablishedV3Offerings({...archived.target,...result});
+ assert.deepEqual(established.map(offer=>[offer.name,offer.ordinaryRecurringPrice.amount,offer.ordinaryRecurringPrice.currency]),row.plans);
+ assert.equal(new Set(established.map(offer=>offer.id)).size,3);
+ assert(result.v3Truth.established);
+ assert(established.every(offer=>offer.propositionStates.TARGET_MARKET==='ESTABLISHED'));
+ assert.equal(result.v3SuggestedCandidates.length,3);
+ assert(result.v3SuggestedCandidates.every(candidate=>candidate.provenance==='V3_SOURCE_RESEARCH'));
+ assert.equal(result.v3Observation.sha256,row.hash);
+ const wrongCountry=structuredClone(archived.sourceCheck);
+ wrongCountry.receipt.geo.geoCountry='DE';
+ assert.throws(()=>evaluateCountryProviderTruth({target:archived.target,sourceCheck:wrongCountry,attempt}),/COUNTRY_PROVIDER_RECEIPT_INVALID/);
+ const wrongHash={...attempt,page:{...attempt.page,rawSource:{text:row.body+' '}}};
+ assert.throws(()=>evaluateCountryProviderTruth({target:archived.target,sourceCheck:archived.sourceCheck,attempt:wrongHash}),/COUNTRY_PROVIDER_HASH_MISMATCH/);
+});
+
+test('Max US help article rejects absent, ambiguous and conflicting country markers',()=>{
+ const row=productionUS,marker=/HHURL\.config\.selectedCountry\s*=\s*["']us["']/u;
+ const parse=body=>interpretSubscriptionPage({body,url:row.url,providerName:'Max',marketCurrencyHint:'USD'}).offerings;
+ assert.equal(digest(row.body),row.hash);
+ assert.deepEqual(parse(row.body.replace(marker,'')),[]);
+ assert.deepEqual(parse(row.body.replace(marker,'HHURL.config.selectedCountry = "de"')),[]);
+ assert.deepEqual(parse(row.body.replace(marker,'HHURL.config.selectedCountry = "us"; HHURL.config.selectedCountry = "de"')),[]);
+ assert.deepEqual(parse(row.body.replace(marker,'HHURL.config.selectedCountry = "us"; HHURL.config.selectedCountry = "US"')),[]);
 });
 
 test('existing bounded body store retains the full DE page and classifies its exact hash',t=>{
