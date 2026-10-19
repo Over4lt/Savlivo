@@ -429,12 +429,17 @@ function maxSpanishMonthlyCards(parsed,providerName,marketCurrencyHint){
 // A provider may ship complete plan cards in inert Next.js hydration data
 // even when the initial DOM has no pricing cards. Read only a bounded JSON
 // script, and bind each offer to its own exact lexical object in that script.
+const hydrationMonthlyLabels=new Map([
+ ['Monthly',{periodicity:'Monthly',period:'month'}],
+ ['Mensal',{periodicity:'Por mês',period:'mês'}],
+ ['miesięcznie',{periodicity:'Miesięcznie',period:'miesiąc'}],
+]);
 function hydrationPlanCards(parsed,providerName,marketCurrencyHint){
  if(!providerName||!marketCurrencyHint)return [];
  const scripts=[...parsed.body.matchAll(/<script\b([^>]*)>([^]*?)<\/script\s*>/giu)].filter(match=>{const a=attrs(match[1]);return a.id==='__NEXT_DATA__'&&a.type==='application/json';});
  if(scripts.length!==1)return [];
  const script=scripts[0],openEnd=script.index+script[0].indexOf('>')+1,raw=script[2];
- if(Buffer.byteLength(raw)>1_000_000)return [];
+ if(Buffer.byteLength(raw)>1_500_000)return [];
  let root;try{root=JSON.parse(raw);}catch{return [];}
  const mapped=root?.props?.pageProps?.mappedData;
  if(!mapped||typeof mapped!=='object'||Array.isArray(mapped))return [];
@@ -449,20 +454,29 @@ function hydrationPlanCards(parsed,providerName,marketCurrencyHint){
   if(end<0)continue;
   try{spans.push({start:openEnd+start,end:openEnd+end,value:JSON.parse(raw.slice(start,end))});}catch{/* An incomplete object is not evidence. */}
  }
- const rows=[],seen=new Set();
+ const rows=[],seenPlans=new Map();
  for(const collection of Object.values(mapped).slice(0,128)){
-  const items=collection?.items?.Monthly;if(!Array.isArray(items)||items.length<2||items.length>8)continue;
+  const groups=Object.entries(collection?.items??{}).filter(([label])=>hydrationMonthlyLabels.has(label));
+  if(groups.length!==1)continue;
+  const [label,items]=groups[0],cadence=hydrationMonthlyLabels.get(label);
+  if(label!=='Monthly'&&(providerName!=='Max'||parsed.host!=='www.hbomax.com'))continue;
+  if(!Array.isArray(items)||items.length<2||items.length>8)continue;
   const planIds=items.map(item=>item?.content?.planCard?.pricePlan?.id);
   if(planIds.some(id=>typeof id!=='string'||!/^[A-Za-z0-9_-]{1,64}$/u.test(id))||new Set(planIds).size!==planIds.length)continue;
   for(const item of items){
    const card=item?.content?.planCard,price=card?.price,name=card?.productName?.plainText,amount=number(String(price?.amount?.plainText??''));
-   const action=card?.ctas?.find(cta=>/^(?:select|choose|subscribe)(?:\s+(?:a\s+)?plan|\s+now)?$/iu.test(cta?.text??'')&&/(?:purchase|subscription|account-creation)/iu.test(cta?.code??''));
-   if(item?.collectionTitle!=='Monthly'||card?.periodicityText!=='Monthly'||price?.period?.plainText!=='month'||!validCurrencies.has(price?.currencyCode)||price.currencyCode!==marketCurrencyHint||amount===null||amount<0||
+   const action=card?.ctas?.find(cta=>
+    (/^(?:select|choose|subscribe)(?:\s+(?:a\s+)?plan|\s+now)?$/iu.test(cta?.text??'')||label==='Mensal'&&cta?.text==='Selecionar plano')&&/(?:purchase|subscription|account-creation)/iu.test(cta?.code??'')||
+    label==='miesięcznie'&&cta?.text==='Wybierz pakiet'&&cta?.code==='choose.plan.add-on');
+   if(item?.collectionTitle!==label||card?.periodicityText!==cadence.periodicity||price?.period?.plainText!==cadence.period||!validCurrencies.has(price?.currencyCode)||price.currencyCode!==marketCurrencyHint||amount===null||amount<0||
     typeof name!=='string'||!name||name.length>80||nonStandalonePresentation(name,providerName)||!action||/\b(?:student|trial|introductory|promotion(?:al)?|discount|first month)\b/iu.test(JSON.stringify(card?.badge??'')+' '+name))continue;
-   const matching=spans.filter(span=>JSON.stringify(span.value)===JSON.stringify(card));if(matching.length!==1)continue;
-   const span=matching[0],key=span.start+':'+span.end;if(seen.has(key))continue;seen.add(key);
+   const matching=spans.filter(span=>JSON.stringify(span.value)===JSON.stringify(card));if(!matching.length)continue;
+   const identity=card.pricePlan.id,facts=JSON.stringify([name,amount,price.currencyCode,label,action.text,action.code]);
+   if(seenPlans.has(identity)){if(seenPlans.get(identity)!==facts)return [];continue;}
+   const span=matching[0];
    const source=parsed.body.slice(span.start,span.end),productAt=source.indexOf('"productName"'),nameText='"plainText":'+JSON.stringify(name),nameAt=productAt<0?-1:source.indexOf(nameText,productAt),actionText='"text":'+JSON.stringify(action.text),actionAt=source.indexOf(actionText);
    if(nameAt<0||actionAt<0)continue;
+   seenPlans.set(identity,facts);
    rows.push({name,nameLocator:locator(parsed.body,span.start+nameAt+12,span.start+nameAt+nameText.length),presentation:locator(parsed.body,span.start,span.end),actionLocator:locator(parsed.body,span.start+actionAt+7,span.start+actionAt+actionText.length),charges:[{amount,currency:price.currencyCode,cadence:'MONTHLY',billingCadence:'MONTHLY',consumer:true,relationship:'SUBSCRIPTION',role:'ORDINARY',monetaryKind:'SUBSCRIPTION_CHARGE',amountDerivation:'EXPLICIT',text:price.currencyCode+' '+price.amount.plainText+'/'+price.period.plainText+'; '+action.text}]});
   }
  }
