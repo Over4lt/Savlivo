@@ -58,7 +58,7 @@ export function readLifecycleV3Results(output,targets){
   return Object.fromEntries(targets.map(target=>[target.id,v3ResultFromTarget(state.targets?.[target.id])]));
 }
 
-function verifiedAdapters(target,rows){
+export function verifiedAdapters(target,rows){
   return rows.filter(row=>row.sourceUrl&&Number(row.amount)>0&&/^[A-Z]{3}$/.test(row.currency??'')).map(row=>({
     planIdentity:row.planIdentity,
     serviceSlug:target.service,serviceName:target.serviceName,planSlug:slug(row.plan),planName:String(row.plan),billingProviderSlug:'direct',countryCode:target.market,

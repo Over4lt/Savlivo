@@ -137,6 +137,8 @@ async function applyOne(database:Pool,candidate:Candidate,names:Map<string,strin
  try{
   await client.query("BEGIN");
   await client.query("SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))",[
+   row.serviceSlug,row.countryCode]);
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))",[
    row.serviceSlug,`${row.billingProviderSlug}:${row.countryCode}:${row.currency}`]);
   const result=await client.query(`${currentSql} WHERE service_slug=$1 AND billing_provider_slug=$2
     AND country_code=$3 AND currency=$4 FOR UPDATE`,[row.serviceSlug,row.billingProviderSlug,row.countryCode,row.currency]);

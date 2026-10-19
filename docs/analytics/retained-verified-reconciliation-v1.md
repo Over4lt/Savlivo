@@ -217,3 +217,34 @@ to the same admission, not create another baseline or observation.
 No production commit endpoint, writer call, schema mutation, bootstrap,
 promotion, paid acquisition or batch resume is provided by this V1
 preflight release.
+
+### Local atomic admission proof (not a production feature)
+
+The subsequent V1 proof uses `services/api/test-support/retained-verified-reconciliation-v1.sql`
+only in a disposable PostgreSQL database. The file is deliberately absent from
+`production-migrations.ts`; startup cannot apply it. Its triggers increment a
+durable revision on every current Verified or observation INSERT, UPDATE, or
+DELETE, including a transient insert followed by deletion. A separate unique
+receipt records the signed exact dry-run digest, original source acquisition
+time, later admission time, journal identity, operator, policy fixture, parser
+version, and resulting plans. The receipt and all plan/history writes commit in
+one transaction or all roll back.
+
+The ordinary writer now has a transaction-aware internal path using the same
+identity, alias, and history logic. Its public live-research path still opens
+and commits per plan. Both paths acquire a service-market advisory lock before
+the prior narrow lock. The disposable admission proof takes that shared lock,
+compares the revision and zero current/history counts, reloads and replays the
+original source, validates the signed approval and synthetic age fixture, then
+passes the established offerings through the same live V3-to-AdapterPrice map
+and writer. An unchanged retry returns the original receipt; a conflicting
+approval is rejected. An injected failure on plan two rolls back plan one and
+the history and receipt. No evidence timestamp is replaced by replay time.
+
+This is still **not deployable admission**. The public `commitRetainedVerifiedV1`
+function remains hard-disabled; the only executable admission core is confined
+to `test-support` and checks the exact disposable localhost database. The
+production preflight continues to report `admissionEligible: false`. No
+freshness duration is approved, and no production approval-signing key,
+administrator entry point, migration registration, or operator workflow exists.
+Those require separate policy and release review before any production use.

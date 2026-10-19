@@ -113,6 +113,9 @@ export function currentParserTruthVersion(){
   '../research-v2/live/source-classification.mjs',
   '../research-v2/live/provider-routing-authority.mjs',
   '../research-v2/inventory/v3-result-projection.mjs',
+  '../google-ai/admin-live-pipeline.mjs',
+  '../pricing-store.ts',
+  '../verified-price-reconciliation.mjs',
   '../../../../packages/contracts/src/product-pricing.ts',
   '../../../../packages/contracts/src/markets.ts'
  ];
@@ -127,11 +130,14 @@ export async function snapshotVerifiedTargetV1(service,market,database=pool){
  try{
   await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
   const result=await client.query(`SELECT transaction_timestamp() AS at, txid_current_snapshot()::text AS identity,
+    to_regclass('public.retained_verified_target_revisions') IS NOT NULL AS revision_available,
     (SELECT count(*)::int FROM verified_provider_prices WHERE service_slug=$1 AND country_code=$2) AS current_count,
     (SELECT count(*)::int FROM verified_price_observations WHERE service_slug=$1 AND country_code=$2) AS history_count`,[service,market]);
   const row=result.rows[0];
+  const revision=row.revision_available===true?Number((await client.query(`SELECT coalesce(
+    (SELECT revision FROM retained_verified_target_revisions WHERE service_slug=$1 AND country_code=$2),0)::bigint AS revision`,[service,market])).rows[0].revision):null;
   await client.query('ROLLBACK');
-  return {at:new Date(row.at).toISOString(),identity:row.identity,currentCount:row.current_count,historyCount:row.history_count};
+  return {at:new Date(row.at).toISOString(),identity:row.identity,currentCount:row.current_count,historyCount:row.history_count,...(revision===null?{}:{revision})};
  }catch(error){try{await client.query('ROLLBACK');}catch{}throw error;}
  finally{client.release();}
 }
@@ -152,7 +158,7 @@ export async function preflightRetainedVerifiedV1({evidence,snapshot,atVersion=c
  if(!database||typeof database.at!=='string'||!Number.isFinite(Date.parse(database.at))||!Number.isSafeInteger(database.currentCount)||!Number.isSafeInteger(database.historyCount)||typeof database.identity!=='string')fail('SNAPSHOT_INVALID');
  if(now!==undefined&&Date.parse(now)!==Date.parse(database.at))fail('SNAPSHOT_TIME_MISMATCH');
  const age=sourceAgeAt(acquiredAt,database.at),empty=database.currentCount===0&&database.historyCount===0;
- const result={policyVersion:1,jobId,targetId,service:target.service,market:target.market,sourceUrl,bodyHash,attemptId,journalRecord,acquiredAt,snapshotAt:database.at,admittedAt:null,ageMs:age.ageMs,freshnessScenarios:age.scenarios,approvedFreshnessPolicy:null,currentVerified:database.currentCount,historyRows:database.historyCount,parserTruthVersion:atVersion,offerings:offerings.map(row=>({id:row.exactOfferId,plan:row.plan,amount:row.amount,currency:row.currency,billingInterval:'MONTHLY_RECURRING',sourceUrl:row.sourceUrl,bodySha256:row.bodySha256,verifiedAt:acquiredAt})),evidenceReady:empty,admissionEligible:false,reason:!empty?'VERIFIED_ALREADY_PRESENT':'FRESHNESS_POLICY_UNAPPROVED',databaseSnapshot:database.identity,productionCommitEnabled:false};
+ const result={policyVersion:1,jobId,targetId,service:target.service,market:target.market,sourceUrl,bodyHash,attemptId,journalRecord,acquiredAt,snapshotAt:database.at,admittedAt:null,ageMs:age.ageMs,freshnessScenarios:age.scenarios,approvedFreshnessPolicy:null,currentVerified:database.currentCount,historyRows:database.historyCount,parserTruthVersion:atVersion,offerings:offerings.map(row=>({id:row.exactOfferId,plan:row.plan,amount:row.amount,currency:row.currency,billingInterval:'MONTHLY_RECURRING',sourceUrl:row.sourceUrl,bodySha256:row.bodySha256,verifiedAt:acquiredAt})),evidenceReady:empty,admissionEligible:false,reason:!empty?'VERIFIED_ALREADY_PRESENT':'FRESHNESS_POLICY_UNAPPROVED',databaseSnapshot:database.identity,databaseRevision:Number.isSafeInteger(database.revision)?database.revision:null,productionCommitEnabled:false};
  return {...result,digest:digest(result)};
 }
 

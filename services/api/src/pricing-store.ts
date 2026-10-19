@@ -66,10 +66,7 @@ async function preserveLegacyAlias(client: any, row: HistoryRow) {
       row.monthlyPriceMinor,row.source,row.sourceUrl,row.verification,row.sourceCount,row.verifiedByAgreement,row.verifiedAt]);
 }
 
-export async function persistVerifiedLivePrices(
-  items: AdapterPrice[]
-) {
-  const verified = items.filter(
+const acceptedVerifiedPrices = (items: AdapterPrice[]) => items.filter(
     (item) =>
       item.priceType === "exact" &&
       (
@@ -85,23 +82,21 @@ export async function persistVerifiedLivePrices(
       item.monthlyPriceMinor > 0
   );
 
-  let persisted = 0;
-
-  for (const item of verified) {
+async function persistVerifiedPriceInClient(item: AdapterPrice, client: any) {
     if(item.billingInterval && item.billingInterval!=="MONTHLY_RECURRING")
       throw new Error("VERIFIED_PRICE_BILLING_INTERVAL_UNSUPPORTED");
     const observedAt = Date.parse(item.updatedAt);
     if (!Number.isFinite(observedAt)) throw new Error("VERIFIED_PRICE_TIMESTAMP_INVALID");
     const serviceName = serviceCatalog.find(service => service.slug === item.serviceSlug)?.name ?? item.serviceName;
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+      // Every ordinary Verified write takes the service-market lock before
+      // the narrower plan/currency lock. Reconciliation uses the same order.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))", [item.serviceSlug,item.countryCode]);
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))", [item.serviceSlug,`${item.billingProviderSlug}:${item.countryCode}:${item.currency}`]);
       const scoped = await client.query(`SELECT *,verified_at::text AS verified_at_exact,
         last_checked_at::text AS last_checked_at_exact FROM verified_provider_prices WHERE service_slug=$1
         AND billing_provider_slug=$2 AND country_code=$3 AND currency=$4 FOR UPDATE`,
         [item.serviceSlug,item.billingProviderSlug,item.countryCode,item.currency]);
-      const current = scoped.rows.map(currentRow);
+      const current: HistoryRow[] = scoped.rows.map(currentRow);
       const exact = current.find(row => row.planSlug === item.planSlug);
       const aliases = serviceName ? current.filter(row => equivalentVerifiedPlan(row,item,serviceName)) : [];
       if (serviceName && current.some(row => semanticVerifiedAlias(row,item,serviceName) && !equivalentVerifiedPlan(row,item,serviceName)))
@@ -115,8 +110,7 @@ export async function persistVerifiedLivePrices(
       if (current.some(row => row !== exact && row !== alias && serviceName && equivalentVerifiedPlan(row,item,serviceName)))
         throw new Error("VERIFIED_PLAN_EQUIVALENCE_AMBIGUOUS");
       if (exact && observedAt < Date.parse(exact.lastCheckedAt) || alias && observedAt < Date.parse(alias.lastCheckedAt)) {
-        await client.query("COMMIT");
-        continue;
+        return 0;
       }
       const existingIds=[...new Set([exact?.historySeriesId,alias?.historySeriesId].filter(Boolean))];
       if(existingIds.length>1)throw new Error("VERIFIED_HISTORY_SERIES_AMBIGUOUS");
@@ -226,8 +220,31 @@ export async function persistVerifiedLivePrices(
       if(!predecessor)await appendHistory(client,incoming,historySeriesId,"BASELINE");
       else if(predecessor.monthlyPriceMinor!==item.monthlyPriceMinor)
         await appendHistory(client,incoming,historySeriesId,"PRICE_CHANGE");
+      return 1;
+}
+
+// Only callers that already own a transaction may use this path. It shares
+// the ordinary identity, alias, history and source rules with live research.
+export async function persistVerifiedLivePricesInTransaction(items: AdapterPrice[], client: any) {
+  if (!items.length || !client?.query) throw new Error("VERIFIED_TRANSACTION_INPUT_INVALID");
+  const verified = acceptedVerifiedPrices(items);
+  if (verified.length !== items.length ||
+      verified.some(item => item.serviceSlug !== items[0].serviceSlug || item.countryCode !== items[0].countryCode))
+    throw new Error("VERIFIED_TRANSACTION_INPUT_INVALID");
+  let persisted = 0;
+  for (const item of verified) persisted += await persistVerifiedPriceInClient(item,client);
+  return {received:items.length,persisted};
+}
+
+export async function persistVerifiedLivePrices(items: AdapterPrice[]) {
+  const verified = acceptedVerifiedPrices(items);
+  let persisted = 0;
+  for (const item of verified) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      persisted += await persistVerifiedPriceInClient(item,client);
       await client.query("COMMIT");
-      persisted += 1;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
