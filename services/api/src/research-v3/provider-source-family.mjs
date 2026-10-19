@@ -16,6 +16,9 @@ const registrable=hostname=>{
  const result=parse(host,{allowPrivateDomains:true});
  return result.domain&&(result.isIcann||result.isPrivate)&&!result.isIp?result.domain:null;
 };
+// Max's checked-in price source uses max.com. These two exact HBO Max hosts
+// belong to the same service, but do not grant an entire new DNS namespace.
+const maxHboSourceHosts=new Set(['www.hbomax.com','help.hbomax.com']);
 
 // These hosts come from checked-in, service-scoped official provider price
 // sources. A manually entered Research link is never read by this projection.
@@ -41,6 +44,8 @@ export function providerSourceDomainFamily(target,finalUrl){
  const established=[...(target?.providerSourceIdentityHosts??[]),...(target?.authorities??[])
   .filter(row=>row.routingOnly!==true&&row.provider===target?.serviceName&&row.checkedAt&&['OFFICIAL_PROVIDER','OFFICIAL_SUPPORT'].includes(row.sourceType)&&normalizeUrl(row.sourceUrl)&&new URL(row.sourceUrl).hostname===row.hostname)
   .map(row=>row.hostname),...reviewed];
+ if(target?.service==='max'&&target?.serviceName==='Max'&&maxHboSourceHosts.has(host)&&established.includes('www.max.com'))
+  return {host,registrableDomain:domain,establishedHost:'www.max.com',reason:'MAX_HBO_MAX_OFFICIAL_HOST'};
  const matched=established.find(candidate=>registrable(candidate)===domain);
  return matched?{host,registrableDomain:domain,establishedHost:matched,reason:'SAME_PROVIDER_REGISTRABLE_DOMAIN'}:null;
 }
