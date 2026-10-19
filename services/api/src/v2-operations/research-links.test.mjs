@@ -8,7 +8,7 @@ import {operationsRequest} from './http.mjs';
 const id='11111111-1111-4111-8111-111111111111';
 const input=(url='https://streamco.example/pricing')=>({url,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true});
 function fixture(serviceId='streamco'){
- const rows=[],calls=[],ops={config:{read:true,control:true},priceResearchTargeting:async()=>({services:[{serviceId,selectable:true}],markets:[{id:'NO'},{id:'SE'}]})};
+ const rows=[],calls=[],ops={config:{read:true,control:true},priceResearchTargeting:async()=>({services:[{serviceId,selectable:true}],markets:[{id:'NO'},{id:'SE'},{id:'ES'},{id:'US'},{id:'DE'}]})};
  const client={async query(sql,args=[]){calls.push({sql,args});
   if(sql.startsWith('WITH evidence'))return {rows:[]};
   if(sql.startsWith('SELECT count'))return {rows:[{count:rows.length}]};
@@ -31,6 +31,24 @@ test('Research link CRUD is service scoped, bounded and duplicate safe',async()=
  assert.equal(edited.row.kind,'INTERACTIVE_ROUTE');assert.equal(edited.row.marketCode,'NO');assert.equal(edited.row.enabled,false);
  assert.equal((await call('PATCH',{...input('https://streamco.example/signup'),kind:'INTERACTIVE_ROUTE',marketScope:'MARKET_SPECIFIC',marketCode:'NO',enabled:true},added.row.id)).row.enabled,true);
  assert.equal((await call('DELETE',undefined,added.row.id)).deleted,true);assert.equal(rows.length,0);
+});
+
+test('Max ES Direct source persists independently of US, DE and other services, then enters only eligible ES snapshots',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'max-es-link-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const {rows,ops,client}=fixture('max'),es={url:'https://www.hbomax.com/es/es',kind:'DIRECT_SOURCE',marketScope:'MARKET_SPECIFIC',marketCode:'ES',enabled:true};
+ for(const marketCode of ['US','DE'])await researchLinksRequest({method:'POST',serviceId:'max',body:{...es,url:`https://www.hbomax.com/${marketCode.toLowerCase()}`,marketCode},ops,actor:'admin'});
+ const created=await researchLinksRequest({method:'POST',serviceId:'max',body:es,ops,actor:'admin'});
+ assert.equal(created.row.serviceId,'max');assert.equal(created.row.marketCode,'ES');assert.equal(rows.length,3);
+ assert.deepEqual((await loadApplicableResearchLinks({serviceId:'max',canonicalSlug:'max',market:'ES',client})).links.map(row=>row.url),[es.url]);
+ for(const market of ['US','DE'])assert.equal((await loadApplicableResearchLinks({serviceId:'max',canonicalSlug:'max',market,client})).links.some(row=>row.url===es.url),false);
+ assert.equal((await loadApplicableResearchLinks({serviceId:'other-service',canonicalSlug:'other-service',market:'ES',client})).links.length,0);
+ const snapshot=await researchLinkSnapshot({directory,serviceId:'max',canonicalSlug:'max',market:'ES',client});assert.deepEqual(snapshot.links.map(row=>row.id),[created.row.id]);
+ await researchLinksRequest({method:'PATCH',serviceId:'max',linkId:created.row.id,body:{...es,enabled:false},ops,actor:'admin'});
+ assert.equal((await researchLinksRequest({method:'GET',serviceId:'max',ops,actor:'admin'})).rows.find(row=>row.id===created.row.id).enabled,false);
+ assert.equal((await loadApplicableResearchLinks({serviceId:'max',canonicalSlug:'max',market:'ES',client})).links.length,0);
+ await researchLinksRequest({method:'PATCH',serviceId:'max',linkId:created.row.id,body:es,ops,actor:'admin'});
+ assert.deepEqual((await loadApplicableResearchLinks({serviceId:'max',canonicalSlug:'max',market:'ES',client})).links.map(row=>row.id),[created.row.id]);
+ await assert.rejects(researchLinksRequest({method:'POST',serviceId:'max',body:es,ops,actor:'admin'}),error=>error.status===409&&error.message==='RESEARCH_LINK_DUPLICATE');
 });
 
 test('Research link validation rejects unsafe URLs, malformed scope and authority-bearing fields',()=>{
@@ -57,6 +75,7 @@ test('last result metadata records bounded operational outcome without price tru
 test('authenticated Operations routes POST, GET, PATCH and DELETE through the bounded Admin API',async()=>{
  const {ops}=fixture(),url=route=>new URL('https://admin.example/v1/admin/v2-operations/price-research/research-links'+route),call=(method,route,body,actor='admin')=>operationsRequest({method,url:url(route),body,actor},ops);
  await assert.rejects(call('GET','?serviceId=streamco',undefined,null),error=>error.status===401);
+ await assert.rejects(call('POST','',{serviceId:'streamco',...input()},null),error=>error.status===401);
  const added=await call('POST','',{serviceId:'streamco',...input()});assert.equal(added.row.serviceId,'streamco');
  assert.equal((await call('GET','?serviceId=streamco')).rows.length,1);
  assert.equal((await call('PATCH','/'+added.row.id,{...input(),enabled:false})).row.enabled,false);

@@ -552,16 +552,49 @@ test('market price categories classify only eligible service-market pairs',()=>{
  assert.deepEqual(marketPriceCategories(markets,['chess-com'],rows,new Set()),{notVerified:[],suggestedOnly:[],noPriceData:[],verified:[]});
 });
 
-test('Research links button requires one service and an unverified selected market',()=>{
- const selected=new Set(['ES']),verified=[{serviceId:'chess-com',market:'ES',verifiedCount:3}];
- assert.equal(researchLinksVisible(new Set(),selected,[]),false);
- assert.equal(researchLinksVisible(new Set(['chess-com','1password']),selected,[]),false);
- assert.equal(researchLinksVisible(new Set(['chess-com']),new Set(),[]),false);
- assert.equal(researchLinksVisible(new Set(['chess-com']),selected,verified),false);
- assert.equal(researchLinksVisible(new Set(['chess-com']),selected,[{serviceId:'chess-com',market:'ES',verifiedCount:3}]),false);
- assert.equal(researchLinksVisible(new Set(['chess-com']),new Set(['ES','NO']),[...verified,{serviceId:'chess-com',market:'NO',verifiedCount:0}]),true);
- assert.equal(researchLinksVisible(new Set(['chess-com']),selected,[{serviceId:'chess-com',market:'ES',verifiedCount:0}]),true);
- assert.equal(researchLinksVisible(new Set(['chess-com']),selected,null),false);
+test('Research links require exactly one service, independently of markets and price status',()=>{
+ assert.equal(researchLinksVisible(new Set()),false);
+ assert.equal(researchLinksVisible(new Set(['chess-com','1password'])),false);
+ assert.equal(researchLinksVisible(new Set(['chess-com'])),true);
+});
+
+for(const [state,statusRows,statusError] of [
+ ['verified',[{serviceId:'chess-com',market:'ES',suggestedCount:0,verifiedCount:3}],false],
+ ['suggested only',[{serviceId:'chess-com',market:'ES',suggestedCount:2,verifiedCount:0}],false],
+ ['no price data',[{serviceId:'chess-com',market:'ES',suggestedCount:0,verifiedCount:0}],false],
+ ['status unavailable',[],true]
+])test(`Research links editor accepts ES Direct source when ${state}`,async t=>{
+ const {root,calls,linkRows}=await canonicalBuilder(t,{statusRows,statusError}),service=descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes('Chess.com')).children[0];
+ assert.equal(button(root,'Research links').hidden,true);service.checked=true;await service.listeners.change();
+ assert.equal(button(root,'Research links').hidden,false,'no market selection is required');
+ await button(root,'Research links').listeners.click();await button(root,'+ Add link').listeners.click();
+ const editor=descendants(root).find(node=>node.className==='ops-research-links-editor'),entry=label=>descendants(editor).find(node=>node.textContent===label)?.children[0];
+ assert.equal(entry('Type').value,'DIRECT_SOURCE');assert.equal(entry('Market').children.length,46);assert.equal(entry('Market').children.some(option=>option.value==='ES'),true);
+ entry('URL').value='https://www.hbomax.com/es/es';entry('Market scope').value='MARKET_SPECIFIC';entry('Market').value='ES';
+ await button(root,'Add link').listeners.click();
+ assert.deepEqual(calls.find(row=>row.method==='POST'&&row.p.endsWith('/research-links')).body,{serviceId:'chess-com',url:'https://www.hbomax.com/es/es',kind:'DIRECT_SOURCE',marketScope:'MARKET_SPECIFIC',marketCode:'ES',enabled:true});
+ assert.equal(linkRows[0].marketCode,'ES');assert.equal(linkRows[0].marketScope,'MARKET_SPECIFIC');
+ assert.equal(calls.filter(row=>row.p.endsWith('/preflight')||row.p.endsWith('/start')).length,0);
+});
+
+test('Research links can be configured for an excluded market without making it research eligible',async t=>{
+ const excludedPairs=new Set(['chess-com\u0000ES']),{root,calls,linkRows}=await canonicalBuilder(t,{excludedPairs}),service=descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes('Chess.com')).children[0];
+ service.checked=true;await service.listeners.change();assert.equal(checkbox(root,'Spain (ES)').disabled,true);
+ assert.equal(button(root,'Research links').hidden,false);await button(root,'Research links').listeners.click();
+ assert(text(root).includes('an exclusion still prevents future research'));
+ await button(root,'+ Add link').listeners.click();const editor=descendants(root).find(node=>node.className==='ops-research-links-editor'),entry=label=>descendants(editor).find(node=>node.textContent===label)?.children[0];
+ assert(descendants(entry('Market')).some(node=>node.value==='ES'&&node.textContent.includes('excluded from research')));
+ entry('URL').value='https://www.hbomax.com/es/es';entry('Market scope').value='MARKET_SPECIFIC';entry('Market').value='ES';await button(root,'Add link').listeners.click();
+ assert.equal(linkRows[0].marketCode,'ES');assert.equal(checkbox(root,'Spain (ES)').disabled,true);assert.equal(button(root,'Preflight').disabled,true);
+ assert.equal(calls.filter(row=>row.p.endsWith('/preflight')||row.p.endsWith('/start')).length,0);
+});
+
+test('one selected market defaults a new link to that market and never silently saves Global',async t=>{
+ const {root,linkRows}=await canonicalBuilder(t),service=descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes('Chess.com')).children[0];service.checked=true;await service.listeners.change();
+ const es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();await button(root,'Research links').listeners.click();await button(root,'+ Add link').listeners.click();
+ const editor=descendants(root).find(node=>node.className==='ops-research-links-editor'),entry=label=>descendants(editor).find(node=>node.textContent===label)?.children[0];
+ assert.equal(entry('Market scope').value,'MARKET_SPECIFIC');assert.equal(entry('Market').value,'ES');entry('URL').value='https://www.hbomax.com/es/es';await button(root,'Add link').listeners.click();
+ assert.deepEqual([linkRows[0].marketScope,linkRows[0].marketCode],['MARKET_SPECIFIC','ES']);
 });
 
 test('Research links panel performs add, edit, toggle and delete without starting research',async t=>{
