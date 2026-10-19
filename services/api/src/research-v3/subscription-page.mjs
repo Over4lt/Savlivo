@@ -426,6 +426,57 @@ function maxSpanishMonthlyCards(parsed,providerName,marketCurrencyHint){
  return rows.length>=2&&rows.length<=8&&new Set(rows.map(row=>comparable(row.name))).size===rows.length?rows:[];
 }
 
+// A provider may ship complete plan cards in inert Next.js hydration data
+// even when the initial DOM has no pricing cards. Read only a bounded JSON
+// script, and bind each offer to its own exact lexical object in that script.
+function hydrationPlanCards(parsed,providerName,marketCurrencyHint){
+ if(!providerName||!marketCurrencyHint)return [];
+ const scripts=[...parsed.body.matchAll(/<script\b([^>]*)>([^]*?)<\/script\s*>/giu)].filter(match=>{const a=attrs(match[1]);return a.id==='__NEXT_DATA__'&&a.type==='application/json';});
+ if(scripts.length!==1)return [];
+ const script=scripts[0],openEnd=script.index+script[0].indexOf('>')+1,raw=script[2];
+ if(Buffer.byteLength(raw)>1_000_000)return [];
+ let root;try{root=JSON.parse(raw);}catch{return [];}
+ const mapped=root?.props?.pageProps?.mappedData;
+ if(!mapped||typeof mapped!=='object'||Array.isArray(mapped))return [];
+ const spans=[];
+ for(const match of raw.matchAll(/"planCard"\s*:\s*\{/gu)){
+  if(spans.length>=64)return [];
+  const start=match.index+match[0].lastIndexOf('{');let depth=0,quoted=false,escape=false,end=-1;
+  for(let i=start;i<raw.length&&i-start<=4096;i++){
+   const c=raw[i];if(quoted){if(escape)escape=false;else if(c==='\\')escape=true;else if(c==='"')quoted=false;continue;}
+   if(c==='"'){quoted=true;continue;}if(c==='{')depth++;else if(c==='}'&&!--depth){end=i+1;break;}
+  }
+  if(end<0)continue;
+  try{spans.push({start:openEnd+start,end:openEnd+end,value:JSON.parse(raw.slice(start,end))});}catch{/* An incomplete object is not evidence. */}
+ }
+ const rows=[],seen=new Set();
+ for(const collection of Object.values(mapped).slice(0,128)){
+  const items=collection?.items?.Monthly;if(!Array.isArray(items)||items.length<2||items.length>8)continue;
+  const planIds=items.map(item=>item?.content?.planCard?.pricePlan?.id);
+  if(planIds.some(id=>typeof id!=='string'||!/^[A-Za-z0-9_-]{1,64}$/u.test(id))||new Set(planIds).size!==planIds.length)continue;
+  for(const item of items){
+   const card=item?.content?.planCard,price=card?.price,name=card?.productName?.plainText,amount=number(String(price?.amount?.plainText??''));
+   const action=card?.ctas?.find(cta=>/^(?:select|choose|subscribe)(?:\s+(?:a\s+)?plan|\s+now)?$/iu.test(cta?.text??'')&&/(?:purchase|subscription|account-creation)/iu.test(cta?.code??''));
+   if(item?.collectionTitle!=='Monthly'||card?.periodicityText!=='Monthly'||price?.period?.plainText!=='month'||!validCurrencies.has(price?.currencyCode)||price.currencyCode!==marketCurrencyHint||amount===null||amount<0||
+    typeof name!=='string'||!name||name.length>80||nonStandalonePresentation(name,providerName)||!action||/\b(?:student|trial|introductory|promotion(?:al)?|discount|first month)\b/iu.test(JSON.stringify(card?.badge??'')+' '+name))continue;
+   const matching=spans.filter(span=>JSON.stringify(span.value)===JSON.stringify(card));if(matching.length!==1)continue;
+   const span=matching[0],key=span.start+':'+span.end;if(seen.has(key))continue;seen.add(key);
+   const source=parsed.body.slice(span.start,span.end),productAt=source.indexOf('"productName"'),nameText='"plainText":'+JSON.stringify(name),nameAt=productAt<0?-1:source.indexOf(nameText,productAt),actionText='"text":'+JSON.stringify(action.text),actionAt=source.indexOf(actionText);
+   if(nameAt<0||actionAt<0)continue;
+   rows.push({name,nameLocator:locator(parsed.body,span.start+nameAt+12,span.start+nameAt+nameText.length),presentation:locator(parsed.body,span.start,span.end),actionLocator:locator(parsed.body,span.start+actionAt+7,span.start+actionAt+actionText.length),charges:[{amount,currency:price.currencyCode,cadence:'MONTHLY',billingCadence:'MONTHLY',consumer:true,relationship:'SUBSCRIPTION',role:'ORDINARY',monetaryKind:'SUBSCRIPTION_CHARGE',amountDerivation:'EXPLICIT',text:price.currencyCode+' '+price.amount.plainText+'/'+price.period.plainText+'; '+action.text}]});
+  }
+ }
+ return rows.length>=2&&rows.length<=8&&new Set(rows.map(row=>comparable(row.name))).size===rows.length?rows:[];
+}
+
+function hydrationPlanIdentity(parsed,providerName,offerings){
+ if(!offerings.length||!providerName)return null;
+ const fields=fieldRows(parsed),title=uniqueRow(fields.filter(row=>row.kind==='TITLE')),openGraph=uniqueRow(fields.filter(row=>row.kind==='OG:TITLE'));
+ if(!title||!openGraph||comparable(title.value)!==comparable(openGraph.value)||!exactWord(title.value,providerName))return null;
+ const identity=exactLocator(parsed,title,providerName),subscription=offerings[0].actionLocator;
+ return identity&&subscription?{name:providerName,type:'Service',identity,subscription:{kind:'EXPLICIT_SUBSCRIPTION',locator:subscription},support:['PAGE_TITLE','OPEN_GRAPH_TITLE','SOURCE_BOUND_PLAN_PURCHASE_ACTION']}:null;
+}
+
 function maxSourceIdentity(parsed,providerName,offerings){
  if(providerName!=='Max'||offerings.length<2||!['help.hbomax.com','www.hbomax.com'].includes(parsed.host))return null;
  const title=uniqueRow(fieldRows(parsed).filter(row=>row.kind==='TITLE'));
@@ -445,6 +496,6 @@ function enrichFromProse(parsed,offerings){
 }
 
 export function interpretSubscriptionPage({body,url,providerName=null,currencyHint=null,marketCurrencyHint=null}){
- if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};let maxSpanishSource=false;try{maxSpanishSource=providerName==='Max'&&new URL(url).hostname==='www.hbomax.com'&&/<html\b[^>]*\blang=["']es-ES["']/iu.test(body.slice(0,2048));}catch{/* Invalid URLs use the ordinary parser. */}const parsed=parse(body,url,{maskScripts:maxSpanishSource}),maxRows=[...maxHelpPricingRows(parsed,providerName,currencyHint,marketCurrencyHint),...maxGBHelpPricingRows(parsed,providerName,marketCurrencyHint,url),...maxIEHelpPricingRows(parsed,providerName,marketCurrencyHint,url),...maxMonthlyDivCards(parsed,providerName,marketCurrencyHint),...maxSpanishMonthlyCards(parsed,providerName,marketCurrencyHint)],cards=maxRows.length?[]:planCards(parsed,currencyHint,marketCurrencyHint),lists=maxRows.length||cards.length?[]:pricingLists(parsed,currencyHint,marketCurrencyHint),tables=maxRows.length||cards.length||lists.length?[]:pricingTables(parsed,currencyHint,providerName,marketCurrencyHint),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=maxSourceIdentity(parsed,providerName,maxRows)??pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...maxRows,...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!nonStandalonePresentation(row.name,providerName));enrichFromProse(parsed,offerings.filter(row=>!maxRows.includes(row)&&!tables.includes(row)));
+ if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};let maxSpanishSource=false;try{maxSpanishSource=providerName==='Max'&&new URL(url).hostname==='www.hbomax.com'&&/<html\b[^>]*\blang=["']es-ES["']/iu.test(body.slice(0,2048));}catch{/* Invalid URLs use the ordinary parser. */}const parsed=parse(body,url,{maskScripts:maxSpanishSource}),maxRows=[...maxHelpPricingRows(parsed,providerName,currencyHint,marketCurrencyHint),...maxGBHelpPricingRows(parsed,providerName,marketCurrencyHint,url),...maxIEHelpPricingRows(parsed,providerName,marketCurrencyHint,url),...maxMonthlyDivCards(parsed,providerName,marketCurrencyHint),...maxSpanishMonthlyCards(parsed,providerName,marketCurrencyHint)],hydrationRows=maxRows.length?[]:hydrationPlanCards(parsed,providerName,marketCurrencyHint),cards=maxRows.length||hydrationRows.length?[]:planCards(parsed,currencyHint,marketCurrencyHint),lists=maxRows.length||hydrationRows.length||cards.length?[]:pricingLists(parsed,currencyHint,marketCurrencyHint),tables=maxRows.length||hydrationRows.length||cards.length||lists.length?[]:pricingTables(parsed,currencyHint,providerName,marketCurrencyHint),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=maxSourceIdentity(parsed,providerName,maxRows)??hydrationPlanIdentity(parsed,providerName,hydrationRows)??pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...maxRows,...hydrationRows,...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!nonStandalonePresentation(row.name,providerName));enrichFromProse(parsed,offerings.filter(row=>!maxRows.includes(row)&&!hydrationRows.includes(row)&&!tables.includes(row)));
  return {services,offerings,limited:parsed.limited};
 }
