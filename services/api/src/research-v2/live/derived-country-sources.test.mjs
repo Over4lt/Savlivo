@@ -30,7 +30,7 @@ test('retained GB pricing article is a bounded Max-only candidate ahead of the G
  assert.equal(nextResearchLink(gbTarget([global],rows)).route,'DECODO');
  assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'GB'}).map(row=>row.url),[gbUrl]);
  assert.deepEqual(derivedCountrySourceCandidates({service:'netflix',market:'GB',patternLinks:[us]}),[]);
- assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'IE',patternLinks:[us]}),[]);
+ assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'IE',patternLinks:[us]}).map(row=>row.url),['https://www.hbomax.com/ie/en']);
  assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'GB',patternLinks:[us],attemptedUrls:[gbUrl]}),[]);
 });
 
@@ -84,6 +84,80 @@ test('provider-authored DE route map supports bounded ES Spanish and English can
  assert.deepEqual(rows.map(row=>row.url),['https://www.hbomax.com/es/es','https://www.hbomax.com/es/en']);
  assert(rows.every(row=>row.origin==='SAME_SERVICE_PROVIDER_ROUTE'&&row.sourceLinkId===de.id));
  assert.equal(nextResearchLink(target([global],rows)).url,rows[0].url);
+});
+
+test('frozen provider route evidence yields bounded NZ, IT, NO and SE language variants',()=>{
+ const body=gunzipSync(fs.readFileSync(fixture)).toString('utf8');
+ assert.equal(digest(body),'f6a618d5ab14ea3ce06b599756f707eccb12855b5430d03fc6625a4f5caf00df');
+ const expected={DE:['de/de','de/en'],ES:['es/es','es/en'],FR:['fr/fr','fr/en'],IT:['it/it','it/en'],NO:['no/no','no/en'],SE:['se/sv','se/en'],NZ:['nz/en'],IE:['ie/en']};
+ for(const [market,paths] of Object.entries(expected)){
+  for(const route of paths)assert(body.includes(`"${route}":{"url":"/${route}"`)||route==='de/de'&&body.includes('<link rel="canonical" href="https://www.hbomax.com/de/de"'));
+  const rows=derivedCountrySourceCandidates({service:'max',market,patternLinks:[de],researchLinks:[global]});
+  assert.deepEqual(rows.map(row=>row.url),paths.map(route=>`https://www.hbomax.com/${route}`),market);
+  assert(rows.every(row=>row.service==='max'&&row.market===market&&row.providerRouteEvidenceSha256===digest(body)));
+ }
+ assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'GB'}).map(row=>row.url),[gbUrl]);
+ assert.deepEqual(derivedCountrySourceCandidates({service:'netflix',market:'NZ',patternLinks:[de]}),[]);
+ assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'XX',patternLinks:[de]}),[]);
+});
+
+test('Max NZ route is inferred ahead of the Global link without an NZ Research Link',()=>{
+ const rows=derivedCountrySourceCandidates({service:'max',market:'NZ',patternLinks:[de],researchLinks:[global]});
+ assert.deepEqual(rows.map(row=>row.url),['https://www.hbomax.com/nz/en']);
+ const current={...target([global],rows),id:'price-research:max:NZ',market:'NZ'};
+ assert.equal(nextResearchLink(current).url,rows[0].url);
+ assert.equal(nextResearchLink(current).researchLinkId,undefined);
+ assert.equal(nextResearchLink(current).truthAuthority,'NONE');
+ assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'NZ',attemptedUrls:[rows[0].url]}),[]);
+ const exact={...de,url:rows[0].url,marketCode:'NZ'};
+ assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'NZ',researchLinks:[exact,global]}),[]);
+ assert.equal(nextResearchLink({...current,researchLinks:[exact,global]}).url,exact.url);
+ assert.equal(nextResearchLink({...current,service:'netflix',researchLinks:[]}),null,'Max candidates cannot route another service');
+ assert.equal(nextResearchLink({...current,market:'IE',researchLinks:[]}),null,'NZ candidates cannot route another market');
+});
+
+test('Netflix US, ES and NO keep their existing Research Link order and receive no Max routes',()=>{
+ for(const market of ['US','ES','NO']){
+  const exact={...de,id:`netflix-${market}`,serviceId:'netflix',marketCode:market,url:`https://www.netflix.com/${market.toLowerCase()}/plans`};
+  const broad={...global,id:'netflix-global',serviceId:'netflix',url:'https://www.netflix.com/'};
+  const derived=derivedCountrySourceCandidates({service:'netflix',market,patternLinks:[de,exact],researchLinks:[broad,exact]});
+  assert.deepEqual(derived,[],market);
+  const current={...target([broad,exact],derived),id:`price-research:netflix:${market}`,service:'netflix',serviceName:'Netflix',market};
+  assert.equal(nextResearchLink(current).url,broad.url,market);
+  assert.equal(nextResearchLink({...current,derivedCountryCandidates:derivedCountrySourceCandidates({service:'max',market})}).url,broad.url,`foreign routes must not reorder ${market}`);
+  current.researchLinkOutcomes.push({id:broad.id});
+  assert.equal(nextResearchLink(current).url,exact.url,market);
+ }
+});
+
+test('offline NZ candidate handles complete unpriced, redirect, 404, wrong market, size and missing prices without inferred truth',async t=>{
+ const url='https://www.hbomax.com/nz/en';
+ for(const [scenario,classification,finalUrl] of [
+  ['complete','COMMERCIAL_FIELDS_INSUFFICIENT',url],
+  ['redirect','COMMERCIAL_FIELDS_INSUFFICIENT','https://www.hbomax.com/nz/en/'],
+  ['404','ACQUISITION_FAILED',url],
+  ['wrong-market','COUNTRY_MISMATCH','https://www.hbomax.com/de/de'],
+  ['oversized','ACQUISITION_FAILED',url],
+  ['missing-price','CONTENT_NOT_COMMERCIAL',url]
+ ]){
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),`max-nz-${scenario}-`));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+  const rows=derivedCountrySourceCandidates({service:'max',market:'NZ'}),current={...target([global],rows),id:'price-research:max:NZ',market:'NZ',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[],leads:[],authorities:[],gaps:['amount'],reads:[],queries:[],blockedOrigins:[]},requests=[];
+  const state=await runOpenWebResearch({directory,targets:[current],maxActions:1,search:async()=>assert.fail('search'),read:async()=>assert.fail('direct'),acquire:async({candidate,target:selected})=>{requests.push([candidate.url,selected.market]);return {classification,sourceClassification:{status:scenario==='complete'||scenario==='redirect'?'PROVIDER_SOURCE':'UNKNOWN_SOURCE',finalUrl},countryV3Evaluation:scenario==='complete'||scenario==='redirect'?{status:'EVALUATED',receiptStatus:'HASH_VERIFIED',geoClass:'G1'}:{status:'UNRESOLVED'},policy:scenario==='oversized'?[{attempts:[{failure:{code:'RESPONSE_TOO_LARGE'}}]}]:[],verified:[]};}});
+  assert.deepEqual(requests,[[url,'NZ']],scenario);
+  assert.equal(state.targets[0].verified.length,0,scenario);
+  assert.equal(state.targets[0].acquisitionOutcomes[0].url,url,scenario);
+  assert.equal(state.targets[0].acquisitionOutcomes[0].classification,classification,scenario);
+ }
+});
+
+test('simulated NZ country-bound V3 success stops before the Global homepage',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'max-nz-success-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const rows=derivedCountrySourceCandidates({service:'max',market:'NZ'}),current={...target([global],rows),id:'price-research:max:NZ',market:'NZ',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[],leads:[],authorities:[],gaps:['amount'],reads:[],queries:[],blockedOrigins:[]},requests=[];
+ const established={plan:'Synthetic fixture',amount:11.11,currency:'NZD',market:'NZ'};
+ const state=await runOpenWebResearch({directory,targets:[current],maxActions:2,search:async()=>assert.fail('search'),read:async()=>assert.fail('direct'),acquire:async({candidate})=>{requests.push(candidate.url);return {classification:'VERIFIED_OUTPUT',sourceClassification:{status:'PROVIDER_SOURCE',sourceHash:'a'.repeat(64)},countryV3Evaluation:{status:'EVALUATED',sourceHash:'a'.repeat(64),receiptStatus:'HASH_VERIFIED',geoClass:'G1'},verified:[established]};}});
+ assert.deepEqual(requests,['https://www.hbomax.com/nz/en']);
+ assert.deepEqual(state.targets[0].verified,[established]);
+ assert.equal(state.targets[0].researchLinkOutcomes.length,0);
 });
 
 test('exact ES link outranks inferred routes; repeated and configured URLs are deduplicated',()=>{

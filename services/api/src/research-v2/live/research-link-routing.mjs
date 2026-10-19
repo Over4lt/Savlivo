@@ -6,14 +6,14 @@ import {providerMarketSelectorRoute} from './retained-render-source.mjs';
 export function nextResearchLink(target,executionContext=null){
  if(target?.operationsObjective!=='PRICE_RESEARCH'||(target.verified??[]).length>0||projectEstablishedV3Offerings(target).some(row=>row.market===target.market))return null;
  const attempted=new Set((target.researchLinkOutcomes??[]).map(row=>row.id));
- const links=(target.researchLinks??[]).slice(0,20),exact=target.service==='max'?links.filter(link=>link.marketScope==='MARKET_SPECIFIC'):links,global=target.service==='max'?links.filter(link=>link.marketScope==='GLOBAL'):[];
+ const links=(target.researchLinks??[]).slice(0,20),countryRoutes=target.service==='max'||(target.derivedCountryCandidates??[]).some(row=>row.service===target.service&&row.market===target.market),exact=countryRoutes?links.filter(link=>link.marketScope==='MARKET_SPECIFIC'):links,global=countryRoutes?links.filter(link=>link.marketScope==='GLOBAL'):[];
  for(const link of exact){
   if(!link?.enabled||link.truthAuthority!=='NONE'||attempted.has(link.id)||link.marketScope==='MARKET_SPECIFIC'&&link.marketCode!==target.market)continue;
   const directProbe=providerMarketSelectorRoute(link)&&target.capabilities?.direct===true&&target.capabilities?.browser===true&&executionContext?.available?.direct!==false&&executionContext?.available?.browser!==false&&!(target.reads??[]).some(row=>row.requestedUrl===link.url);
   return {route:directProbe?'DIRECT':'DECODO',reason:directProbe?'PROVIDER_MARKET_SELECTOR_PROBE':'PRICE_RESEARCH_VERIFICATION_REQUIRED',url:link.url,researchLinkId:link.id,researchLinkKind:link.kind,researchLinkScope:link.marketScope,researchLinkMarket:link.marketCode??null,targetMarket:target.market,truthAuthority:'NONE',directAppropriate:directProbe,discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}],decodoVerification:{status:'PENDING',url:link.url}};
  }
  for(const candidate of (target.derivedCountryCandidates??[]).slice(0,2)){
-  if(target.service!=='max'||!candidate?.url||[...(target.acquisitionOutcomes??[]).map(row=>row.url),...(target.decisions??[]).filter(row=>row.acquisitionReserved).map(row=>row.url),...(target.derivedCountrySourceOutcomes??[]).map(row=>row.url)].some(url=>resourceKey(url)===resourceKey(candidate.url)))continue;
+  if(candidate?.service!==target.service||candidate?.market!==target.market||!candidate?.url||[...(target.acquisitionOutcomes??[]).map(row=>row.url),...(target.decisions??[]).filter(row=>row.acquisitionReserved).map(row=>row.url),...(target.derivedCountrySourceOutcomes??[]).map(row=>row.url)].some(url=>resourceKey(url)===resourceKey(candidate.url)))continue;
   return {route:'DECODO',reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED',url:candidate.url,derivedCountrySource:true,targetMarket:target.market,truthAuthority:'NONE',directAppropriate:false,discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}],decodoVerification:{status:'PENDING',url:candidate.url}};
  }
  for(const link of global){
