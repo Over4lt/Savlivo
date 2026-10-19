@@ -12,8 +12,11 @@ import {acquisitionCapacity} from '../../research-v3/acquisition-contract.mjs';
 import {classifyAcquiredSource,classifyRetainedSource} from './source-classification.mjs';
 import {evaluateCountryProviderTruth,evaluateProviderSourceTruth} from './provider-source-v3.mjs';
 import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
-import {OpenWebResearch,openWebBounds} from './open-web-discovery.mjs';
+import {OpenWebResearch,openWebBounds,runOpenWebResearch} from './open-web-discovery.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
+import {derivedCountrySourceCandidates} from './derived-country-sources.mjs';
+import {researchLinkPriorityTarget} from './retained-render-source.mjs';
+import {v3ResultFromTarget} from '../../google-ai/admin-live-pipeline.mjs';
 
 const fixtureDir=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../research-v3/fixtures/max');
 // US: fresh official Direct read. DE: exact Direct body retained by job
@@ -172,6 +175,52 @@ test('a Swedish provider page is not accepted as US price evidence',()=>{
 const esCard=(id,name,price,route='/addon-picker')=>`<div id="${id}" data-testid="plan-card"><span aria-label="${name}" data-testid="plan-card-title" role="heading">${name}</span><div><span data-testid="price-container" role="text"><span class="price">${price} €</span>/mes</span></div><a href="https://auth.hbomax.com${route}?pricePlanId=${id}&amp;flow=purchase">Seleccionar plan</a></div>`;
 const esExcerpt=`<html lang="es-ES"><head><title>HBO Max | Disfruta de HBO, Discovery, televisión y películas</title></head><body><script>const template = '<div data-testid="plan-card-container"></div>';</script><h1>Empieza a disfrutar con los planes de HBO Max desde solo 6,99 €/mes</h1><button role="tab" aria-label="mensual" aria-selected="true">mensual</button><button role="tab" aria-label="anual" aria-selected="false">anual</button><div data-testid="plan-card-container">${esCard('31014','Básico con anuncios','6,99')}${esCard('30920','Estándar','10,99')}${esCard('30924','Premium','15,99')}${esCard('28610','HBO Max DAZN','44,99','/create-account')}</div><footer><a href="/affiliate">Programa de afiliados</a></footer></body></html>`;
 const esUrl='https://www.hbomax.com/es/es',esPlans=[['Básico con anuncios',6.99,'EUR'],['Estándar',10.99,'EUR'],['Premium',15.99,'EUR']];
+// Structural excerpt of the official GB article observed in the stopped job.
+// This is not the retained 77,799-byte Direct body (SHA-256 1f5bf276...):
+// its own hash and any G1 receipt below are deliberately synthetic.
+const gbUrl='https://help.hbomax.com/gb/Answer/Detail/000002547';
+const gbPlans=[['Basic with Ads',4.99,'GBP'],['Standard with Ads',5.99,'GBP'],['Standard',9.99,'GBP'],['Premium',14.99,'GBP']];
+const gbItem=(name,price)=>`<li class="listitem"><p><a class="link">${name}</a> - £${price}/month</p></li>`;
+const gbExcerpt=`<html lang="en"><head><title>HBO Max | All about HBO Max plans</title></head><body><script>HHURL.config.selectedCountry = "GB";</script><span>United Kingdom</span><h1>All about HBO Max plans</h1><section><div class="titlepage"><h3 class="title">Saver Plan</h3></div><p>Save on an annual commitment, billed monthly.</p></section><p>You can subscribe to HBO Max through many providers.</p><p>Here are the HBO Max plans and prices:</p><section class="section internal"><div class="titlepage"><div><div class="title"><h3 class="title">HBO Max Entertainment plans</h3></div></div></div><div class="itemizedlist"><ul class="itemizedlist">${gbItem('Basic with Ads','4.99')}${gbItem('Standard with Ads','5.99')}${gbItem('Standard','9.99')}${gbItem('Premium','14.99')}</ul></div></section><section class="section internal"><div class="titlepage"><div><div class="title"><h3 class="title">HBO Max Entertainment &amp; TNT Sports plans</h3></div></div></div><div class="itemizedlist"><ul class="itemizedlist">${gbItem('TNT Sports (UK only)','30.99')}${gbItem('TNT Sports + Premium (UK only)','45.98')}</ul></div><p>HBO Max Standard with Ads Upgrade for £1/month.</p></section></body></html>`;
+
+test('Max GB article layout binds four ordinary monthly plans and ignores Saver, Sports and upgrade prices',()=>{
+ const parsed=interpretSubscriptionPage({body:gbExcerpt,url:gbUrl,providerName:'Max',marketCurrencyHint:'GBP'});
+ assert.deepEqual(parsed.services.map(row=>row.name),['Max']);
+ assert.deepEqual(parsed.offerings.map(row=>[row.name,row.charges[0].amount,row.charges[0].currency]),gbPlans);
+ assert(parsed.offerings.every(row=>row.charges.length===1&&row.charges[0].cadence==='MONTHLY'&&row.charges[0].billingCadence==='MONTHLY'&&row.charges[0].amountDerivation==='EXPLICIT'));
+ const direct=evaluateProviderSourceTruth({target:target('GB'),retained:{url:gbUrl,requestedUrl:gbUrl,httpStatus:200,contentType:'text/html',bodyHash:digest(gbExcerpt),sourceIntegrity:{sha256:digest(gbExcerpt)},rawSource:{text:gbExcerpt},accessDecisions:[{decision:'ALLOWED'}]},acquisition:{route:'DIRECT'},observationId:'direct-gb-excerpt'});
+ assert.equal(projectEstablishedV3Offerings({...target('GB'),...direct}).length,0,'Direct has no G1 market receipt');
+ const fixture=countryFixture('GB',{body:gbExcerpt,url:gbUrl}),result=evaluateCountryProviderTruth(fixture),established=projectEstablishedV3Offerings({...fixture.target,...result});
+ assert.deepEqual(established.map(row=>[row.name,row.ordinaryRecurringPrice.amount,row.ordinaryRecurringPrice.currency]),gbPlans);
+ assert.equal(result.v3SuggestedCandidates.length,4);
+ assert(result.v3SuggestedCandidates.every(row=>row.provenance==='V3_SOURCE_RESEARCH'));
+});
+
+test('Max GB layout rejects missing, conflicting and wrong country, section, amount and receipt evidence',()=>{
+ const parse=(body,url=gbUrl,hint='GBP')=>interpretSubscriptionPage({body,url,providerName:'Max',marketCurrencyHint:hint}).offerings;
+ for(const body of [gbExcerpt.replace('HHURL.config.selectedCountry = "GB";',''),gbExcerpt.replace('selectedCountry = "GB"','selectedCountry = "de"'),gbExcerpt.replace('selectedCountry = "GB"','selectedCountry = "gb"; HHURL.config.selectedCountry = "GB"'),gbExcerpt.replace('United Kingdom</span>','Germany</span>'),gbExcerpt.replace('HBO Max Entertainment plans</h3>','HBO Max Saver plans</h3>')])assert.deepEqual(parse(body),[]);
+ assert.deepEqual(parse(gbExcerpt,'https://help.hbomax.com/us/Answer/Detail/000002547'),[]);
+ assert.deepEqual(parse(gbExcerpt,gbUrl,'USD'),[]);
+ assert.deepEqual(parse(gbExcerpt.replace('£9.99/month','£99.99/year')).map(row=>row.name),['Basic with Ads','Standard with Ads','Premium']);
+ const wrongMarket=countryFixture('GB',{body:gbExcerpt,url:gbUrl});wrongMarket.sourceCheck.receipt.geo.geoCountry='US';assert.throws(()=>evaluateCountryProviderTruth(wrongMarket),/COUNTRY_PROVIDER_RECEIPT_INVALID/);
+ const wrongHash=countryFixture('GB',{body:gbExcerpt,url:gbUrl});wrongHash.attempt.page.rawSource.text+=' ';assert.throws(()=>evaluateCountryProviderTruth(wrongHash),/COUNTRY_PROVIDER_HASH_MISMATCH/);
+ const missing=countryFixture('GB',{body:gbExcerpt,url:gbUrl});missing.sourceCheck.receipt.intact=false;assert.throws(()=>evaluateCountryProviderTruth(missing),/COUNTRY_PROVIDER_RECEIPT_INVALID/);
+});
+
+test('offline GB priority campaign sends the inferred pricing article through unchanged country V3 before Global fallback',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'max-gb-priority-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const derived=derivedCountrySourceCandidates({service:'max',market:'GB'}),global={id:'22222222-2222-4222-8222-222222222222',serviceId:'max',url:'https://www.hbomax.com/',kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true,truthAuthority:'NONE'};
+ const caps={direct:false,decodo:true,tavily:false,browser:false,groq:false},current=researchLinkPriorityTarget({...target('GB'),id:'price-research:max:GB',operationsObjective:'PRICE_RESEARCH',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},researchLinks:[global],researchLinkOutcomes:[],derivedCountryCandidates:derived,urls:[],leads:[],knownCommercialUrls:[],reads:[],queries:[],decisions:[],verified:[],blockedOrigins:[],gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],capabilities:caps},caps),requests=[];
+ const state=await runOpenWebResearch({directory,targets:[current],maxActions:1,search:async()=>assert.fail('Tavily request'),read:async()=>assert.fail('Direct request'),acquire:async({candidate,target:selected,route})=>{
+  requests.push({url:candidate.url,market:selected.market,route});
+  const fixture=countryFixture('GB',{body:gbExcerpt,url:gbUrl}),result=evaluateCountryProviderTruth(fixture),established=projectEstablishedV3Offerings({...fixture.target,...result});
+  return {...result,classification:'VERIFIED_OUTPUT',sourceClassification:{status:'PROVIDER_SOURCE',finalUrl:gbUrl,sourceHash:digest(gbExcerpt)},countryV3Evaluation:{status:'EVALUATED',receiptStatus:'HASH_VERIFIED',geoClass:'G1'},verified:established,acquisitionBytes:Buffer.byteLength(gbExcerpt)};
+ }});
+ assert.deepEqual(requests,[{url:gbUrl,market:'GB',route:'DECODO'}]);
+ assert.equal(state.usage.acquisitions,1);
+ assert.deepEqual(v3ResultFromTarget(state.targets[0]).verified.map(row=>[row.plan,row.amount,row.currency]),gbPlans);
+ assert.equal(state.targets[0].researchLinkOutcomes.length,0,'inferred routes are not Admin Research Links');
+});
 
 test('Max ES provider-owned affiliate navigation is not a third-party price presentation',()=>{
  const body=esExcerpt.replace('</footer>',`<script>${JSON.stringify(JSON.stringify({url:'/affiliate'}))}</script></footer>`),hash=digest(body),page={url:esUrl,requestedUrl:esUrl,outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,bodyHash:hash,sourceIntegrity:{sha256:hash},accessDecisions:[{decision:'ALLOWED'}]};

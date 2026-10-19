@@ -7,8 +7,26 @@ import {resourceKey} from './execution-capabilities.mjs';
 // market only after its path appears in a retained first-party route map.
 const maxRoutes=Object.freeze({DE:['de'],ES:['es','en']});
 const maxCountryPath=/^\/([a-z]{2})\/([a-z]{2})\/?$/u;
+// Both the verified US Research Link and the retained GB Direct source use
+// this same first-party pricing article. The GB URL is a bounded acquisition
+// hint backed by the retained body hash, not a market receipt or price proof.
+const maxHelpArticle={market:'GB',url:'https://help.hbomax.com/gb/Answer/Detail/000002547',sourceHash:'1f5bf27614ea6257a61dc23aaf76d902183688e65b42cb3a3b20d75fe5aa9983'};
+const maxUSHelpPath='/us/Answer/Detail/000002547';
+
+function maxHelpCandidates({service,market,patternLinks}){
+ if(service!=='max'||market!==maxHelpArticle.market)return [];
+ const source=(patternLinks??[]).find(link=>{
+  if(link.serviceId!=='max'||link.enabled!==true||link.truthAuthority!=='NONE'||link.marketScope!=='MARKET_SPECIFIC'||link.marketCode!=='US'||link.lastResult!=='VERIFIED')return false;
+  try{const url=normalizePublicUrl(link.url);return url.hostname==='help.hbomax.com'&&url.pathname===maxUSHelpPath&&!url.hash&&(!url.search||url.search==='?pubDate=20260926');}catch{return false;}
+ });
+ const inferred=source?new URL(source.url).pathname.replace(/^\/us\//u,'/gb/'):null;
+ const url=inferred?new URL(inferred,'https://help.hbomax.com').href:maxHelpArticle.url;
+ if(url!==maxHelpArticle.url)return [];
+ return [{url,origin:source?'SAME_SERVICE_PROVIDER_ARTICLE':'CHECKED_IN_PROVIDER_ARTICLE',sourceLinkId:source?.id??null,sourceMarket:source?.marketCode??null,providerRouteEvidenceSha256:maxHelpArticle.sourceHash}];
+}
 
 function maxCandidates({service,market,patternLinks}){
+ const help=maxHelpCandidates({service,market,patternLinks});if(help.length)return help;
  if(service!=='max'||!Object.hasOwn(maxRoutes,market))return [];
  const routes=(origin,link=null)=>maxRoutes[market].map(language=>({url:new URL(`/${market.toLowerCase()}/${language}`,origin).href,origin:link?'SAME_SERVICE_PROVIDER_ROUTE':'CHECKED_IN_PROVIDER_ROUTE_MAP',sourceLinkId:link?.id??null,sourceMarket:link?.marketCode??null,providerRouteEvidenceSha256:'f6a618d5ab14ea3ce06b599756f707eccb12855b5430d03fc6625a4f5caf00df'}));
  for(const link of patternLinks??[]){

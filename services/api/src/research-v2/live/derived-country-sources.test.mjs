@@ -8,14 +8,66 @@ import {gunzipSync} from 'node:zlib';
 import {digest} from '../../research-v3/model.mjs';
 import {derivedCountrySourceCandidates} from './derived-country-sources.mjs';
 import {nextResearchLink,prepareResearchLinkPlan} from './research-link-routing.mjs';
+import {executableAction} from './execution-capabilities.mjs';
 import {researchLinkPriorityTarget} from './retained-render-source.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
 
 const fixture=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../research-v3/fixtures/max/de-homepage.html.gz');
 const de={id:'11111111-1111-4111-8111-111111111111',serviceId:'max',url:'https://www.hbomax.com/de/de',kind:'DIRECT_SOURCE',marketScope:'MARKET_SPECIFIC',marketCode:'DE',enabled:true,truthAuthority:'NONE',lastResult:'VERIFIED'};
+const us={...de,id:'44444444-4444-4444-8444-444444444444',url:'https://help.hbomax.com/us/Answer/Detail/000002547?pubDate=20260926',marketCode:'US'};
+const gbUrl='https://help.hbomax.com/gb/Answer/Detail/000002547';
 const global={...de,id:'22222222-2222-4222-8222-222222222222',url:'https://www.hbomax.com/',marketScope:'GLOBAL',marketCode:null,lastResult:'ACQUISITION_FAILED'};
 const specific={...de,id:'33333333-3333-4333-8333-333333333333',url:'https://www.hbomax.com/es/es',marketCode:'ES'};
 const target=(links,derived)=>researchLinkPriorityTarget({id:'price-research:max:ES',service:'max',serviceName:'Max',market:'ES',operationsObjective:'PRICE_RESEARCH',verified:[],researchLinks:links,researchLinkOutcomes:[],derivedCountryCandidates:derived,providerSourceIdentityHosts:['www.hbomax.com'],decisions:[],acquisitionOutcomes:[],capabilities:{direct:false,decodo:true,browser:false,tavily:false}}, {direct:false,decodo:true,browser:false,tavily:false});
+const gbTarget=(links,derived)=>({...target(links,derived),id:'price-research:max:GB',market:'GB'});
+
+test('retained GB pricing article is a bounded Max-only candidate ahead of the Global homepage',()=>{
+ const rows=derivedCountrySourceCandidates({service:'max',market:'GB',patternLinks:[us],researchLinks:[global]});
+ assert.deepEqual(rows.map(row=>row.url),[gbUrl]);
+ assert.equal(rows[0].sourceLinkId,us.id);
+ assert.equal(rows[0].providerRouteEvidenceSha256,'1f5bf27614ea6257a61dc23aaf76d902183688e65b42cb3a3b20d75fe5aa9983');
+ assert.equal(nextResearchLink(gbTarget([global],rows)).url,gbUrl);
+ assert.equal(nextResearchLink(gbTarget([global],rows)).route,'DECODO');
+ assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'GB'}).map(row=>row.url),[gbUrl]);
+ assert.deepEqual(derivedCountrySourceCandidates({service:'netflix',market:'GB',patternLinks:[us]}),[]);
+ assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'IE',patternLinks:[us]}),[]);
+ assert.deepEqual(derivedCountrySourceCandidates({service:'max',market:'GB',patternLinks:[us],attemptedUrls:[gbUrl]}),[]);
+});
+
+test('exact GB Research Link outranks the inferred article without duplicate acquisition',()=>{
+ const exact={...us,id:'55555555-5555-4555-8555-555555555555',url:gbUrl,marketCode:'GB'};
+ const rows=derivedCountrySourceCandidates({service:'max',market:'GB',patternLinks:[us],researchLinks:[exact,global]});
+ assert.deepEqual(rows,[]);
+ const current=gbTarget([exact,global],rows);
+ assert.equal(nextResearchLink(current).url,gbUrl);
+ current.researchLinkOutcomes.push({id:exact.id});
+ assert.equal(nextResearchLink(current).url,global.url);
+});
+
+test('same-job Max retry skips a previously country-bound unpriced provider page',()=>{
+ const rows=derivedCountrySourceCandidates({service:'max',market:'GB'}),current=gbTarget([],rows),action=nextResearchLink(current),context={available:{decodo:true,direct:false,browser:false},bounds:{acquisitions:2,bytes:2*1024*1024,bytesPerPage:2*1024*1024,perServiceAcquisitions:2},usage:{acquisitions:0,bytes:0}};
+ assert.equal(executableAction(current,action,context).executable,true);
+ current.priorNoProgressProviderUrls=[gbUrl];
+ assert.equal(executableAction(current,action,context).reason,'EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');
+ assert.equal(executableAction(current,{route:'DECODO',reason:'TARGET_MARKET_OBSERVATION_REQUIRED',url:gbUrl},context).reason,'EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');
+ assert.equal(prepareResearchLinkPlan(current,context),null);
+ assert.deepEqual(current.derivedCountrySourceOutcomes.map(row=>row.url),[gbUrl]);
+});
+
+test('offline Max retry does not issue another Decodo request for the same unpriced URL',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'max-unpriced-retry-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const rows=derivedCountrySourceCandidates({service:'max',market:'GB'}),current={...gbTarget([],rows),researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[],leads:[],authorities:[],gaps:['amount'],reads:[],queries:[],blockedOrigins:[],priorNoProgressProviderUrls:[gbUrl]},requested=[];
+ const state=await runOpenWebResearch({directory,targets:[current],maxActions:1,search:async()=>{throw Error('PAID_DISCOVERY_NOT_ALLOWED');},read:async()=>{throw Error('DIRECT_NOT_ALLOWED');},acquire:async({candidate})=>{requested.push(candidate.url);throw Error('DUPLICATE_DECODO_REQUEST');}});
+ assert.deepEqual(requested,[]);
+ assert.equal(state.targets[0].derivedCountrySourceOutcomes[0].reason,'EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');
+});
+
+test('only a proven response body limit is carried as terminal Max acquisition routing memory',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'max-body-limit-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const current={...gbTarget([global],[]),researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},urls:[],leads:[],authorities:[],gaps:['amount'],reads:[],queries:[],blockedOrigins:[]};
+ const state=await runOpenWebResearch({directory,targets:[current],maxActions:1,search:async()=>assert.fail('search'),read:async()=>assert.fail('read'),acquire:async()=>({classification:'ACQUISITION_FAILED',sourceClassification:{status:'UNKNOWN_SOURCE',reason:'SOURCE_NOT_RETAINED'},policy:[{attempts:[{failure:{code:'RESPONSE_TOO_LARGE'}}]}],verified:[],acquisitionBytes:0})});
+ assert.equal(state.targets[0].acquisitionOutcomes[0].responseTooLarge,true);
+});
 
 test('provider-authored DE route map supports bounded ES Spanish and English candidates',()=>{
  const body=gunzipSync(fs.readFileSync(fixture)).toString('utf8');

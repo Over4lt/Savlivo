@@ -154,6 +154,18 @@ test('V4 Suggested retries one isolated no-progress V3 attempt and accepts Verif
  assert.deepEqual(result.verificationRetry.targets[verificationTarget.id],{attempted:true,count:1,usageScope:'TARGET',firstAttemptReason:'NO_EXECUTABLE_PROGRESS_RECONCILE',firstAttemptOutcome:'UNRESOLVED',firstAttemptUsage:{actions:1,reads:1,searches:0,acquisitions:0,retainedReviews:0,bytes:1},retryOutcome:'VERIFIED',retryReason:'VERIFIED',retryUsage:{actions:2,reads:2,searches:0,acquisitions:0,retainedReviews:0,bytes:1},verifiedAttempt:2});
 });
 
+test('Max retry carries only proven G1 unpriced and body-limit URLs as routing memory',async()=>{
+ const max={id:'price-research:max:GB',service:'max',serviceName:'Max',market:'GB'},url='https://help.hbomax.com/gb/Home/Index',hash='a'.repeat(64),first=adaptiveAttempt();
+ first.targets={[max.id]:{id:max.id,service:'max',market:'GB',v4VerificationRequirement:{kind:'SOURCE_BOUND_PRICE_VERIFICATION_REQUIRED'},acquisitionOutcomes:[
+  {url,classification:'COMMERCIAL_FIELDS_INSUFFICIENT',sourceClassification:{status:'PROVIDER_SOURCE',finalUrl:url,sourceHash:hash},countryV3Evaluation:{status:'EVALUATED',receiptStatus:'HASH_VERIFIED',geoClass:'G1'}},
+  {url:'https://help.hbomax.com/gb/unverified',classification:'CONTENT_NOT_COMMERCIAL',sourceClassification:{status:'PROVIDER_SOURCE',sourceHash:hash},countryV3Evaluation:{status:'UNRESOLVED',receiptStatus:'UNRESOLVED',geoClass:'G0'}},
+  {url:'https://www.hbomax.com/',classification:'ACQUISITION_FAILED',responseTooLarge:true},
+  {url:'https://help.hbomax.com/gb/timeout',classification:'ACQUISITION_FAILED',responseTooLarge:false}
+ ]}};first.services={max:{used:{reads:1,searches:0,acquisitions:1,retainedReviews:0,bytes:100},stop:{kind:'BLOCKED',reason:'NO_EXECUTABLE_PROGRESS_RECONCILE'}}};
+ const calls=[];await runBoundedV3Verification({targets:[max],handoffs:{[max.id]:verificationHandoff},execute:downstreamSequence([{adaptive:first,v3Results:{[max.id]:emptyV3()}},{adaptive:first,v3Results:{[max.id]:emptyV3()}}],calls)});
+ assert.deepEqual(calls[1].priorNoProgressProviderUrls[max.id],[url,'https://www.hbomax.com/']);
+});
+
 test('first V3 attempt can verify pricing while service coverage later stops with no executable progress',async()=>{
  const calls=[],result=await runBoundedV3Verification({targets:[verificationTarget],handoffs:{[verificationTarget.id]:{...verificationHandoff,researchLeads:{candidatePlans:[]}}},execute:downstreamSequence([{adaptive:adaptiveAttempt({verification:false,usage:{reads:4,searches:1,acquisitions:1,bytes:665527}}),v3Results:{[verificationTarget.id]:{...emptyV3(),verified:[{plan:'Gold',amount:5.99,currency:'EUR'}]}}}],calls)});
  assert.equal(calls.length,1);assert.equal(result.v3Results[verificationTarget.id].verified.length,1);assert.deepEqual(result.verificationRetry.targets[verificationTarget.id],{attempted:false,count:0,usageScope:'TARGET',firstAttemptReason:'NO_EXECUTABLE_PROGRESS_RECONCILE',firstAttemptOutcome:'VERIFIED',firstAttemptUsage:{actions:1,reads:4,searches:1,acquisitions:1,retainedReviews:0,bytes:665527},retryOutcome:null,retryReason:null,retryUsage:null,verifiedAttempt:1});
