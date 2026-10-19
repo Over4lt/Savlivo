@@ -15,7 +15,9 @@ import {evaluateProviderSourceTruth} from './provider-source-v3.mjs';
 import {runAdaptiveCampaign} from '../inventory/adaptive-campaign.mjs';
 import {createResearchMemory,usableResearchMemory} from './research-memory.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
-import {defaultHybridProviderResourceMemoryRoot,hybridProviderResourceMemoryContract,loadHybridProviderResources,recordHybridProviderResourceFailure,rememberHybridProviderResource,createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget,recordProviderPricingRouteFailure} from './hybrid-provider-resource-memory.mjs';
+import {derivedCountrySourceCandidates} from './derived-country-sources.mjs';
+import {nextResearchLink} from './research-link-routing.mjs';
+import {defaultHybridProviderResourceMemoryRoot,hybridProviderResourceMemoryContract,loadHybridProviderResources,recordHybridProviderResourceFailure,rememberHybridProviderResource,createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget,prioritizeDerivedCountryCandidates,recordProviderPricingRouteFailure} from './hybrid-provider-resource-memory.mjs';
 
 const service='aurora-club',serviceName='Aurora Club',market='US',host='aurora.example',candidateUrl=`https://${host}/membership`,providerUrl=`https://${host}/pricing`;
 const candidateBody=`<html><main><h1>${serviceName} membership</h1><p>We operate ${serviceName} membership and provide our own classes.</p><a href="/pricing">Pricing</a></main><footer>© ${serviceName} 2026. All rights reserved.</footer></html>`;
@@ -35,6 +37,46 @@ function learnedFixture(t){
  const state=target({reads:[{url:providerUrl,outcome:'OK',truncated:false,bodyHash:observation.sha256,sourceIntegrity:{sha256:observation.sha256},bodyFile:'bodies/'+observation.sha256+'.txt'}],decisions:[{url:providerUrl,eligible:true,authority:{hostname:host,service,validated:true}}],providerInterpretations:[{url:providerUrl,v3Observation:{id:observation.id,kind:'PROVIDER',url:providerUrl,sha256:observation.sha256,context:observation.context},v3Truth:truth}]});
  return {f,state,memory,observation,truth};
 }
+
+function priorityFixture(t,market){
+ const f=fixture(t),url=`https://www.hbomax.com/${market.toLowerCase()}/en`,source=`<html>retained ${market} provider monthly pricing</html>`,sha256=digest(source),id=`country-v3-${market}`,native=path.join(f.run1,'acquisitions','retained-'+market),reference={observation:id,sha256};
+ fs.mkdirSync(path.join(native,'raw'),{recursive:true});fs.writeFileSync(path.join(native,'raw',sha256+'.body'),source);
+ const derivedCountryCandidates=derivedCountrySourceCandidates({service:'max',market}),state={service:'max',serviceName:'Max',market,derivedCountryCandidates,reads:[],decisions:[{url,eligible:true,acquisitionReserved:true,route:'DECODO'}],acquisitionOutcomes:[{url,runDirectory:native,sourceHash:sha256,sourceClassification:{status:'PROVIDER_SOURCE',finalUrl:url,sourceHash:sha256},countryV3Evaluation:{status:'EVALUATED',sourceHash:sha256,receiptStatus:'HASH_VERIFIED',geoClass:'G1'}}],providerInterpretations:[{url,v3Observation:{id,kind:'PROVIDER',url,sha256,context:{transport:'DECODO',networkGeography:market}},v3Truth:{established:true,prices:{[market]:{established:true,propositions:{PRICE_AMOUNT:{state:'ESTABLISHED',evidence:[{value:12,reference}]},CURRENCY:{state:'ESTABLISHED',evidence:[{value:'AUD',reference}]},MONTHLY_CADENCE:{state:'ESTABLISHED',evidence:[{value:true,reference}]}}}}},countryV3Evaluation:{status:'EVALUATED',sourceHash:sha256,receiptStatus:'HASH_VERIFIED',geoClass:'G1'}}]};
+ return {f,state,sha256,url};
+}
+
+test('AU and NZ priority receipts teach only bounded same-service country routing',t=>{
+ const au=priorityFixture(t,'AU'),nz=priorityFixture(t,'NZ'),memory=createProviderPricingRouteMemory();
+ assert.equal(learnProviderPricingRoutesFromTarget({memory,target:au.state,directory:au.f.run1}).length,1);
+ assert.equal(learnProviderPricingRoutesFromTarget({memory,target:nz.state,directory:nz.f.run1}).length,1);
+ const pl={service:'max',serviceName:'Max',market:'PL',derivedCountryCandidates:derivedCountrySourceCandidates({service:'max',market:'PL'})};
+ const routes=providerPricingRoutesForTarget(memory,pl);assert.deepEqual([...new Set(routes.map(row=>row.url))],['https://www.hbomax.com/pl/pl']);
+ const th={service:'max',serviceName:'Max',market:'TH'},thCandidates=derivedCountrySourceCandidates({service:'max',market:'TH'});
+ assert.deepEqual(thCandidates.map(row=>row.url),['https://www.hbomax.com/th/th','https://www.hbomax.com/th/en']);
+ assert.deepEqual(prioritizeDerivedCountryCandidates(memory,th,thCandidates).map(row=>row.url),['https://www.hbomax.com/th/en','https://www.hbomax.com/th/th']);
+ assert.deepEqual(prioritizeDerivedCountryCandidates(null,th,thCandidates),thCandidates);
+ assert(routes.every(row=>row.meaning==='ROUTING_ONLY_REQUIRES_FRESH_ACQUISITION'&&!Object.hasOwn(row,'sources')));
+ assert.equal(JSON.stringify(routes).includes(au.sha256),false);assert(routes.every(row=>!Object.hasOwn(row,'amount')&&!Object.hasOwn(row,'currency')&&!Object.hasOwn(row,'truth')));
+ const exact={id:'exact-pl',url:'https://help.hbomax.com/pl/pricing',enabled:true,truthAuthority:'NONE',marketScope:'MARKET_SPECIFIC',marketCode:'PL',kind:'DIRECT_SOURCE'};
+ const global={...exact,id:'global',url:'https://www.hbomax.com/',marketScope:'GLOBAL',marketCode:null};
+ const target={...pl,operationsObjective:'PRICE_RESEARCH',researchLinks:[exact,global],researchLinkOutcomes:[],acquisitionOutcomes:[],decisions:[],verified:[]};
+ assert.equal(nextResearchLink(target).url,exact.url);target.researchLinkOutcomes.push({id:exact.id});assert.equal(nextResearchLink(target).url,routes[0].url);
+ assert.deepEqual(providerPricingRoutesForTarget(memory,{...pl,service:'netflix',serviceName:'Netflix'}),[]);
+ assert.deepEqual(providerPricingRoutesForTarget(memory,{...pl,market:'XX',derivedCountryCandidates:[]}),[]);
+});
+
+test('priority route learning rejects altered body, invalid G1, wrong market and unproven route',t=>{
+ const {f,state,sha256}=priorityFixture(t,'AU'),learn=target=>learnProviderPricingRoutesFromTarget({memory:createProviderPricingRouteMemory(),target,directory:f.run1});
+ for(const mutate of [
+  value=>{value.acquisitionOutcomes[0].countryV3Evaluation.geoClass='G0';},
+  value=>{value.acquisitionOutcomes[0].countryV3Evaluation.receiptStatus='MISSING';},
+  value=>{value.providerInterpretations[0].v3Observation.context.networkGeography='NZ';},
+  value=>{value.acquisitionOutcomes[0].sourceClassification.status='THIRD_PARTY_SOURCE';},
+  value=>{value.derivedCountryCandidates=[];},
+  value=>{value.providerInterpretations[0].v3Truth.established=false;}
+ ]){const changed=structuredClone(state);mutate(changed);assert.deepEqual(learn(changed),[]);}
+ fs.writeFileSync(path.join(f.run1,'acquisitions','retained-AU','raw',sha256+'.body'),'tampered');assert.deepEqual(learn(state),[]);
+});
 
 test('batch pricing route requires retained hash-valid provider price propositions and stores no price Truth',t=>{
  const {f,state,memory,observation}=learnedFixture(t),rows=learnProviderPricingRoutesFromTarget({memory,target:state,directory:f.run1});assert.equal(rows.length,1);assert.equal(rows[0].url,providerUrl);assert.deepEqual(rows[0].propositions.filter(name=>name==='PRICE_AMOUNT'),['PRICE_AMOUNT']);

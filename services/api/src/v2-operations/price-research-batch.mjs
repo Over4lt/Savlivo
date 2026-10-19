@@ -11,7 +11,7 @@ const writeJson=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true,m
 const childDirectory=(directory,target,index)=>path.join(directory,'price-research-targets',`${String(index+1).padStart(2,'0')}-${target.serviceId}-${target.targetMarket}`);
 function recoverCompletedPricingRoutes(memory,directory,target,index){
  const child=childDirectory(directory,target,index);
- for(const attempt of ['known-service','known-service-v3-verification-retry-1']){
+ for(const attempt of ['priority-research-links','known-service','known-service-v3-verification-retry-1']){
   const campaign=path.join(child,attempt),file=path.join(campaign,'adaptive-state.json');if(!fs.existsSync(file))continue;
   try{const state=JSON.parse(fs.readFileSync(file,'utf8')),current=state.targets?.[target.id],learned=learnProviderPricingRoutesFromTarget({memory,target:current,directory:path.join(campaign,'targets',target.id,'open-web-discovery')}),useful=new Set(learned.map(row=>row.url));for(const lead of current?.leads??[])if(lead.learnedProviderPricingRoute===true&&!useful.has(lead.url)&&(current.reads??[]).some(read=>read.requestedUrl===lead.url))recordProviderPricingRouteFailure(memory,current,lead.url);}catch{/* Corrupt route metadata cannot grant routing priority. */}
  }

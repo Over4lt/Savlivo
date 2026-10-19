@@ -7,6 +7,7 @@ import path from 'node:path';
 import {executePriceResearchBatch,readPriceResearchBatchProgress} from './price-research-batch.mjs';
 import {TargetResearchFailure} from '../research-v2/live/target-research-failure.mjs';
 import {providerPricingRoutesForTarget} from '../research-v2/live/hybrid-provider-resource-memory.mjs';
+import {derivedCountrySourceCandidates} from '../research-v2/live/derived-country-sources.mjs';
 import {createPriceResearchAdapters} from './price-research-live.mjs';
 import {researchLinkPriorityTarget} from './price-research.mjs';
 import {recordResearchLinkResult} from './research-links.mjs';
@@ -55,6 +56,17 @@ test('completed child route metadata is rebuilt for the next market after resume
  }});assert.equal(first.status,'STOPPED');
  const seen=[];const resumed=await executePriceResearchBatch({...f,executeTarget:async({job,providerPricingRouteMemory})=>{seen.push({service:job.config.serviceId,market:job.config.market,routes:providerPricingRoutesForTarget(providerPricingRouteMemory,{service:job.config.serviceId,serviceName:job.config.serviceId}) .map(row=>row.url)});return {ok:true};}});
  assert.equal(resumed.status,'COMPLETE');assert.deepEqual(seen,[{service:'alpha',market:'NO',routes:[url]},{service:'beta',market:'DE',routes:[]}]);
+});
+
+test('completed priority-only AU route is recovered for NZ without replaying AU Truth',async t=>{
+ const f=fixture(t,[target('max','AU'),target('max','NZ')]),url='https://www.hbomax.com/au/en',source='retained AU provider monthly pricing',sha256=createHash('sha256').update(source).digest('hex'),reference={observation:'country-v3-au',sha256};let stop=false;
+ const first=await executePriceResearchBatch({...f,shouldStop:()=>stop,executeTarget:async({job,directory})=>{
+  assert.equal(job.config.market,'AU');const campaign=path.join(directory,'priority-research-links'),native=path.join(campaign,'targets','price-research:max:AU','open-web-discovery'),acquisition=path.join(native,'acquisitions','retained-AU');fs.mkdirSync(path.join(acquisition,'raw'),{recursive:true});fs.writeFileSync(path.join(acquisition,'raw',sha256+'.body'),source);
+  const state={targets:{'price-research:max:AU':{service:'max',serviceName:'max',market:'AU',derivedCountryCandidates:derivedCountrySourceCandidates({service:'max',market:'AU'}),reads:[],decisions:[{url,eligible:true,route:'DECODO',acquisitionReserved:true}],acquisitionOutcomes:[{url,runDirectory:acquisition,sourceHash:sha256,sourceClassification:{status:'PROVIDER_SOURCE',finalUrl:url,sourceHash:sha256},countryV3Evaluation:{status:'EVALUATED',sourceHash:sha256,receiptStatus:'HASH_VERIFIED',geoClass:'G1'}}],providerInterpretations:[{url,v3Observation:{id:reference.observation,kind:'PROVIDER',url,sha256,context:{transport:'DECODO',networkGeography:'AU'}},v3Truth:{established:true,prices:{AU:{established:true,propositions:{PRICE_AMOUNT:{state:'ESTABLISHED',evidence:[{value:11.99,reference}]},CURRENCY:{state:'ESTABLISHED',evidence:[{value:'AUD',reference}]},MONTHLY_CADENCE:{state:'ESTABLISHED',evidence:[{value:true,reference}]}}}}}}]}}};fs.writeFileSync(path.join(campaign,'adaptive-state.json'),JSON.stringify(state));stop=true;return {verified:3};
+ }});assert.equal(first.status,'STOPPED');
+ const resumed=await executePriceResearchBatch({...f,executeTarget:async({job,providerPricingRouteMemory})=>{
+  assert.equal(job.config.market,'NZ');const routes=providerPricingRoutesForTarget(providerPricingRouteMemory,{service:'max',serviceName:'max',market:'NZ',derivedCountryCandidates:derivedCountrySourceCandidates({service:'max',market:'NZ'})});assert.deepEqual(routes.map(row=>row.url),['https://www.hbomax.com/nz/en']);assert.equal(JSON.stringify(routes).includes(sha256),false);assert.equal(routes[0].sources,undefined);return {verified:2};
+ }});assert.equal(resumed.status,'COMPLETE');
 });
 
 test('stop after an active child preserves completion and never starts the next child',async t=>{
