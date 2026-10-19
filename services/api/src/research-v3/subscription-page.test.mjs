@@ -7,6 +7,8 @@ import {reviewProviderSeedAuthority} from './provider-authority-review.mjs';
 import {context,digest} from './model.mjs';
 import {projectObservation} from './projection.mjs';
 import {admittedProjectionCandidates} from './native-structured.mjs';
+import {projectV3SuggestedCandidates} from './suggested-projection.mjs';
+import {authorityBinding} from './discovery-authority.mjs';
 import {evaluate} from './truth.mjs';
 
 const host='northstar.example',url=`https://${host}/orbit/plans`,market='DE';
@@ -126,12 +128,12 @@ test('captured SG help-table structure keeps only distinct monthly S$ choices',(
 function selectedHelpTruth(market,body,{receipt=true,changedHash=false}={}){
  const sourceUrl='https://help.example.com/en-GB/article/price?redirect=true',id='selected-'+market;
  const selected=body.replace('<body>',`<body><button aria-haspopup="listbox" aria-label="Change country or language. Current country ${market}">Country</button>`),sha=digest(selected);
- const selectedOptions={BR:'Brazil (Português)',MY:'Malaysia (English)',PL:'Poland (English)',SG:'Singapore (English)',TW:'Taiwan (English)',AE:'United Arab Emirates (English)',PH:'Philippines (English)',SA:'Saudi Arabia (English)',MX:'Mexico (Español)',ID:'Indonesia (English)',ZA:'South Africa (English)',IL:'Israel (English)',QA:'Qatar (English)',EG:'Egypt (English)',RO:'Romania (English)',CL:'Chile (Español)',CO:'Colombia (Español)'};
+ const selectedOptions={BR:'Brazil (Português)',MY:'Malaysia (English)',PL:'Poland (English)',SG:'Singapore (English)',TW:'Taiwan (English)',AE:'United Arab Emirates (English)',PH:'Philippines (English)',SA:'Saudi Arabia (English)',MX:'Mexico (Español)',ID:'Indonesia (English)',ZA:'South Africa (English)',IL:'Israel (English)',QA:'Qatar (English)',EG:'Egypt (English)',RO:'Romania (English)',CL:'Chile (Español)',CO:'Colombia (Español)',TR:'Turkey (English)'};
  const marketSelection={kind:'PROVIDER_SELECTED_MARKET',selectionMode:'SELECTED_OPTION',observationId:id,targetMarket:market,transport:'DIRECT_BROWSER',initialUrl:sourceUrl,finalUrl:sourceUrl,providerHost:'help.example.com',preSourceSha256:digest('initial shell'),finalSourceSha256:changedHash?'0'.repeat(64):sha,preSelectedCode:'US',selectedCode:market,selectedOption:selectedOptions[market],selectorLabel:`Change country or language. Current country ${market}`};
  const observation={id,kind:'PROVIDER',authority:'REVIEWED_PROVIDER',url:sourceUrl,context:context('DIRECT'),outcome:'OK',truncated:false,completeness:'COMPLETE',format:'WEB',contentType:'text/html',httpStatus:200,access:[{decision:'ALLOWED'}],body:selected,sha256:sha,...(receipt?{marketSelection}:{})};
  const objective={kind:'PRICE',serviceId:'disney-plus',serviceName:'Disney+',providerHosts:['help.example.com'],markets:[market],seeds:[sourceUrl]};
  const projection=projectObservation(observation,objective);observation.nativeStructured=projection.nativeStructured;observation.candidates=admittedProjectionCandidates(projection);
- return {projection,truth:evaluate({objective,observations:[observation],attempts:[],policyBlocks:[],stop:null})};
+ return {projection,truth:evaluate({objective,observations:[observation],attempts:[],policyBlocks:[],stop:null}),observation,objective};
 }
 
 for(const [market,expected,rows] of [
@@ -194,6 +196,35 @@ test('ambiguous R and Lei markers need a validated market receipt',()=>{
   assert.deepEqual(interpretSubscriptionPage({body,url:'https://help.example.com/article/price',providerName:'Disney+'}).offerings,[]);
   assert.equal(selectedHelpTruth(market,body).truth.established,true);
  }
+});
+
+test('TR selected-market source binds explicit TL monthly prices to two standalone TRY offerings',()=>{
+ const body=retainedHelpTable('TR',[
+  monthlyRow('Disney+ with Ads','249.90 TL',{annual:'2,499.00 TL'}),
+  monthlyRow('Disney+ without Ads','449.90 TL',{annual:'4,499.00 TL'}),
+  monthlyRow('Extra Member','99.90 TL'),
+ ]),url='https://help.example.com/en-GB/article/price?redirect=true';
+ const unbound=interpretSubscriptionPage({body,url,providerName:'Disney+'});assert.deepEqual(unbound.offerings,[]);
+ const unrelated=interpretSubscriptionPage({body,url,providerName:'Disney+',marketCurrencyHint:'EUR'});assert.deepEqual(unrelated.offerings,[]);
+ const parsed=interpretSubscriptionPage({body,url,providerName:'Disney+',marketCurrencyHint:'TRY'});
+ assert.deepEqual(parsed.offerings.map(row=>[row.name,...row.charges.map(charge=>[charge.amount,charge.currency,charge.cadence,charge.billingCadence])]),[
+  ['Disney+ with Ads',[249.9,'TRY','MONTHLY','MONTHLY']],
+  ['Disney+ without Ads',[449.9,'TRY','MONTHLY','MONTHLY']],
+ ]);
+ const accepted=selectedHelpTruth('TR',body);assert.equal(accepted.truth.established,true);
+ assert.deepEqual(accepted.projection.source.offers.map(row=>[row.amount,row.currency,row.cadence]),[[249.9,'TRY','MONTHLY'],[449.9,'TRY','MONTHLY']]);
+ assert.deepEqual(accepted.truth.offers.map(row=>[row.propositions.PRICE_AMOUNT.value,row.propositions.CURRENCY.value,row.propositions.TARGET_MARKET.value]),[[249.9,'TRY','TR'],[449.9,'TRY','TR']]);
+ const suggested=projectV3SuggestedCandidates({observation:accepted.observation,objective:accepted.objective,targetMarket:'TR',providerAuthority:{status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(accepted.objective,accepted.observation.url)},truth:accepted.truth});
+ assert.deepEqual(suggested.map(row=>[row.plan,row.amount,row.currency,row.provenance,row.sourceHash]),[['Disney+ with Ads',249.9,'TRY','V3_SOURCE_RESEARCH',accepted.observation.sha256],['Disney+ without Ads',449.9,'TRY','V3_SOURCE_RESEARCH',accepted.observation.sha256]]);
+ for(const options of [{receipt:false},{changedHash:true}]){const blocked=selectedHelpTruth('TR',body,options);assert.equal(blocked.truth.established,false);assert.equal(blocked.truth.offers.some(row=>row.propositions.TARGET_MARKET?.state==='ESTABLISHED'),false);}
+});
+
+test('TL letters alone and monthly-looking TL outside a proved TRY context never establish money',()=>{
+ const body=retainedHelpTable('TR',[monthlyRow('Disney+ with Ads','249.90 TL'),monthlyRow('Disney+ without Ads','449.90 TL')]);
+ for(const hint of [null,'EUR','USD'])assert.deepEqual(interpretSubscriptionPage({body,url:'https://help.example.com/tr/article/price',providerName:'Disney+',marketCurrencyHint:hint}).offerings,[]);
+ assert.equal(selectedHelpTruth('RO',body).truth.established,false);
+ const letters=retainedHelpTable('TR',[monthlyRow('Disney+ with Ads','Top Level access'),monthlyRow('Disney+ without Ads','Total Limit access')]);
+ assert.deepEqual(interpretSubscriptionPage({body:letters,url:'https://help.example.com/article/price',providerName:'Disney+',marketCurrencyHint:'TRY'}).offerings,[]);
 });
 
 const presented=({name='Aurora',title=`${name} | Personal finance app subscription`,description=`${name} provides consumers access to its budgeting application.`,body='' }={})=>`<html><head><title>${title}</title><meta property="og:title" content="${title}"><meta name="description" content="${description}"><meta property="og:description" content="${description}"></head><body>${body}</body></html>`;
