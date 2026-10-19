@@ -24,12 +24,16 @@ function sourceCondition(expression,host){
  return null;
 }
 
-function parse(body,url){
+function parse(body,url,{maskScripts=false}={}){
  let host=null;try{host=new URL(url).hostname;}catch{}
+ // The Max ES page includes a script string resembling an open HTML tag.
+ // Mask script contents for this proven layout while keeping every offset
+ // aligned to the unmodified source used by V3 locators and hashes.
+ const scanned=maskScripts?body.replace(/(<script\b(?:[^>"']|"[^"]*"|'[^']*')*>)[^]*?(<\/script\s*>)/giu,(whole,open,close)=>open+' '.repeat(whole.length-open.length-close.length)+close):body;
  const root={tag:'#document',start:0,openEnd:0,contentEnd:body.length,end:body.length,parent:null,attrs:{},hidden:false},nodes=[],segments=[],stack=[root];let cursor=0,tokens=0,limited=false;
  const token=/<!--[^]*?-->|<\/?([a-z][\w:-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*>/giu;
- const add=end=>{if(end<=cursor)return;const parent=stack.at(-1),raw=body.slice(cursor,end),text=normalized(raw);if(text&&!parent.hidden)segments.push({start:cursor,end,text,parent});};
- for(let match;(match=token.exec(body));){if(++tokens>131072){limited=true;break;}add(match.index);cursor=token.lastIndex;if(!match[1])continue;
+ const add=end=>{if(end<=cursor)return;const parent=stack.at(-1),raw=scanned.slice(cursor,end),text=normalized(raw);if(text&&!parent.hidden)segments.push({start:cursor,end,text,parent});};
+ for(let match;(match=token.exec(scanned));){if(++tokens>131072){limited=true;break;}add(match.index);cursor=token.lastIndex;if(!match[1])continue;
   const tag=match[1].toLowerCase(),closing=match[0][1]==='/';
   if(closing){const index=stack.findLastIndex(n=>n.tag===tag);if(index>0){for(const node of stack.slice(index)){node.contentEnd=match.index;node.end=token.lastIndex;}stack.length=index;}continue;}
   const attributes=attrs(match[0].slice(tag.length+1,-1)),parent=stack.at(-1),condition=sourceCondition(attributes['x-show'],host),staticHidden=/display\s*:\s*none|visibility\s*:\s*hidden/i.test(attributes.style??'')&&!Object.hasOwn(attributes,'x-show'),hidden=parent.hidden||Object.hasOwn(attributes,'hidden')||attributes['aria-hidden']==='true'||staticHidden||condition===false;
@@ -338,13 +342,43 @@ function maxMonthlyDivCards(parsed,providerName,marketCurrencyHint){
  return rows.length>=2&&rows.length<=8&&new Set(rows.map(row=>comparable(row.name))).size===rows.length?rows:[];
 }
 
+// Spain's official Max page presents the selected monthly tab and sibling
+// data-testid cards. Bind each ordinary price to its own purchase action.
+function maxSpanishMonthlyCards(parsed,providerName,marketCurrencyHint){
+ if(providerName!=='Max'||parsed.host!=='www.hbomax.com'||marketCurrencyHint!=='EUR'||!parsed.nodes.some(node=>node.tag==='html'&&node.attrs.lang==='es-ES'))return [];
+ const tabs=parsed.nodes.filter(node=>node.tag==='button'&&node.attrs.role==='tab'&&node.attrs['aria-selected']==='true'&&!node.hidden);
+ if(tabs.length!==1||tabs[0].attrs['aria-label']!=='mensual')return [];
+ const containers=parsed.nodes.filter(node=>node.tag==='div'&&node.attrs['data-testid']==='plan-card-container'&&!node.hidden);
+ if(containers.length!==1)return [];
+ const cards=parsed.nodes.filter(node=>node.tag==='div'&&node.attrs['data-testid']==='plan-card'&&node.parent===containers[0]&&!node.hidden);
+ const rows=[];
+ for(const card of cards){
+  const headings=parsed.nodes.filter(node=>node.attrs['data-testid']==='plan-card-title'&&ancestors(node).includes(card)&&!node.hidden);
+  if(headings.length!==1)continue;
+  const name=parsed.text(headings[0]);
+  if(!name||name.length>80||nonStandalonePresentation(name,providerName)||/\bDAZN\b/iu.test(name))continue;
+  const prices=parsed.nodes.filter(node=>node.attrs['data-testid']==='price-container'&&ancestors(node).includes(card)&&!node.hidden);
+  if(prices.length!==1)continue;
+  const price=parsed.text(prices[0]),match=/^(\d+(?:,\d{2})?)\s*€\s*\/\s*mes$/iu.exec(price);
+  if(!match)continue;
+  const amount=number(match[1]);if(amount===null)continue;
+  const actions=parsed.nodes.filter(node=>node.tag==='a'&&ancestors(node).includes(card)&&!node.hidden).filter(node=>{
+   try{const url=new URL(node.attrs.href.replaceAll('&amp;','&'));return url.hostname==='auth.hbomax.com'&&url.pathname==='/addon-picker'&&url.searchParams.get('pricePlanId')===card.attrs.id&&url.searchParams.get('flow')==='purchase'&&/^Seleccionar plan$/iu.test(parsed.text(node));}catch{return false;}
+  });
+  if(actions.length!==1)continue;
+  rows.push({name,nameLocator:locator(parsed.body,headings[0].openEnd,headings[0].contentEnd),presentation:locator(parsed.body,card.start,card.end),charges:[{amount,currency:'EUR',cadence:'MONTHLY',billingCadence:'MONTHLY',consumer:true,relationship:'SUBSCRIPTION',role:'ORDINARY',monetaryKind:'SUBSCRIPTION_CHARGE',amountDerivation:'EXPLICIT',text:price+'; '+parsed.text(actions[0])}]});
+ }
+ return rows.length>=2&&rows.length<=8&&new Set(rows.map(row=>comparable(row.name))).size===rows.length?rows:[];
+}
+
 function maxSourceIdentity(parsed,providerName,offerings){
  if(providerName!=='Max'||offerings.length<2||!['help.hbomax.com','www.hbomax.com'].includes(parsed.host))return null;
  const title=uniqueRow(fieldRows(parsed).filter(row=>row.kind==='TITLE'));
  if(!title||!exactWord(title.value,'HBO Max'))return null;
- const statement=parsed.segments.find(row=>parsed.host==='help.hbomax.com'?/\bYou can subscribe to HBO Max\b/iu.test(row.text):/Wähle einen unserer HBO Max Tarife\b/iu.test(row.text));
+ const spanish=parsed.host==='www.hbomax.com'&&parsed.nodes.some(node=>node.tag==='html'&&node.attrs.lang==='es-ES');
+ const statement=parsed.segments.find(row=>parsed.host==='help.hbomax.com'?/\bYou can subscribe to HBO Max\b/iu.test(row.text):spanish?/\bplanes de HBO Max\b/iu.test(row.text):/Wähle einen unserer HBO Max Tarife\b/iu.test(row.text));
  if(!statement)return null;
- const relation=parsed.host==='help.hbomax.com'?/subscribe/iu.exec(statement.text):/Tarife/iu.exec(statement.text);
+ const relation=parsed.host==='help.hbomax.com'?/subscribe/iu.exec(statement.text):spanish?/planes/iu.exec(statement.text):/Tarife/iu.exec(statement.text);
  const source=parsed.body.slice(statement.start,statement.end),at=relation&&source.indexOf(relation[0]);
  const identity=exactLocator(parsed,title,'Max');if(!identity||!relation||at<0)return null;
  return {name:'Max',type:'Service',identity,subscription:{kind:'EXPLICIT_SUBSCRIPTION',locator:locator(parsed.body,statement.start+at,statement.start+at+relation[0].length)},support:['PAGE_TITLE','PROVIDER_PLAN_RELATIONSHIP']};
@@ -356,6 +390,6 @@ function enrichFromProse(parsed,offerings){
 }
 
 export function interpretSubscriptionPage({body,url,providerName=null,currencyHint=null,marketCurrencyHint=null}){
- if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};const parsed=parse(body,url),maxRows=[...maxHelpPricingRows(parsed,providerName,currencyHint,marketCurrencyHint),...maxMonthlyDivCards(parsed,providerName,marketCurrencyHint)],cards=maxRows.length?[]:planCards(parsed,currencyHint,marketCurrencyHint),lists=maxRows.length||cards.length?[]:pricingLists(parsed,currencyHint,marketCurrencyHint),tables=maxRows.length||cards.length||lists.length?[]:pricingTables(parsed,currencyHint,providerName,marketCurrencyHint),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=maxSourceIdentity(parsed,providerName,maxRows)??pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...maxRows,...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!nonStandalonePresentation(row.name,providerName));enrichFromProse(parsed,offerings.filter(row=>!maxRows.includes(row)&&!tables.includes(row)));
+ if(typeof body!=='string'||!body)return {services:[],offerings:[],limited:false};let maxSpanishSource=false;try{maxSpanishSource=providerName==='Max'&&new URL(url).hostname==='www.hbomax.com'&&/<html\b[^>]*\blang=["']es-ES["']/iu.test(body.slice(0,2048));}catch{/* Invalid URLs use the ordinary parser. */}const parsed=parse(body,url,{maskScripts:maxSpanishSource}),maxRows=[...maxHelpPricingRows(parsed,providerName,currencyHint,marketCurrencyHint),...maxMonthlyDivCards(parsed,providerName,marketCurrencyHint),...maxSpanishMonthlyCards(parsed,providerName,marketCurrencyHint)],cards=maxRows.length?[]:planCards(parsed,currencyHint,marketCurrencyHint),lists=maxRows.length||cards.length?[]:pricingLists(parsed,currencyHint,marketCurrencyHint),tables=maxRows.length||cards.length||lists.length?[]:pricingTables(parsed,currencyHint,providerName,marketCurrencyHint),components=componentIdentities(parsed,providerName),planServices=planPageIdentities(parsed,cards.length>0),presented=maxSourceIdentity(parsed,providerName,maxRows)??pagePresentationIdentity(parsed,providerName)??nativePlanPresentationIdentity(parsed,providerName)??pricingPageIdentity(parsed,providerName,lists)??pricingTableIdentity(parsed,providerName,tables),services=components.length?components:planServices.length?planServices:presented?[presented]:[],offerings=[...maxRows,...cards.map(card=>({name:card.name,nameLocator:locator(body,card.nameNode.openEnd,card.nameNode.contentEnd),presentation:locator(body,card.node.start,card.node.end),charges:card.charges})),...lists,...tables].filter(row=>!nonStandalonePresentation(row.name,providerName));enrichFromProse(parsed,offerings.filter(row=>!maxRows.includes(row)&&!tables.includes(row)));
  return {services,offerings,limited:parsed.limited};
 }

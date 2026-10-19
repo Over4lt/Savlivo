@@ -17,6 +17,7 @@ function fixture(serviceId='streamco'){
   if(sql.startsWith('UPDATE')){const row=rows.find(item=>item.id===args[0]);Object.assign(row,{url:args[1],kind:args[2],market_scope:args[3],market_code:args[4],enabled:args[5],updated_at:new Date()});return {rows:[row]};}
   if(sql.startsWith('DELETE')){rows.splice(rows.findIndex(row=>row.id===args[0]),1);return {rows:[]};}
   if(sql.includes('WHERE id=$1'))return {rows:rows.filter(row=>row.id===args[0])};
+  if(sql.includes("last_result='VERIFIED'"))return {rows:rows.filter(row=>row.service_id===args[0]&&row.enabled&&row.market_scope==='MARKET_SPECIFIC'&&row.last_result==='VERIFIED')};
   if(sql.includes('enabled=true'))return {rows:rows.filter(row=>row.service_id===args[0]&&row.enabled&&(row.market_scope==='GLOBAL'||row.market_code===args[1])).sort((a,b)=>Number(a.market_scope!=='MARKET_SPECIFIC')-Number(b.market_scope!=='MARKET_SPECIFIC'))};
   return {rows:rows.filter(row=>row.service_id===args[0])};
  }};ops.config.client=client;return {rows,calls,ops,client};
@@ -49,6 +50,17 @@ test('Max ES Direct source persists independently of US, DE and other services, 
  await researchLinksRequest({method:'PATCH',serviceId:'max',linkId:created.row.id,body:es,ops,actor:'admin'});
  assert.deepEqual((await loadApplicableResearchLinks({serviceId:'max',canonicalSlug:'max',market:'ES',client})).links.map(row=>row.id),[created.row.id]);
  await assert.rejects(researchLinksRequest({method:'POST',serviceId:'max',body:es,ops,actor:'admin'}),error=>error.status===409&&error.message==='RESEARCH_LINK_DUPLICATE');
+});
+
+test('Max ES snapshot freezes verified same-service DE link as a routing hint without making it an ES Research Link',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'max-es-pattern-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const {rows,client}=fixture('max');rows.push({id,service_id:'max',url:'https://www.hbomax.com/de/de',kind:'DIRECT_SOURCE',market_scope:'MARKET_SPECIFIC',market_code:'DE',enabled:true,created_at:new Date(),updated_at:new Date(),last_used_at:new Date(),last_result:'VERIFIED'});
+ const first=await researchLinkSnapshot({directory,serviceId:'max',canonicalSlug:'max',market:'ES',client});
+ assert.deepEqual(first.links,[]);assert.deepEqual(first.patternLinks.map(row=>row.url),['https://www.hbomax.com/de/de']);
+ rows[0].enabled=false;
+ assert.deepEqual(await researchLinkSnapshot({directory,serviceId:'max',canonicalSlug:'max',market:'ES',client}),first);
+ const file=path.join(directory,'research-links-snapshot.json'),saved=JSON.parse(fs.readFileSync(file,'utf8'));saved.patternLinks[0].serviceId='other-service';fs.writeFileSync(file,JSON.stringify(saved));
+ await assert.rejects(researchLinkSnapshot({directory,serviceId:'max',canonicalSlug:'max',market:'ES',client}),/RESEARCH_LINK_SNAPSHOT_INVALID/);
 });
 
 test('Research link validation rejects unsafe URLs, malformed scope and authority-bearing fields',()=>{

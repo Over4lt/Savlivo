@@ -50,6 +50,13 @@ export async function loadApplicableResearchLinks({serviceId,canonicalSlug,marke
  return {persistedVerifiedCount,links:links.rows.flatMap(row=>{try{const link=validateResearchLink({url:row.url,kind:row.kind,marketScope:row.market_scope,marketCode:row.market_code,enabled:true});return [{id:row.id,...link,serviceId,truthAuthority:'NONE',lastResult:row.last_result??null}];}catch{return [];}})};
 }
 
+// Prior successful links from this service are routing hints only. They are
+// snapshotted separately and never become applicable operator Research Links.
+export async function loadServiceResearchLinkHints({serviceId,client=pool}){
+ const result=await client.query(`${select} WHERE service_id=$1 AND enabled=true AND market_scope='MARKET_SPECIFIC' AND last_result='VERIFIED' ORDER BY last_used_at DESC NULLS LAST,created_at,id LIMIT 20`,[serviceId]);
+ return result.rows.flatMap(row=>{try{const link=validateResearchLink({url:row.url,kind:row.kind,marketScope:row.market_scope,marketCode:row.market_code,enabled:true});return [{id:row.id,...link,serviceId,truthAuthority:'NONE',lastResult:'VERIFIED'}];}catch{return [];}});
+}
+
 export async function recordResearchLinkResult({id,attemptedAt,result,client=pool}){
  if(!results.has(result)||!Number.isFinite(Date.parse(attemptedAt)))return;
  await client.query('UPDATE price_research_links SET last_used_at=$2,last_result=$3 WHERE id=$1 AND (last_used_at IS NULL OR last_used_at<=$2)',[id,attemptedAt,result]);

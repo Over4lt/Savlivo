@@ -165,3 +165,39 @@ test('a Swedish provider page is not accepted as US price evidence',()=>{
  const germanAsUS=countryFixture('US',{body:cases.DE.body,url:cases.DE.url}),crossCountry=evaluateCountryProviderTruth(germanAsUS);
  assert.equal(projectEstablishedV3Offerings({...germanAsUS.target,...crossCountry}).length,0);
 });
+
+// Structural excerpt of the retained ES page (full body SHA-256
+// 98015f36ea21299b63f271eb9238c14f824427eb874a5633db3dd75a36cd5d5f).
+// This local excerpt is intentionally not represented as the production body.
+const esCard=(id,name,price,route='/addon-picker')=>`<div id="${id}" data-testid="plan-card"><span aria-label="${name}" data-testid="plan-card-title" role="heading">${name}</span><div><span data-testid="price-container" role="text"><span class="price">${price} €</span>/mes</span></div><a href="https://auth.hbomax.com${route}?pricePlanId=${id}&amp;flow=purchase">Seleccionar plan</a></div>`;
+const esExcerpt=`<html lang="es-ES"><head><title>HBO Max | Disfruta de HBO, Discovery, televisión y películas</title></head><body><script>const template = '<div data-testid="plan-card-container"></div>';</script><h1>Empieza a disfrutar con los planes de HBO Max desde solo 6,99 €/mes</h1><button role="tab" aria-label="mensual" aria-selected="true">mensual</button><button role="tab" aria-label="anual" aria-selected="false">anual</button><div data-testid="plan-card-container">${esCard('31014','Básico con anuncios','6,99')}${esCard('30920','Estándar','10,99')}${esCard('30924','Premium','15,99')}${esCard('28610','HBO Max DAZN','44,99','/create-account')}</div><footer><a href="/affiliate">Programa de afiliados</a></footer></body></html>`;
+const esUrl='https://www.hbomax.com/es/es',esPlans=[['Básico con anuncios',6.99,'EUR'],['Estándar',10.99,'EUR'],['Premium',15.99,'EUR']];
+
+test('Max ES provider-owned affiliate navigation is not a third-party price presentation',()=>{
+ const body=esExcerpt.replace('</footer>',`<script>${JSON.stringify(JSON.stringify({url:'/affiliate'}))}</script></footer>`),hash=digest(body),page={url:esUrl,requestedUrl:esUrl,outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,bodyHash:hash,sourceIntegrity:{sha256:hash},accessDecisions:[{decision:'ALLOWED'}]};
+ assert.equal(classifyAcquiredSource({target:target('ES'),page,body,observationId:'es-excerpt'}).status,'PROVIDER_SOURCE');
+ const disclaimer=body.replace('</footer>','<p>Not affiliated with HBO Max</p></footer>'),otherHash=digest(disclaimer);
+ assert.equal(classifyAcquiredSource({target:target('ES'),page:{...page,bodyHash:otherHash,sourceIntegrity:{sha256:otherHash}},body:disclaimer,observationId:'es-third-party'}).status,'THIRD_PARTY_SOURCE');
+ const affiliate=body.replace('</footer>','<p>This is an affiliate reseller page.</p></footer>'),affiliateHash=digest(affiliate);
+ assert.equal(classifyAcquiredSource({target:target('ES'),page:{...page,bodyHash:affiliateHash,sourceIntegrity:{sha256:affiliateHash}},body:affiliate,observationId:'es-affiliate-reseller'}).status,'THIRD_PARTY_SOURCE');
+});
+
+test('Max ES monthly cards bind three standalone offerings and exclude the DAZN bundle',()=>{
+ const parsed=interpretSubscriptionPage({body:esExcerpt,url:esUrl,providerName:'Max',marketCurrencyHint:'EUR'});
+ assert.deepEqual(parsed.services.map(row=>row.name),['Max']);
+ assert.deepEqual(parsed.offerings.map(row=>[row.name,row.charges[0].amount,row.charges[0].currency]),esPlans);
+ assert(parsed.offerings.every(row=>row.charges.length===1&&row.charges[0].cadence==='MONTHLY'&&row.charges[0].billingCadence==='MONTHLY'));
+ const fixture=countryFixture('ES',{body:esExcerpt,url:esUrl}),result=evaluateCountryProviderTruth(fixture),established=projectEstablishedV3Offerings({...fixture.target,...result});
+ assert.deepEqual(established.map(row=>[row.name,row.ordinaryRecurringPrice.amount,row.ordinaryRecurringPrice.currency]),esPlans);
+ assert.equal(result.v3SuggestedCandidates.length,3);
+ assert(result.v3SuggestedCandidates.every(row=>row.provenance==='V3_SOURCE_RESEARCH'));
+});
+
+test('Max ES cards reject wrong locale, annual selection, mismatched action, and wrong market receipt',()=>{
+ const parse=body=>interpretSubscriptionPage({body,url:esUrl,providerName:'Max',marketCurrencyHint:'EUR'}).offerings;
+ assert.deepEqual(parse(esExcerpt.replace('lang="es-ES"','lang="de-DE"')),[]);
+ assert.deepEqual(parse(esExcerpt.replace('aria-label="mensual" aria-selected="true"','aria-label="mensual" aria-selected="false"').replace('aria-label="anual" aria-selected="false"','aria-label="anual" aria-selected="true"')),[]);
+ assert.deepEqual(parse(esExcerpt.replace('pricePlanId=30920','pricePlanId=99999')).map(row=>row.name),['Básico con anuncios','Premium']);
+ const fixture=countryFixture('ES',{body:esExcerpt,url:esUrl});fixture.sourceCheck.receipt.geo.geoCountry='DE';
+ assert.throws(()=>evaluateCountryProviderTruth(fixture),/COUNTRY_PROVIDER_RECEIPT_INVALID/);
+});

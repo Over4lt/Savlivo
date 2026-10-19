@@ -8,6 +8,15 @@ import {providerSourceDomainFamily} from '../../research-v3/provider-source-fami
 import {normalizeFrontierUrl} from './source-frontier.mjs';
 
 const thirdParty=/\b(?:not affiliated with|unaffiliated with|independent of|unofficial|third.party (?:seller|reseller|review)|affiliate|reseller|comparison site|news article|independent review)\b/iu;
+// Max's own /affiliate footer route appears in its HTML and serialized CMS
+// navigation. Its path label is not a statement that the pricing page is an
+// affiliate or reseller. Only remove this exact first-party route token;
+// explicit third-party prose remains subject to the unchanged classifier.
+function thirdPartyPresentation(body,target,url){
+ let reviewBody=body;
+ try{if(target?.service==='max'&&new URL(url).hostname==='www.hbomax.com')reviewBody=body.replace(/["']\/affiliate(?=\\*["'])/gu,'');}catch{/* Invalid URLs remain under the ordinary classifier. */}
+ return thirdParty.test(reviewBody);
+}
 const identity=value=>String(value??'').normalize('NFKC').toLocaleLowerCase('en').match(/[\p{L}\p{N}]+/gu)?.join(' ')??'';
 function competingProviderDeclaration(body,serviceName){
  const expected=identity(serviceName),compatible=value=>{const current=identity(value);return current&&expected&&(current===expected||current.startsWith(expected+' ')||current.endsWith(' '+expected)||current.includes(' '+expected+' '));};
@@ -34,7 +43,7 @@ export function classifyAcquiredSource({target,page,body,observationId}){
  if(!sourceHash||page?.bodyHash!==sourceHash||page?.sourceIntegrity?.sha256!==sourceHash)return {...base,reason:'SOURCE_INTEGRITY_INVALID'};
  const input={contractVersion:1,observationId,target:{service:target.service,serviceName:target.serviceName},page:{url:finalUrl,requestedUrl:page.requestedUrl??finalUrl,outcome:page.outcome??'ERROR',httpStatus:page.httpStatus??0,contentType:String(page.contentType??'').split(';')[0].toLowerCase(),truncated:page.truncated===true,bodyHash:sourceHash,sourceIntegrity:{sha256:sourceHash},rawSource:{text:body},accessDecisions:(page.accessDecisions??[]).map(row=>({decision:row.decision}))}};
  let review;try{review=reviewV2CandidateAuthority(input);}catch{return {...base,reason:'SOURCE_REVIEW_INVALID'};}
- if(thirdParty.test(body))return {...base,status:'THIRD_PARTY_SOURCE',reason:'EXPLICIT_THIRD_PARTY_PRESENTATION',review};
+ if(thirdPartyPresentation(body,target,finalUrl))return {...base,status:'THIRD_PARTY_SOURCE',reason:'EXPLICIT_THIRD_PARTY_PRESENTATION',review};
  if(competingProviderDeclaration(body,target.serviceName))return {...base,status:'THIRD_PARTY_SOURCE',reason:'COMPETING_SERVICE_IDENTITY',review};
  if(review.providerAuthorityBinding)return {...base,status:'PROVIDER_SOURCE',reason:review.providerAuthorityBinding.reason,review,binding:review.providerAuthorityBinding};
  const family=providerSourceDomainFamily(target,finalUrl);
