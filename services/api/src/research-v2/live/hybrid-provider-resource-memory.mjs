@@ -118,7 +118,7 @@ export function recordHybridProviderResourceFailure({root,target,resourceId,outc
 // are market scoped. Known-service PRICE_RESEARCH also uses this bounded,
 // routing-only batch view. It is rebuilt from completed child checkpoints on
 // resume; no prior-market observation or Truth is passed to a new target.
-export function createProviderPricingRouteMemory(){return {routes:new Map(),byService:new Map()};}
+export function createProviderPricingRouteMemory(){return {routes:new Map(),byService:new Map(),methodOutcomes:[]};}
 const validatedPricingRouteRows=new WeakSet();
 export const isValidatedPricingRouteLearning=row=>!!row&&validatedPricingRouteRows.has(row);
 const validatedPricingRouteBodies=new WeakMap();
@@ -127,6 +127,12 @@ const pricingRouteLimit=8;
 const pricingPropositions=new Set(['PRICE_AMOUNT','PRICE_CURRENCY','PRICE_CADENCE','PRICE_ROLE']);
 const routeKey=(service,url)=>service+'|'+url;
 const routeRows=(memory,service)=>[...(memory?.byService?.get(service)?.values()??[])];
+function recentMethodPenalty(memory,service,market,url,now=Date.now()){
+ const relevant=memory?.methodOutcomesByTargetUrl?.get(service+'|'+market+'|'+url)??(memory?.methodOutcomes??[]).filter(row=>row.service===service&&row.market===market&&row.url===url);
+ const rows=relevant.filter(row=>Date.parse(row.at)<=now&&now-Date.parse(row.at)<=7*86400000).sort((a,b)=>a.at.localeCompare(b.at));
+ const lastSuccess=rows.findLastIndex(row=>row.result==='SUCCESS');
+ return Math.min(2,rows.slice(lastSuccess+1).filter(row=>row.result!=='SUCCESS').length);
+}
 
 export function learnProviderPricingRoutesFromTarget({memory,target,directory,now=new Date().toISOString()}){
  if(!memory?.routes||!target?.service||!target?.serviceName||!validTime(now))return [];
@@ -164,19 +170,19 @@ export function learnProviderPricingRoutesFromTarget({memory,target,directory,no
 
 export function providerPricingRoutesForTarget(memory,target){
  if(!memory?.routes||!target?.service||!target?.serviceName)return [];
- return routeRows(memory,target.service).filter(row=>row.serviceName===target.serviceName&&row.successes>0&&row.failures<row.successes+2).sort((a,b)=>(b.successes-b.failures)-(a.successes-a.failures)||b.lastSuccessAt.localeCompare(a.lastSuccessAt)||a.url.localeCompare(b.url)).flatMap(row=>{
+ return routeRows(memory,target.service).filter(row=>row.serviceName===target.serviceName&&row.successes>0&&row.failures<row.successes+2).sort((a,b)=>(b.successes-b.failures-recentMethodPenalty(memory,b.service,target.market,b.url))-(a.successes-a.failures-recentMethodPenalty(memory,a.service,target.market,a.url))||b.lastSuccessAt.localeCompare(a.lastSuccessAt)||a.url.localeCompare(b.url)).flatMap(row=>{
   if(!row.countryRouteEvidenceSha256)return [structuredClone(row)];
   // A country route is reused only through this target's independently
   // supported route map. Neither the old body nor its receipt is projected.
   const candidates=(target.derivedCountryCandidates??[]).filter(candidate=>candidate.service===target.service&&candidate.market===target.market&&candidate.providerRouteEvidenceSha256===row.countryRouteEvidenceSha256&&normalizeUrl(candidate.url)&&new URL(candidate.url).hostname===row.host);
   const sourceLanguage=new URL(row.url).pathname.split('/').filter(Boolean).at(-1);
-  return candidates.sort((a,b)=>Number(new URL(b.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)-Number(new URL(a.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)).slice(0,2).map(candidate=>({service:row.service,serviceName:row.serviceName,url:candidate.url,host:row.host,role:row.role,meaning:row.meaning,successes:row.successes,failures:row.failures,lastSuccessAt:row.lastSuccessAt,propositions:row.propositions,countryRouteEvidenceSha256:row.countryRouteEvidenceSha256}));
+  return candidates.sort((a,b)=>recentMethodPenalty(memory,row.service,target.market,a.url)-recentMethodPenalty(memory,row.service,target.market,b.url)||Number(new URL(b.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)-Number(new URL(a.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)).slice(0,2).map(candidate=>({service:row.service,serviceName:row.serviceName,url:candidate.url,host:row.host,role:row.role,meaning:row.meaning,successes:row.successes,failures:row.failures,lastSuccessAt:row.lastSuccessAt,propositions:row.propositions,countryRouteEvidenceSha256:row.countryRouteEvidenceSha256}));
  });
 }
 
 export function prioritizeDerivedCountryCandidates(memory,target,candidates){
  const routes=routeRows(memory,target.service).filter(row=>row.serviceName===target.serviceName&&row.countryRouteEvidenceSha256&&row.successes>0&&row.failures<row.successes+2);
- const score=candidate=>Math.max(0,...routes.filter(row=>candidate.service===target.service&&candidate.market===target.market&&candidate.providerRouteEvidenceSha256===row.countryRouteEvidenceSha256&&new URL(candidate.url).hostname===row.host).map(row=>new URL(candidate.url).pathname.split('/').filter(Boolean).at(-1)===new URL(row.url).pathname.split('/').filter(Boolean).at(-1)?2:1));
+ const score=candidate=>Math.max(0,...routes.filter(row=>candidate.service===target.service&&candidate.market===target.market&&candidate.providerRouteEvidenceSha256===row.countryRouteEvidenceSha256&&new URL(candidate.url).hostname===row.host).map(row=>new URL(candidate.url).pathname.split('/').filter(Boolean).at(-1)===new URL(row.url).pathname.split('/').filter(Boolean).at(-1)?2:1))-recentMethodPenalty(memory,target.service,target.market,candidate.url);
  return [...candidates].sort((a,b)=>score(b)-score(a));
 }
 

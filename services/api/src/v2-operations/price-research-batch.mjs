@@ -3,16 +3,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {TargetResearchFailure} from '../research-v2/live/target-research-failure.mjs';
 import {createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,recordProviderPricingRouteFailure} from '../research-v2/live/hybrid-provider-resource-memory.mjs';
-import {loadPricingRouteMemory,publishPricingRouteMemory} from '../research-v2/storage/pricing-route-memory.mjs';
+import {loadPricingRouteMemory,publishPricingRouteMemory,publishPricingMethodOutcomes,isPublicPricingRouteUrl} from '../research-v2/storage/pricing-route-memory.mjs';
 import {loadRetainedVerifiedEvidence} from './verified-reconciliation-v1.mjs';
+import {loadSinglePriceRouteProof} from './single-price-route-proof.mjs';
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const safeCode=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{0,159}$/.test(value)?value:'PRICE_RESEARCH_CHILD_FAILED';
 const validTarget=target=>target&&typeof target.serviceId==='string'&&/^[a-z0-9][a-z0-9-]{0,159}$/.test(target.serviceId)&&typeof target.serviceName==='string'&&target.serviceName.length>0&&target.serviceName.length<=240&&typeof target.targetMarket==='string'&&/^[A-Z]{2}$/.test(target.targetMarket)&&target.id===`price-research:${target.serviceId}:${target.targetMarket}`&&target.marketApplicabilityEstablished===false;
 const writeJson=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});const pending=file+`.${process.pid}.pending`;fs.writeFileSync(pending,JSON.stringify(value,null,2)+'\n',{mode:0o600});fs.renameSync(pending,file);};
 const childDirectory=(directory,target,index)=>path.join(directory,'price-research-targets',`${String(index+1).padStart(2,'0')}-${target.serviceId}-${target.targetMarket}`);
-function recoverCompletedPricingRoutes(memory,directory,target,index,{memoryRoot=null,jobId=null,recordedAt=null,replayFailures=true}={}){
- const child=childDirectory(directory,target,index);
+export function recoverCompletedPricingRoutes(memory,child,target,{memoryRoot=null,runsRoot=null,jobId=null,recordedAt=null,replayFailures=true,result=null,knownService=false}={}){
  for(const attempt of ['priority-research-links','known-service','known-service-v3-verification-retry-1']){
   const campaign=path.join(child,attempt),file=path.join(campaign,'adaptive-state.json');if(!fs.existsSync(file))continue;
   let current,learned;
@@ -22,12 +22,17 @@ function recoverCompletedPricingRoutes(memory,directory,target,index,{memoryRoot
   }catch{/* Corrupt route metadata cannot grant routing priority. */continue;}
   const useful=new Set(learned.map(row=>row.url));
   if(replayFailures)for(const lead of current?.leads??[])if(lead.learnedProviderPricingRoute===true&&!useful.has(lead.url)&&(current.reads??[]).some(read=>read.requestedUrl===lead.url))recordProviderPricingRouteFailure(memory,current,lead.url);
+  const confirmedSuccessUrls=[],confirmedSuccessMethods={};
   if(memoryRoot&&jobId&&recordedAt)for(const row of learned){
+   if(!isPublicPricingRouteUrl(row.url))continue;
    const source=row.sources.findLast(source=>source.market===target.targetMarket);if(!source)continue;
-   let proof;try{proof=loadRetainedVerifiedEvidence({runsRoot:path.dirname(directory),jobId,service:target.serviceId,market:target.targetMarket,sourceHash:source.sha256});}catch{continue;}
+   let proof;try{proof=knownService?loadSinglePriceRouteProof({jobRoot:child,jobId,service:target.serviceId,market:target.targetMarket,sourceHash:source.sha256}):loadRetainedVerifiedEvidence({runsRoot,jobId,service:target.serviceId,market:target.targetMarket,sourceHash:source.sha256});}catch{continue;}
    if(proof.sourceUrl!==row.url)continue;
    publishPricingRouteMemory(memoryRoot,[row],{jobId,checkpoint:attempt,market:target.targetMarket,recordedAt,acquiredAt:proof.acquiredAt});
+   confirmedSuccessUrls.push(row.url);
+   confirmedSuccessMethods[row.url]=proof.attempt?.method??proof.method??null;
   }
+  if(memoryRoot&&jobId&&recordedAt)publishPricingMethodOutcomes(memoryRoot,{jobId,checkpoint:attempt,service:target.serviceId,market:target.targetMarket,recordedAt,checkpointFile:file,result,confirmedSuccessUrls,confirmedSuccessMethods});
  }
 }
 const binding=config=>digest({targetingRevision:config.targetingRevision,services:config.services,markets:config.markets,batchTargets:config.batchTargets,logicalTargetCount:config.logicalTargetCount,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling});
@@ -117,7 +122,7 @@ export async function executePriceResearchBatch({job,directory,apiKey,client,sho
  if(memoryRoot)try{providerPricingRouteMemory=loadPricingRouteMemory(memoryRoot,{services:config.services});}catch{/* Invalid durable hints cannot grant authority or interrupt research. */}
  for(let index=0;index<config.batchTargets.length;index++){
   const target=config.batchTargets[index],outcome=progress.outcomes[index];
-  if(outcome.status==='COMPLETE'){recoverCompletedPricingRoutes(providerPricingRouteMemory,directory,target,index,{memoryRoot,jobId:job.id,recordedAt:outcome.finishedAt});continue;}
+  if(outcome.status==='COMPLETE'){recoverCompletedPricingRoutes(providerPricingRouteMemory,childDirectory(directory,target,index),target,{memoryRoot,runsRoot:path.dirname(directory),jobId:job.id,recordedAt:outcome.finishedAt});continue;}
   if(outcome.status==='RUNNING')throw Error('PRICE_RESEARCH_CHILD_RECOVERY_UNSAFE');
   if(outcome.status==='FAILED'){
    // Older checkpoints predate typed scopes. Resume only when the target's
@@ -141,7 +146,7 @@ export async function executePriceResearchBatch({job,directory,apiKey,client,sho
   const finishedAt=new Date().toISOString();
   // Result publication and checkpoint writes are job-global persistence work.
   // Their failure leaves RUNNING evidence for safe recovery review.
-  writeJson(path.join(childDir,'result.json'),result);Object.assign(outcome,record(journal,index,target,'COMPLETE',{startedAt,finishedAt}));delete outcome.index;progress.nextIndex=index+1;progress.current=null;writeJson(file,compact(progress));recoverCompletedPricingRoutes(providerPricingRouteMemory,directory,target,index,{memoryRoot,jobId:job.id,recordedAt:finishedAt,replayFailures:false});
+  writeJson(path.join(childDir,'result.json'),result);Object.assign(outcome,record(journal,index,target,'COMPLETE',{startedAt,finishedAt}));delete outcome.index;progress.nextIndex=index+1;progress.current=null;writeJson(file,compact(progress));recoverCompletedPricingRoutes(providerPricingRouteMemory,childDir,target,{memoryRoot,runsRoot:path.dirname(directory),jobId:job.id,recordedAt:finishedAt,replayFailures:false,result});
  }
  progress.status='COMPLETE';progress.nextIndex=config.batchTargets.length;progress.current=null;writeJson(file,compact(progress));return {...progress};
 }

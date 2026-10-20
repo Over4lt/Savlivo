@@ -15,7 +15,7 @@ import {createPriceResearchAdapters,priceResearchCapabilityPreflight} from './pr
 import {applyResearchHandoff} from '../research-v2/inventory/reviewed-cohort-execution.mjs';
 import {loadPriceResearchTargeting,selectPriceResearchTargets} from './price-research-targeting.mjs';
 import {listMarketExclusions} from './market-exclusions.mjs';
-import {executePriceResearchBatch} from './price-research-batch.mjs';
+import {executePriceResearchBatch,recoverCompletedPricingRoutes} from './price-research-batch.mjs';
 import {learnProviderPricingRoutesFromTarget,prioritizeDerivedCountryCandidates} from '../research-v2/live/hybrid-provider-resource-memory.mjs';
 import {loadPricingRouteMemory} from '../research-v2/storage/pricing-route-memory.mjs';
 import {canonicalReviewedProviderRoot} from '../research-v3/reviewed-provider-namespaces.mjs';
@@ -166,5 +166,10 @@ export async function executePriceResearch(options){
  if(options.job?.config?.targetKind==='CANONICAL_SELECTION')return executePriceResearchBatch({...options,executeTarget:executeSinglePriceResearch});
  let providerPricingRouteMemory=null;
  if(options.memoryRoot&&options.job?.config?.targetKind==='KNOWN_SERVICE')try{providerPricingRouteMemory=loadPricingRouteMemory(options.memoryRoot,{services:[options.job.config.serviceId]});}catch{/* Invalid hints must not grant authority or interrupt research. */}
- return executeSinglePriceResearch({...options,providerPricingRouteMemory});
+ const result=await executeSinglePriceResearch({...options,providerPricingRouteMemory});
+ if(options.memoryRoot&&options.job?.config?.targetKind==='KNOWN_SERVICE'&&options.job.id&&options.directory&&result?.kind==='ADMIN_V4_FIRST_RESEARCH_RESULT'){
+  const service=options.job.config.serviceId,market=options.job.config.market,target={id:`price-research:${service}:${market}`,serviceId:service,targetMarket:market};
+  recoverCompletedPricingRoutes(providerPricingRouteMemory,options.directory,target,{memoryRoot:options.memoryRoot,jobId:options.job.id,recordedAt:new Date().toISOString(),replayFailures:false,result,knownService:true});
+ }
+ return result;
 }

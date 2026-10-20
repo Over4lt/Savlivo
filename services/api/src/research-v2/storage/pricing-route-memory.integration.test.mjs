@@ -7,8 +7,9 @@ import {randomUUID} from 'node:crypto';
 import {gunzipSync} from 'node:zlib';
 import {fileURLToPath} from 'node:url';
 import {openMarketRunStore} from '../../research-v1/market-run-store.mjs';
-import {executePriceResearchBatch} from '../../v2-operations/price-research-batch.mjs';
-import {providerPricingRoutesForTarget} from '../live/hybrid-provider-resource-memory.mjs';
+import {executePriceResearchBatch,recoverCompletedPricingRoutes} from '../../v2-operations/price-research-batch.mjs';
+import {createProviderPricingRouteMemory,providerPricingRoutesForTarget} from '../live/hybrid-provider-resource-memory.mjs';
+import {loadSinglePriceRouteProof} from '../../v2-operations/single-price-route-proof.mjs';
 import {readObservation} from './evidence.mjs';
 import {closure} from './references.mjs';
 
@@ -74,4 +75,19 @@ test('route-shaped target without its original G1 receipt is never published as 
   assert.deepEqual(providerPricingRoutesForTarget(providerPricingRouteMemory,{service:'max',serviceName:'Max',market:'NZ',derivedCountryCandidates:[candidate('NZ')]}),[]);
   return {verified:0};
  }});
+});
+
+test('completed single known-service source publishes only with its own bound G1 receipt',t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'durable-route-single-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const runs=path.join(root,'.savlivo','v2-operations','runs'),memoryRoot=path.join(root,'.savlivo','research-v2','storage'),id=randomUUID(),directory=path.join(runs,id),selected=target('US');
+ fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'operation.json'),JSON.stringify({id,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'max',market:'US'}}));retainedG1(directory,selected.id);
+ const proof=loadSinglePriceRouteProof({jobRoot:directory,jobId:id,service:'max',market:'US',sourceHash:hash});assert.equal(proof.sourceUrl,sourceUrl);assert.equal(proof.method,'APPROVED_PROXY');
+ recoverCompletedPricingRoutes(createProviderPricingRouteMemory(),directory,selected,{memoryRoot,jobId:id,recordedAt:new Date().toISOString(),knownService:true});
+ const index=JSON.parse(fs.readFileSync(path.join(memoryRoot,'provider-pricing-routes-v1.json')));
+ assert.equal(index.entries.length,1);assert.equal(index.methodOutcomes.length,1);assert.equal(index.methodOutcomes[0].result,'SUCCESS');assert.equal(index.methodOutcomes[0].method,'DECODO');
+ assert.throws(()=>loadSinglePriceRouteProof({jobRoot:directory,jobId:id,service:'max',market:'DE',sourceHash:hash}),/PRICING_ROUTE_PROOF_JOB/);
+ const retained=path.join(directory,'priority-research-links','targets',selected.id,'open-web-discovery','acquisitions','retained-US','raw',hash+'.body');fs.appendFileSync(retained,' ');
+ assert.throws(()=>loadSinglePriceRouteProof({jobRoot:directory,jobId:id,service:'max',market:'US',sourceHash:hash}),/PRICING_ROUTE_PROOF_HASH/);fs.writeFileSync(retained,body);
+ const verification=path.join(directory,'priority-research-links','targets',selected.id,'open-web-discovery','acquisitions','retained-US','interpretation-0001','targeted-verification.json');fs.unlinkSync(verification);
+ assert.throws(()=>loadSinglePriceRouteProof({jobRoot:directory,jobId:id,service:'max',market:'US',sourceHash:hash}));
 });
