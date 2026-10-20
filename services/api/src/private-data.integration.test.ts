@@ -86,8 +86,14 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
     assert.equal(JSON.stringify(data).includes("Private manual name"),false);
     assert.equal(JSON.stringify(data).includes("@example.invalid"),false);
     assert.equal(data.dataQuality.priceCoverage.statusCounts.SUGGESTED_ONLY,2);
-    assert.equal(data.dataQuality.priceCoverage.statusCounts.SUGGESTED_AND_VERIFIED_CONFLICT,1);
-    assert.equal(data.dataQuality.priceCoverage.suggestedVerifiedConflicts,1);
+    assert.equal(data.dataQuality.priceCoverage.statusCounts.VERIFIED_ONLY,3);
+    assert.equal(data.dataQuality.priceCoverage.statusCounts.SUGGESTED_AND_VERIFIED_CONFLICT,0);
+    assert.equal(data.dataQuality.priceCoverage.suggestedVerifiedConflicts,0);
+    assert.deepEqual(data.dataQuality.priceCoverage.rows
+      .filter(row=>row.serviceSlug==="spotify"&&row.suggested==="NOK 139.00")
+      .map(row=>({status:row.status,suggestedMismatch:row.suggestedMismatch,
+        authoritativeConflict:row.authoritativeConflict,verified:row.verified})),
+      [{status:"VERIFIED_ONLY",suggestedMismatch:true,authoritativeConflict:false,verified:"NOK 129.00"}]);
     await pool.query("INSERT INTO admin_roles(user_id,role) VALUES($1,'analytics_reader')",[user]);
     process.env.ADMIN_RP_ID="savlivo.com";process.env.NODE_ENV="test";process.env.ADMIN_ENABLED="true";process.env.ANALYTICS_MAINTENANCE_ENABLED="true";process.env.ADMIN_ALLOWED_ORIGIN="https://savlivo.com";process.env.ADMIN_AUDIT_RETENTION_DAYS="180";
     await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));
@@ -136,7 +142,7 @@ test("disposable migration, aggregation, admin HTTP authorization, audit, expiry
       assert.match(token,/^adm_[A-Za-z0-9_-]{43}$/);
       const saved=(await pool.query("SELECT token_hash,extract(epoch FROM expires_at-now()) seconds FROM admin_sessions WHERE user_id=$1",[user])).rows[0];
       assert.equal(saved.token_hash,hashSession(token));assert.notEqual(saved.token_hash,token);
-      assert.ok(Number(saved.seconds)>880 && Number(saved.seconds)<=900);
+      assert.ok(Number(saved.seconds)>3580 && Number(saved.seconds)<=3600);
       const countBefore=(await pool.query("SELECT count(*)::int n FROM admin_sessions")).rows[0].n;
       await pool.query("ALTER TABLE admin_audit RENAME TO unavailable_admin_audit");
       await assert.rejects(login());
