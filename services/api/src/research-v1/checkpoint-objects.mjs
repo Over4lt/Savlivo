@@ -24,6 +24,7 @@ export function encodeCheckpointPayload(payload,put){
 export function decodeCheckpointPayload(directory,payload){
  if(payload?.$checkpointObjects!==1)return payload;
  assert(Object.keys(payload).sort().join(',')==='$checkpointObjects,root','Invalid checkpoint encoding');
+ const objects=join(directory,'.objects');assert(existsSync(objects)&&lstatSync(objects).isDirectory()&&!lstatSync(objects).isSymbolicLink(),'Invalid checkpoint object directory');
  let nodes=0,expanded=0;
  const decode=v=>{
   assert(++nodes<=500000,'Checkpoint expanded node bound');

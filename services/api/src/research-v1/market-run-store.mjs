@@ -110,7 +110,7 @@ export function openMarketRunStore(directory,{recoverDeadOwnerToken=null,checkpo
   append(type,payload){verifyOwner();
    const logicalBytes=Buffer.byteLength(JSON.stringify(payload));
    if(logicalBytes>200000000)throw Object.assign(Error('Checkpoint expanded payload bound'),{code:'CHECKPOINT_EXPANDED_SIZE_LIMIT'});
-   if(checkpointObjects&&['TASK_CHECKPOINT','TASK_COMPLETE'].includes(type)&&logicalBytes>1000000){
+   if(checkpointObjects&&['TASK_CHECKPOINT','TASK_COMPLETE','V2_ACQUISITION_RESULT'].includes(type)&&logicalBytes>1000000){
     const objects=join(dir,'.objects');mkdirSync(objects,{recursive:true});assert(!lstatSync(objects).isSymbolicLink(),'Invalid object directory');
     payload=encodeCheckpointPayload(payload,(hash,raw)=>{const name=hash+'.json',path=join(objects,name);assert.equal(digest(raw),hash,'Checkpoint object hash mismatch');if(existsSync(path)){assert(!lstatSync(path).isSymbolicLink()&&readFileSync(path,'utf8')===raw+'\n','Immutable object changed');}else if(!sharedCheckpointObject(objects,hash,raw))publish(objects,name,JSON.parse(raw));});
    }assert(typeof type==='string');assert(count<100000,'Journal record limit');

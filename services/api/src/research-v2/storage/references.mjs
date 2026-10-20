@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import {adaptDocument,adaptSnapshot} from './schema-adapters.mjs';
 import path from 'node:path';
+import {decodeCheckpointPayload} from '../../research-v1/checkpoint-objects.mjs';
 import {safe,relative,read,sha,digest,stableBytes,stableHash,stableJsonLines,releaseValidationTemporaries,jsonDigest,statFile,files,sealed,verifySeal,immutable,canonical,CLASSES} from './core.mjs';
 const pathKeys=new Set(['path','file','bodyFile','artifact','directory','originalDirectory','reviewSource','sourceDirectory','sourceRunDirectory','parentDirectory','derivedDirectory','legacyDirectory','cohortManifest','universe','reviewedBindings','providerWorklist','researchScopes','quarantineFile','reconciliationFile','statesFile','input','output','checkpoint','previousRun']);
 const hashKeys=new Set(['sha256','hash','bodyHash','contentHash','snapshotHash','fingerprint','inputHash','codeHash','sourceHash']);
@@ -33,7 +34,7 @@ export function closure(root,roots,{maxFiles=100000,maxBytes=4*1024**3,genesisAr
       if(!cached){const b=stableBytes(f);cached={identity,record:JSON.parse(b),byteHash:sha(b),bytes:b.length};while(journalCache.size&&(journalCacheBytes+b.length>4*1024*1024||journalCache.size>=16)){const key=journalCache.keys().next().value;journalCacheBytes-=journalCache.get(key).bytes;journalCache.delete(key);}if(b.length<=4*1024*1024){journalCache.set(name,cached);journalCacheBytes+=b.length;}}
       const record=cached.record,{hash,...payload}=record;if(cached.sealValid===undefined)cached.sealValid=hash===jsonDigest(payload);
       if(record.version!=='MARKET_RUN_STORE_V1'||!cached.sealValid||hash!==(value.hash??value.recordHash)||value.sequence!==undefined&&value.sequence!==record.sequence)throw Error('STORAGE_JOURNAL_REFERENCE_HASH');
-      if(!value.pointer.startsWith('/'))throw Error('STORAGE_JOURNAL_POINTER');let selected=record.payload;
+      if(!value.pointer.startsWith('/'))throw Error('STORAGE_JOURNAL_POINTER');let selected=decodeCheckpointPayload(path.dirname(f),record.payload);
       for(const segment of value.pointer.slice(1).split('/')){const key=segment.replaceAll('~1','/').replaceAll('~0','~');if(!selected||!Object.hasOwn(selected,key))throw Error('STORAGE_JOURNAL_POINTER');selected=selected[key];}
       expected=cached.byteHash;
      }

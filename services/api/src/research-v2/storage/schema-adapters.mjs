@@ -1,6 +1,7 @@
 import {snapshotDocument} from '../human-leads/snapshot.mjs';
 // Recognize versioned contracts, never grant path semantics by field name alone.
 import path from 'node:path';
+import {decodeCheckpointPayload} from '../../research-v1/checkpoint-objects.mjs';
 import {safe,read,sha,stableBytes,files,canonical,digest} from './core.mjs';
 const stages=['IDENTITY_SUBSCRIPTION','MARKETS','LOGIN','MANAGEMENT','CANCELLATION','PRICING','VALIDATION'];
 // Keep unchanged subgraphs shared with the parsed document; validate every locator.
@@ -119,15 +120,18 @@ export function adaptDocument(root,value,owner){
   const references=[];
   if(value.sequence>1){const previous=path.posix.dirname(owner)+'/record-'+String(value.sequence-1).padStart(8,'0')+'.json',record=read(safe(root,previous));if(record.hash!==value.previous)throw Error('STORAGE_JOURNAL_CHAIN');references.push({path:previous,format:'JSON',classification:'REFERENCED_EVIDENCE',reason:'JOURNAL_PREVIOUS'});}else if(value.previous!==null)throw Error('STORAGE_JOURNAL_CHAIN');
   if(value.type!=='V2_ACQUISITION_RESULT')return {value,references,schema:'MARKET_RUN_STORE_V1'};
-  const attempts=value.payload?.result?.attempts;if(!Array.isArray(attempts))throw Error('STORAGE_ACQUISITION_RECORD_SCHEMA');
+  const encoded=value.payload?.$checkpointObjects===1;
+  const acquisition=decodeCheckpointPayload(path.dirname(safe(root,owner)),value.payload);
+  if(encoded)references.push({path:path.posix.dirname(owner)+'/.objects',format:'TREE',classification:'REFERENCED_EVIDENCE',reason:'JOURNAL_CHECKPOINT_OBJECTS'});
+  const attempts=acquisition?.result?.attempts;if(!Array.isArray(attempts))throw Error('STORAGE_ACQUISITION_RECORD_SCHEMA');
   const page=p=>{if(!p)return p;const {bodyFile,...rest}=p;if(bodyFile){if(!/^bodies\/[a-f0-9]{64}\.txt$/.test(bodyFile)||typeof p.rawSource?.text!=='string'||sha(p.rawSource.text)!==p.bodyHash)throw Error('STORAGE_INLINE_BODY_INTEGRITY');}return {...rest,...(p.structuredResources?{structuredResources:p.structuredResources.map(page)}:{})};};
-  let target=value.payload.target;
+  let target=acquisition.target;
   if(target?.reads?.some(p=>p.bodyFile)){
    const split=owner.lastIndexOf('/direct-acquisitions/');if(split<0)throw Error('STORAGE_JOURNAL_TARGET_SCOPE');const base=owner.slice(0,split);
    target={...target,reads:target.reads.map(p=>{if(!p.bodyFile)return p;if(p.bodyFile!==`bodies/${p.bodyHash}.txt`||!/^[a-f0-9]{64}$/.test(p.bodyHash??''))throw Error('STORAGE_JOURNAL_TARGET_SCOPE');const {bodyFile,...rest}=p;return {...rest,bodyReference:{path:base+'/'+bodyFile,sha256:p.bodyHash}};})};
   }
   if(target?.providerInterpretations){const split=owner.lastIndexOf('/direct-acquisitions/');if(split<0)throw Error('STORAGE_JOURNAL_TARGET_SCOPE');target=priorInterpretations(root,target,owner.slice(0,split),references);}
-  return {value:{...value,payload:{...value.payload,...(target?{target}:{}),result:{...value.payload.result,attempts:attempts.map(a=>({...a,...(a.page?{page:page(a.page)}:{})}))}}},references,schema:'MARKET_RUN_STORE_V1_INLINE_ACQUISITION'};
+  return {value:{...value,payload:{...acquisition,...(target?{target}:{}),result:{...acquisition.result,attempts:attempts.map(a=>({...a,...(a.page?{page:page(a.page)}:{})}))}}},references,schema:'MARKET_RUN_STORE_V1_INLINE_ACQUISITION'};
  }
  if(value?.version==='EXPERIMENTAL_MONTHLY_DOMAIN_V1'&&value.method==='READ_ALL_PERSISTED_CANDIDATES_AND_HASH_VERIFIED_OWNING_SOURCE_STRUCTURE_NO_REEXTRACTION'&&owner.endsWith('/monthly/manifest.json')){
   const base=path.posix.dirname(path.posix.dirname(owner)),input=base+'/input',corpus=base+'/corpus';
