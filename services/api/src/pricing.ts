@@ -1,5 +1,6 @@
 import { limitPricingMarket, settledPricingMap } from "./pricing-concurrency.js";
 import { countryCurrencies } from "../../../packages/contracts/src/markets.js";
+import { serviceCatalog } from "../../../packages/contracts/src/catalog.js";
 import {
   fetchProviderLocalPrices,
   verifiedProviderRegistry,
@@ -9,6 +10,7 @@ import {
   loadPersistedVerifiedPrices,
   persistVerifiedLivePrices
 } from "./pricing-store.js";
+import { equivalentVerifiedPlan } from "./verified-price-reconciliation.mjs";
 
 export type PricingSnapshot = {
   countryCode: string;
@@ -54,8 +56,15 @@ export function mergeFreshAndPersistedPricing(
     ].join("|");
 
   const merged = new Map<string, AdapterPrice>();
+  const v3Rows = persistedItems.filter(item => item.source === "v3-truth");
 
   for (const item of freshItems) {
+    if (item.source.startsWith("official-provider-adapter:")) {
+      const serviceName = serviceCatalog.find(service => service.slug === item.serviceSlug)?.name;
+      const successors = v3Rows.filter(row => keyFor(row) === keyFor(item) ||
+        serviceName && equivalentVerifiedPlan(row,item,serviceName));
+      if (successors.length === 1) continue;
+    }
     merged.set(
       keyFor(item),
       item

@@ -25,6 +25,10 @@ writer. That writer replaces an equivalent *current* row while preserving its
 immutable price history. Only actually matched, freshly established plans
 leave the Old Verified queue; unmatched old tiers remain there for targeted
 follow-up and human resolution. Failed retries leave Old Verified unchanged.
+An adapter refresh cannot overwrite an equivalent current `v3-truth` row, even
+with a later adapter timestamp. Regional pricing also prefers that stored V3
+row over the equivalent fresh adapter result. Unrelated or ambiguous plan names
+are not automatically merged; they require a documented identity decision.
 
 The run's `New Verified` metric counts V3-verified plan identities only when
 eligible target-market verification evidence is present. Its
@@ -47,3 +51,28 @@ from a persisted aggregate. Existing run result artifacts are unchanged.
   new unsafe path is added for carrying cached legacy prices into Truth.
 * The selected market remains Old Verified if **any** legacy row remains, even
   if newly verifiable plans also make that same market eligible for Verified.
+
+## Read-model consistency still to decide
+
+The current product-pricing projection in `product-pricing.ts` treats any
+qualified `official-provider-adapter:*` row as Verified. The legacy provider
+dashboard in `private-data-http.ts` also counts it under its original
+verification class. `price-analytics.ts` includes such rows in its current
+qualified-Verified count, while keeping structured historical series separate.
+The regional pricing snapshot in `pricing.ts` retains unmatched old adapter
+rows as current offers. These reads have different purposes; changing their
+meaning is a product-display policy decision, not a Truth or history rewrite.
+Its in-process 24-hour snapshot cache can also delay display of a newly
+persisted V3 successor until refresh; the Admin market-status read uses the
+database directly. Cross-process cache invalidation needs a separate bounded
+design before promising immediate public-price updates.
+
+A consistent next step is a shared, read-only source classification for
+qualified current rows: `V3_VERIFIED`, `OLD_ADAPTER_VERIFIED`, and other
+qualified provider evidence. Expose the classes separately in Admin coverage
+and current-price analytics. Keep immutable observation history under its
+original source and verification fields. Decide explicitly whether public
+price cards should show an unmatched old row with a legacy/freshness label or
+withhold its current-price claim; do not silently demote or delete it. Apply
+that decision through the common product projection and tests for every
+consumer, including the legacy dashboard, before changing public behavior.

@@ -26,6 +26,20 @@ test('source-validated routing hint survives disposable-file cleanup and process
  const bytes=fs.readFileSync(path.join(root,'provider-pricing-routes-v1.json'),'utf8');assert(!bytes.includes('11.99'));assert(!bytes.includes('AUD'));assert(!bytes.includes(sourceText));assert.equal(JSON.parse(bytes).entries[0].origins[0].acquiredAt,observed);
 });
 
+test('Max NO, SE and DK inherit only acquisition priority from a proved route, never old price or G1 evidence',t=>{
+ const root=fixture(t),proof=provenRoute(root);publish(root,proof.learned);
+ const restored=loadPricingRouteMemory(root,{services:['max']});
+ for(const market of ['NO','SE','DK']){
+  const candidates=derivedCountrySourceCandidates({service:'max',market});
+  const routes=providerPricingRoutesForTarget(restored,{service:'max',serviceName:'Max',market,derivedCountryCandidates:candidates});
+  assert(routes.length>0,market);
+  assert(candidates.some(candidate=>candidate.url===routes[0].url),market);
+  assert(routes.every(row=>!('sources' in row)&&!('extractionRecipe' in row)),market+' must reacquire and reverify');
+  assert.equal(JSON.stringify(routes).includes('11.99'),false);
+  assert.equal(JSON.stringify(routes).includes('AUD'),false);
+ }
+});
+
 test('repeated publication is idempotent and an evidenced failed route can lose priority',t=>{
  const root=fixture(t),proof=provenRoute(root);publish(root,proof.learned);publish(root,proof.learned);
  const state=JSON.parse(fs.readFileSync(path.join(root,'provider-pricing-routes-v1.json')));assert.equal(state.entries.length,1);assert.equal(state.entries[0].origins.length,1);

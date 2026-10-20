@@ -103,6 +103,11 @@ async function persistVerifiedPriceInClient(item: AdapterPrice, client: any) {
         throw new Error("VERIFIED_PLAN_AUTHORITY_AMBIGUOUS");
       if (aliases.length > 1) throw new Error("VERIFIED_PLAN_EQUIVALENCE_AMBIGUOUS");
       const alias = aliases[0];
+      // A legacy adapter refresh cannot replace source-bound V3 truth, even
+      // when its acquisition timestamp is newer. V3 may still replace an
+      // equivalent adapter row through the ordinary history-preserving path.
+      if (item.source.startsWith("official-provider-adapter:") &&
+          (exact?.source === "v3-truth" || alias?.source === "v3-truth")) return 0;
       if (alias && exact && Date.parse(alias.verifiedAt) >= Math.max(Date.parse(exact.verifiedAt),observedAt))
         throw new Error("VERIFIED_PLAN_FRESHNESS_AMBIGUOUS");
       if (alias && !exact && observedAt === Date.parse(alias.lastCheckedAt))
