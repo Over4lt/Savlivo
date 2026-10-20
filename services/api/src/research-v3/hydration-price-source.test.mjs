@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {interpretSubscriptionPage} from './subscription-page.mjs';
+import {interpretSubscriptionPage,validHydrationExtractionRecipe} from './subscription-page.mjs';
 import {context,digest} from './model.mjs';
 import {projectObservation} from './projection.mjs';
 import {admittedProjectionCandidates} from './native-structured.mjs';
@@ -37,6 +37,21 @@ test('bounded hydration cards bind exactly two ordinary monthly plans to origina
  for(const row of parsed.offerings){assert.equal(row.charges.length,1);assert.equal(row.charges[0].amountDerivation,'EXPLICIT');assert.equal(body.slice(row.presentation.start,row.presentation.end),row.presentation.quote);assert.equal(digest(row.presentation.quote),row.presentation.sha256);}
  assert.deepEqual(interpretSubscriptionPage({body,url,providerName:'Max'}).offerings,[],'market currency must be source-bound');
  assert.deepEqual(interpretSubscriptionPage({body,url,providerName:'Max',marketCurrencyHint:'EUR'}).offerings,[]);
+});
+
+test('actual hydration decision yields a bounded recipe and a compatible hint is tried without changing Truth',()=>{
+ const body=html(),trace={},ordinary=interpretSubscriptionPage({body,url,providerName:'Max',marketCurrencyHint:'NZD',extractionTrace:trace});
+ assert.equal(validHydrationExtractionRecipe(trace.recipe),true);
+ assert.equal(trace.recipe.collectionKey,'idref23');
+ assert.equal(trace.recipe.fieldBindings.monthlyAmount,'price.amount.plainText');
+ const reused={},withHint=interpretSubscriptionPage({body,url,providerName:'Max',marketCurrencyHint:'NZD',extractionHint:trace.recipe,extractionTrace:reused});
+ assert.equal(reused.hintOutcome,'APPLIED');assert.deepEqual(withHint.offerings,ordinary.offerings);
+ const changed=html().replace('idref23','changedCollection'),fallback={};
+ assert.deepEqual(interpretSubscriptionPage({body:changed,url,providerName:'Max',marketCurrencyHint:'NZD',extractionHint:trace.recipe,extractionTrace:fallback}).offerings.map(row=>row.name),['Standard','Premium']);
+ assert.equal(fallback.hintOutcome,'FALLBACK');
+ const old={...trace.recipe,version:0},incompatible={};
+ interpretSubscriptionPage({body,url,providerName:'Max',marketCurrencyHint:'NZD',extractionHint:old,extractionTrace:incompatible});assert.equal(incompatible.hintOutcome,'INCOMPATIBLE');
+ assert.deepEqual(replay(body).truth.offers.map(row=>row.propositions.PRICE_AMOUNT.value),[15.99,20.99]);
 });
 
 test('synthetic G1 fixture establishes two source-bound offers through unchanged V3 Truth',()=>{

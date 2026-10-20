@@ -56,5 +56,5 @@ export function projectObservation(o,objective) {
             const pointer='/'+key+'/'+source[key].length;source[key].push(value);bindings[pointer]=p.bindings['/'+key+'/'+i];
         }
     }
-    return {source,bindings,errors,limited:parts.some(p=>p.limited),nativeStructured:{facts:native.facts,limited:native.limited},candidates:[{kind:'SERVICE',pointer:''},...source.offers.map((_,i)=>({kind:'OFFER',pointer:'/offers/'+i}))]};
+    return {source,bindings,errors,limited:parts.some(p=>p.limited),extractionTrace:parts[0].extractionTrace??null,nativeStructured:{facts:native.facts,limited:native.limited},candidates:[{kind:'SERVICE',pointer:''},...source.offers.map((_,i)=>({kind:'OFFER',pointer:'/offers/'+i}))]};
 }

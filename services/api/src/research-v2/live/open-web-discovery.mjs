@@ -154,6 +154,10 @@ export class OpenWebResearch {
    rehydrateRetainedProviderAuthority(directory,t);
   if(providerResourceMemoryRoot){const memory=loadHybridProviderResources({root:providerResourceMemoryRoot,target:t,now:memoryNow});t.hybridProviderResourceMemory={rejected:memory.rejected,reason:memory.reason??null,resourceIds:memory.resources.map(item=>item.record.id),skipped:memory.skipped??[],meaning:memory.meaning??null};for(const item of memory.resources){installRunScopedV3ProviderAuthority(t,item.authorityReview);const row=item.record;if(!(t.urls??=[]).includes(row.resource.url))t.urls.push(row.resource.url);if(!(t.knownCommercialUrls??=[]).includes(row.resource.url))t.knownCommercialUrls.push(row.resource.url);this.add(t,{url:row.resource.url,title:t.serviceName+' remembered provider resource',rank:-1,routingRole:row.resource.role,from:{method:'HYBRID_PROVIDER_RESOURCE_MEMORY',resourceId:row.id},routingMemoryOnly:true});}}
   for(const row of providerPricingRoutesForTarget(providerPricingRouteMemory,t)){
+   const learnedRecipe=row.extractionRecipe??row.sources?.findLast(source=>source.market===t.market&&source.extractionRecipe)?.extractionRecipe;
+   if(learnedRecipe&&!(t.learnedExtractionHints??[]).some(hint=>hint.url===row.url)){
+    t.learnedExtractionHints??=[];t.learnedExtractionHints.push({url:row.url,market:t.market,recipe:structuredClone(learnedRecipe)});
+   }
    if(!(t.urls??=[]).includes(row.url))t.urls.push(row.url);
    const existing=t.leads.find(lead=>navigationKey(lead.url)===navigationKey(row.url));
    if(existing){existing.learnedProviderPricingRoute=true;existing.routingRole='PRICING';existing.routingMemoryOnly=true;}

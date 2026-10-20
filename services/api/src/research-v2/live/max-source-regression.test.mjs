@@ -6,7 +6,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {gunzipSync} from 'node:zlib';
 import {digest} from '../../research-v3/model.mjs';
-import {interpretSubscriptionPage} from '../../research-v3/subscription-page.mjs';
+import {interpretSubscriptionPage,validHtmlExtractionRecipe} from '../../research-v3/subscription-page.mjs';
 import {baselineProviderSourceHosts,providerSourceDomainFamily} from '../../research-v3/provider-source-family.mjs';
 import {acquisitionCapacity} from '../../research-v3/acquisition-contract.mjs';
 import {classifyAcquiredSource,classifyRetainedSource} from './source-classification.mjs';
@@ -67,6 +67,19 @@ for(const [market,row] of Object.entries(cases))test(`authentic ${market} frozen
  assert(parsed.offerings.every(offer=>offer.charges.length===1&&offer.charges[0].cadence==='MONTHLY'&&offer.charges[0].billingCadence==='MONTHLY'&&offer.charges[0].amountDerivation==='EXPLICIT'));
  assert(parsed.offerings.every(offer=>digest(row.body.slice(offer.presentation.start,offer.presentation.end))===offer.presentation.sha256));
  assert.equal(parsed.limited,false);
+});
+
+test('frozen Max US and DE record exact HTML rules and safely reuse them on the same source',()=>{
+ for(const [market,row] of Object.entries(cases)){
+  const hint=market==='US'?'USD':'EUR',trace={},original=interpretSubscriptionPage({body:row.body,url:row.url,providerName:'Max',marketCurrencyHint:hint,extractionTrace:trace});
+  assert.equal(validHtmlExtractionRecipe(trace.recipe),true,market);
+  const reused={},next=interpretSubscriptionPage({body:row.body,url:row.url,providerName:'Max',marketCurrencyHint:hint,extractionHint:trace.recipe,extractionTrace:reused});
+  assert.equal(reused.hintOutcome,'APPLIED',market);
+  assert.deepEqual(next.offerings,original.offerings);
+  const obsolete={...trace.recipe,version:0},fallback={};
+  assert.deepEqual(interpretSubscriptionPage({body:row.body,url:row.url,providerName:'Max',marketCurrencyHint:hint,extractionHint:obsolete,extractionTrace:fallback}).offerings,original.offerings);
+  assert.equal(fallback.hintOutcome,'FALLBACK');
+ }
 });
 
 test('unaltered production Max US source and original G1 receipt establish three monthly offerings',()=>{

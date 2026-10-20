@@ -6,18 +6,20 @@ import {randomUUID} from 'node:crypto';
 import {canonical,digest,safe,sha,stableBytes} from './core.mjs';
 import {putEvidence,readObservation} from './evidence.mjs';
 import {createProviderPricingRouteMemory,hybridProviderResourceMemoryContract,isValidatedPricingRouteLearning,validatedPricingRouteBody} from '../live/hybrid-provider-resource-memory.mjs';
+import {htmlExtractionRules,validExtractionRecipe} from '../../research-v3/subscription-page.mjs';
 
 const schema='V2_PROVIDER_PRICING_ROUTE_MEMORY_V1',name='provider-pricing-routes-v1.json';
 const hash=value=>/^[a-f0-9]{64}$/.test(value??'');
 const exact=(value,keys)=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(key=>keys.includes(key));
 const methodResults=new Set(['SUCCESS','NO_DURABLE_SUCCESS_PROOF','ACCESS_BLOCKED','TRANSPORT_FAILED','MARKET_MISMATCH']);
 const methods=new Set(['DIRECT','DECODO','BROWSER']);
+const parserStrategies=new Set([null,'NATIVE_STRUCTURED','NEXT_DATA_MAPPED_MONTHLY_PLAN_CARD_V1',...htmlExtractionRules.map(rule=>rule+'_V1')]);
 const boundedCount=value=>Number.isSafeInteger(value)&&value>=0?value:null;
 function publicUrl(value){try{const url=new URL(value),parameters=[...url.searchParams];return url.protocol==='https:'&&!url.username&&!url.password&&!url.hash&&!/@|[a-f0-9]{32,}/i.test(url.pathname)&&parameters.every(([key,item])=>key==='pubDate'?/^\d{8}$/.test(item):key==='redirect'&&/^(true|false)$/.test(item))?url.href:null;}catch{return null;}}
 export const isPublicPricingRouteUrl=value=>publicUrl(value)===value;
 function methodOutcome(row){
  const keys=['id','jobId','checkpoint','service','market','url','method','result','parserStrategy','at','checkpointHash','sourceHash','usage'],usageKeys=['reads','searches','acquisitions','retainedReviews','bytes','googleRequests','strictGeminiRequests','billedCost'];
- if(!exact(row,keys)||!keys.every(key=>Object.hasOwn(row,key))||!hash(row.id)||!/^[a-f0-9-]{36}$/.test(row.jobId??'')||!/^[a-z0-9-]{1,100}$/.test(row.checkpoint??'')||!/^[a-z0-9][a-z0-9-]{0,159}$/.test(row.service??'')||!/^([A-Z]{2})$/.test(row.market??'')||publicUrl(row.url)!==row.url||!methods.has(row.method)||!methodResults.has(row.result)||![null,'NATIVE_STRUCTURED'].includes(row.parserStrategy)||!Number.isFinite(Date.parse(row.at))||!hash(row.checkpointHash)||row.sourceHash!==null&&!hash(row.sourceHash)||!exact(row.usage,usageKeys)||!usageKeys.every(key=>Object.hasOwn(row.usage,key)))throw Error('PRICING_ROUTE_METHOD_INVALID');
+ if(!exact(row,keys)||!keys.every(key=>Object.hasOwn(row,key))||!hash(row.id)||!/^[a-f0-9-]{36}$/.test(row.jobId??'')||!/^[a-z0-9-]{1,100}$/.test(row.checkpoint??'')||!/^[a-z0-9][a-z0-9-]{0,159}$/.test(row.service??'')||!/^([A-Z]{2})$/.test(row.market??'')||publicUrl(row.url)!==row.url||!methods.has(row.method)||!methodResults.has(row.result)||!parserStrategies.has(row.parserStrategy)||!Number.isFinite(Date.parse(row.at))||!hash(row.checkpointHash)||row.sourceHash!==null&&!hash(row.sourceHash)||!exact(row.usage,usageKeys)||!usageKeys.every(key=>Object.hasOwn(row.usage,key)))throw Error('PRICING_ROUTE_METHOD_INVALID');
  for(const [key,value] of Object.entries(row.usage))if(key==='billedCost'?value!==null:value!==null&&boundedCount(value)===null)throw Error('PRICING_ROUTE_METHOD_INVALID');
  return row;
 }
@@ -25,7 +27,7 @@ function route(row){
  if(!exact(row,['service','serviceName','url','host','role','meaning','successes','failures','lastSuccessAt','sources','propositions','countryRouteEvidenceSha256']))throw Error('PRICING_ROUTE_MEMORY_INVALID');
  const url=new URL(row.url);
  if(!isPublicPricingRouteUrl(row.url)||url.hostname!==row.host||!row.service||!row.serviceName||row.role!=='PRICING'||row.meaning!==hybridProviderResourceMemoryContract.meaning||!Number.isSafeInteger(row.successes)||row.successes<1||!Number.isSafeInteger(row.failures)||row.failures<0||!Number.isFinite(Date.parse(row.lastSuccessAt))||!Array.isArray(row.sources)||!row.sources.length||row.sources.length>8||!Array.isArray(row.propositions)||row.propositions.some(p=>!['PRICE_AMOUNT','PRICE_CURRENCY','PRICE_CADENCE','PRICE_ROLE'].includes(p))||!hash(row.countryRouteEvidenceSha256))throw Error('PRICING_ROUTE_MEMORY_INVALID');
- for(const source of row.sources)if(!exact(source,['market','observation','sha256'])||!/^([A-Z]{2})$/.test(source.market??'')||!source.observation||!hash(source.sha256))throw Error('PRICING_ROUTE_MEMORY_INVALID');
+ for(const source of row.sources)if(!exact(source,['market','observation','sha256','extractionRecipe'])||!/^([A-Z]{2})$/.test(source.market??'')||!source.observation||!hash(source.sha256)||source.extractionRecipe!==undefined&&!validExtractionRecipe(source.extractionRecipe))throw Error('PRICING_ROUTE_MEMORY_INVALID');
  return row;
 }
 function readStore(root,{services=null,verifyProofs=true}={}){
@@ -92,7 +94,8 @@ export function publishPricingMethodOutcomes(root,{jobId,checkpoint,service,mark
   if(!proven.entries.some(entry=>entry.route.service===service&&entry.route.url===url&&entry.origins.some(origin=>origin.jobId===jobId&&origin.checkpoint===checkpoint&&origin.market===market&&origin.sourceHash===sourceHash)))continue;
   const acquiredBy=confirmedSuccessMethods[url],method=acquiredBy==='APPROVED_PROXY'?'DECODO':acquiredBy==='BROWSER'?'BROWSER':acquiredBy==='DIRECT'?'DIRECT':null;
   if(!method)continue;
-  observations.push(methodOutcome({id:digest([jobId,checkpoint,service,market,url,method,'SUCCESS',sourceHash]),jobId,checkpoint,service,market,url,method,result:'SUCCESS',parserStrategy:(observation.nativeStructuredFacts??0)>0?'NATIVE_STRUCTURED':null,at:recordedAt,checkpointHash:sha(stateBytes),sourceHash,usage:counts}));
+  const recipe=proven.entries.find(entry=>entry.route.service===service&&entry.route.url===url)?.route.sources.find(source=>source.market===market&&source.sha256===sourceHash)?.extractionRecipe;
+  observations.push(methodOutcome({id:digest([jobId,checkpoint,service,market,url,method,'SUCCESS',sourceHash]),jobId,checkpoint,service,market,url,method,result:'SUCCESS',parserStrategy:validExtractionRecipe(recipe)?recipe.rule+'_V1':(observation.nativeStructuredFacts??0)>0?'NATIVE_STRUCTURED':null,at:recordedAt,checkpointHash:sha(stateBytes),sourceHash,usage:counts}));
  }
  const candidates=[...(target.leads??[]).filter(row=>row.learnedProviderPricingRoute===true),...(target.derivedCountryCandidates??[]).filter(row=>row.service===service&&row.market===market&&hash(row.providerRouteEvidenceSha256))];
  for(const lead of candidates.slice(0,16)){const url=publicUrl(lead.url);if(!url||learnedUrls.has(url))continue;

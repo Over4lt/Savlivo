@@ -18,7 +18,7 @@ const country=value=>typeof value==='string'&&/^[A-Z]{2}$/.test(value);
 const fail=code=>{throw Error(code);};
 
 function compactObservation(observation){
- return {id:observation.id,kind:observation.kind,url:observation.url,sha256:observation.sha256,context:observation.context,candidateCount:observation.candidates.length,nativeStructuredFacts:observation.nativeStructured?.facts?.length??0};
+ return {id:observation.id,kind:observation.kind,url:observation.url,sha256:observation.sha256,context:observation.context,candidateCount:observation.candidates.length,nativeStructuredFacts:observation.nativeStructured?.facts?.length??0,...(observation.extractionTrace?.recipe?{extractionTrace:{...observation.extractionTrace,sourceUrl:observation.url,sourceHash:observation.sha256}}:{})};
 }
 
 const normalized=value=>String(value??'').normalize('NFKC').replace(/\s+/gu,' ').trim().toLocaleLowerCase('en');
@@ -43,13 +43,16 @@ export function evaluateProviderSourceTruth({target,retained,acquisition,observa
  const accessDecisions=retained.accessDecisions.map(row=>Object.fromEntries(Object.entries(row).filter(([key,value])=>allowedAccessFields.has(key)&&value!==undefined)));
  const serviceUnderstanding=providerSeedServiceUnderstanding({target,retained,observationId,contentType,accessDecisions}),serviceName=serviceUnderstanding?.service?.serviceName??target.providerSeedCandidateServiceContext?.serviceName??target.serviceName,objective={kind:'PRICE',serviceId:target.service,serviceName,providerHosts:[host],markets:[target.market],seeds:[target.providerSeedCandidateServiceContext?.objectiveResource?.url??url]};
  const providerAuthority={status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,url)};
- const observation=adaptV2CurrentSource({contractVersion:1,observationId,target:{service:target.service,serviceName,market:target.market},page:{url,requestedUrl:retained.requestedUrl??url,outcome:'OK',httpStatus:retained.httpStatus,contentType,bodyHash:retained.bodyHash,sourceIntegrity:{sha256:retained.sourceIntegrity.sha256},rawSource:{text:retained.rawSource.text},accessDecisions},providerAuthority,acquisition},objective);
+ const extractionHint=(target.learnedExtractionHints??[]).find(row=>row.url===url&&row.market===target.market)?.recipe??null;
+ const observation=adaptV2CurrentSource({contractVersion:1,observationId,target:{service:target.service,serviceName,market:target.market},page:{url,requestedUrl:retained.requestedUrl??url,outcome:'OK',httpStatus:retained.httpStatus,contentType,bodyHash:retained.bodyHash,sourceIntegrity:{sha256:retained.sourceIntegrity.sha256},rawSource:{text:retained.rawSource.text},accessDecisions},providerAuthority,acquisition},objective,{extractionHint});
  const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},truth=evaluate(knowledge),catalog=refreshCatalog(knowledge,truth),{navigation,v3Continuations}=sourceBoundContinuations(observation,objective,truth);
  const projected=projectV3SuggestedCandidates({observation,objective,targetMarket:target.market,providerAuthority,truth});
  const researchCandidateLineage=(target.researchCandidateLineage??[]).map(row=>!row.sourceHash&&normalizeUrl(row.sourceUrl)===normalizeUrl(observation.url)?{...row,sourceHash:observation.sha256}:row);
  const v3ResearchLineage=sourceBoundLineageBindings({handoff:{adaptiveTargetPatch:{researchCandidateLineage}},observation,candidates:projected});
  const v3SuggestedCandidates=projectV3SuggestedCandidates({observation,objective,targetMarket:target.market,providerAuthority,truth,researchLineage:v3ResearchLineage.bindings});
- return {v3Observation:{...compactObservation(observation),continuationCount:v3Continuations.length,continuationLimited:navigation.limited},v3ServiceUnderstanding:serviceUnderstanding,v3Truth:truth,v3Catalog:structuredClone(catalog),v3SuggestedCandidates,v3ResearchLineage,v3Continuations};
+ const compact=compactObservation(observation);
+ if(compact.extractionTrace)compact.extractionTrace={...compact.extractionTrace,market:target.market,acquisitionMethod:acquisition.route,marketEvidence:acquisition.route==='DECODO'?{kind:'G1_BRACKET_VERIFIED',requestedCountry:acquisition.countryReceipt.requestedCountry,verifiedCountry:acquisition.countryReceipt.verifiedCountry,sourceHash:observation.sha256}:acquisition.route==='PROVIDER_SELECTED_MARKET'?{kind:'PROVIDER_SELECTED_MARKET',sourceHash:observation.sha256}:null};
+ return {v3Observation:{...compact,continuationCount:v3Continuations.length,continuationLimited:navigation.limited},v3ServiceUnderstanding:serviceUnderstanding,v3Truth:truth,v3Catalog:structuredClone(catalog),v3SuggestedCandidates,v3ResearchLineage,v3Continuations};
 }
 
 export function sourceBoundContinuations(observation,objective,truth){

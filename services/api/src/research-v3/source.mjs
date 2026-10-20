@@ -163,7 +163,8 @@ export function projectWebSource(observation, objective) {
     if(identity) {source.serviceId=objective.serviceId; bindings['/serviceId']=pointer(identity);}
     const dollarCurrency=providerSelectedDollarCurrency(observation,objective);
     const verifiedMarket=providerSelectedMarketContext(observation)??verifiedCountryContext(observation),compatible=verifiedMarket?compatibleCurrencies(verifiedMarket):[],marketCurrencyHint=compatible.length===1?compatible[0]:null;
-    const subscriptionPage=interpretSubscriptionPage({body:observation.body,url:observation.url,providerName:objective.serviceName,currencyHint:dollarCurrency?.code??null,marketCurrencyHint}),pageService=subscriptionPage.services.find(row=>normalized(row.name)===normalized(objective.serviceName));
+    const extractionTrace={};
+    const subscriptionPage=interpretSubscriptionPage({body:observation.body,url:observation.url,providerName:objective.serviceName,currencyHint:dollarCurrency?.code??null,marketCurrencyHint,extractionHint:observation.extractionHint??null,extractionTrace}),pageService=subscriptionPage.services.find(row=>normalized(row.name)===normalized(objective.serviceName));
     if(pageService&&source.serviceId===objective.serviceId)for(const offering of subscriptionPage.offerings)for(const [chargeIndex,charge]of offering.charges.entries()){
         const p='/offers/'+source.offers.length,id=digest([new URL(observation.url).hostname,normalized(objective.serviceName),normalized(offering.name),charge.cadence,charge.amount,charge.currency,chargeIndex]);
         source.offers.push({id,amount:charge.amount,currency:charge.currency,cadence:charge.cadence,billingCadence:charge.billingCadence,consumer:charge.consumer,relationship:charge.relationship,role:charge.role,monetaryKind:charge.monetaryKind,amountDerivation:charge.amountDerivation,market:offering.market??null});
@@ -208,7 +209,7 @@ export function projectWebSource(observation, objective) {
         source.links.push({url:n.attrs.href,needs:[...new Set(needs)],label:n.text.slice(0,160),source:pointer(n)});
     }
     source.links.sort((a,b)=>b.needs.length-a.needs.length||a.url.localeCompare(b.url));
-    return {source,bindings,ambiguities,limited:parsed.limited||state.limited||selected.length>64||nodes.filter(n=>n.tag==='a').length>512};
+    return {source,bindings,ambiguities,extractionTrace:pageService&&source.offers.length?extractionTrace:null,limited:parsed.limited||state.limited||selected.length>64||nodes.filter(n=>n.tag==='a').length>512};
 }
 
 export function interpretWeb(observation, objective) {

@@ -69,7 +69,7 @@ function retainedPage(value){
 
 // This maps representation only. Existing V3 projection/admission decides which
 // source-backed candidates may be evaluated; existing V3 Truth decides states.
-export function adaptV2CurrentSource(input,objective){
+export function adaptV2CurrentSource(input,objective,{extractionHint=null}={}){
  exact(input,['contractVersion','observationId','target','page','providerAuthority','acquisition'],'V2_V3_BOUNDARY_INVALID');
  if(input.contractVersion!==v2CurrentSourceBoundary.contractVersion||typeof input.observationId!=='string'||!/^[A-Za-z0-9:_-]{1,128}$/.test(input.observationId))throw Error('V2_V3_BOUNDARY_INVALID');
  exact(input.target,['service','serviceName','market'],'V2_V3_TARGET_INVALID');
@@ -82,10 +82,12 @@ export function adaptV2CurrentSource(input,objective){
   ...(acquired.transport?{transport:acquired.transport}:{}),
   ...(acquired.marketSelection?{marketSelection:acquired.marketSelection}:{}),
   ...(web?{format:'WEB',contentType:input.page.contentType,requestedUrl:page.requestedUrl,completeness:'COMPLETE',access:page.access}:{})};
+ if(extractionHint)Object.defineProperty(observation,'extractionHint',{value:extractionHint});
  if(web){
   const projection=projectObservation(observation,objective);
   observation.nativeStructured=projection.nativeStructured;
   observation.candidates=admittedProjectionCandidates(projection);
+  if(projection.extractionTrace)Object.defineProperty(observation,'extractionTrace',{value:projection.extractionTrace});
  }else observation.candidates=interpretStructured(observation,objective);
  return observation;
 }

@@ -6,6 +6,7 @@ import path from 'node:path';
 import {canonical,digest,normalizeUrl} from '../../research-v3/model.mjs';
 import {validatedV3ProviderAuthorityBinding} from './provider-routing-authority.mjs';
 import {providerSeedCampaignState} from '../../research-v3/research-target.mjs';
+import {interpretSubscriptionPage,validExtractionRecipe} from '../../research-v3/subscription-page.mjs';
 
 export const hybridProviderResourceMemoryContract=Object.freeze({
  contractVersion:1,
@@ -155,10 +156,16 @@ export function learnProviderPricingRoutesFromTarget({memory,target,directory,no
   const page=(target.reads??[]).find(row=>normalizeUrl(row.url)===url&&row.outcome==='OK'&&row.truncated!==true&&row.bodyHash===hash&&row.sourceIntegrity?.sha256===hash);
   let retained=false,retainedBody=null;
   if(page?.bodyFile&&directory){try{const file=path.resolve(directory,page.bodyFile);if(file.startsWith(path.resolve(directory)+path.sep)&&!fs.lstatSync(file).isSymbolicLink()){const body=fs.readFileSync(file,'utf8');retained=digest(body)===hash;if(retained)retainedBody=body;}}catch{/* Invalid retained body. */}}
-  if(!retained&&priorityAuthority&&directory){try{const root=fs.realpathSync(path.resolve(directory,'acquisitions')),run=fs.realpathSync(acquisition.runDirectory),file=fs.realpathSync(path.join(run,'raw',hash+'.body'));if(run.startsWith(root+path.sep)&&file.startsWith(run+path.sep)&&fs.statSync(file).size<=8_000_000){const body=fs.readFileSync(file,'utf8');retained=digest(body)===hash;if(retained)retainedBody=body;}}catch{/* Invalid retained body. */}}
+  if(acquisition&&directory&&!retainedBody){try{const root=fs.realpathSync(path.resolve(directory,'acquisitions')),run=fs.realpathSync(acquisition.runDirectory),file=fs.realpathSync(path.join(run,'raw',hash+'.body'));if(run.startsWith(root+path.sep)&&file.startsWith(run+path.sep)&&fs.statSync(file).size<=8_000_000){const body=fs.readFileSync(file,'utf8');if(digest(body)===hash){retained=true;retainedBody=body;}}}catch{/* Invalid retained body. */}}
   if(!retained&&directAuthority&&interpretation.countryV3Evaluation?.status==='EVALUATED'&&interpretation.countryV3Evaluation.sourceHash===hash&&observation.context?.transport==='DECODO'&&observation.context?.networkGeography===target.market)retained=true;
   if(!retained)continue;
-  const key=routeKey(target.service,url),prior=memory.routes.get(key),source={market:target.market,observation:observation.id,sha256:hash};
+  const trace=observation.extractionTrace,currency=truth.prices?.[target.market]?.propositions?.CURRENCY?.evidence?.find(row=>references(row,observation.id,hash))?.value;
+  const replayTrace={};
+  if(retainedBody&&typeof currency==='string')interpretSubscriptionPage({body:retainedBody,url,providerName:target.serviceName,marketCurrencyHint:currency,extractionTrace:replayTrace});
+  const decodoTraceProof=observation.context?.transport==='DECODO'&&trace?.acquisitionMethod==='DECODO'&&trace?.marketEvidence?.kind==='G1_BRACKET_VERIFIED'&&trace.marketEvidence.requestedCountry===target.market&&trace.marketEvidence.verifiedCountry===target.market&&trace.marketEvidence.sourceHash===hash;
+  const selectorTraceProof=observation.context?.transport==='DIRECT'&&trace?.acquisitionMethod==='PROVIDER_SELECTED_MARKET'&&trace?.marketEvidence?.kind==='PROVIDER_SELECTED_MARKET'&&trace.marketEvidence.sourceHash===hash&&establishedMonthlyPrice;
+  const recipe=trace?.sourceUrl===url&&trace?.sourceHash===hash&&trace?.market===target.market&&(decodoTraceProof||selectorTraceProof)&&validExtractionRecipe(trace.recipe)&&canonical(trace.recipe)===canonical(replayTrace.recipe)?structuredClone(trace.recipe):null;
+  const key=routeKey(target.service,url),prior=memory.routes.get(key),source={market:target.market,observation:observation.id,sha256:hash,...(recipe?{extractionRecipe:recipe}:{})};
   const sources=[...(prior?.sources??[]).filter(row=>row.market!==source.market||row.sha256!==source.sha256),source].slice(-8);
   const row={service:target.service,serviceName:target.serviceName,url,host,role:'PRICING',meaning:hybridProviderResourceMemoryContract.meaning,successes:(prior?.successes??0)+Number(!prior?.sources?.some(row=>row.market===source.market&&row.sha256===source.sha256)),failures:prior?.failures??0,lastSuccessAt:now,sources,propositions:[...new Set([...(prior?.propositions??[]),...propositions])].sort(),...(priorityAuthority?{countryRouteEvidenceSha256:derivedCandidate.providerRouteEvidenceSha256}:{})};
   memory.routes.set(key,row);if(!memory.byService.has(target.service))memory.byService.set(target.service,new Map());memory.byService.get(target.service).set(url,row);const validated=structuredClone(row);validatedPricingRouteRows.add(validated);if(retainedBody!==null)validatedPricingRouteBodies.set(validated,Buffer.from(retainedBody));learned.push(validated);
@@ -176,7 +183,7 @@ export function providerPricingRoutesForTarget(memory,target){
   // supported route map. Neither the old body nor its receipt is projected.
   const candidates=(target.derivedCountryCandidates??[]).filter(candidate=>candidate.service===target.service&&candidate.market===target.market&&candidate.providerRouteEvidenceSha256===row.countryRouteEvidenceSha256&&normalizeUrl(candidate.url)&&new URL(candidate.url).hostname===row.host);
   const sourceLanguage=new URL(row.url).pathname.split('/').filter(Boolean).at(-1);
-  return candidates.sort((a,b)=>recentMethodPenalty(memory,row.service,target.market,a.url)-recentMethodPenalty(memory,row.service,target.market,b.url)||Number(new URL(b.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)-Number(new URL(a.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)).slice(0,2).map(candidate=>({service:row.service,serviceName:row.serviceName,url:candidate.url,host:row.host,role:row.role,meaning:row.meaning,successes:row.successes,failures:row.failures,lastSuccessAt:row.lastSuccessAt,propositions:row.propositions,countryRouteEvidenceSha256:row.countryRouteEvidenceSha256}));
+  return candidates.sort((a,b)=>recentMethodPenalty(memory,row.service,target.market,a.url)-recentMethodPenalty(memory,row.service,target.market,b.url)||Number(new URL(b.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)-Number(new URL(a.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)).slice(0,2).map(candidate=>({service:row.service,serviceName:row.serviceName,url:candidate.url,host:row.host,role:row.role,meaning:row.meaning,successes:row.successes,failures:row.failures,lastSuccessAt:row.lastSuccessAt,propositions:row.propositions,countryRouteEvidenceSha256:row.countryRouteEvidenceSha256,...(candidate.url===row.url&&row.sources?.some(source=>source.market===target.market&&source.extractionRecipe)?{extractionRecipe:row.sources.findLast(source=>source.market===target.market&&source.extractionRecipe).extractionRecipe}:{})}));
  });
 }
 
