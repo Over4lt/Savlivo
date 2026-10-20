@@ -15,7 +15,7 @@ import {interpretSubscriptionPage} from '../../research-v3/subscription-page.mjs
 import {retainedProviderSelectorAuthority,researchLinkPriorityTarget} from './retained-render-source.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
 import {runAdaptiveCampaign} from '../inventory/adaptive-campaign.mjs';
-import {createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget} from './hybrid-provider-resource-memory.mjs';
+import {createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget,providerPricingStrategiesForTarget} from './hybrid-provider-resource-memory.mjs';
 import {publishPricingRouteMemory,loadPricingRouteMemory} from '../storage/pricing-route-memory.mjs';
 import {readBrowserPricingRouteEvidence} from './browser-pricing-route-evidence.mjs';
 import {recoverCompletedPricingRoutes} from '../../v2-operations/price-research-batch.mjs';
@@ -346,6 +346,7 @@ test('completed canonical batch publishes and reloads Browser routing without pr
  fs.writeFileSync(path.join(jobRoot,'price-research-batch-progress.jsonl'),JSON.stringify({index:0,targetId,status:'COMPLETE'})+'\n');
  recoverCompletedPricingRoutes(createProviderPricingRouteMemory(),child,{id:targetId,serviceId:service,targetMarket:'NO'},{memoryRoot,runsRoot,jobId,recordedAt:new Date().toISOString()});
  const loaded=loadPricingRouteMemory(memoryRoot,{services:[service]});assert.equal(loaded.routes.size,1);assert.equal(loaded.methodOutcomes.filter(row=>row.method==='BROWSER'&&row.result==='SUCCESS').length,1);
+ assert.equal(loaded.provenMethods.filter(row=>row.method==='BROWSER').length,1);assert.equal(providerPricingStrategiesForTarget(loaded,target('GB'))[0]?.method,'BROWSER');
  const memoryFile=path.join(memoryRoot,'provider-pricing-routes-v1.json'),firstBytes=fs.readFileSync(memoryFile),firstDigest=digest(firstBytes.toString('utf8'));
  const browserJournal=fs.readFileSync(path.join(directory,'hybrid-rendered','journal.jsonl'),'utf8').trim().split('\n').map(JSON.parse),acquiredAt=browserJournal.find(row=>row.type==='ACTION_RESULT'&&row.outcome==='OBSERVED').checkpoint.freshAt;
  assert.equal(loaded.routes.get(service+'|'+url).lastSuccessAt,acquiredAt);

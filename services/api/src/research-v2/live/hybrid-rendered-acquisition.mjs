@@ -58,7 +58,8 @@ function phase1Input({action,target,objective,result,acquisition}) {
 }
 
 function learnedHint(target,result){
- return (target.learnedExtractionHints??[]).find(row=>row.market===target.market&&row.url===result.page.url)?.recipe??null;
+ const body=result.page.body,format=/<script\b[^>]*\bid=["']__NEXT_DATA__["']/iu.test(body)?'HYDRATED_JSON':'HTML';
+ return (target.learnedExtractionHints??[]).find(row=>row.market===target.market&&row.url===result.page.url)?.recipe??(target.genericExtractionHints??[]).find(row=>row.sourceFormat===format)?.recipe??null;
 }
 
 function persistArtifacts(directory,action,result,observation,retained) {

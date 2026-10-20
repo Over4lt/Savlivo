@@ -12,6 +12,17 @@ export function nextResearchLink(target,executionContext=null){
   const directProbe=providerMarketSelectorRoute(link)&&target.capabilities?.direct===true&&target.capabilities?.browser===true&&executionContext?.available?.direct!==false&&executionContext?.available?.browser!==false&&!(target.reads??[]).some(row=>row.requestedUrl===link.url);
   return {route:directProbe?'DIRECT':'DECODO',reason:directProbe?'PROVIDER_MARKET_SELECTOR_PROBE':'PRICE_RESEARCH_VERIFICATION_REQUIRED',url:link.url,researchLinkId:link.id,researchLinkKind:link.kind,researchLinkScope:link.marketScope,researchLinkMarket:link.marketCode??null,targetMarket:target.market,truthAuthority:'NONE',directAppropriate:directProbe,discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}],decodoVerification:{status:'PENDING',url:link.url}};
  }
+ for(const strategy of (target.learnedPricingStrategies??[]).slice(0,16)){
+  if((target.learnedStrategyTrace?.rejected??[]).some(row=>row.id===strategy.id))continue;
+  if((target.learnedStrategyTrace?.attempted??[]).some(row=>row.id===strategy.id))continue;
+  if(strategy.method==='DECODO'&&(target.acquisitionOutcomes??[]).some(row=>row.url===strategy.url&&row.transport==='DECODO'))continue;
+  if(strategy.method==='DIRECT'&&(target.reads??[]).some(row=>row.requestedUrl===strategy.url))continue;
+  // Browser still requires a newly retained selector page through its
+  // configured Research Link; a remembered result grants no rendering proof.
+  if(strategy.method==='BROWSER'){const trace=target.learnedStrategyTrace;if(trace&&!trace.rejected.some(row=>row.id===strategy.id)&&trace.rejected.length<16)trace.rejected.push({id:strategy.id,method:'BROWSER',reason:'CURRENT_SELECTOR_RESEARCH_LINK_REQUIRED'});continue;}
+  return {route:strategy.method,reason:strategy.method==='DECODO'?'PRICE_RESEARCH_VERIFICATION_REQUIRED':'LEARNED_PROVIDER_PRICING_METHOD',url:strategy.url,learnedStrategyId:strategy.id,targetMarket:target.market,truthAuthority:'NONE',directAppropriate:strategy.method==='DIRECT',discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}]};
+ }
+ if(target.learnedStrategyTrace?.relevant>0&&!target.learnedStrategyTrace.fallbackReason)target.learnedStrategyTrace.fallbackReason='LEARNED_STRATEGIES_ATTEMPTED_OR_INCOMPATIBLE';
  for(const candidate of (target.derivedCountryCandidates??[]).slice(0,2)){
   if(candidate?.service!==target.service||candidate?.market!==target.market||!candidate?.url||[...(target.acquisitionOutcomes??[]).map(row=>row.url),...(target.decisions??[]).filter(row=>row.acquisitionReserved).map(row=>row.url),...(target.derivedCountrySourceOutcomes??[]).map(row=>row.url)].some(url=>resourceKey(url)===resourceKey(candidate.url)))continue;
   return {route:'DECODO',reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED',url:candidate.url,derivedCountrySource:true,targetMarket:target.market,truthAuthority:'NONE',directAppropriate:false,discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}],decodoVerification:{status:'PENDING',url:candidate.url}};
@@ -29,6 +40,7 @@ export function prepareResearchLinkPlan(target,executionContext){
   const plan=nextResearchLink(target,executionContext);if(!plan)return null;
   const gate=executableAction(target,plan,executionContext);
   if(gate.executable)return plan;
+  if(plan.learnedStrategyId){const trace=target.learnedStrategyTrace??={loaded:0,relevant:0,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null};if(trace.rejected.length<16)trace.rejected.push({id:plan.learnedStrategyId,method:plan.route,reason:gate.reason});continue;}
   if(plan.route==='DIRECT'){const fallback={...plan,route:'DECODO',reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED',directAppropriate:false};if(executableAction(target,fallback,executionContext).executable)return fallback;}
   if(plan.derivedCountrySource){(target.derivedCountrySourceOutcomes??=[]).push({url:plan.url,reason:gate.reason});continue;}
   const link=target.researchLinks.find(row=>row.id===plan.researchLinkId);

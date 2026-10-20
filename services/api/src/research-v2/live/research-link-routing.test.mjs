@@ -21,6 +21,36 @@ test('Research links rank specific before global and Decodo before Direct or dis
  assert.equal(priceResearchAcquisitionCandidate(se,specific.url),null);
 });
 
+test('learned Decodo methods precede discovery and fall through to the next proven method',async t=>{
+ const first='https://streamco.example/no/plans',second='https://streamco.example/no/pricing',trace={loaded:2,relevant:2,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null};
+ const x=target('NO',{researchLinks:[],urls:[first,second],leads:[first,second].map(url=>({url,learnedProviderPricingRoute:true,routingRole:'PRICING'})),learnedPricingStrategies:[{id:'first',market:'NO',url:first,method:'DECODO'},{id:'second',market:'NO',url:second,method:'DECODO'}],learnedStrategyTrace:trace});
+ assert.equal(planResearch(x).route,'DECODO');assert.equal(planResearch(x).url,first);
+ const calls=[],adapters={directory:temporary(t),targets:[x],search:never,read:never,acquire:async({candidate,target:current})=>{calls.push([candidate.url,current.market]);return {classification:'CONTENT_NOT_COMMERCIAL',sourceClassification:{status:'PROVIDER_SOURCE'},verified:[],acquisitionBytes:0};}};
+ const one=await runOpenWebResearch({...adapters,maxActions:1});assert.deepEqual(calls,[[first,'NO']]);assert.equal(one.targets[0].learnedStrategyTrace.attempted[0].id,'first');
+ const two=await runOpenWebResearch({...adapters,maxActions:1});assert.deepEqual(calls,[[first,'NO'],[second,'NO']]);assert.equal(two.targets[0].learnedStrategyTrace.attempted[1].id,'second');
+ assert.equal(two.targets[0].learnedStrategyTrace.verifiedStrategyId,null);assert.equal(planResearch(two.targets[0]).route!=='DECODO'||planResearch(two.targets[0]).url!==first,true);
+});
+
+test('learned method selection respects capability, proof identity and acquisition budget',()=>{
+ const url='https://streamco.example/no/pricing',strategy={id:'documented',market:'NO',url,method:'DECODO'};
+ const x=target('NO',{researchLinks:[],urls:[url],leads:[{url,learnedProviderPricingRoute:true,routingRole:'PRICING'}],learnedPricingStrategies:[strategy],learnedStrategyTrace:{loaded:1,relevant:1,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null}});
+ assert.equal(planResearch(x).learnedStrategyId,'documented');
+ assert.equal(executableAction(x,{route:'DECODO',url,reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED',learnedStrategyId:'forged'}).executable,true,'the first standard verification request remains independently available');
+ const prior={url:'https://streamco.example/no/other',route:'DECODO',acquisitionReserved:true};
+ assert.equal(executableAction({...x,decisions:[prior]},{route:'DECODO',url,reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED',learnedStrategyId:'forged'}).reason,'EQUIVALENT_RESOURCE_ALREADY_ATTEMPTED');
+ assert.equal(executableAction({...x,decisions:[prior]},{route:'DECODO',url,reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED',learnedStrategyId:'documented'}).executable,true);
+ assert.equal(executableAction({...x,decisions:[prior]},{route:'DECODO',url,reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED',learnedStrategyId:'documented'},{bounds:{bytes:1,bytesPerPage:1,acquisitions:1,perServiceAcquisitions:1},usage:{bytes:0,acquisitions:1}}).reason,'DECODO_BUDGET_EXHAUSTED');
+ const disabled=target('NO',{researchLinks:[],urls:[url],leads:x.leads,learnedPricingStrategies:[strategy],learnedStrategyTrace:{loaded:1,relevant:1,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null},capabilities:{direct:true,tavily:false,decodo:false,browser:false}});
+ assert.notEqual(planResearch(disabled).route,'DECODO');assert.equal(disabled.learnedStrategyTrace.rejected[0].reason,'INDEPENDENT_DECODO_PERMISSION_REQUIRED');
+});
+
+test('a remembered Browser strategy cannot render without a current selector link',()=>{
+ const url='https://streamco.example/pricing?redirect=true',x=target('NO',{researchLinks:[],learnedPricingStrategies:[{id:'browser',market:'NO',url,method:'BROWSER'}],learnedStrategyTrace:{loaded:1,relevant:1,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null}});
+ assert.notEqual(planResearch(x).route,'PARK_RENDERING');assert.equal(x.learnedStrategyTrace.rejected[0].reason,'CURRENT_SELECTOR_RESEARCH_LINK_REQUIRED');
+ const configured=target('NO',{researchLinks:[{...global,url}],capabilities:{direct:true,tavily:false,decodo:true,browser:true},learnedPricingStrategies:x.learnedPricingStrategies,learnedStrategyTrace:{loaded:1,relevant:1,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null}});
+ assert.equal(planResearch(configured).route,'DIRECT');assert.equal(planResearch(configured).reason,'PROVIDER_MARKET_SELECTOR_PROBE');
+});
+
 test('Decodo disabled records diagnostic and falls through to ordinary discovery without Direct-first link',()=>{
  const x=target('NO',{capabilities:{direct:true,tavily:true,decodo:false,browser:false,groq:false}}),plan=planResearch(x);
  assert.equal(x.researchLinkOutcomes.length,2);assert(x.researchLinkOutcomes.every(row=>row.result==='DECODO_UNAVAILABLE'&&row.decodoAttempted===false));assert.notEqual(plan.route,'DECODO');assert.notEqual(plan.url,specific.url);

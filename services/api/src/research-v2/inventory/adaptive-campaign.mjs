@@ -17,7 +17,7 @@ import {priceResearchDecodoVerification} from '../live/information-routing.mjs';
 import {directAcquisitionReads,equivalentCountryAcquisitionAttempted,executableAction,executionBounds,resourceKey,exhaustedExecutionBudget} from '../live/execution-capabilities.mjs';
 import {navigationRank} from '../live/provider-navigation.mjs';
 import {rehydrateProviderSeedAuthorityHandoff} from '../live/provider-seed-authority-handoff.mjs';
-import {providerPricingRoutesForTarget} from '../live/hybrid-provider-resource-memory.mjs';
+import {providerPricingRoutesForTarget,providerPricingStrategiesForTarget} from '../live/hybrid-provider-resource-memory.mjs';
 const hash=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 export const adaptiveStressBounds=Object.freeze({reads:4,searches:2,acquisitions:2,retainedReviews:32,turns:512,bytes:2*1024*1024});
 export const adaptiveProductionBounds=Object.freeze({reads:24,searches:8,acquisitions:8,retainedReviews:64,turns:512,bytes:16*1024*1024});
@@ -96,12 +96,20 @@ export async function runAdaptiveCampaign({directory,manifest,retainedStates=[],
  fs.mkdirSync(directory,{recursive:true});const file=directory+'/adaptive-state.json',lock=directory+'/adaptive.lock';if(fs.existsSync(lock)){const pid=Number(fs.readFileSync(lock));try{process.kill(pid,0);throw Error('ADAPTIVE_ALREADY_RUNNING');}catch(e){if(e.code!=='ESRCH')throw e;}fs.unlinkSync(lock);}fs.writeFileSync(lock,String(process.pid),{flag:'wx'});
  const diagnostic=runtimeDiagnostics(directory),checkpoint=()=>diagnostic.sync('ADAPTIVE_CHECKPOINT_WRITE',()=>atomic(file,state,{stream:true}));let state;diagnostic.emit('CAMPAIGN_ENTRY');
  try{const fresh=diagnostic.sync('INITIALIZE_ADAPTIVE',()=>initializeAdaptiveState(manifest,{retainedStates,limits,budgetScope,initialUsage,profile}));state=fs.existsSync(file)?diagnostic.sync('CHECKPOINT_PARSE',()=>JSON.parse(fs.readFileSync(file))):fresh;if(state.fingerprint!==fresh.fingerprint)throw Error('ADAPTIVE_INPUT_CHANGED');diagnostic.sync('ADMISSION_REVALIDATION',()=>{for(const target of Object.values(state.targets))revalidateTargetAdmission(target);});
- for(const target of Object.values(state.targets))for(const row of providerPricingRoutesForTarget(providerPricingRouteMemory,target)){
+ for(const target of Object.values(state.targets)){
+  const strategies=providerPricingStrategiesForTarget(providerPricingRouteMemory,target);
+  target.learnedPricingStrategies=strategies.map(({id,market,url,method,sourceMarket,sourceUrl,score})=>({id,market,url,method,sourceMarket,sourceUrl,score}));
+  target.learnedStrategyTrace??={loaded:providerPricingRouteMemory?.provenMethodsByService?.get(target.service)?.length??0,relevant:strategies.length,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null};
+  target.learnedStrategyTrace.loaded=providerPricingRouteMemory?.provenMethodsByService?.get(target.service)?.length??0;target.learnedStrategyTrace.relevant=strategies.length;
+  if(strategies.length&&['NO_COMPATIBLE_TARGET_ROUTE','NO_DOCUMENTED_SUCCESS'].includes(target.learnedStrategyTrace.fallbackReason))target.learnedStrategyTrace.fallbackReason=null;
+  if(!strategies.length&&!target.learnedStrategyTrace.fallbackReason)target.learnedStrategyTrace.fallbackReason=target.learnedStrategyTrace.loaded?'NO_COMPATIBLE_TARGET_ROUTE':'NO_DOCUMENTED_SUCCESS';
+  for(const row of providerPricingRoutesForTarget(providerPricingRouteMemory,target)){
   if(!(target.urls??=[]).includes(row.url))target.urls.push(row.url);
   const lead=(target.leads??=[]).find(item=>item.url===row.url);
   if(lead){lead.learnedProviderPricingRoute=true;lead.routingRole='PRICING';lead.routingMemoryOnly=true;}
   else {if(target.leads.length>=72){const replace=target.leads.findLastIndex(item=>!item.learnedProviderPricingRoute&&!item.sourceBoundCandidate&&!item.providerSeedObjectiveLead&&!(target.reads??[]).some(read=>[read.url,read.requestedUrl].includes(item.url)));if(replace>=0)target.leads.splice(replace,1);}if(target.leads.length<72)target.leads.push({url:row.url,title:target.serviceName+' provider pricing resource',rank:-1,routingRole:'PRICING',learnedProviderPricingRoute:true,routingMemoryOnly:true,from:{method:'HYBRID_PROVIDER_PRICING_ROUTE_MEMORY'}});}
   if(target.leads.some(item=>item.url===row.url)&&target.executionBlocked==='NO_EXECUTABLE_PROGRESS_RECONCILE'){delete target.executionBlocked;state.services[target.service].stop=null;state.complete=false;}
+  }
  }
  const assess=service=>{rehydrateAdaptiveProviderAuthority(state,directory,service,providerSeedRoot);return diagnostic.sync('ASSESS',()=>assessAdaptiveService(state,service));};checkpoint();
  if(state.pending){const pendingId=state.pending.targetId,native=nativeFile(directory,pendingId);if(fs.existsSync(native)){const interrupted=recoverInterrupted(path.dirname(native));if(interrupted.length)state.services[state.targets[pendingId].service].reconciliation='INTERRUPTED_ACTION_RECONCILIATION_REQUIRED';}if(!diagnostic.sync('NATIVE_COMMIT',()=>commitNative(state,directory))){const f=nativeFile(directory,state.pending.targetId);if(fs.existsSync(f)&&JSON.parse(fs.readFileSync(f)).pending)throw Error('ADAPTIVE_PENDING_ACTION_REQUIRES_RECONCILIATION');state.pending=null;}checkpoint();}

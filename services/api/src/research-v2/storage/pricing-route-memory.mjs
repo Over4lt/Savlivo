@@ -14,6 +14,7 @@ const exact=(value,keys)=>value&&typeof value==='object'&&!Array.isArray(value)&
 const methodResults=new Set(['SUCCESS','NO_DURABLE_SUCCESS_PROOF','ACCESS_BLOCKED','TRANSPORT_FAILED','MARKET_MISMATCH']);
 const methods=new Set(['DIRECT','DECODO','BROWSER']);
 const parserStrategies=new Set([null,'NATIVE_STRUCTURED','NEXT_DATA_MAPPED_MONTHLY_PLAN_CARD_V1',...htmlExtractionRules.map(rule=>rule+'_V1')]);
+const reusableParserRules=new Set(['NEXT_DATA_MAPPED_MONTHLY_PLAN_CARD','HTML_PLAN_CARDS','HTML_PRICING_LIST','HTML_PRICING_TABLE']);
 const boundedCount=value=>Number.isSafeInteger(value)&&value>=0?value:null;
 function publicUrl(value){try{const url=new URL(value),parameters=[...url.searchParams];return url.protocol==='https:'&&!url.username&&!url.password&&!url.hash&&!/@|[a-f0-9]{32,}/i.test(url.pathname)&&parameters.every(([key,item])=>key==='pubDate'?/^\d{8}$/.test(item):key==='redirect'&&/^(true|false)$/.test(item))?url.href:null;}catch{return null;}}
 export const isPublicPricingRouteUrl=value=>publicUrl(value)===value;
@@ -49,7 +50,30 @@ function readStore(root,{services=null,verifyProofs=true}={}){
 export function loadPricingRouteMemory(root,{services=null}={}){
  const memory=createProviderPricingRouteMemory(),store=readStore(root,{services});
  for(const entry of store.entries){const row=structuredClone(entry.route);if(services!==null&&!services.includes(row.service))continue;row.failures=0;memory.routes.set(row.service+'|'+row.url,row);if(!memory.byService.has(row.service))memory.byService.set(row.service,new Map());memory.byService.get(row.service).set(row.url,row);}
- memory.methodOutcomes=store.methodOutcomes.filter(row=>services===null||services.includes(row.service));memory.methodOutcomesByTargetUrl=new Map();for(const row of memory.methodOutcomes){const key=row.service+'|'+row.market+'|'+row.url;if(!memory.methodOutcomesByTargetUrl.has(key))memory.methodOutcomesByTargetUrl.set(key,[]);memory.methodOutcomesByTargetUrl.get(key).push(row);}return memory;
+ memory.methodOutcomes=store.methodOutcomes.filter(row=>services===null||services.includes(row.service));memory.methodOutcomesByTargetUrl=new Map();for(const row of memory.methodOutcomes){const key=row.service+'|'+row.market+'|'+row.url;if(!memory.methodOutcomesByTargetUrl.has(key))memory.methodOutcomesByTargetUrl.set(key,[]);memory.methodOutcomesByTargetUrl.get(key).push(row);}
+ // Method success is usable only when the exact original source also has a
+ // durable origin whose retained bytes still satisfy its evidence hash.
+ const entries=new Map(store.entries.map(entry=>[entry.route.service+'|'+entry.route.url,entry]));
+ const latestSuccesses=new Map();for(const row of memory.methodOutcomes.filter(row=>row.result==='SUCCESS').sort((a,b)=>b.at.localeCompare(a.at))){const key=row.service+'|'+row.url+'|'+row.method;if(!latestSuccesses.has(key))latestSuccesses.set(key,row);}
+ for(const outcome of latestSuccesses.values()){
+  const origin=entries.get(outcome.service+'|'+outcome.url)?.origins.find(item=>item.jobId===outcome.jobId&&item.checkpoint===outcome.checkpoint&&item.market===outcome.market&&item.sourceHash===outcome.sourceHash);
+  if(!origin)continue;
+  try{const proof=readObservation(root,origin.evidenceObservationId);if(proof.blob.sha256!==outcome.sourceHash||proof.observation?.jobId!==outcome.jobId||proof.observation?.market!==outcome.market||proof.observation?.url!==outcome.url||proof.observation?.truthAuthority!=='NONE')continue;}
+  catch{continue;}
+  const item={id:outcome.id,service:outcome.service,market:outcome.market,url:outcome.url,sourceHash:outcome.sourceHash,method:outcome.method,at:outcome.at};memory.provenMethods.push(item);if(!memory.provenMethodsByService.has(item.service))memory.provenMethodsByService.set(item.service,[]);memory.provenMethodsByService.get(item.service).push(item);
+ }
+ // Generic parser rules are hints for a new source only. Provider-specific
+ // rules, URLs, market receipts and presentation facts never cross services.
+ memory.genericExtractionHints=[];
+ for(const entry of [...store.entries].sort((a,b)=>b.route.lastSuccessAt.localeCompare(a.route.lastSuccessAt))){
+  if(memory.genericExtractionHints.length>=4)break;
+  for(const source of entry.route.sources){const recipe=source.extractionRecipe;if(!validExtractionRecipe(recipe)||!reusableParserRules.has(recipe.rule)||memory.genericExtractionHints.some(row=>row.rule===recipe.rule))continue;
+   const origin=entry.origins.find(item=>item.market===source.market&&item.sourceHash===source.sha256);if(!origin)continue;
+   try{const proof=readObservation(root,origin.evidenceObservationId);if(proof.blob.sha256!==source.sha256||proof.observation?.url!==entry.route.url||proof.observation?.jobId!==origin.jobId||proof.observation?.market!==origin.market||proof.observation?.truthAuthority!=='NONE')continue;}catch{continue;}
+   memory.genericExtractionHints.push({rule:recipe.rule,sourceFormat:recipe.sourceFormat,recipe:structuredClone(recipe)});
+  }
+ }
+ return memory;
 }
 function mergeRoute(previous,incoming){
  if(!previous)return incoming;
@@ -110,7 +134,7 @@ export function publishPricingMethodOutcomes(root,{jobId,checkpoint,service,mark
   if(!sourceHash)continue;
   if(!proven.entries.some(entry=>entry.route.service===service&&entry.route.url===url&&entry.origins.some(origin=>origin.jobId===jobId&&origin.checkpoint===checkpoint&&origin.market===market&&origin.sourceHash===sourceHash)))continue;
   const acquiredBy=confirmedSuccessMethods[url],method=acquiredBy==='APPROVED_PROXY'?'DECODO':acquiredBy==='BROWSER'?'BROWSER':acquiredBy==='DIRECT'?'DIRECT':null;
-  if(!method)continue;
+  if(!method||method==='BROWSER'&&interpretation.renderedAcquisition!==true||method==='DECODO'&&observation.context?.transport!=='DECODO'||method==='DIRECT'&&observation.context?.transport!=='DIRECT')continue;
   const recipe=proven.entries.find(entry=>entry.route.service===service&&entry.route.url===url)?.route.sources.find(source=>source.market===market&&source.sha256===sourceHash)?.extractionRecipe;
   observations.push(methodOutcome({id:digest([jobId,checkpoint,service,market,url,method,'SUCCESS',sourceHash]),jobId,checkpoint,service,market,url,method,result:'SUCCESS',parserStrategy:validExtractionRecipe(recipe)?recipe.rule+'_V1':(observation.nativeStructuredFacts??0)>0?'NATIVE_STRUCTURED':null,at:recordedAt,checkpointHash:sha(stateBytes),sourceHash,usage:counts}));
  }
@@ -129,7 +153,10 @@ export function publishPricingMethodOutcomes(root,{jobId,checkpoint,service,mark
  if(!unique.length)return {published:0};
  fs.mkdirSync(path.resolve(root),{recursive:true,mode:0o700});const lock=safe(root,'provider-pricing-routes-v1.lock'),fd=fs.openSync(lock,'wx',0o600);
  try{const store=readStore(root,{verifyProofs:false}),old=new Map(store.methodOutcomes.map(row=>[row.id,row])),added=unique.filter(row=>!old.has(row.id));if(!added.length)return {published:0};for(const row of added)old.set(row.id,row);
-  const payload={schema,entries:store.entries,methodOutcomes:[...old.values()].sort((a,b)=>a.at.localeCompare(b.at)||a.id.localeCompare(b.id)).slice(-4096)},file=safe(root,name),pending=safe(root,name+'.pending-'+randomUUID()),bytes=canonical({...payload,contentHash:digest(payload)}),handle=fs.openSync(pending,'wx',0o600);
+  const all=[...old.values()].sort((a,b)=>b.at.localeCompare(a.at)||a.id.localeCompare(b.id)),protectedSuccesses=new Map();for(const row of all)if(row.result==='SUCCESS'){const key=row.service+'|'+row.url+'|'+row.method;if(!protectedSuccesses.has(key))protectedSuccesses.set(key,row);}
+  if(protectedSuccesses.size>4096)throw Error('PRICING_ROUTE_METHOD_BOUND');
+  const retained=new Map([...protectedSuccesses.values()].map(row=>[row.id,row]));for(const row of all){if(retained.size>=4096)break;retained.set(row.id,row);}
+  const payload={schema,entries:store.entries,methodOutcomes:[...retained.values()].sort((a,b)=>a.at.localeCompare(b.at)||a.id.localeCompare(b.id))},file=safe(root,name),pending=safe(root,name+'.pending-'+randomUUID()),bytes=canonical({...payload,contentHash:digest(payload)}),handle=fs.openSync(pending,'wx',0o600);
   try{fs.writeFileSync(handle,bytes);fs.fsyncSync(handle);}finally{fs.closeSync(handle);}
   try{fs.renameSync(pending,file);const dir=fs.openSync(root,'r');try{fs.fsyncSync(dir);}finally{fs.closeSync(dir);}}finally{if(fs.existsSync(pending))fs.unlinkSync(pending);}
   readStore(root,{verifyProofs:false});return {published:added.length};

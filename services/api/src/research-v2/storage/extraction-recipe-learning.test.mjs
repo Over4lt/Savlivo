@@ -10,6 +10,7 @@ import {derivedCountrySourceCandidates} from '../live/derived-country-sources.mj
 import {createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget} from '../live/hybrid-provider-resource-memory.mjs';
 import {loadPricingRouteMemory,publishPricingRouteMemory} from './pricing-route-memory.mjs';
 import {OpenWebResearch} from '../live/open-web-discovery.mjs';
+import {interpretSubscriptionPage} from '../../research-v3/subscription-page.mjs';
 
 const url='https://www.hbomax.com/nz/en',market='NZ';
 const card=(name,amount,id)=>({periodicityText:'Monthly',productName:{plainText:name},price:{currencyCode:'NZD',amount:{plainText:amount},period:{plainText:'month'}},pricePlan:{id},ctas:[{text:'Select Plan',code:'continue.account-creation.pre-purchase'}]});
@@ -34,6 +35,9 @@ test('two independent jobs persist and reuse a real hydration decision with fres
  publishPricingRouteMemory(root,learned,{jobId:'11111111-1111-4111-8111-111111111111',checkpoint:'priority-research-links',market,recordedAt:'2026-10-20T10:00:00.000Z',acquiredAt:'2026-10-20T09:59:00.000Z'});
  const index=fs.readFileSync(path.join(root,'provider-pricing-routes-v1.json'),'utf8');assert(!index.includes('15.99')&&!index.includes('20.99')&&!index.includes('38354'));
  const restored=loadPricingRouteMemory(root),b=target();
+ assert.equal(restored.genericExtractionHints[0].rule,'NEXT_DATA_MAPPED_MONTHLY_PLAN_CARD');
+ const genericTrace={},generic=interpretSubscriptionPage({body:body('16.99'),url,providerName:'Another Service',marketCurrencyHint:'NZD',extractionHint:restored.genericExtractionHints[0].recipe,extractionTrace:genericTrace});
+ assert.equal(genericTrace.hintOutcome,'APPLIED');assert.equal(generic.offerings.length,2,'a generic parser hint still reads only the new body');
  const independent=new OpenWebResearch(path.join(root,'job-b'),[b],undefined,undefined,{providerPricingRouteMemory:restored});
  const next=independent.state.targets[0];assert.equal(next.learnedExtractionHints.length,1);assert.equal(next.learnedExtractionHints[0].url,url);
  const changedPrice=body('16.99'),fresh=evaluateSource(next,changedPrice,'country-v3-synthetic-nz-fresh');
@@ -43,7 +47,10 @@ test('two independent jobs persist and reuse a real hydration decision with fres
  assert.equal(changedStructure.v3Observation.extractionTrace.hintOutcome,'FALLBACK');assert.equal(changedStructure.v3Truth.established,true);
  const foreign=target({id:'price-research:max:AU',market:'AU',derivedCountryCandidates:derivedCountrySourceCandidates({service:'max',market:'AU'})});
  const foreignJob=new OpenWebResearch(path.join(root,'job-foreign'),[foreign],undefined,undefined,{providerPricingRouteMemory:restored});
- assert.equal(foreignJob.state.targets[0].learnedExtractionHints?.length??0,0,'another market receives no old extraction proof');
+ assert.equal(foreignJob.state.targets[0].learnedExtractionHints?.length??0,1,'a compatible country route may carry a parser hint to the next market');
+ assert.equal(foreignJob.state.targets[0].learnedExtractionHints[0].market,'AU');
+ assert.equal(JSON.stringify(foreignJob.state.targets[0].learnedExtractionHints).includes('15.99'),false,'the hint carries no previous price');
+ assert.equal(JSON.stringify(foreignJob.state.targets[0].learnedExtractionHints).includes('G1'),false,'the hint carries no previous market receipt');
  const tampered=structuredClone(a);tampered.providerInterpretations[0].v3Observation.extractionTrace.recipe.collectionKey='invented';
  const rejected=learnProviderPricingRoutesFromTarget({memory:createProviderPricingRouteMemory(),target:tampered,directory:run});
  assert.equal(rejected.length,1);assert.equal(rejected[0].sources[0].extractionRecipe,undefined,'checkpoint metadata must agree with a replay of the retained body');

@@ -17,7 +17,7 @@ import {createResearchMemory,usableResearchMemory} from './research-memory.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
 import {derivedCountrySourceCandidates} from './derived-country-sources.mjs';
 import {nextResearchLink} from './research-link-routing.mjs';
-import {defaultHybridProviderResourceMemoryRoot,hybridProviderResourceMemoryContract,loadHybridProviderResources,recordHybridProviderResourceFailure,rememberHybridProviderResource,createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget,prioritizeDerivedCountryCandidates,recordProviderPricingRouteFailure} from './hybrid-provider-resource-memory.mjs';
+import {defaultHybridProviderResourceMemoryRoot,hybridProviderResourceMemoryContract,loadHybridProviderResources,recordHybridProviderResourceFailure,rememberHybridProviderResource,createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget,providerPricingStrategiesForTarget,prioritizeDerivedCountryCandidates,recordProviderPricingRouteFailure} from './hybrid-provider-resource-memory.mjs';
 
 const service='aurora-club',serviceName='Aurora Club',market='US',host='aurora.example',candidateUrl=`https://${host}/membership`,providerUrl=`https://${host}/pricing`;
 const candidateBody=`<html><main><h1>${serviceName} membership</h1><p>We operate ${serviceName} membership and provide our own classes.</p><a href="/pricing">Pricing</a></main><footer>© ${serviceName} 2026. All rights reserved.</footer></html>`;
@@ -104,13 +104,20 @@ test('learned route remains a candidate when current target has no provider auth
 });
 
 test('adaptive assessment sees an untried learned route before a no-progress stop',async t=>{
- const {f,state,memory}=learnedFixture(t);learnProviderPricingRoutesFromTarget({memory,target:state,directory:f.run1});const legal=`https://${host}/legal/subscriber`,next=target({id:'aurora-ca',market:'CA',urls:[legal],leads:[{url:legal,title:'Subscriber legal terms'}]});
+ const {f,state,memory}=learnedFixture(t);learnProviderPricingRoutesFromTarget({memory,target:state,directory:f.run1});const legal=`https://${host}/legal/subscriber`,next=target({id:'aurora-us-new',market:'US',operationsObjective:'PRICE_RESEARCH',urls:[legal],leads:[{url:legal,title:'Subscriber legal terms'}]});
  const campaign=await runAdaptiveCampaign({directory:path.join(f.base,'adaptive'),manifest:{targets:[next],conditionalFollowupTargets:[]},providerPricingRouteMemory:memory,stopBeforeNetwork:true,maxActions:1,createAdapters:()=>{throw Error('NO_NETWORK_EXPECTED');}});
- assert.equal(campaign.services[service].pending?.plan?.url,providerUrl);assert.notEqual(campaign.services[service].stop?.reason,'NO_EXECUTABLE_PROGRESS_RECONCILE');
+ assert.equal(campaign.services[service].pending?.plan?.url,providerUrl);assert.equal(campaign.services[service].pending?.plan?.route,'DIRECT');assert.equal(campaign.services[service].pending?.plan?.reason,'LEARNED_PROVIDER_PRICING_METHOD');assert.notEqual(campaign.services[service].stop?.reason,'NO_EXECUTABLE_PROGRESS_RECONCILE');
 });
 
-test('batch pricing route memory is bounded per service',t=>{
- const {f,state,memory}=learnedFixture(t);for(let i=0;i<12;i++){const url=`https://${host}/plan-${i}`,source=body(12),hash=digest(source),file='bodies/'+hash+'.txt';fs.writeFileSync(path.join(f.run1,file),source);const variant=structuredClone(state);variant.reads=[{...state.reads[0],url,bodyFile:file}];variant.decisions=[{url,eligible:true,authority:{hostname:host,service,validated:true}}];variant.providerInterpretations=[{...state.providerInterpretations[0],url,v3Observation:{...state.providerInterpretations[0].v3Observation,url}}];learnProviderPricingRoutesFromTarget({memory,target:variant,directory:f.run1});}assert(providerPricingRoutesForTarget(memory,state).length<=8);
+test('distinct documented acquisition methods on one route remain distinct planning choices',t=>{
+ const {f,state,memory}=learnedFixture(t);learnProviderPricingRoutesFromTarget({memory,target:state,directory:f.run1});
+ const first=memory.provenMethodsByService.get(service)[0],second={...first,id:first.id+'|DECODO',method:'DECODO'};memory.provenMethods.push(second);memory.provenMethodsByService.get(service).push(second);
+ const selected=providerPricingStrategiesForTarget(memory,{service,serviceName,market:'US'});
+ assert.deepEqual(selected.map(row=>row.method),['DIRECT','DECODO']);assert(selected.every(row=>row.sourceMarket==='US'&&row.meaning==='ROUTING_ONLY_REQUIRES_FRESH_ACQUISITION'));
+});
+
+test('batch pricing route memory retains distinct successes within a fixed bound',t=>{
+ const {f,state,memory}=learnedFixture(t);for(let i=0;i<12;i++){const url=`https://${host}/plan-${i}`,source=body(12),hash=digest(source),file='bodies/'+hash+'.txt';fs.writeFileSync(path.join(f.run1,file),source);const variant=structuredClone(state);variant.reads=[{...state.reads[0],url,bodyFile:file}];variant.decisions=[{url,eligible:true,authority:{hostname:host,service,validated:true}}];variant.providerInterpretations=[{...state.providerInterpretations[0],url,v3Observation:{...state.providerInterpretations[0].v3Observation,url}}];learnProviderPricingRoutesFromTarget({memory,target:variant,directory:f.run1});}assert.equal(providerPricingRoutesForTarget(memory,state).length,12);assert(memory.byService.get(service).size<=32);
 });
 
 test('contract and default namespace are versioned and isolated',()=>{
