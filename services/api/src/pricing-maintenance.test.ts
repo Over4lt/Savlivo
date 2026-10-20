@@ -63,6 +63,30 @@ test('24-hour adapter cache observes a later V3 write without another provider r
   }finally{pool.query=originalQuery;globalThis.fetch=originalFetch;}
 });
 
+test('BE refresh and cache never present the retired Disney+ ads adapter price as current',async()=>{
+  const originalQuery=pool.query,originalConnect=pool.connect,originalFetch=globalThis.fetch;
+  let fetches=0;
+  const v3=(slug:string,name:string,minor:number)=>({plan_identity:`catalog:disney-plus:be:${slug}:direct:eur`,
+    service_slug:'disney-plus',plan_slug:slug,plan_name:name,
+    billing_provider_slug:'direct',country_code:'BE',currency:'EUR',monthly_price_minor:minor,
+    source:'v3-truth',source_url:'https://help.disneyplus.com/en-GB/article/disneyplus-price?redirect=true',
+    verification:'authoritative-provider',source_count:1,verified_by_agreement:false,
+    last_checked_at:new Date('2026-10-20T00:00:00Z')});
+  const rows=[v3('disney-standard','Disney+ Standard',1099),v3('disney-premium','Disney+ Premium',1599)];
+  globalThis.fetch=async()=>{fetches++;throw Error('OFFLINE_FIXTURE');};
+  pool.query=(async()=>({rows,rowCount:rows.length})) as unknown as typeof pool.query;
+  pool.connect=(async()=>{throw Error('NO_TEST_WRITES');}) as unknown as typeof pool.connect;
+  try{
+    for(const snapshot of [await getRegionalPricing('BE',{forceRefresh:true}),await getRegionalPricing('BE')]){
+      const disney=snapshot.items.filter(row=>row.serviceSlug==='disney-plus');
+      assert.equal(disney.some(row=>row.planSlug==='standard-with-ads'||row.monthlyPriceMinor===699),false);
+      assert.deepEqual(disney.filter(row=>row.source==='v3-truth').map(row=>[row.planSlug,row.monthlyPriceMinor,row.source]).sort(),
+        [['disney-premium',1599,'v3-truth'],['disney-standard',1099,'v3-truth']]);
+    }
+    assert(fetches>0);
+  }finally{pool.query=originalQuery;pool.connect=originalConnect;globalThis.fetch=originalFetch;}
+});
+
 test('real adapter fan-out across simultaneous markets uses at most four slots',async()=>{
   const {fetchProviderLocalPrices}=await import('./pricing-adapters.js');
   const original=globalThis.fetch;let active=0,peak=0,calls=0;

@@ -2134,13 +2134,6 @@ export const verifiedProviderRegistry: Record<
 
     {
       serviceSlug: "disney-plus",
-      planName: "Standard with Ads",
-      currency: "EUR",
-      monthlyPriceMinor: 699,
-      sourceUrl: "https://www.disneyplus.com/nl-be"
-    },
-    {
-      serviceSlug: "disney-plus",
       planName: "Standard",
       currency: "EUR",
       monthlyPriceMinor: 1099,
@@ -5021,6 +5014,11 @@ async function disneyAdapter(
     for (
       const price of authoritativePrices
     ) {
+      // The retired BE adapter claim is not a current price source. A future
+      // Standard with Ads price must enter through fresh, source-bound V3 Truth.
+      if (ctx.countryCode === "BE" &&
+          ctx.currency === "EUR" &&
+          slugify(price.planName) === "standard-with-ads") continue;
       const items =
         exactForRoute(
           "disney-plus",

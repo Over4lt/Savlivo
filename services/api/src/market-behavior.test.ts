@@ -14,6 +14,20 @@ import { getRegionalPricing, mergeFreshAndPersistedPricing } from "./pricing.js"
 import { fetchProviderLocalPrices, verifiedProviderRegistry, type AdapterPrice } from "./pricing-adapters.js";
 
 const audit = JSON.parse(readFileSync(new URL("../../../docs/markets/readiness-before.json", import.meta.url), "utf8"));
+const retiredBeAds=(country:string,row:{serviceSlug?:string;planName?:string;plan?:string;billingProviderSlug?:string;route?:string;monthlyPriceMinor?:number;minor?:number})=>
+  country==="BE"&&row.serviceSlug==="disney-plus"&&(row.planName??row.plan)==="Standard with Ads"&&
+  (row.billingProviderSlug??row.route??"direct")==="direct"&&
+  (row.monthlyPriceMinor??row.minor)===699;
+const activeBaseline=(country:string,rows:any[])=>
+  rows.filter(row=>!retiredBeAds(country,row));
+const reconstructRetiredBeBaseline=<T extends {serviceSlug:string;planName:string;monthlyPriceMinor:number}>(country:string,rows:T[]):T[]=>{
+  if(country!=="BE")return rows;
+  const index=rows.findIndex(row=>row.serviceSlug==="disney-plus"&&row.planName==="Standard");
+  assert(index>=0);
+  const old={...rows[index],planName:"Standard with Ads",monthlyPriceMinor:699,
+    ...("planSlug" in rows[index]?{planSlug:"standard-with-ads"}:{})} as T;
+  return [...rows.slice(0,index),old,...rows.slice(index)];
+};
 
 test("shared definitions preserve every baseline mobile country and API currency", () => {
   for (const code of audit.mobileMarkets) assert.ok(countryCurrencyData.some(([cc]) => cc === code));
@@ -130,6 +144,7 @@ test("every existing market retains every baseline fallback service plan price a
     const current = await fetchProviderLocalPrices(market.country, market.currency);
     for (const [service, rows] of Object.entries(market.fallback) as [string, any[]][]) {
       for (const row of rows) {
+        if(retiredBeAds(market.country,{...row,serviceSlug:service}))continue;
         assert.ok(current.some(p => p.serviceSlug === service && p.planName === row.plan &&
           p.billingProviderSlug === row.route && p.monthlyPriceMinor === row.minor), `${market.country} ${service} ${row.plan} ${row.route}`);
       }
@@ -237,11 +252,12 @@ test("release review preserves all 23 selectable markets and valid offline prici
   assert.deepEqual(subscriptions,before);
 });
 
-test("all 286 pre-expansion registry records retain their exact values source URLs and billing routes",()=>{
+test("pre-expansion registry retains every historical row except the withdrawn BE ads claim",()=>{
   const baseline=JSON.parse(readFileSync(new URL("./fixtures/registry-f2340dc.json",import.meta.url),"utf8"));
   for(const [cc,entry]of Object.entries(baseline) as [string,{count:number;sha256:string}][]){
-    assert.ok(verifiedProviderRegistry[cc].length>=entry.count);
-    assert.equal(createHash("sha256").update(JSON.stringify(verifiedProviderRegistry[cc].slice(0,entry.count))).digest("hex"),entry.sha256,cc);
+    const historical=reconstructRetiredBeBaseline(cc,verifiedProviderRegistry[cc]);
+    assert.ok(historical.length>=entry.count);
+    assert.equal(createHash("sha256").update(JSON.stringify(historical.slice(0,entry.count))).digest("hex"),entry.sha256,cc);
   }
 });
 
@@ -283,9 +299,9 @@ test("catalog batch preserves all 363 baseline registry rows and all 756 offline
   const baseline=JSON.parse(readFileSync(new URL("../../../docs/catalog/baseline-60362c6.json",import.meta.url),"utf8"));
   t.mock.method(globalThis,"fetch",async()=>{throw new Error("provider outage");});
   for(const market of baseline.markets){
-    assert.deepEqual(verifiedProviderRegistry[market.country]?.slice(0,market.registry.length)??[],market.registry);
+    assert.deepEqual(verifiedProviderRegistry[market.country]?.slice(0,market.registry.length-(market.country==="BE"?1:0))??[],activeBaseline(market.country,market.registry));
     const rows=await fetchProviderLocalPrices(market.country,market.currency);
-    for(const previous of market.offlinePrices)assert.ok(rows.some(p=>p.serviceSlug===previous.serviceSlug&&p.planName===previous.planName&&p.billingProviderSlug===previous.billingProviderSlug&&p.monthlyPriceMinor===previous.monthlyPriceMinor&&p.currency===previous.currency&&p.verification===previous.verification&&p.sourceUrl===previous.sourceUrl),`${market.country} ${previous.serviceSlug} ${previous.planName}`);
+    for(const previous of activeBaseline(market.country,market.offlinePrices))assert.ok(rows.some(p=>p.serviceSlug===previous.serviceSlug&&p.planName===previous.planName&&p.billingProviderSlug===previous.billingProviderSlug&&p.monthlyPriceMinor===previous.monthlyPriceMinor&&p.currency===previous.currency&&p.verification===previous.verification&&p.sourceUrl===previous.sourceUrl),`${market.country} ${previous.serviceSlug} ${previous.planName}`);
     const viaplay=rows.filter(p=>p.serviceSlug==="viaplay");
     assert.equal(viaplay.length,market.country==="NO"?1:0);
     if(viaplay.length){assert.equal(viaplay[0].verification,"registry");assert.equal(viaplay[0].billingProviderSlug,"direct");}
@@ -299,12 +315,12 @@ test("discovery preserves all 364 registry rows and 757 offline results from 225
   assert.deepEqual(countryCurrencyData.slice(0,baseline.markets.length),baseline.markets.map((m:any)=>[m.country,m.name,m.currency]));
   let registry=0,offline=0;
   for(const market of baseline.markets){
-    assert.equal(digest((verifiedProviderRegistry[market.country]??[]).slice(0,market.registryRows)),market.registrySha256);
+    assert.equal(digest(reconstructRetiredBeBaseline(market.country,verifiedProviderRegistry[market.country]??[]).slice(0,market.registryRows)),market.registrySha256);
     const prices=(await fetchProviderLocalPrices(market.country,market.currency)).filter(row=>!verifiedExpansionPrices.some(p=>p.countryCode===market.country&&p.serviceSlug===row.serviceSlug&&p.planName===row.planName&&row.billingProviderSlug==="direct") && row.serviceSlug!=="storytel" && !(market.country==="AE"&&row.serviceSlug==="spotify"&&["Standard","Platinum"].includes(row.planName)));
-    assert.equal(digest(prices.map(({updatedAt,...p})=>p)),market.offlineSha256,market.country);
+    assert.equal(digest(reconstructRetiredBeBaseline(market.country,prices.map(({updatedAt,...p})=>p))),market.offlineSha256,market.country);
     registry+=market.registryRows;offline+=prices.length;
   }
-  assert.equal(registry,364);assert.equal(offline,757);
+  assert.equal(registry,364);assert.equal(offline,756);
 });
 
 test("Storytel NO adds only five regular direct snapshots; source failure preserves all old output", async(t)=>{
@@ -313,7 +329,7 @@ test("Storytel NO adds only five regular direct snapshots; source failure preser
   const baseline=JSON.parse(readFileSync(new URL("../../../docs/catalog/global-47/baseline.json",import.meta.url),"utf8"));
   for(const market of baseline.markets){
     const registry=verifiedProviderRegistry[market.country]??[];
-    assert.deepEqual(registry.slice(0,market.registry.length),market.registry);
+    assert.deepEqual(registry.slice(0,market.registry.length-(market.country==="BE"?1:0)),activeBaseline(market.country,market.registry));
     const result=await fetchProviderLocalPrices(market.country,market.currency);
     const added=result.filter(row=>row.serviceSlug==="storytel");
     assert.equal(added.length,market.country==="NO"?5:0);
@@ -375,15 +391,15 @@ test("all expansion prices survive source failure with exact local currency and 
   } finally {globalThis.fetch=original;}
 });
 
-test("continuation preserves all 371 registry rows and 764 offline prices exactly",async()=>{
+test("continuation preserves all historical rows except the withdrawn BE ads claim",async()=>{
   const snapshot=JSON.parse(readFileSync(new URL("../../../docs/catalog/global-47/continuation-baseline.json",import.meta.url),"utf8"));
   const original=globalThis.fetch;globalThis.fetch=async()=>{throw new Error("source failure");};
   const comparable=(p:AdapterPrice)=>JSON.stringify([p.serviceSlug,p.planName,p.billingProviderSlug,p.countryCode,p.currency,p.monthlyPriceMinor,p.verification,p.sourceUrl]);
   try{
     for(const market of snapshot.markets){
-      assert.deepEqual((verifiedProviderRegistry[market.country]??[]).slice(0,market.registry.length),market.registry);
+      assert.deepEqual((verifiedProviderRegistry[market.country]??[]).slice(0,market.registry.length-(market.country==="BE"?1:0)),activeBaseline(market.country,market.registry));
       const rows=new Set((await fetchProviderLocalPrices(market.country,market.currency)).map(comparable));
-      for(const old of market.prices)assert.ok(rows.has(comparable(old)),`Lost ${market.country}/${old.serviceSlug}/${old.planName}`);
+      for(const old of activeBaseline(market.country,market.prices))assert.ok(rows.has(comparable(old)),`Lost ${market.country}/${old.serviceSlug}/${old.planName}`);
     }
   }finally{globalThis.fetch=original;}
 });

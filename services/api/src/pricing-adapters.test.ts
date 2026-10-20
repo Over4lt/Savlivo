@@ -36,7 +36,8 @@ import {
   verifyAppleStorefrontIdentity,
   parseYoukuChinaPrices,
   parseYouTubePremiumPrices,
-  resolvePriceCandidates
+  resolvePriceCandidates,
+  withPricingAcquisition
 } from "./pricing-adapters.js";
 
 const ctx = {
@@ -2505,6 +2506,21 @@ test(
     );
   }
 );
+
+test("retired Disney+ BE ads adapter row cannot return through registry or live cards",async()=>{
+  const be=verifiedProviderRegistry.BE.filter(row=>row.serviceSlug==="disney-plus");
+  assert.deepEqual(be.map(row=>[row.planName,row.monthlyPriceMinor]),[["Standard",1099],["Premium",1599]]);
+  const html=`<a data-testid="l4l_basic">STANDARD WITH ADS</a><div>6,99 € per month</div>
+    <a data-testid="l4l_standard">STANDARD</a><div>10,99 € per month</div>
+    <a data-testid="l4l_premium">PREMIUM</a><div>15,99 € per month</div>`;
+  const acquire=(countryCode:string)=>withPricingAcquisition("disney-plus",{countryCode,currency:"EUR"},{
+    at:"2026-10-20T00:00:00.000Z",fetch:async()=>({ok:true,text:async()=>html}) as Response
+  });
+  const bePrices=(await acquire("BE")).prices;
+  assert.deepEqual(bePrices.map(row=>[row.planSlug,row.monthlyPriceMinor]),[["standard",1099],["premium",1599]]);
+  const frPrices=(await acquire("FR")).prices;
+  assert(frPrices.some(row=>row.planSlug==="standard-with-ads"&&row.monthlyPriceMinor===699));
+});
 
 test(
   "Disney+ localized cards support Nordic currency placement",

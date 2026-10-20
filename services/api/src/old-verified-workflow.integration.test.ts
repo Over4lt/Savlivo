@@ -78,4 +78,42 @@ test("disposable Postgres preserves partial Old Verified, renamed alias, price h
   const afterDk=await loadPersistedVerifiedPrices("DK","DKK");
   assert.equal(afterDk.length,2);
   assert(afterDk.some(row=>row.planName==="Legacy Special"&&row.source.startsWith("official-provider-adapter:")));
+
+  // The one-time retirement archives the exact old row without touching
+  // history or the two independent V3 plans. A later V3 ads price is allowed.
+  const beV3=(plan:string,slug:string,amount:number):AdapterPrice=>({
+    serviceSlug:"disney-plus",serviceName:"Disney+",planSlug:slug,planName:plan,
+    billingProviderSlug:"direct",countryCode:"BE",currency:"EUR",monthlyPriceMinor:amount,
+    updatedAt:"2026-10-17T10:07:52.028Z",source:"v3-truth",
+    sourceUrl:"https://help.disneyplus.com/en-GB/article/disneyplus-price?redirect=true",
+    confidence:"official-provider-adapter",priceType:"exact",verification:"authoritative-provider",
+    sourceCount:1,verifiedByAgreement:false
+  });
+  for(const item of [beV3("Disney+ Standard","disney-standard",1099),
+    beV3("Disney+ Premium","disney-premium",1599)])await persistVerifiedLivePrices([item]);
+  await pool.query(`INSERT INTO verified_provider_prices
+    (plan_identity,history_series_id,service_slug,plan_slug,plan_name,billing_provider_slug,
+     country_code,currency,monthly_price_minor,source,source_url,verification,source_count,
+     verified_by_agreement,verified_at,last_checked_at)
+    VALUES ('catalog:disney-plus:be:standard-with-ads:direct:eur',NULL,'disney-plus',
+      'standard-with-ads','Standard with Ads','direct','BE','EUR',699,
+      'official-provider-adapter:disney-plus','https://www.disneyplus.com/nl-be',
+      'authoritative-provider',2,false,'2026-08-30T23:49:28.776834Z',
+      '2026-09-23T09:25:08.743517Z')`);
+  const historyBeforeRetirement=(await pool.query("SELECT count(*)::int AS n FROM verified_price_observations")).rows[0].n;
+  await pool.query(sql("services/api/scripts/retire-disney-be-ads.sql"));
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM verified_price_observations")).rows[0].n,historyBeforeRetirement);
+  const archived=(await pool.query("SELECT reason,original_row,retired_at FROM verified_provider_price_retirements")).rows;
+  assert.equal(archived.length,1);assert.equal(archived[0].original_row.monthly_price_minor,699);
+  assert.match(archived[0].reason,/disputed legacy adapter price/);
+  assert.deepEqual((await loadPersistedVerifiedPrices("BE","EUR")).map(row=>[row.planSlug,row.monthlyPriceMinor]),
+    [["disney-premium",1599],["disney-standard",1099]]);
+  await assert.rejects(pool.query(`INSERT INTO verified_provider_prices
+    (plan_identity,service_slug,plan_slug,plan_name,billing_provider_slug,country_code,currency,
+     monthly_price_minor,source,source_url,verification,source_count,verified_by_agreement)
+    VALUES ('catalog:disney-plus:be:standard-with-ads:direct:eur','disney-plus','standard-with-ads',
+      'Standard with Ads','direct','BE','EUR',699,'official-provider-adapter:disney-plus',
+      'https://www.disneyplus.com/nl-be','authoritative-provider',2,false)`));
+  await persistVerifiedLivePrices([beV3("Standard with Ads","standard-with-ads",799)]);
+  assert.equal((await loadPersistedVerifiedPrices("BE","EUR")).find(row=>row.planSlug==="standard-with-ads")?.source,"v3-truth");
 });
