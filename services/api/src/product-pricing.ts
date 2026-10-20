@@ -18,6 +18,7 @@ type ResearchRecord = {
   verifiedAt?: unknown;
   warnings?: unknown;
   provenance?: unknown;
+  source?: unknown;
   originSuggestedId?: unknown;
 };
 type CombinedPlan = {
@@ -73,7 +74,14 @@ export function projectCombinedResearchProductPlans(input: {
     const suggestedHistory = (plan.suggestedHistory ?? [])
       .map(value => researchEvidence(value, "SUGGESTED"))
       .filter((value): value is ProductPriceEvidence => Boolean(value));
+    const oldVerified = (plan.verified ?? [])
+      .filter(value => value.provenance === "EXISTING_VERIFIED" &&
+        typeof value.source === "string" && value.source.startsWith("official-provider-adapter:"))
+      .map(value => researchEvidence(value, "VERIFIED"))
+      .filter((value): value is ProductPriceEvidence => Boolean(value));
     const verified = (plan.verified ?? [])
+      .filter(value => !(value.provenance === "EXISTING_VERIFIED" &&
+        typeof value.source === "string" && value.source.startsWith("official-provider-adapter:")))
       .map(value => researchEvidence(value, "VERIFIED"))
       .filter((value): value is ProductPriceEvidence => Boolean(value));
     return {
@@ -84,11 +92,12 @@ export function projectCombinedResearchProductPlans(input: {
       countryCode: input.countryCode,
       suggested,
       suggestedHistory,
-      verified
+      verified,
+      oldVerified
     };
   }).filter(plan =>
     Boolean(plan.planIdentity) && Boolean(plan.planName) &&
-    Boolean(plan.suggested || plan.verified.length)
+    Boolean(plan.suggested || plan.verified.length || plan.oldVerified?.length)
   );
 }
 

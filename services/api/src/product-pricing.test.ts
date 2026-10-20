@@ -223,6 +223,14 @@ test("Max NO/SE/DK reads distinguish old adapter evidence from current V3 Truth"
   assert.equal(classifyCurrentProviderPrice({...row("DK","Premium",15900,"official-provider-adapter:max"),verification:"single-source"}),"SUGGESTED");
 });
 
+test("combined research product projection retains prior adapter prices as Old Verified",()=>{
+  const plan=project({verified:[{...verified(9.99),provenance:"EXISTING_VERIFIED",
+    source:"official-provider-adapter:provider"}]});
+  assert.equal(plan.verified.length,0);
+  assert.equal(plan.oldVerified?.[0].monthlyPriceMinor,999);
+  assert.equal(productPriceStatus(plan),"OLD_VERIFIED_ONLY");
+});
+
 const catalogPrice = (
   serviceSlug: string,
   planSlug: string,

@@ -68,7 +68,7 @@ export function verifiedAdapters(target,rows){
 }
 
 function existingVerifiedRows(items,target){
-  return items.map(item=>({plan:item.planName,planIdentity:item.planIdentity??pricePlanIdentity(target,item.planName,item.currency),amount:item.monthlyPriceMinor/100,currency:item.currency,paymentCadence:'MONTHLY_RECURRING',sourceUrl:item.sourceUrl,verifiedAt:item.updatedAt,provenance:'EXISTING_VERIFIED'}));
+  return items.map(item=>({plan:item.planName,planIdentity:item.planIdentity??pricePlanIdentity(target,item.planName,item.currency),amount:item.monthlyPriceMinor/100,currency:item.currency,paymentCadence:'MONTHLY_RECURRING',sourceUrl:item.sourceUrl,source:item.source,verifiedAt:item.updatedAt,provenance:'EXISTING_VERIFIED'}));
 }
 
 function currentRowsBeforeVerifiedWrite(persisted,incoming,serviceName){

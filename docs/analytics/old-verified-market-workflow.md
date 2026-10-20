@@ -32,8 +32,10 @@ are not automatically merged; they require a documented identity decision.
 
 The run's `New Verified` metric counts V3-verified plan identities only when
 eligible target-market verification evidence is present. Its
-`Previously Verified` metric counts existing current Verified plan identities
-kept by the monotonic merge, not new research success. If the plan-bound V3
+`Previously Verified` counts existing non-adapter Verified identities;
+`Previously Old Verified` counts adapter identities, and older archived
+job artifacts without source provenance are shown as `Prior source unknown`.
+None of these counts is new research success. If the plan-bound V3
 result is unavailable, `New Verified` is unavailable rather than inferred
 from a persisted aggregate. Existing run result artifacts are unchanged.
 

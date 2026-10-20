@@ -97,6 +97,7 @@ test('Max DK failed verification leaves old rows untouched and does not call the
   runDownstream:async()=>({result:{},v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[{kind:'V3_VERIFICATION_RETRY_EXHAUSTED'}]}}})});
  assert.equal(writes,0);assert.deepEqual(old,before);assert.equal(result.targets[0].persisted.verified,0);
  assert.equal(result.targets[0].combined.verified.every(row=>row.provenance==='EXISTING_VERIFIED'),true);
+ assert.equal(result.targets[0].combined.verified.every(row=>row.source==='official-provider-adapter:max'),true);
 });
 
 test('unproven Max DK rename never deletes an old tier by guessing equivalence',async()=>{

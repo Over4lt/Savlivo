@@ -81,14 +81,25 @@ test('an exhausted V3 verification retry replaces the earlier no-progress stop d
 test('Max-style retained Verified cannot become fresh Verified when V3 retry is exhausted',async t=>{
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'old-verified-status-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
  const target={id:'price-research:max:NO',serviceId:'max',serviceName:'Max',targetMarket:'NO',marketApplicabilityEstablished:false},config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['max'],markets:['NO'],targetingRevision:'a'.repeat(64),batchTargets:[target],logicalTargetCount:1,perTargetRequestCeiling:96,batchRequestCeiling:96};
- const plans=['basic','standard','premium'].map(name=>({planIdentity:'max:no:'+name,suggested:[{provenance:'GOOGLE_AI_V4'}],verified:[{provenance:'EXISTING_VERIFIED'}]}));
+ const plans=['basic','standard','premium'].map(name=>({planIdentity:'max:no:'+name,suggested:[{provenance:'GOOGLE_AI_V4'}],verified:[{provenance:'EXISTING_VERIFIED',source:'official-provider-adapter:max'}]}));
  await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',downstreamResult:{services:{max:{stop:{reason:'NO_EXECUTABLE_PROGRESS_RECONCILE'}}}},targets:[{target:{id:target.id},combined:{kind:'CombinedResearchResult',resultClass:'VERIFIED',plans,operationalFailures:[{kind:'V3_VERIFICATION_RETRY_EXHAUSTED'}]},verificationRetry:{attempted:true,count:1,retryOutcome:'UNRESOLVED'},verificationEvidence:[],persisted:{verified:0}}]})});
  const row=priceResearchBatchStatus({status:'COMPLETE',config},directory).outcomes[0];
  assert.equal(row.verified,0);
- assert.equal(row.previouslyVerified,3);
+ assert.equal(row.previouslyVerified,0);
+ assert.equal(row.previouslyOldVerified,3);
+ assert.equal(row.priorSourceUnclassified,0);
  assert.equal(row.researchOutcome,'SUGGESTED_ONLY');
  assert.equal(row.resultClass,'SUGGESTED');
  assert.equal(row.stopReason,'V3_VERIFICATION_RETRY_EXHAUSTED');
+});
+
+test('archived existing evidence without a source is not mislabelled as current Verified',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'unknown-source-status-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const target={id:'price-research:max:NO',serviceId:'max',serviceName:'Max',targetMarket:'NO',marketApplicabilityEstablished:false},config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['max'],markets:['NO'],targetingRevision:'a'.repeat(64),batchTargets:[target],logicalTargetCount:1,perTargetRequestCeiling:96,batchRequestCeiling:96};
+ await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',targets:[{target:{id:target.id},combined:{kind:'CombinedResearchResult',resultClass:'VERIFIED',plans:[{planIdentity:'max:no:basic',suggested:[],verified:[{provenance:'EXISTING_VERIFIED'}]}]},verificationEvidence:[]}]})});
+ const row=priceResearchBatchStatus({status:'COMPLETE',config},directory).outcomes[0];
+ assert.equal(row.verified,0);assert.equal(row.previouslyVerified,0);
+ assert.equal(row.previouslyOldVerified,0);assert.equal(row.priorSourceUnclassified,1);
 });
 
 test('persisted legacy count alone cannot claim new Verified when plan-bound V3 result is absent',async t=>{
