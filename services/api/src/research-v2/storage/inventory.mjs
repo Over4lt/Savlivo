@@ -4,7 +4,7 @@ import {closure,format,validateReceipt} from './references.mjs';
 export const retentionPolicy={schema:'V2_RETENTION_POLICY_V1',latestCompletedRuns:4,recentDays:60,diagnosticDays:30,screenshotDays:14,cacheDays:7,destructive:false};
 const day=86400000;
 function coordination(root,paths){return paths.map(p=>[p,fs.existsSync(safe(root,p))?sha(stableBytes(safe(root,p))):null]);}
-export function inventory(root,spec,{now=new Date().toISOString(),policy=retentionPolicy,beforeRecheck=()=>{}}={}){
+export function inventory(root,spec,{now=new Date().toISOString(),policy=retentionPolicy,beforeRecheck=()=>{},maxReferenceFiles=100000,maxReferenceBytes=4*1024**3}={}){
  if(spec.schema!=='V2_STORAGE_ROOTS_V1'||!Array.isArray(spec.roots)||!Array.isArray(spec.scan)||policy.destructive!==false)throw Error('STORAGE_UNKNOWN_INVENTORY_SCHEMA');
  const coordinationPaths=spec.coordination??[],initial=coordination(root,coordinationPaths),roots=[...spec.roots],errors=[],runMetadata=[];
  // Explicit run locations come from the engine/operator input, never a deletion heuristic.
@@ -18,7 +18,7 @@ export function inventory(root,spec,{now=new Date().toISOString(),policy=retenti
   if(!run.complete||!run.receipt||recent.has(run.path))roots.push({path:run.path,format:'TREE',classification:!run.complete?'RESUME_CRITICAL':'REFERENCED_EVIDENCE',reason:!run.complete?'ACTIVE_OR_RESUMABLE_NOT_ABANDONED':!run.receipt?'LEGACY_FINGERPRINT_CONTRACT':'RECENT_COMPLETED_RUN'});
  }
  for(const p of coordinationPaths)if(fs.existsSync(safe(root,p)))roots.push({path:p,format:format(p),classification:'RESUME_CRITICAL',reason:'OPERATIONS_COORDINATION'});
- const refs=closure(root,roots);errors.push(...refs.errors);const protectedMap=new Map(refs.entries.map(e=>[e.path,e]));
+ const refs=closure(root,roots,{maxFiles:maxReferenceFiles,maxBytes:maxReferenceBytes});errors.push(...refs.errors);const protectedMap=new Map(refs.entries.map(e=>[e.path,e]));
  const declared=new Map();for(const candidate of spec.candidates??[]){
   if(candidate.schema!=='V2_DISPOSABLE_ARTIFACT_V1'||!['SHORT_TERM_DIAGNOSTIC','REGENERABLE_CACHE'].includes(candidate.classification)||!candidate.producer||!candidate.reason||!Number.isFinite(Date.parse(candidate.createdAt)))throw Error('STORAGE_UNKNOWN_CANDIDATE');
   const owner=runMetadata.find(r=>r.path===candidate.run);if(!owner?.receipt){errors.push('STORAGE_CANDIDATE_UNFINALIZED');continue;}declared.set(candidate.path,candidate);

@@ -13,6 +13,7 @@ export async function operationsRequest({method,url,body,actor},ops=operations()
  if(!actor)throw new OperationError('UNAUTHORIZED',401);if(!ops.config.read)throw new OperationError('OPERATIONS_DISABLED',404);
  const route=url.pathname.replace('/v1/admin/v2-operations',''),parts=route.split('/').filter(Boolean),page=()=>{const offset=Number(url.searchParams.get('offset')??0),limit=Number(url.searchParams.get('limit')??50);if(!Number.isInteger(offset)||offset<0||offset>100000||!Number.isInteger(limit)||limit<1||limit>100)throw new OperationError('INVALID_PAGE');return {offset,limit};};
  if(method==='GET'&&route==='/storage')return storageView(ops.config.repo);
+ if(method==='GET'&&route==='/storage/dismissed-cleanup'){const {offset,limit}=page();return ops.cleanupDryRun(actor,{offset,limit:Math.min(limit,20)});}
  if(method==='GET'&&route==='/history'){const {offset,limit}=page(),index=historyIndex(ops.config.repo);return {status:index.status??'AVAILABLE',total:index.rows.length,rows:index.rows.slice(offset,offset+limit)};}
  if(['GET','POST'].includes(method)&&route==='/price-research/targeting')return ops.priceResearchTargeting(method==='POST'?body??{}:{});
  if(method==='POST'&&route==='/price-research/market-price-status')return marketPriceStatus(body,ops);
