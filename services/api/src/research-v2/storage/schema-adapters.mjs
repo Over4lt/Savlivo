@@ -4,12 +4,13 @@ import path from 'node:path';
 import {decodeCheckpointPayload} from '../../research-v1/checkpoint-objects.mjs';
 import {safe,read,sha,stableBytes,files,canonical,digest} from './core.mjs';
 const stages=['IDENTITY_SUBSCRIPTION','MARKETS','LOGIN','MANAGEMENT','CANCELLATION','PRICING','VALIDATION'];
+function validDomLocator(value){return /^\$(?:\/[a-zA-Z0-9_:@#.-]+(?:\[\d+\])?)+$/.test(value)&&!value.split('/').slice(1).some(segment=>/^\.{1,2}(?:\[\d+\])?$/.test(segment));}
 // Keep unchanged subgraphs shared with the parsed document; validate every locator.
 function adaptLocators(v){
  if(Array.isArray(v)){const rows=v.map(adaptLocators);return rows.every((x,i)=>x===v[i])?v:rows;}
  if(!v||typeof v!=='object')return v;
  let changed=false;const rows=Object.entries(v).map(([k,x])=>{
-  if(k==='path'&&typeof x==='string'&&x.startsWith('$/')){if(!/^\$(?:\/[a-zA-Z0-9_:@#.-]+(?:\[\d+\])?)+$/.test(x))throw Error('STORAGE_DOM_LOCATOR_SCHEMA');changed=true;return ['domLocator',x];}
+  if(k==='path'&&typeof x==='string'&&x.startsWith('$/')){if(!validDomLocator(x))throw Error('STORAGE_DOM_LOCATOR_SCHEMA');changed=true;return ['domLocator',x];}
   const value=adaptLocators(x);if(value!==x)changed=true;return [k,value];
  });return changed?Object.fromEntries(rows):v;
 }
@@ -85,16 +86,31 @@ export function adaptDocument(root,value,owner){
   const references=[];return {value:{...value,inventory:inventory.map(t=>priorInterpretations(root,t,base,references))},references,schema:'RESEARCH_V2_DIRECT_MANIFEST_V1'};
  }
  if(/\/adaptive-state(?: 2)?\.json$/.test(owner)&&value?.version===1&&value.targets&&Array.isArray(value.serviceOrder)&&Array.isArray(value.initialIds)&&value.services){
-  const base=path.posix.dirname(owner),references=[],targets={};
+  const base=path.posix.dirname(owner),references=[],targets={},services={...value.services};
   for(const [id,target]of Object.entries(value.targets)){
    if(target.id!==id||!/^[a-z0-9-]+$/i.test(id))throw Error('STORAGE_ADAPTIVE_TARGET_SCHEMA');
    const reads=(target.reads??[]).map(p=>{if(!p.bodyFile)return p;if(p.bodyFile!==`bodies/${p.bodyHash}.txt`||!/^[a-f0-9]{64}$/.test(p.bodyHash??''))throw Error('STORAGE_ADAPTIVE_BODY_SCOPE');const location=base+'/targets/'+id+'/open-web-discovery/'+p.bodyFile;if(sha(stableBytes(safe(root,location)))!==p.bodyHash)throw Error('STORAGE_ADAPTIVE_BODY_HASH');const {bodyFile,...rest}=p;return {...rest,bodyReference:{path:location,sha256:p.bodyHash}};});
    const providerInterpretations=(target.providerInterpretations??[]).map(p=>{if(!p.runDirectory)return p;safe(root,p.runDirectory);
     if(!p.runDirectory.startsWith(base+'/targets/'+id+'/')){const m=read(safe(root,p.runDirectory+'/manifest.json'));if(m.version!=='RESEARCH_V2_LIVE_V1'||!m.inventory?.some(t=>t.id===id&&t.service===target.service&&t.market===target.market))throw Error('STORAGE_ADAPTIVE_CHILD_SCOPE');}
     references.push({path:p.runDirectory,format:'TREE',classification:'REFERENCED_EVIDENCE',reason:'ADAPTIVE_PROVIDER_INTERPRETATION'});const {runDirectory,...rest}=p;return rest;});
-   targets[id]={...target,...(target.reads?{reads}:{}),...(target.providerInterpretations?{providerInterpretations}:{})};
+   // Adaptive targets contain provider DOM locators (including navigation leads).
+   // Only the strict $/... locator grammar is metadata; other paths remain references.
+   let adapted=adaptLocators({...target,...(target.reads?{reads}:{}),...(target.providerInterpretations?{providerInterpretations}:{})});
+   const failure=adapted.retainedFailure,diagnostic=failure?.diagnostic,current=diagnostic?.current;
+   if(current?.replayRecord){
+    const record=current.replayRecord,artifact=failure.artifact;
+    if(diagnostic.version!==1||diagnostic.meaning!=='DIAGNOSTIC_ONLY_NOT_ADMISSION_OR_RECOVERY'||diagnostic.targetId!==id||!/^price-[a-f0-9]{64}\.json$/.test(record)||artifact!==path.posix.dirname(base)+'/replay/'+id+'/evidence')throw Error('STORAGE_REPLAY_DIAGNOSTIC_SCOPE');
+    const {replayRecord,...rest}=current;
+    adapted={...adapted,retainedFailure:{...failure,diagnostic:{...diagnostic,current:{...rest,...(current.recordPersisted?{replayRecordReference:{path:artifact+'/'+record}}:{replayRecordName:record})}}}};
+   }
+   targets[id]=adapted;
   }
-  return {value:{...value,targets},references,schema:'ADAPTIVE_CAMPAIGN_STATE_V1'};
+  for(const [service,state]of Object.entries(services))if(state?.failedAction?.native){
+   const action=state.failedAction,id=action.targetId,native=action.native;
+   if(typeof id!=='string'||targets[id]?.service!==service||native!==base+'/targets/'+id+'/open-web-discovery/state.json'||action.requiresReview!==true&&action.requiresReview!==false)throw Error('STORAGE_ADAPTIVE_NATIVE_SCOPE');
+   const {native:_,...rest}=action;services[service]={...state,failedAction:{...rest,nativeReference:{path:native}}};
+  }
+  return {value:{...value,targets,services},references,schema:'ADAPTIVE_CAMPAIGN_STATE_V1'};
  }
  if(typeof value?.factId==='string'&&value.factId.startsWith('fact:')&&Array.isArray(value.candidateIds)&&Array.isArray(value.bodyHashes)&&Array.isArray(value.attributionEvidence)&&value.productionVerified===false){
   const adapted=adaptDocument(root,{version:'V2_FIELD_VERIFICATION_V1',fact:value},owner);return {value:adapted.value.fact,references:[],schema:'OFFLINE_RECOVERY_FACT_V1'};
@@ -107,7 +123,7 @@ export function adaptDocument(root,value,owner){
   const adapted=adaptDocument(root,{version:'V2_FIELD_VERIFICATION_V1',records:value.records},owner);return {value:{...value,records:adapted.value.records},references:[],schema:'PROVIDER_MARKET_ANALYSIS_V1'};
  }
  if(Number.isFinite(value?.value)&&['DAY','WEEK','MONTH','YEAR'].includes(value?.unit)&&typeof value.originalWording==='string'&&typeof value.recurringPresentation==='boolean'&&/^[a-f0-9]{64}$/.test(value.bodyHash??'')&&typeof value.path==='string'&&value.path.startsWith('$/')){
-  if(!/^\$(?:\/[a-zA-Z0-9_:@#.-]+(?:\[\d+\])?)+$/.test(value.path))throw Error('STORAGE_DOM_LOCATOR_SCHEMA');const {path:domLocator,...rest}=value;return {value:{...rest,domLocator},references:[],schema:'COMMERCIAL_BILLING_INTERVAL_V1'};
+  if(!validDomLocator(value.path))throw Error('STORAGE_DOM_LOCATOR_SCHEMA');const {path:domLocator,...rest}=value;return {value:{...rest,domLocator},references:[],schema:'COMMERCIAL_BILLING_INTERVAL_V1'};
  }
  if(/\/price-[a-f0-9]{64}\.json$/.test(owner)&&value?.channel==='DIRECT_PROVIDER'&&typeof value.acquired==='boolean'&&Array.isArray(value.verified)&&Array.isArray(value.blockers)){
   const base=path.posix.dirname(owner),directory=value.runDirectory;safe(root,directory);
@@ -145,6 +161,9 @@ export function adaptDocument(root,value,owner){
  if(owner.endsWith('/provider-price-intelligence.json')&&value?.version===1&&value.canonicalPromotion===false&&Array.isArray(value.observations)){
   const adapted=adaptDocument(root,{version:'V2_FIELD_VERIFICATION_V1',observations:value.observations},owner);
   return {value:{...value,observations:adapted.value.observations},references:[],schema:'PROVIDER_PRICE_INTELLIGENCE_V1'};
+ }
+ if(/\/interpretation-\d{4}\/discovery\/sources-analyzed\.json$/.test(owner)&&Array.isArray(value)&&value.every(row=>/^[a-f0-9]{64}$/.test(row?.bodyHash??'')&&typeof row.sourceOccurrenceId==='string'&&row.diagnostics?.inertState&&Array.isArray(row.diagnostics.inertState.diagnostics))){
+  return {value:value.map(row=>({...row,diagnostics:{...row.diagnostics,inertState:{...row.diagnostics.inertState,diagnostics:adaptLocators(row.diagnostics.inertState.diagnostics)}}})),references:[],schema:'LIVE_SOURCE_ANALYSIS_V1'};
  }
  if(value?.version==='V2_FIELD_VERIFICATION_V1'||(value?.version===2&&typeof value.requestedMarket==='string'&&typeof value.productOwnershipEstablished==='boolean'&&typeof value.marketApplicabilityEstablished==='boolean')||(typeof value?.candidateId==='string'&&typeof value?.structuredPath==='string'&&typeof value?.rawEvidenceSnippet==='string'&&/^[a-f0-9]{64}$/.test(value?.bodyHash??'')&&['HTML','JSON','SCRIPT_LITERAL'].includes(value.sourceType))){
   return {value:adaptLocators(value),references:[],schema:'V2_FIELD_VERIFICATION_V1'};
@@ -198,7 +217,7 @@ export function adaptDocument(root,value,owner){
    safe(root,e.source);const {source,sourceHash,...rest}=e;
    if(rest.originalVerified?.version!=='V2_FIELD_VERIFICATION_V1')throw Error('STORAGE_QUARANTINE_VERIFICATION_SCHEMA');
    function locators(v){if(Array.isArray(v))return v.map(locators);if(!v||typeof v!=='object')return v;const result={};for(const [k,x]of Object.entries(v)){
-    if(k==='path'&&typeof x==='string'&&x.startsWith('$/')){if(!/^\$(?:\/[a-zA-Z0-9_:@#.-]+(?:\[\d+\])?)+$/.test(x))throw Error('STORAGE_DOM_LOCATOR_SCHEMA');result.domLocator=x;}
+    if(k==='path'&&typeof x==='string'&&x.startsWith('$/')){if(!validDomLocator(x))throw Error('STORAGE_DOM_LOCATOR_SCHEMA');result.domLocator=x;}
     else result[k]=locators(x);
    }return result;}
    return {...rest,originalVerified:locators(rest.originalVerified),sourceReference:{path:source,sha256:sourceHash}};
