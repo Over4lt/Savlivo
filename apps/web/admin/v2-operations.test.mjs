@@ -541,15 +541,28 @@ test('unknown provider discovery requires a deliberate checkbox and explains pai
 
 test('market price categories use current per-service evidence and any-service matching',()=>{
  const rows=[{serviceId:'chess-com',market:'ES',suggestedCount:3,verifiedCount:0},{serviceId:'chess-com',market:'X2',suggestedCount:1,verifiedCount:2},{serviceId:'1password',market:'ES',suggestedCount:0,verifiedCount:1}],markets=canonicalMarkets.slice(0,3);
- assert.deepEqual(marketPriceCategories(markets,[],rows),{notVerified:[],suggestedOnly:[],noPriceData:[],verified:[]});
- assert.deepEqual(marketPriceCategories(markets,['chess-com'],rows),{notVerified:['ES','X1'],suggestedOnly:['ES'],noPriceData:['X1'],verified:['X2']});
- assert.deepEqual(marketPriceCategories(markets,['chess-com','1password'],rows),{notVerified:['ES','X1','X2'],suggestedOnly:['ES'],noPriceData:['X1','X2'],verified:['ES','X2']});
+ assert.deepEqual(marketPriceCategories(markets,[],rows),{notVerified:[],suggestedOnly:[],noPriceData:[],oldVerified:[],verified:[]});
+ assert.deepEqual(marketPriceCategories(markets,['chess-com'],rows),{notVerified:['ES','X1'],suggestedOnly:['ES'],noPriceData:['X1'],oldVerified:[],verified:['X2']});
+ assert.deepEqual(marketPriceCategories(markets,['chess-com','1password'],rows),{notVerified:['ES','X1','X2'],suggestedOnly:['ES'],noPriceData:['X1','X2'],oldVerified:[],verified:['ES','X2']});
 });
 
 test('market price categories classify only eligible service-market pairs',()=>{
  const rows=[{serviceId:'chess-com',market:'ES',suggestedCount:3,verifiedCount:0},{serviceId:'chess-com',market:'X1',suggestedCount:0,verifiedCount:2},{serviceId:'1password',market:'ES',suggestedCount:0,verifiedCount:1}],markets=canonicalMarkets.slice(0,3),eligible=new Set(['chess-com\u0000X2','1password\u0000ES']);
- assert.deepEqual(marketPriceCategories(markets,['chess-com','1password'],rows,eligible),{notVerified:['X2'],suggestedOnly:[],noPriceData:['X2'],verified:['ES']});
- assert.deepEqual(marketPriceCategories(markets,['chess-com'],rows,new Set()),{notVerified:[],suggestedOnly:[],noPriceData:[],verified:[]});
+ assert.deepEqual(marketPriceCategories(markets,['chess-com','1password'],rows,eligible),{notVerified:['X2'],suggestedOnly:[],noPriceData:['X2'],oldVerified:[],verified:['ES']});
+ assert.deepEqual(marketPriceCategories(markets,['chess-com'],rows,new Set()),{notVerified:[],suggestedOnly:[],noPriceData:[],oldVerified:[],verified:[]});
+});
+
+test('Old Verified is selected independently per service and may coexist with new V3 Verified in one market',()=>{
+ const markets=[{id:'NO'},{id:'SE'},{id:'DK'}],rows=[
+  {serviceId:'max',market:'NO',oldVerifiedCount:3,verifiedCount:0,suggestedCount:4},
+  {serviceId:'max',market:'SE',oldVerifiedCount:1,verifiedCount:2,suggestedCount:4},
+  {serviceId:'max',market:'DK',oldVerifiedCount:0,verifiedCount:3,suggestedCount:4}
+ ];
+ const categories=marketPriceCategories(markets,['max'],rows);
+ assert.deepEqual(categories.oldVerified,['NO','SE']);
+ assert.deepEqual(categories.verified,['SE','DK']);
+ assert.deepEqual(categories.notVerified,['NO']);
+ assert.deepEqual(marketPriceCategories(markets,['max'],rows,new Set(['max\u0000DK'])).oldVerified,[]);
 });
 
 test('Research links require exactly one service, independently of markets and price status',()=>{
@@ -639,6 +652,21 @@ test('market status selectors replace explicit canonical Markets Set and manual 
 
 const canonicalServiceCheck=(root,name)=>descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes(name)).children[0];
 const canonicalMarketLabel=(root,id)=>descendants(root).find(node=>node.className==='ops-canonical-markets').children.find(node=>node.className==='ops-facet-options').children.find(node=>node.textContent.endsWith('('+id+')'));
+
+test('Old Verified market button chooses only eligible legacy markets for one service',async t=>{
+ const statusRows=[
+  {serviceId:'chess-com',market:'ES',suggestedCount:2,verifiedCount:0,oldVerifiedCount:3},
+  {serviceId:'chess-com',market:'X1',suggestedCount:0,verifiedCount:1,oldVerifiedCount:1},
+  {serviceId:'chess-com',market:'X2',suggestedCount:0,verifiedCount:1,oldVerifiedCount:0}
+ ],{root,calls}=await canonicalBuilder(t,{statusRows});
+ const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
+ assert(button(root,'Old Verified (2)'));
+ await button(root,'Old Verified (2)').listeners.click();
+ assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,['ES','X1']);
+ await button(root,'Preflight').listeners.click();
+ assert.deepEqual(calls.find(row=>row.p.endsWith('/preflight')).body.markets,['ES','X1']);
+ assert.equal(button(root,'Old Verified (2)').disabled,false);
+});
 
 test('one service excludes three markets from controls, status categories and explicit Preflight scope',async t=>{
  const excludedPairs=new Set(['chess-com\u0000ES','chess-com\u0000X1','chess-com\u0000X2']),statusRows=[{serviceId:'chess-com',market:'ES',suggestedCount:3,verifiedCount:0},{serviceId:'chess-com',market:'X1',suggestedCount:0,verifiedCount:2},{serviceId:'chess-com',market:'X2',suggestedCount:0,verifiedCount:0},{serviceId:'chess-com',market:'X3',suggestedCount:2,verifiedCount:0}],{root,calls}=await canonicalBuilder(t,{excludedPairs,statusRows});
