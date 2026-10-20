@@ -70,3 +70,22 @@ test('Direct journal object mode preserves replay and V3 results while sharing i
  for(const [index,file] of localObjects[0].entries()){const a=fs.statSync(file),b=fs.statSync(localObjects[1][index]);assert.equal(a.ino,b.ino);assert.equal(a.dev,b.dev);assert.equal(a.mode&0o222,0);}
  t.diagnostic(JSON.stringify({baseline:before,objectMode:after,physicalSavedBytes:before.allocatedBytes-after.allocatedBytes,sharedObjects:objectFiles.length}));
 });
+
+test('new Direct manifests remain ordinary readable JSON and use fewer physical blocks',async t=>{
+ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'direct-manifest-compact-'));t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));
+ const directory=path.join(temp,'.savlivo','run');
+ const largeTarget={...target,priceEvidenceNeeds:{observations:Array.from({length:6000},(_,i)=>({id:i,source:'provider',status:'UNRESOLVED',detail:'monthly plan evidence'}))}};
+ const result=await interpretDirectProvider({target:largeTarget,page:source(directory),directory,
+  interpret:async()=>{},verify:async()=>({verified:[],usable:[],monetaryFacts:[],blockers:[]})});
+ const manifestPath=path.join(result.runDirectory,'manifest.json'),compact=fs.readFileSync(manifestPath,'utf8'),manifest=JSON.parse(compact);
+ assert.deepEqual(manifest.inventory,[largeTarget]);
+ assert.equal(manifest.id,path.basename(result.runDirectory));
+ assert.equal(compact,JSON.stringify(manifest));
+ const prettyPath=path.join(temp,'old-format-manifest.json');fs.writeFileSync(prettyPath,JSON.stringify(manifest,null,2));
+ const compactAllocated=fs.statSync(manifestPath).blocks*512,prettyAllocated=fs.statSync(prettyPath).blocks*512;
+ assert(compactAllocated<prettyAllocated,JSON.stringify({compactAllocated,prettyAllocated}));
+ const record=readMarketRunRecords(path.join(result.runDirectory,'journal'))[0];
+ assert.deepEqual(record.payload.target,largeTarget);
+ assert.equal(record.payload.result.attempts[0].page.bodyHash,hash(body));
+ t.diagnostic(JSON.stringify({compactAllocated,prettyAllocated,physicalSavedBytes:prettyAllocated-compactAllocated}));
+});
