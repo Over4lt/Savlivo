@@ -6,7 +6,9 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {openMarketRunStore,readMarketRunRecords} from '../../research-v1/market-run-store.mjs';
 import {retainSharedSourceBody} from '../storage/shared-body.mjs';
+import {adaptDocument} from '../storage/schema-adapters.mjs';
 import {interpretRun} from './runner.mjs';
+import {writeProviderPriceIntelligence} from './provider-price-intelligence-writer.mjs';
 import {verifyRetainedRun} from './module-stage.mjs';
 import {interpretDirectProvider,validateDirectProviderPage,evaluateDirectProviderTruth} from './direct-provider-evidence.mjs';
 
@@ -58,6 +60,18 @@ test('Direct journal object mode preserves replay and V3 results while sharing i
   assert.deepEqual(semantic(after.verified),semantic(before.verification.verified));
   assert.equal(after.verified.length,1);assert.equal(after.verified[0].amount,'12');assert.equal(after.verified[0].currency,'USD');
   assert.equal(after.v3Truth.established,false,'Direct does not fabricate a country-bound G1 receipt');
+  const intelligenceFile=path.join(after.runDirectory,'interpretation-0001','provider-price-intelligence.json');
+  const intelligenceRaw=fs.readFileSync(intelligenceFile,'utf8'),intelligence=JSON.parse(intelligenceRaw);
+  assert.equal(intelligenceRaw,JSON.stringify(intelligence)+'\n');
+  assert.equal(intelligence.canonicalPromotion,false);
+  assert.equal(adaptDocument(newRoot,intelligence,path.relative(newRoot,intelligenceFile)).schema,'PROVIDER_PRICE_INTELLIGENCE_V1');
+  assert.match(fs.readFileSync(path.join(after.runDirectory,'interpretation-0001','market-proof-research.json'),'utf8'),/^\{\n  "/);
+  if(i===0){
+   await interpretRun(after.runDirectory);const replayed=JSON.parse(fs.readFileSync(path.join(after.runDirectory,'interpretation-0002','provider-price-intelligence.json')));
+   assert.deepEqual(replayed,intelligence);
+   const replayVerification=await verifyRetainedRun(after.runDirectory);
+   assert.deepEqual(semantic(replayVerification.verified),semantic(after.verified));
+  }
   const raw=JSON.parse(fs.readFileSync(path.join(after.runDirectory,'journal','record-00000001.json')));
   assert.equal(raw.payload.$checkpointObjects,1);assert.equal(JSON.stringify(raw).includes(body),false);
  }
@@ -69,6 +83,20 @@ test('Direct journal object mode preserves replay and V3 results while sharing i
  assert(localObjects[0].length>0);assert.deepEqual(localObjects[0].map(file=>path.basename(file)),localObjects[1].map(file=>path.basename(file)));
  for(const [index,file] of localObjects[0].entries()){const a=fs.statSync(file),b=fs.statSync(localObjects[1][index]);assert.equal(a.ino,b.ino);assert.equal(a.dev,b.dev);assert.equal(a.mode&0o222,0);}
  t.diagnostic(JSON.stringify({baseline:before,objectMode:after,physicalSavedBytes:before.allocatedBytes-after.allocatedBytes,sharedObjects:objectFiles.length}));
+});
+
+test('large provider price intelligence writes the same ordered document with fewer allocated blocks',t=>{
+ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'price-intelligence-compact-'));t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));
+ const output=path.join(temp,'compact');fs.mkdirSync(output);
+ const document={priceEvidenceNeedsByTarget:{'lumen-price-US':{version:2,claims:Array.from({length:4500},(_,i)=>({claimKey:'plan-'+i,identity:{plan:'Plan '+i,cadence:'P1M'},missing:[{assertion:'market',reasons:['MARKET_APPLICABILITY_UNRESOLVED']}]}))}},version:1,observations:Array.from({length:4500},(_,i)=>({service:'lumen',market:'US',plan:'Plan '+i,amount:'12',currency:'USD',billingInterval:{normalized:'P1M'},source:{hash:hash(body),url}})),trustworthy:0,canonicalPromotion:false,offline:true};
+ writeProviderPriceIntelligence(output,document);
+ const compactPath=path.join(output,'provider-price-intelligence.json'),raw=fs.readFileSync(compactPath,'utf8'),parsed=JSON.parse(raw);
+ assert.deepEqual(parsed,document);assert.deepEqual(Object.keys(parsed),Object.keys(document));assert.equal(raw,JSON.stringify(document)+'\n');
+ const oldPath=path.join(temp,'old-format.json');fs.writeFileSync(oldPath,JSON.stringify(document,null,2)+'\n');
+ const compactAllocated=fs.statSync(compactPath).blocks*512,oldAllocated=fs.statSync(oldPath).blocks*512;
+ assert(compactAllocated<oldAllocated,JSON.stringify({compactAllocated,oldAllocated}));
+ assert.throws(()=>writeProviderPriceIntelligence(output,document),{code:'EEXIST'});
+ t.diagnostic(JSON.stringify({compactAllocated,oldAllocated,physicalSavedBytes:oldAllocated-compactAllocated}));
 });
 
 test('new Direct manifests remain ordinary readable JSON and use fewer physical blocks',async t=>{
