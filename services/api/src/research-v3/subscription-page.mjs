@@ -148,14 +148,18 @@ function componentIdentities(parsed,providerName){
 
 const symbolCurrency=new Map([['€','EUR'],['£','GBP'],['¥','JPY'],['CA$','CAD'],['A$','AUD'],['US$','USD'],['S$','SGD'],['R$','BRL'],['RM','MYR'],['Kč','CZK'],['zł','PLN'],['NTD','TWD'],['₱','PHP'],['Rp','IDR'],['NIS','ILS']]);
 const validCurrencies=new Set(Intl.supportedValuesOf('currency'));
+// "kr" has no intrinsic ISO currency. V3 supplies this hint only after it has
+// independently established the target market from source-bound evidence.
+const krCurrencies=new Set(['DKK','NOK','SEK','ISK']);
+const conflictingKrCurrency=(text,hint)=>/\bkr\b/u.test(text)&&[...text.matchAll(/\b[A-Z]{3}\b/gu)].some(match=>validCurrencies.has(match[0])&&match[0]!==hint);
 const currencyNames=new Map();
 const displayCurrencies=new Intl.DisplayNames(['en'],{type:'currency'});
 for(const code of Intl.supportedValuesOf('currency')){const name=displayCurrencies.of(code)?.toLocaleLowerCase('en');if(name)currencyNames.set(name,currencyNames.has(name)?null:code);}
 function headingCurrency(text){const name=/^pricing\s*\(([^)]+)\)/iu.exec(text)?.[1]?.trim().toLocaleLowerCase('en'),code=name?currencyNames.get(name):null;return code&&new Intl.NumberFormat('en',{style:'currency',currency:code,currencyDisplay:'narrowSymbol'}).formatToParts(1).find(part=>part.type==='currency')?.value==='$'?code:null;}
 function number(raw){const value=raw.replace(/[\u00a0\u202f ]/gu,'');if(/^\d+$/.test(value))return Number(value);if(/^\d+[.,]\d{1,2}$/.test(value))return Number(value.replace(',','.'));if(/^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(value))return Number(value.replaceAll(',',''));if(/^\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?$/.test(value))return Number(value.replaceAll('.','').replace(',','.'));return null;}
-const money=/(?<![\p{L}\p{N}])((?:[A-Z]{3}|RM|TL|CA\$|A\$|US\$|S\$|R\$|Kč|zł|Rp|Lei|R|₱|[$€£¥])\s*)?(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[ .\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d.,])\s*((?:[A-Z]{3}|RM|TL|S\$|R\$|Kč|zł|Rp|Lei|R|₱|[$€£¥]))?(?![\p{L}\p{N}])/gu;
+const money=/(?<![\p{L}\p{N}])((?:[A-Z]{3}|RM|TL|CA\$|A\$|US\$|S\$|R\$|Kč|zł|Rp|Lei|kr|R|₱|[$€£¥])\s*)?(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[ .\u00a0\u202f]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?![\d.,])\s*((?:[A-Z]{3}|RM|TL|S\$|R\$|Kč|zł|Rp|Lei|kr|R|₱|[$€£¥]))?(?![\p{L}\p{N}])/gu;
 function charges(text,currencyHint=null,marketCurrencyHint=null){
- const rows=[];for(const match of text.matchAll(money)){const mark=normalized((match[1]??'')||(match[3]??'')),currency=/^[A-Z]{3}$/.test(mark)&&validCurrencies.has(mark)?mark:symbolCurrency.get(mark)??(mark==='$'?currencyHint:mark==='Lei'&&marketCurrencyHint==='RON'?'RON':mark==='R'&&marketCurrencyHint==='ZAR'?'ZAR':mark==='TL'&&marketCurrencyHint==='TRY'?'TRY':null);if(!currency)continue;const amount=number(match[2]);if(amount===null)continue;
+ const rows=[];for(const match of text.matchAll(money)){const mark=normalized((match[1]??'')||(match[3]??'')),currency=/^[A-Z]{3}$/.test(mark)&&validCurrencies.has(mark)?mark:symbolCurrency.get(mark)??(mark==='$'?currencyHint:mark==='Lei'&&marketCurrencyHint==='RON'?'RON':mark==='R'&&marketCurrencyHint==='ZAR'?'ZAR':mark==='TL'&&marketCurrencyHint==='TRY'?'TRY':mark==='kr'&&krCurrencies.has(marketCurrencyHint)&&!conflictingKrCurrency(text,marketCurrencyHint)?marketCurrencyHint:null);if(!currency)continue;const amount=number(match[2]);if(amount===null)continue;
   const after=text.slice(match.index+match[0].length,match.index+match[0].length+48),cadenceMatch=after.match(/^\s*(?:(?:\/|per\s+|a\s+|each\s+|every\s+)\s*)?(months?|monthly|mo\b|years?|yearly|annually|annual\b|yr\b)/iu);if(!cadenceMatch)continue;const cadence=/month|monthly|\bmo\b/iu.test(cadenceMatch[1])?'MONTHLY':'YEARLY',left=Math.max(0,match.index-64),right=Math.min(text.length,match.index+match[0].length+cadenceMatch[0].length+96),context=text.slice(left,right),trial=/\b(?:trial|introductory|first\s+(?:month|\d+\s+months?))\b/iu.test(context),nonCharge=/\b(?:save|saving|discount|credit|benefit|worth|value)\b[^.;]{0,32}$/iu.test(text.slice(left,match.index));if(nonCharge)continue;
   const billing=[...context.matchAll(/\b(?:billed|billing|charged|paid|pay|payment(?:s)?)\s+(?:[^.;]{0,32}?)(monthly|yearly|annually|every month|every year|per month|per year)\b|\b(monthly|yearly|annual)\s+(?:billing|payments?)\b/giu)].map(m=>/month/iu.test(m[1]??m[2])?'MONTHLY':'YEARLY'),prefix=text.slice(Math.max(0,match.index-32),match.index),stated=/(?:\bis\b|\bcosts?\b|\bpriced\s+at\b|\bor\b)\s*$/iu.test(prefix)?cadence:null,unique=[...new Set([...billing,...(stated?[stated]:[])])];
   const billingCadence=unique.length===1?unique[0]:'UNKNOWN';rows.push({amount,currency,cadence,billingCadence,consumer:true,relationship:'SUBSCRIPTION',role:trial?'TRIAL':'ORDINARY',monetaryKind:trial?'TRIAL_CHARGE':'SUBSCRIPTION_CHARGE',amountDerivation:billingCadence!=='UNKNOWN'&&billingCadence!==cadence?'ARITHMETIC':'EXPLICIT',text:match[0]+cadenceMatch[0],...(mark==='$'&&currencyHint?{currencyBasis:'CONTEXTUAL_DOLLAR'}:{})});
@@ -230,7 +234,7 @@ function pricingTables(parsed,currencyHint=null,providerName=null,marketCurrency
    const cells=parsed.nodes.filter(node=>node.tag==='td'&&node.parent===row&&!node.hidden).sort((a,b)=>a.start-b.start);
    if(cells.length<2||cells.length>6)continue;
    const nameSegment=parsed.within(cells[0])[0],name=nameSegment?.text??'';
-   if(!name||name.length>80||/^(?:monthly|mensal|mensual|annual|anual|features?|plans?|planos?)$/iu.test(name)||/\b(?:[2-9]|1[0-2]|six)\s*[- ]?\s*months?\b/iu.test(name)||/(?:^|[^\p{L}])(?:membros?\s+extras?|miembros?\s+extras?|promo(?:ç(?:ão|ões)|tional?|cional)?|pacote|combo)(?=$|[^\p{L}])/iu.test(name)||nonStandalonePresentation(name,providerName)||/\b(?:no longer available|not available to purchase|unavailable to purchase|discontinued)\b/iu.test(parsed.text(row)))continue;
+   if(!name||name.length>80||/^(?:monthly|mensal|mensual|annual|anual|features?|plans?|planos?)$/iu.test(name)||/\b(?:[2-9]|1[0-2]|six)\s*[- ]?\s*months?\b/iu.test(name)||/(?:^|[^\p{L}])(?:membros?\s+extras?|miembros?\s+extras?|promo(?:ç(?:ão|ões)|tion(?:al)?|cional)?|pacote|combo)(?=$|[^\p{L}])/iu.test(name)||nonStandalonePresentation(name,providerName)||/\b(?:no longer available|not available to purchase|unavailable to purchase|discontinued)\b/iu.test(parsed.text(row)))continue;
    const priceCell=cells.at(-1),parts=parsed.within(priceCell),priceText=parts.map(part=>part.text).join(' ');
    const hasPlanAction=/\b(?:select|choose|subscribe|join)\s+(?:(?:a|payment)\s+)?plan\b|\bseleccionar\s+plan\b/iu.test(priceText);
    if(!hasPlanAction&&!parts.some(part=>/^(?:monthly|mensal|mensual)(?:\s+payment\s+plan)?\s*:/iu.test(part.text)))continue;
@@ -239,7 +243,7 @@ function pricingTables(parsed,currencyHint=null,providerName=null,marketCurrency
     const label=/^(?:monthly|mensal|mensual)(?:\s+payment\s+plan)?\s*:\s*(.*)$/iu.exec(parts[i].text);
     if(!label)continue;
     const amountText=label[1]||(parts[i+1]?.text??'');
-    if(/(?:annual|yearly|anual|equivalent|equivalente|billed\s+yearly|promo|discount|desconto|trial|introductory|primeiro\s+m[eê]s|bundle|pacote|combo|\*{2,})/iu.test(amountText))continue;
+    if(/(?:annual|yearly|anual|equivalent|equivalente|billed\s+yearly|promo|discount|desconto|trial|introductory|first\s+month|primeiro\s+m[eê]s|bundle|pacote|combo|\*{2,})/iu.test(amountText)||conflictingKrCurrency(amountText+' '+headingText+' '+headerText,marketCurrencyHint))continue;
     const prices=[...amountText.matchAll(money)];
     if(prices.length!==1)continue;
     const values=charges(prices[0][0]+' /month',currencyHint,marketCurrencyHint).filter(charge=>charge.cadence==='MONTHLY'&&charge.role==='ORDINARY');

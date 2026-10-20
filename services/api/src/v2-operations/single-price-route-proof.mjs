@@ -6,6 +6,7 @@ import {createHash} from 'node:crypto';
 import {safePath} from './artifacts.mjs';
 import {readMarketRunRecords} from '../research-v1/market-run-store.mjs';
 import {originalAcquisitionTime} from './verified-reconciliation-v1.mjs';
+import {readBrowserPricingRouteEvidence} from '../research-v2/live/browser-pricing-route-evidence.mjs';
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const inside=(root,value)=>{const base=fs.realpathSync(root),file=fs.realpathSync(value);if(!file.startsWith(base+path.sep))throw Error('PRICING_ROUTE_PROOF_PATH');return file;};
@@ -37,4 +38,29 @@ export function loadSinglePriceRouteProof({jobRoot,jobId,service,market,sourceHa
  const geo=attempt.transportVerification;
  if(reference?.hash!==record.hash||reference.sequence!==record.sequence||reference.path!==expectedPath||reference.pointer!==`/result/attempts/${attemptIndex}/page`||reference.trustRoot?.kind!=='LIVE_CAMPAIGN_ROOT_V1'||reference.trustRoot.id!==path.basename(run)||attempt.targetCountry!==market||geo?.level!=='BRACKET_VERIFIED'||geo.targetCountry!==market||geo.before?.status!=='MATCH'||geo.before.country!==market||geo.after?.status!=='MATCH'||geo.after.country!==market||receipt.geo.geoCountry!==market||receipt.sourceUrl!==attempt.page?.url||receipt.geo.sourceUrl!==attempt.page?.url||outcome.sourceClassification?.status!=='PROVIDER_SOURCE'||outcome.sourceClassification.sourceHash!==sourceHash||outcome.sourceClassification.finalUrl!==attempt.page?.url||attempt.page?.rawSource?.text!==body||attempt.page?.sourceIntegrity?.sha256!==sourceHash)throw Error('PRICING_ROUTE_PROOF_BINDING');
  return {sourceUrl:attempt.page.url,acquiredAt:originalAcquisitionTime(attempt),method:attempt.method};
+}
+
+export function loadBrowserPriceRouteProof({jobRoot,child,jobId,service,market,sourceHash,checkpoint}){
+ if(!/^[a-f0-9-]{36}$/.test(jobId??'')||!/^[a-z0-9][a-z0-9-]{0,159}$/.test(service??'')||!/^[A-Z]{2}$/.test(market??'')||!/^[a-f0-9]{64}$/.test(sourceHash??'')||!['priority-research-links','known-service','known-service-v3-verification-retry-1'].includes(checkpoint))throw Error('PRICING_ROUTE_BROWSER_SELECTOR');
+ const job=readJson(safePath(jobRoot,'operation.json')),targetId=`price-research:${service}:${market}`;
+ if(job.id!==jobId||job.config?.objective!=='PRICE_RESEARCH')throw Error('PRICING_ROUTE_BROWSER_JOB');
+ if(job.config.targetKind==='KNOWN_SERVICE'){
+  if(path.resolve(child)!==path.resolve(jobRoot)||job.config.serviceId!==service||job.config.market!==market)throw Error('PRICING_ROUTE_BROWSER_TARGET');
+ }else if(job.config.targetKind==='CANONICAL_SELECTION'){
+  const index=job.config.batchTargets?.findIndex(row=>row.id===targetId&&row.serviceId===service&&row.targetMarket===market);
+  if(index<0||path.resolve(child)!==path.resolve(jobRoot,'price-research-targets',`${String(index+1).padStart(2,'0')}-${service}-${market}`))throw Error('PRICING_ROUTE_BROWSER_TARGET');
+  const progress=regularProgress(safePath(jobRoot,'price-research-batch-progress.jsonl'));
+  if(progress.filter(row=>row.index===index&&row.targetId===targetId).at(-1)?.status!=='COMPLETE')throw Error('PRICING_ROUTE_BROWSER_INCOMPLETE');
+ }else throw Error('PRICING_ROUTE_BROWSER_JOB');
+ const campaign=safePath(child,checkpoint),state=readJson(safePath(campaign,'adaptive-state.json')),target=state.targets?.[targetId];
+ if(target?.service!==service||target.market!==market||target.id!==targetId)throw Error('PRICING_ROUTE_BROWSER_TARGET');
+ const interpretations=(target.providerInterpretations??[]).filter(row=>row.renderedAcquisition===true&&row.v3Observation?.sha256===sourceHash&&row.v3Truth?.established===true);
+ if(interpretations.length!==1)throw Error('PRICING_ROUTE_BROWSER_AMBIGUOUS');
+ const evidence=readBrowserPricingRouteEvidence({directory:safePath(campaign,`targets/${targetId}/open-web-discovery`),target,interpretation:interpretations[0]});
+ return {sourceUrl:evidence.url,acquiredAt:evidence.acquiredAt,method:evidence.method};
+}
+
+function regularProgress(file){
+ const stat=fs.lstatSync(file);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>8_000_000)throw Error('PRICING_ROUTE_BROWSER_PROGRESS');
+ return fs.readFileSync(file,'utf8').split('\n').filter(Boolean).map(line=>JSON.parse(line));
 }

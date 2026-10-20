@@ -128,7 +128,7 @@ test('captured SG help-table structure keeps only distinct monthly S$ choices',(
 function selectedHelpTruth(market,body,{receipt=true,changedHash=false}={}){
  const sourceUrl='https://help.example.com/en-GB/article/price?redirect=true',id='selected-'+market;
  const selected=body.replace('<body>',`<body><button aria-haspopup="listbox" aria-label="Change country or language. Current country ${market}">Country</button>`),sha=digest(selected);
- const selectedOptions={BR:'Brazil (Português)',MY:'Malaysia (English)',PL:'Poland (English)',SG:'Singapore (English)',TW:'Taiwan (English)',AE:'United Arab Emirates (English)',PH:'Philippines (English)',SA:'Saudi Arabia (English)',MX:'Mexico (Español)',ID:'Indonesia (English)',ZA:'South Africa (English)',IL:'Israel (English)',QA:'Qatar (English)',EG:'Egypt (English)',RO:'Romania (English)',CL:'Chile (Español)',CO:'Colombia (Español)',TR:'Turkey (English)'};
+ const selectedOptions={BR:'Brazil (Português)',MY:'Malaysia (English)',PL:'Poland (English)',SG:'Singapore (English)',DK:'Denmark (English)',TW:'Taiwan (English)',AE:'United Arab Emirates (English)',PH:'Philippines (English)',SA:'Saudi Arabia (English)',MX:'Mexico (Español)',ID:'Indonesia (English)',ZA:'South Africa (English)',IL:'Israel (English)',QA:'Qatar (English)',EG:'Egypt (English)',RO:'Romania (English)',CL:'Chile (Español)',CO:'Colombia (Español)',TR:'Turkey (English)'};
  const marketSelection={kind:'PROVIDER_SELECTED_MARKET',selectionMode:'SELECTED_OPTION',observationId:id,targetMarket:market,transport:'DIRECT_BROWSER',initialUrl:sourceUrl,finalUrl:sourceUrl,providerHost:'help.example.com',preSourceSha256:digest('initial shell'),finalSourceSha256:changedHash?'0'.repeat(64):sha,preSelectedCode:'US',selectedCode:market,selectedOption:selectedOptions[market],selectorLabel:`Change country or language. Current country ${market}`};
  const observation={id,kind:'PROVIDER',authority:'REVIEWED_PROVIDER',url:sourceUrl,context:context('DIRECT'),outcome:'OK',truncated:false,completeness:'COMPLETE',format:'WEB',contentType:'text/html',httpStatus:200,access:[{decision:'ALLOWED'}],body:selected,sha256:sha,...(receipt?{marketSelection}:{})};
  const objective={kind:'PRICE',serviceId:'disney-plus',serviceName:'Disney+',providerHosts:['help.example.com'],markets:[market],seeds:[sourceUrl]};
@@ -149,6 +149,28 @@ for(const [market,expected,rows] of [
   assert.equal(blocked.truth.established,false);
   assert.equal(blocked.truth.offers.some(row=>row.propositions.TARGET_MARKET?.state==='ESTABLISHED'),false);
  }
+});
+
+test('ambiguous kr requires independent market proof and preserves monthly billing',()=>{
+ const rows=[
+  helpRow('Disney+ Standard with Ads','<strong>Monthly:</strong><p>79.00 kr</p><strong>Annual:</strong><p>790.00 kr</p>'),
+  helpRow('Disney+ Standard','<strong>Monthly:</strong><p>119.00 kr</p><strong>Annual:</strong><p>1190.00 kr</p>'),
+  helpRow('Disney+ Premium','<strong>Monthly:</strong><p>169.00 kr</p><strong>Annual:</strong><p>1690.00 kr</p>'),
+  helpRow('Disney+ + Sports bundle','<strong>Monthly:</strong><p>199.00 kr</p>'),
+  helpRow('Disney+ Premium promotion','<strong>Monthly:</strong><p>49.00 kr first month</p>')];
+ const body=retainedHelpTable('DK',rows),url='https://help.example.com/article/price';
+ assert.deepEqual(interpretSubscriptionPage({body,url,providerName:'Disney+'}).offerings,[]);
+ for(const code of ['DKK','NOK','SEK']){
+  const parsed=interpretSubscriptionPage({body,url,providerName:'Disney+',marketCurrencyHint:code});
+  assert.deepEqual(parsed.offerings.map(row=>[row.charges[0].amount,row.charges[0].currency,row.charges[0].billingCadence]),[[79,code,'MONTHLY'],[119,code,'MONTHLY'],[169,code,'MONTHLY']]);
+ }
+ const accepted=selectedHelpTruth('DK',body);
+ assert.equal(accepted.truth.established,true);
+ assert.deepEqual(accepted.truth.offers.map(row=>[row.propositions.PRICE_AMOUNT.value,row.propositions.CURRENCY.value]),[[79,'DKK'],[119,'DKK'],[169,'DKK']]);
+ for(const options of [{receipt:false},{changedHash:true}])assert.equal(selectedHelpTruth('DK',body,options).truth.established,false);
+ const conflicting=body.replace('79.00 kr','79.00 kr (SEK)');
+ assert.equal(interpretSubscriptionPage({body:conflicting,url,providerName:'Disney+',marketCurrencyHint:'DKK'}).offerings.length,2);
+ assert.deepEqual(selectedHelpTruth('DK',conflicting).truth.offers.map(row=>row.propositions.PRICE_AMOUNT.value),[119,169]);
 });
 
 for(const [market,body,expected] of [

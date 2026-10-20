@@ -5,7 +5,7 @@ import {TargetResearchFailure} from '../research-v2/live/target-research-failure
 import {createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,recordProviderPricingRouteFailure} from '../research-v2/live/hybrid-provider-resource-memory.mjs';
 import {loadPricingRouteMemory,publishPricingRouteMemory,publishPricingMethodOutcomes,isPublicPricingRouteUrl} from '../research-v2/storage/pricing-route-memory.mjs';
 import {loadRetainedVerifiedEvidence} from './verified-reconciliation-v1.mjs';
-import {loadSinglePriceRouteProof} from './single-price-route-proof.mjs';
+import {loadSinglePriceRouteProof,loadBrowserPriceRouteProof} from './single-price-route-proof.mjs';
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const safeCode=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{0,159}$/.test(value)?value:'PRICE_RESEARCH_CHILD_FAILED';
@@ -30,7 +30,7 @@ export function recoverCompletedPricingRoutes(memory,child,target,{memoryRoot=nu
   if(memoryRoot&&jobId&&recordedAt)for(const row of learned){
    if(!isPublicPricingRouteUrl(row.url))continue;
    const source=row.sources.findLast(source=>source.market===target.targetMarket);if(!source)continue;
-   let proof;try{proof=knownService?loadSinglePriceRouteProof({jobRoot:child,jobId,service:target.serviceId,market:target.targetMarket,sourceHash:source.sha256}):loadRetainedVerifiedEvidence({runsRoot,jobId,service:target.serviceId,market:target.targetMarket,sourceHash:source.sha256});}catch{continue;}
+   let proof;try{proof=(current.providerInterpretations??[]).some(item=>item.renderedAcquisition===true&&item.v3Observation?.sha256===source.sha256)?loadBrowserPriceRouteProof({jobRoot:knownService?child:path.join(runsRoot,jobId),child,jobId,service:target.serviceId,market:target.targetMarket,sourceHash:source.sha256,checkpoint:attempt}):knownService?loadSinglePriceRouteProof({jobRoot:child,jobId,service:target.serviceId,market:target.targetMarket,sourceHash:source.sha256}):loadRetainedVerifiedEvidence({runsRoot,jobId,service:target.serviceId,market:target.targetMarket,sourceHash:source.sha256});}catch{continue;}
    const acquiredAt=Date.parse(proof.acquiredAt);
    if(proof.sourceUrl!==row.url||!Number.isFinite(acquiredAt)||acquiredAt>Date.parse(recordedAt)||acquiredAt>Date.now())continue;
    const prior=priorSuccess.get(row.service+'|'+row.url)?.lastSuccessAt;

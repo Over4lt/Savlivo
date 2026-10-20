@@ -7,6 +7,7 @@ import {canonical,digest,normalizeUrl} from '../../research-v3/model.mjs';
 import {validatedV3ProviderAuthorityBinding} from './provider-routing-authority.mjs';
 import {providerSeedCampaignState} from '../../research-v3/research-target.mjs';
 import {interpretSubscriptionPage,validExtractionRecipe} from '../../research-v3/subscription-page.mjs';
+import {readBrowserPricingRouteEvidence} from './browser-pricing-route-evidence.mjs';
 
 export const hybridProviderResourceMemoryContract=Object.freeze({
  contractVersion:1,
@@ -152,11 +153,17 @@ export function learnProviderPricingRoutesFromTarget({memory,target,directory,no
   // Priority-phase Decodo has no Direct authority decision. Its own retained
   // body, official classification, G1 receipt and V3 result must all agree.
   const priorityAuthority=decision.acquisitionReserved===true&&decision.route==='DECODO'&&acquisition&&derivedCandidate&&truth.established===true&&establishedMonthlyPrice&&observation.context?.transport==='DECODO'&&observation.context?.networkGeography===target.market;
-  if(!directAuthority&&!priorityAuthority)continue;
+  let browserEvidence=null;
+  if(interpretation.renderedAcquisition===true&&truth.established===true&&establishedMonthlyPrice&&directory){
+   try{browserEvidence=readBrowserPricingRouteEvidence({directory,target,interpretation});}catch{/* A Browser result without complete retained proof cannot teach a route. */}
+  }
+  if(interpretation.renderedAcquisition===true&&!browserEvidence)continue;
+  if(!directAuthority&&!priorityAuthority&&!browserEvidence)continue;
   const page=(target.reads??[]).find(row=>normalizeUrl(row.url)===url&&row.outcome==='OK'&&row.truncated!==true&&row.bodyHash===hash&&row.sourceIntegrity?.sha256===hash);
   let retained=false,retainedBody=null;
   if(page?.bodyFile&&directory){try{const file=path.resolve(directory,page.bodyFile);if(file.startsWith(path.resolve(directory)+path.sep)&&!fs.lstatSync(file).isSymbolicLink()){const body=fs.readFileSync(file,'utf8');retained=digest(body)===hash;if(retained)retainedBody=body;}}catch{/* Invalid retained body. */}}
   if(acquisition&&directory&&!retainedBody){try{const root=fs.realpathSync(path.resolve(directory,'acquisitions')),run=fs.realpathSync(acquisition.runDirectory),file=fs.realpathSync(path.join(run,'raw',hash+'.body'));if(run.startsWith(root+path.sep)&&file.startsWith(run+path.sep)&&fs.statSync(file).size<=8_000_000){const body=fs.readFileSync(file,'utf8');if(digest(body)===hash){retained=true;retainedBody=body;}}}catch{/* Invalid retained body. */}}
+  if(browserEvidence){retained=true;retainedBody=browserEvidence.body;}
   if(!retained&&directAuthority&&interpretation.countryV3Evaluation?.status==='EVALUATED'&&interpretation.countryV3Evaluation.sourceHash===hash&&observation.context?.transport==='DECODO'&&observation.context?.networkGeography===target.market)retained=true;
   if(!retained)continue;
   const trace=observation.extractionTrace,currency=truth.prices?.[target.market]?.propositions?.CURRENCY?.evidence?.find(row=>references(row,observation.id,hash))?.value;
@@ -178,12 +185,15 @@ export function learnProviderPricingRoutesFromTarget({memory,target,directory,no
 export function providerPricingRoutesForTarget(memory,target){
  if(!memory?.routes||!target?.service||!target?.serviceName)return [];
  return routeRows(memory,target.service).filter(row=>row.serviceName===target.serviceName&&row.successes>0&&row.failures<row.successes+2).sort((a,b)=>(b.successes-b.failures-recentMethodPenalty(memory,b.service,target.market,b.url))-(a.successes-a.failures-recentMethodPenalty(memory,a.service,target.market,a.url))||b.lastSuccessAt.localeCompare(a.lastSuccessAt)||a.url.localeCompare(b.url)).flatMap(row=>{
-  if(!row.countryRouteEvidenceSha256)return [structuredClone(row)];
+  // Recipes are parsing hints, scoped to this canonical service and checked
+  // again against the newly acquired document by the current parser.
+  const recipe=[...(row.sources??[])].reverse().sort((a,b)=>Number(b.market===target.market)-Number(a.market===target.market)).find(source=>validExtractionRecipe(source.extractionRecipe))?.extractionRecipe;
+  if(!row.countryRouteEvidenceSha256)return [{...structuredClone(row),...(recipe?{extractionRecipe:structuredClone(recipe)}:{})}];
   // A country route is reused only through this target's independently
   // supported route map. Neither the old body nor its receipt is projected.
   const candidates=(target.derivedCountryCandidates??[]).filter(candidate=>candidate.service===target.service&&candidate.market===target.market&&candidate.providerRouteEvidenceSha256===row.countryRouteEvidenceSha256&&normalizeUrl(candidate.url)&&new URL(candidate.url).hostname===row.host);
   const sourceLanguage=new URL(row.url).pathname.split('/').filter(Boolean).at(-1);
-  return candidates.sort((a,b)=>recentMethodPenalty(memory,row.service,target.market,a.url)-recentMethodPenalty(memory,row.service,target.market,b.url)||Number(new URL(b.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)-Number(new URL(a.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)).slice(0,2).map(candidate=>({service:row.service,serviceName:row.serviceName,url:candidate.url,host:row.host,role:row.role,meaning:row.meaning,successes:row.successes,failures:row.failures,lastSuccessAt:row.lastSuccessAt,propositions:row.propositions,countryRouteEvidenceSha256:row.countryRouteEvidenceSha256,...(candidate.url===row.url&&row.sources?.some(source=>source.market===target.market&&source.extractionRecipe)?{extractionRecipe:row.sources.findLast(source=>source.market===target.market&&source.extractionRecipe).extractionRecipe}:{})}));
+  return candidates.sort((a,b)=>recentMethodPenalty(memory,row.service,target.market,a.url)-recentMethodPenalty(memory,row.service,target.market,b.url)||Number(new URL(b.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)-Number(new URL(a.url).pathname.split('/').filter(Boolean).at(-1)===sourceLanguage)).slice(0,2).map(candidate=>({service:row.service,serviceName:row.serviceName,url:candidate.url,host:row.host,role:row.role,meaning:row.meaning,successes:row.successes,failures:row.failures,lastSuccessAt:row.lastSuccessAt,propositions:row.propositions,countryRouteEvidenceSha256:row.countryRouteEvidenceSha256,...(recipe?{extractionRecipe:structuredClone(recipe)}:{})}));
  });
 }
 

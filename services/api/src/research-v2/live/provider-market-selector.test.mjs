@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {randomUUID} from 'node:crypto';
 import pngjs from 'pngjs';
 import {browserRenderLimits,createPlaywrightRenderedCapability,providerReadOnlyPost} from '../../research-v3/browser-render.mjs';
 import {hybridRenderedLimits,runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
@@ -14,6 +15,10 @@ import {interpretSubscriptionPage} from '../../research-v3/subscription-page.mjs
 import {retainedProviderSelectorAuthority,researchLinkPriorityTarget} from './retained-render-source.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
 import {runAdaptiveCampaign} from '../inventory/adaptive-campaign.mjs';
+import {createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget} from './hybrid-provider-resource-memory.mjs';
+import {publishPricingRouteMemory,loadPricingRouteMemory} from '../storage/pricing-route-memory.mjs';
+import {readBrowserPricingRouteEvidence} from './browser-pricing-route-evidence.mjs';
+import {recoverCompletedPricingRoutes} from '../../v2-operations/price-research-batch.mjs';
 
 const {PNG}=pngjs;
 const url='https://help.orbit.com/en-GB/article/pricing?redirect=true';
@@ -280,6 +285,75 @@ test('successful GLOBAL selector route short-circuits Decodo, Gemini, Tavily and
  assert.equal(current.renderingOutcomes[0].usage.browserActions,2);
  assert.equal(current.renderingOutcomes[0].usage.countryActions,0);
  assert.equal(current.researchLinkOutcomes[0].result,'VERIFIED');assert.equal(current.researchLinkOutcomes[0].transport,'DIRECT_BROWSER');
+});
+
+test('verified Browser selector teaches a durable source-bound route and cross-market parser hint',async t=>{
+ const directory=temp(t),memoryRoot=temp(t),c=capability('NO');
+ const state=await runOpenWebResearch({directory,targets:[target('NO')],maxActions:10,
+  read:async()=>({url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:shell},sourceIntegrity:{sha256:digest(shell)},accessDecisions:[{decision:'ALLOWED'}]}),
+  render:async({target:current})=>runHybridRenderedAcquisition({directory:path.join(directory,'hybrid-rendered'),target:current,objective:objective('NO'),parent:parent(),transport:'DIRECT',browser:c.browser}),
+  acquire:async()=>{throw Error('DECODO_SHOULD_NOT_RUN');},search:async()=>{throw Error('SEARCH_SHOULD_NOT_RUN');}});
+ const current=state.targets[0],memory=createProviderPricingRouteMemory(),learned=learnProviderPricingRoutesFromTarget({memory,target:current,directory});
+ assert.equal(learned.length,1);assert.equal(learned[0].sources[0].extractionRecipe?.rule,'HTML_PRICING_TABLE');
+ const evidence=current.providerInterpretations.find(row=>row.renderedAcquisition).v3Observation;
+ const acquisition=fs.readFileSync(path.join(directory,'hybrid-rendered','journal.jsonl'),'utf8').trim().split('\n').map(JSON.parse).find(row=>row.type==='ACTION_RESULT'&&row.outcome==='OBSERVED').checkpoint;
+ publishPricingRouteMemory(memoryRoot,learned,{jobId:'11111111-1111-4111-8111-111111111111',checkpoint:'priority-research-links',market:'NO',recordedAt:new Date().toISOString(),acquiredAt:acquisition.freshAt});
+ const restarted=loadPricingRouteMemory(memoryRoot,{services:[service]}),routes=providerPricingRoutesForTarget(restarted,target('GB'));
+ assert.equal(routes.length,1);assert.equal(routes[0].url,url);assert.equal(routes[0].extractionRecipe?.rule,'HTML_PRICING_TABLE');
+ assert.deepEqual(providerPricingRoutesForTarget(restarted,target('GB',{service:'other-service',serviceName:'Other Service'})),[]);
+ assert.equal(JSON.stringify(routes).includes(evidence.sha256),true); // provenance only, never fresh evidence
+ const fresh=await runHybridRenderedAcquisition({directory:temp(t),target:target('GB',{learnedExtractionHints:[{url,market:'GB',recipe:routes[0].extractionRecipe}]}),objective:objective('GB'),parent:parent(),transport:'DIRECT',browser:capability('GB').browser});
+ assert.equal(fresh.v3Truth.established,true);assert.equal(fresh.v3Observation.extractionTrace?.hintOutcome,'APPLIED');
+ assert.equal(fresh.v3Observation.extractionTrace?.sourceHash,fresh.observation.sha256);
+ assert.notEqual(fresh.observation.sha256,evidence.sha256);
+ const changedTrace={};interpretSubscriptionPage({body:'<html><head><title>Orbit subscriptions</title></head><body><h1>Orbit subscriptions</h1><p>No current price</p></body></html>',url,providerName:serviceName,marketCurrencyHint:'GBP',extractionHint:routes[0].extractionRecipe,extractionTrace:changedTrace});
+ assert.equal(changedTrace.hintOutcome,'FALLBACK');
+ const oldTrace={};interpretSubscriptionPage({body:source('GB'),url,providerName:serviceName,marketCurrencyHint:'GBP',extractionHint:{...routes[0].extractionRecipe,version:0},extractionTrace:oldTrace});
+ assert.equal(oldTrace.hintOutcome,'FALLBACK');
+ // A separately justified country URL may carry the compatible parser hint;
+ // the old source hash and market receipt do not become evidence for that URL.
+ const route=restarted.routes.get(service+'|'+url),routeEvidence=digest('provider-country-route');
+ route.countryRouteEvidenceSha256=routeEvidence;
+ const derivedUrl='https://help.orbit.com/gb/pricing',derived=providerPricingRoutesForTarget(restarted,target('GB',{derivedCountryCandidates:[{service,market:'GB',url:derivedUrl,providerRouteEvidenceSha256:routeEvidence}]}));
+ assert.equal(derived.length,1);assert.equal(derived[0].url,derivedUrl);assert.equal(derived[0].extractionRecipe?.rule,'HTML_PRICING_TABLE');
+ assert.equal(Object.hasOwn(derived[0],'sources'),false);
+});
+
+test('Browser learning rejects altered body, receipt, market and authority',async t=>{
+ const campaign=temp(t),expected=path.join(campaign,'hybrid-rendered'),result=await runHybridRenderedAcquisition({directory:expected,target:target('NO'),objective:objective('NO'),parent:parent(),transport:'DIRECT',browser:capability('NO').browser});
+ const state=target('NO',{decisions:[{url,eligible:true,route:'BROWSER'}],renderingOutcomes:[{url,outcome:'OBSERVED',actionId:result.actionId,artifacts:result.artifacts}]}),interpretation={url,renderedAcquisition:true,v3Observation:result.v3Observation,v3Truth:result.v3Truth};
+ const learn=changed=>readBrowserPricingRouteEvidence({directory:campaign,target:changed,interpretation});
+ assert.equal(learn(state).sha256,result.observation.sha256);
+ assert.throws(()=>learn({...state,market:'SE'}));
+ assert.throws(()=>learn({...state,authorities:[]}));
+ const journal=path.join(expected,'journal.jsonl'),original=fs.readFileSync(journal,'utf8'),events=original.trim().split('\n').map(JSON.parse),success=events.find(row=>row.type==='ACTION_RESULT'&&row.outcome==='OBSERVED');
+ success.checkpoint.marketSelection={...success.checkpoint.marketSelection,selectedCode:'SE'};
+ fs.writeFileSync(journal,events.map(JSON.stringify).join('\n')+'\n');assert.throws(()=>learn(state));fs.writeFileSync(journal,original);
+ const bodyFile=path.join(result.artifacts.root,result.artifacts.refs['page.html'].file);fs.writeFileSync(bodyFile,'tampered');assert.throws(()=>learn(state));
+ fs.writeFileSync(bodyFile,result.observation.body);
+ const outside=path.join(temp(t),'outside.html');fs.writeFileSync(outside,result.observation.body);
+ fs.rmSync(bodyFile);fs.symlinkSync(outside,bodyFile);assert.throws(()=>learn(state));
+});
+
+test('completed canonical batch publishes and reloads Browser routing without pricing Truth',async t=>{
+ const runsRoot=temp(t),memoryRoot=temp(t),jobId=randomUUID(),jobRoot=path.join(runsRoot,jobId),child=path.join(jobRoot,'price-research-targets','01-orbit-NO'),campaign=path.join(child,'priority-research-links'),targetId='price-research:orbit:NO',directory=path.join(campaign,'targets',targetId,'open-web-discovery'),c=capability('NO');
+ const state=await runOpenWebResearch({directory,targets:[target('NO',{id:targetId})],maxActions:10,
+  read:async()=>({url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:shell},sourceIntegrity:{sha256:digest(shell)},accessDecisions:[{decision:'ALLOWED'}]}),
+  render:async({target:current})=>runHybridRenderedAcquisition({directory:path.join(directory,'hybrid-rendered'),target:current,objective:objective('NO'),parent:parent(),transport:'DIRECT',browser:c.browser}),
+  acquire:async()=>{throw Error('DECODO_SHOULD_NOT_RUN');},search:async()=>{throw Error('SEARCH_SHOULD_NOT_RUN');}});
+ fs.writeFileSync(path.join(campaign,'adaptive-state.json'),JSON.stringify({...state,targets:{[targetId]:state.targets[0]}}));
+ fs.writeFileSync(path.join(jobRoot,'operation.json'),JSON.stringify({id:jobId,config:{objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',batchTargets:[{id:targetId,serviceId:service,targetMarket:'NO'}]}}));
+ fs.writeFileSync(path.join(jobRoot,'price-research-batch-progress.jsonl'),JSON.stringify({index:0,targetId,status:'COMPLETE'})+'\n');
+ recoverCompletedPricingRoutes(createProviderPricingRouteMemory(),child,{id:targetId,serviceId:service,targetMarket:'NO'},{memoryRoot,runsRoot,jobId,recordedAt:new Date().toISOString()});
+ const loaded=loadPricingRouteMemory(memoryRoot,{services:[service]});assert.equal(loaded.routes.size,1);assert.equal(loaded.methodOutcomes.filter(row=>row.method==='BROWSER'&&row.result==='SUCCESS').length,1);
+ const memoryFile=path.join(memoryRoot,'provider-pricing-routes-v1.json'),firstBytes=fs.readFileSync(memoryFile),firstDigest=digest(firstBytes.toString('utf8'));
+ const browserJournal=fs.readFileSync(path.join(directory,'hybrid-rendered','journal.jsonl'),'utf8').trim().split('\n').map(JSON.parse),acquiredAt=browserJournal.find(row=>row.type==='ACTION_RESULT'&&row.outcome==='OBSERVED').checkpoint.freshAt;
+ assert.equal(loaded.routes.get(service+'|'+url).lastSuccessAt,acquiredAt);
+ recoverCompletedPricingRoutes(createProviderPricingRouteMemory(),child,{id:targetId,serviceId:service,targetMarket:'NO'},{memoryRoot,runsRoot,jobId,recordedAt:new Date().toISOString()});
+ assert.equal(digest(fs.readFileSync(memoryFile,'utf8')),firstDigest);
+ assert.deepEqual(fs.readFileSync(memoryFile),firstBytes);
+ const next=providerPricingRoutesForTarget(loaded,target('GB'));assert.equal(next.length,1);assert.equal(next[0].extractionRecipe?.rule,'HTML_PRICING_TABLE');
+ assert.equal(Object.hasOwn(next[0],'truth'),false);assert.equal(Object.hasOwn(next[0],'price'),false);
 });
 
 for(const market of ['US','NO','GB','AU'])test(`${market} priority campaign selects provider market before Decodo or discovery even with historical Verified`,async t=>{
