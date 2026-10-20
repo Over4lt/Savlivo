@@ -30,7 +30,7 @@ import {rehydrateProviderSeedAuthorityHandoff} from './provider-seed-authority-h
 import {establishProviderSeedCandidateServiceContext} from './provider-source-v3.mjs';
 import {reconcileRenderingNeed,applicationShellRenderingRequired} from './rendering-diagnosis.mjs';
 import {retainedProviderSelectorAuthority,providerMarketSelectorRoute} from './retained-render-source.mjs';
-import {projectV3VerificationEvidence} from '../inventory/v3-result-projection.mjs';
+import {projectEstablishedV3Offerings,projectV3VerificationEvidence} from '../inventory/v3-result-projection.mjs';
 import {authorityAcquisitionRelevance,authorityAcquisitionTiers,candidateAuthorityRouting,candidateIdentityPriority,candidateOriginKind,candidateRelevant,compareCandidateAuthorityRows} from './candidate-authority-routing.mjs';
 import {projectSourceBoundContinuations} from './source-bound-continuation-projection.mjs';
 import {priceResearchAcquisitionCandidate} from './price-research-candidate.mjs';
@@ -200,11 +200,14 @@ r.catalogServiceLeads=(this.state.catalog??this.state.targets).filter(x=>x.servi
  recordAuthority(target,url,decision){const t=this.target(target);t.decisions.push({url,...decision});this.event('AUTHORITY_REVIEW',{target,url,decision});this.save();}
 }
 function chargeAcquisitionBytes(session,outcome){const bytes=outcome?.acquisitionBytes??0;if(!Number.isSafeInteger(bytes)||bytes<0||session.state.usage.bytes+bytes>session.bounds.bytes)throw Error('CAMPAIGN_BYTE_BOUND');session.state.usage.bytes+=bytes;return bytes;}
-function recordLearnedStrategy(target,action,result){
+function recordLearnedStrategy(target,action,result,outcome=null){
  if(!action.learnedStrategyId)return;
  const trace=target.learnedStrategyTrace;if(!trace)return;
- const verified=projectV3VerificationEvidence(target).some(row=>row.targetMarket===target.market&&row.truthMarket===target.market);
- if(trace.attempted.length<16&&!trace.attempted.some(row=>row.id===action.learnedStrategyId))trace.attempted.push({id:action.learnedStrategyId,method:action.route??'DIRECT',result:verified?'VERIFIED':result});
+ // Attribute success only to this acquisition's own source-bound V3 result.
+ // A Verified offering from a different attempt cannot teach this method.
+ const verified=!!outcome?.v3Observation?.sha256&&projectEstablishedV3Offerings({v3Observation:outcome.v3Observation,v3Truth:outcome.v3Truth}).some(row=>row.market===target.market&&row.source?.bodyHash===outcome.v3Observation.sha256&&row.sourceReferences.some(reference=>reference.observation===outcome.v3Observation.id&&reference.sha256===outcome.v3Observation.sha256));
+ const strategy=(target.learnedPricingStrategies??[]).find(row=>row.id===action.learnedStrategyId);
+ if(trace.attempted.length<16&&!trace.attempted.some(row=>row.id===action.learnedStrategyId))trace.attempted.push({id:action.learnedStrategyId,method:strategy?.method??action.route??'DIRECT',priorityTier:strategy?.priorityTier??null,sourceServices:strategy?.sourceServices??[],compatibilityReason:strategy?.compatibilityReason??null,result:verified?'VERIFIED':result});
  if(verified)trace.verifiedStrategyId=action.learnedStrategyId;
 }
 // Existing runner can supply an approved search bridge. No Bing RSS fallback.
@@ -233,7 +236,7 @@ export async function runOpenWebResearch({directory,targets,search,read,classify
   }
   reconcileOutcomeRendering(t,outcome,a.url);if(outcome?.outcome!=='OBSERVED')t.researchDiagnosis=outcome?.reason??'RENDERED_ACQUISITION_FAILED';
   t.providerInterpretations??=[];t.providerInterpretations.push({url:a.url,classification:'V3_RENDERED_PROVIDER_SOURCE',blockers:outcome?.outcome==='OBSERVED'?[]:[outcome?.reason??'RENDERED_ACQUISITION_FAILED'],v3Observation:outcome?.v3Observation??null,v3Truth:outcome?.v3Truth??null,v3Catalog:outcome?.v3Catalog??null,renderedAcquisition:true});
-  const learnedBrowser=(t.learnedPricingStrategies??[]).find(row=>row.method==='BROWSER'&&row.url===a.url);if(learnedBrowser)recordLearnedStrategy(t,{...a,learnedStrategyId:learnedBrowser.id},outcome?.outcome??'ACQUISITION_FAILED');
+  const learnedBrowser=(t.learnedPricingStrategies??[]).find(row=>row.method==='BROWSER'&&row.url===a.url);if(learnedBrowser)recordLearnedStrategy(t,{...a,learnedStrategyId:learnedBrowser.id},outcome?.outcome??'ACQUISITION_FAILED',outcome);
   session.state.pending=null;session.save();if(++executed>=maxActions)return session.state;continue;
  }
 
@@ -262,7 +265,7 @@ export async function runOpenWebResearch({directory,targets,search,read,classify
   t.acquisitionOutcomes??=[];t.acquisitionOutcomes.push({url:a.url,classification:outcome.classification,sourceClassification:outcome.sourceClassification??null,channel:['PRICE_RESEARCH_VERIFICATION_REQUIRED','SOURCE_BOUND_PRICE_DECODO_CONTINUATION'].includes(a.reason)?'PRICE_RESEARCH_DECODO':a.reason==='TARGET_MARKET_OBSERVATION_REQUIRED'?'DIRECT_THEN_GEO':'INDEPENDENT_DECODO',routingReason:a.reason,...(a.sourceBoundPriceContinuation?{sourceBoundPriceContinuation:a.sourceBoundPriceContinuation}:{}),researchLinkId:a.researchLinkId??null,blockers:outcome.blockers??[],runDirectory:outcome.runDirectory??null,countryV3Evaluation:outcome.countryV3Evaluation??null,renderingRequired:outcome.renderingRequired===true,sourceHash:outcome.v3Observation?.sha256??null,transport:outcome.v3Observation?.context?.transport??null,acquisitionBytes,responseTooLarge:outcome.policy?.some(row=>row.attempts?.some(attempt=>attempt.failure?.code==='RESPONSE_TOO_LARGE'))===true});
   if(a.researchLinkId){const link=(t.researchLinks??[]).find(row=>row.id===a.researchLinkId),source=outcome.sourceClassification?.status??null,verified=projectV3VerificationEvidence(t).some(row=>row.targetMarket===t.market&&row.truthMarket===t.market),result=verified?'VERIFIED':outcome.hardStop?'ACCESS_BLOCKED':outcome.classification==='BUDGET_STOP'?'DECODO_UNAVAILABLE':outcome.classification==='ACQUISITION_FAILED'?'ACQUISITION_FAILED':outcome.classification==='INTERPRETATION_FAILED'?'INTERPRETATION_FAILED':source==='THIRD_PARTY_SOURCE'?'THIRD_PARTY_SOURCE':source==='UNKNOWN_SOURCE'?'UNKNOWN_SOURCE':source==='PROVIDER_SOURCE'?(outcome.renderingRequired?'BROWSER_CONTINUATION_REQUIRED':'PROVIDER_SOURCE_NO_VERIFIED'):'ACQUISITION_FAILED';if(link)(t.researchLinkOutcomes??=[]).push({id:link.id,kind:link.kind,scope:link.marketScope,market:link.marketCode??null,targetMarket:t.market,transport:'DECODO',decodoAttempted:outcome.classification!=='BUDGET_STOP',browserAttempted:false,result,sourceClassification:source,sourceReason:outcome.sourceClassification?.reason??null,reason:outcome.blockers?.[0]??outcome.countryV3Evaluation?.reason??null,at:new Date().toISOString()});}
   if(outcome.sourceClassification)recordSuggestedSourceLifecycle(t,outcome.sourceClassification);
-  recordLearnedStrategy(t,a,outcome.classification??'ACQUISITION_FAILED');
+  recordLearnedStrategy(t,a,outcome.classification??'ACQUISITION_FAILED',outcome);
   if(a.reason==='PRICE_RESEARCH_VERIFICATION_REQUIRED')t.decodoVerification={status:'ATTEMPTED',url:a.url,outcome:outcome.classification};
   t.providerInterpretations??=[];t.providerInterpretations.push({url:a.url,classification:outcome.classification,blockers:outcome.blockers??[],runDirectory:outcome.runDirectory??null,v3Observation:outcome.v3Observation??null,v3ServiceUnderstanding:outcome.v3ServiceUnderstanding??null,v3Truth:outcome.v3Truth??null,v3Catalog:outcome.v3Catalog??null,countryV3Evaluation:outcome.countryV3Evaluation??null});
   const retained=retainedPriceReview(outcome.runDirectory,t);if(retained)t.retainedPriceReview=retained;
@@ -302,7 +305,9 @@ export async function runOpenWebResearch({directory,targets,search,read,classify
   const useful=(t.providerInterpretations??[]).some(row=>safe(row.url)===safe(a.url)&&Object.values(row.v3Truth?.prices??{}).some(price=>['PRICE_AMOUNT','PRICE_CURRENCY','PRICE_CADENCE','PRICE_ROLE'].some(name=>price?.propositions?.[name]?.state==='ESTABLISHED')));
   if(!useful)recordProviderPricingRouteFailure(providerPricingRouteMemory,t,a.url);
  }
- if(a.type==='READ')recordLearnedStrategy(t,a,t.reads.at(-1)?.outcome??'ACQUISITION_FAILED');
+ // A selector Direct read is only preparation for a learned Browser method.
+ // Record that method after the Browser transport actually runs.
+ if(a.type==='READ'&&(t.learnedPricingStrategies??[]).find(row=>row.id===a.learnedStrategyId)?.method!=='BROWSER')recordLearnedStrategy(t,a,t.reads.at(-1)?.outcome??'ACQUISITION_FAILED',(t.providerInterpretations??[]).findLast(row=>safe(row.url)===safe(a.url)&&row.v3Observation?.sha256===t.reads.at(-1)?.bodyHash));
  if(++executed>=maxActions)return session.state;
  }return session.state;
 }

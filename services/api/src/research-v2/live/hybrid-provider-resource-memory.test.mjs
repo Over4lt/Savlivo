@@ -17,7 +17,7 @@ import {createResearchMemory,usableResearchMemory} from './research-memory.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
 import {derivedCountrySourceCandidates} from './derived-country-sources.mjs';
 import {nextResearchLink} from './research-link-routing.mjs';
-import {defaultHybridProviderResourceMemoryRoot,hybridProviderResourceMemoryContract,loadHybridProviderResources,recordHybridProviderResourceFailure,rememberHybridProviderResource,createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget,providerPricingStrategiesForTarget,prioritizeDerivedCountryCandidates,recordProviderPricingRouteFailure} from './hybrid-provider-resource-memory.mjs';
+import {defaultHybridProviderResourceMemoryRoot,hybridProviderResourceMemoryContract,loadHybridProviderResources,recordHybridProviderResourceFailure,rememberHybridProviderResource,createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget,providerPricingStrategiesForTarget,prioritizeDerivedCountryCandidates,recordProviderPricingRouteFailure,rememberProvenPricingMethod} from './hybrid-provider-resource-memory.mjs';
 
 const service='aurora-club',serviceName='Aurora Club',market='US',host='aurora.example',candidateUrl=`https://${host}/membership`,providerUrl=`https://${host}/pricing`;
 const candidateBody=`<html><main><h1>${serviceName} membership</h1><p>We operate ${serviceName} membership and provide our own classes.</p><a href="/pricing">Pricing</a></main><footer>© ${serviceName} 2026. All rights reserved.</footer></html>`;
@@ -116,8 +116,41 @@ test('distinct documented acquisition methods on one route remain distinct plann
  assert.deepEqual(selected.map(row=>row.method),['DIRECT','DECODO']);assert(selected.every(row=>row.sourceMarket==='US'&&row.meaning==='ROUTING_ONLY_REQUIRES_FRESH_ACQUISITION'));
 });
 
-test('batch pricing route memory retains distinct successes within a fixed bound',t=>{
+test('same service and market, then same service elsewhere, outrank more popular transferable methods',t=>{
+ const au=priorityFixture(t,'AU'),nz=priorityFixture(t,'NZ'),memory=createProviderPricingRouteMemory();
+ learnProviderPricingRoutesFromTarget({memory,target:au.state,directory:au.f.run1});
+ const selector={id:'selector',url:'https://www.hbomax.com/selector?redirect=true',kind:'INTERACTIVE_ROUTE',marketScope:'GLOBAL',enabled:true,truthAuthority:'NONE'};
+ const current={service:'max',serviceName:'Max',market:'NZ',derivedCountryCandidates:derivedCountrySourceCandidates({service:'max',market:'NZ'}),researchLinks:[selector],capabilities:{direct:true,decodo:true,browser:true}};
+ for(let index=0;index<15;index++)rememberProvenPricingMethod(memory,{id:'external-'+index,service:'other-'+index,market:'US',method:'BROWSER',at:'2026-10-20T00:00:00.000Z'});
+ const before=providerPricingStrategiesForTarget(memory,current);
+ assert.equal(before[0].priorityTier,2);assert.equal(before[0].method,'DECODO');
+ assert(before.some(row=>row.priorityTier===3&&row.method==='BROWSER'&&row.url===selector.url));
+ learnProviderPricingRoutesFromTarget({memory,target:nz.state,directory:nz.f.run1});
+ const after=providerPricingStrategiesForTarget(memory,current);
+ assert.equal(after[0].priorityTier,1);assert.equal(after[0].method,'DECODO');
+ assert(after.findIndex(row=>row.priorityTier===2)<after.findIndex(row=>row.priorityTier===3));
+ assert(after.every(row=>row.priorityTier!==3||!row.sourceUrl&&!row.sourceHash&&!row.price&&!row.g1Receipt));
+});
+
+test('a new service may try multiple proven foreign methods only on its own compatible sources',()=>{
+ const memory=createProviderPricingRouteMemory(),methods=[['provider-a','DECODO'],['provider-b','BROWSER']];
+ for(const [sourceService,method] of methods)rememberProvenPricingMethod(memory,{id:sourceService,service:sourceService,market:'US',method,at:'2026-10-20T00:00:00.000Z'});
+ const price={id:'price',url:'https://new-service.example/no/pricing',kind:'DIRECT_SOURCE',marketScope:'MARKET_SPECIFIC',marketCode:'NO',enabled:true,truthAuthority:'NONE'};
+ const selector={id:'selector',url:'https://new-service.example/countries?redirect=true',kind:'INTERACTIVE_ROUTE',marketScope:'GLOBAL',enabled:true,truthAuthority:'NONE'};
+ const fresh={service:'new-service',serviceName:'New Service',market:'NO',researchLinks:[price,selector],capabilities:{direct:true,decodo:true,browser:true}};
+ const strategies=providerPricingStrategiesForTarget(memory,fresh);
+ assert(strategies.some(row=>row.method==='DECODO'&&row.url===price.url&&row.priorityTier===3));
+ assert(strategies.some(row=>row.method==='BROWSER'&&row.url===selector.url&&row.priorityTier===3));
+ assert(strategies.every(row=>row.url.startsWith('https://new-service.example/')&&!Object.hasOwn(row,'sourceHash')));
+ assert(!providerPricingStrategiesForTarget(memory,{...fresh,capabilities:{direct:true,decodo:false,browser:false}}).some(row=>row.method!=='DIRECT'));
+ assert.deepEqual(providerPricingStrategiesForTarget(memory,{...fresh,researchLinks:[],knownCommercialUrls:[]}),[]);
+});
+
+test('batch pricing route memory retains distinct successes and a bounded transferable fallback',t=>{
  const {f,state,memory}=learnedFixture(t);for(let i=0;i<12;i++){const url=`https://${host}/plan-${i}`,source=body(12),hash=digest(source),file='bodies/'+hash+'.txt';fs.writeFileSync(path.join(f.run1,file),source);const variant=structuredClone(state);variant.reads=[{...state.reads[0],url,bodyFile:file}];variant.decisions=[{url,eligible:true,authority:{hostname:host,service,validated:true}}];variant.providerInterpretations=[{...state.providerInterpretations[0],url,v3Observation:{...state.providerInterpretations[0].v3Observation,url}}];learnProviderPricingRoutesFromTarget({memory,target:variant,directory:f.run1});}assert.equal(providerPricingRoutesForTarget(memory,state).length,12);assert(memory.byService.get(service).size<=32);
+ rememberProvenPricingMethod(memory,{id:'external-decodo',service:'other-service',market:'US',method:'DECODO',at:'2026-10-20T00:00:00.000Z'});
+ const selected=providerPricingStrategiesForTarget(memory,{...state,researchLinks:[{id:'official',url:providerUrl,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',enabled:true,truthAuthority:'NONE'}],capabilities:{direct:true,decodo:true,browser:false}});
+ assert(selected.length<=16);assert(selected.some(row=>row.priorityTier===3&&row.method==='DECODO'));
 });
 
 test('contract and default namespace are versioned and isolated',()=>{

@@ -14,9 +14,10 @@ import {chooseProviderMarketOption,marketName,validateProviderSelectedMarketRece
 import {interpretSubscriptionPage} from '../../research-v3/subscription-page.mjs';
 import {retainedProviderSelectorAuthority,researchLinkPriorityTarget} from './retained-render-source.mjs';
 import {runOpenWebResearch} from './open-web-discovery.mjs';
+import {nextResearchLink} from './research-link-routing.mjs';
 import {runAdaptiveCampaign} from '../inventory/adaptive-campaign.mjs';
 import {createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingRoutesForTarget,providerPricingStrategiesForTarget} from './hybrid-provider-resource-memory.mjs';
-import {publishPricingRouteMemory,loadPricingRouteMemory} from '../storage/pricing-route-memory.mjs';
+import {publishPricingRouteMemory,publishPricingMethodOutcomes,loadPricingRouteMemory} from '../storage/pricing-route-memory.mjs';
 import {readBrowserPricingRouteEvidence} from './browser-pricing-route-evidence.mjs';
 import {recoverCompletedPricingRoutes} from '../../v2-operations/price-research-batch.mjs';
 
@@ -267,13 +268,14 @@ test('annual charges and bundle rows stay out of three standalone monthly prices
 });
 
 test('exact retained GLOBAL link routes Direct shell to Browser for a non-URL market',async t=>{
- const dir=temp(t),x=target('NO',{authorities:[]}),read=async()=>({url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:shell},sourceIntegrity:{sha256:digest(shell)},accessDecisions:[{decision:'ALLOWED'}]}),state=await runOpenWebResearch({directory:dir,targets:[x],maxActions:1,read,search:async()=>{throw Error('NO_SEARCH');},acquire:async()=>{throw Error('NO_DECODO');},render:async()=>{throw Error('NOT_YET');}});
+ const dir=temp(t),x=target('NO',{authorities:[],learnedPricingStrategies:[{id:'shared-browser',market:'NO',url,method:'BROWSER',priorityTier:3,sourceServices:['provider-b']}],learnedStrategyTrace:{loaded:0,globalLoaded:1,relevant:1,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null}}),read=async()=>({url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:shell},sourceIntegrity:{sha256:digest(shell)},accessDecisions:[{decision:'ALLOWED'}]}),state=await runOpenWebResearch({directory:dir,targets:[x],maxActions:1,read,search:async()=>{throw Error('NO_SEARCH');},acquire:async()=>{throw Error('NO_DECODO');},render:async()=>{throw Error('NOT_YET');}});
  const current=state.targets[0];assert.equal(current.reads.length,1);assert.equal(current.renderingNeed?.transport,'DIRECT',JSON.stringify({plan:current.researchPlan,reads:current.reads,leads:current.leads,events:fs.readFileSync(dir+'/journal.jsonl','utf8')}));assert.equal(current.renderingNeed?.url,url);assert.equal(current.renderingNeed?.sourceHash,digest(shell));assert.equal(retainedProviderSelectorAuthority(current,{url,sourceHash:digest(shell)})?.registrableDomain,'orbit.com');
  assert.equal(current.researchLinkOutcomes.length,0);
+ assert.deepEqual(current.learnedStrategyTrace.attempted,[],'a selector read is not a Browser attempt');
 });
 
 test('successful GLOBAL selector route short-circuits Decodo, Gemini, Tavily and broad discovery',async t=>{
- const dir=temp(t),x=target('GB',{authorities:[]}),c=capability('GB'),calls={read:0,render:0,decodo:0,search:0};
+ const dir=temp(t),x=target('GB',{authorities:[],learnedPricingStrategies:[{id:'shared-browser',market:'GB',url,method:'BROWSER',priorityTier:3,sourceServices:['provider-b'],compatibilityReason:'TARGET_GLOBAL_RESEARCH_LINK'}],learnedStrategyTrace:{loaded:0,globalLoaded:1,relevant:1,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null}}),c=capability('GB'),calls={read:0,render:0,decodo:0,search:0};
  const state=await runOpenWebResearch({directory:dir,targets:[x],maxActions:10,
   read:async()=>{calls.read++;return {url,outcome:'OK',httpStatus:200,contentType:'text/html',rawSource:{text:shell},sourceIntegrity:{sha256:digest(shell)},accessDecisions:[{decision:'ALLOWED'}]};},
   render:async({target:current})=>{calls.render++;return runHybridRenderedAcquisition({directory:path.join(dir,'hybrid-rendered'),target:current,objective:objective('GB'),parent:parent(),transport:'DIRECT',browser:c.browser});},
@@ -285,6 +287,7 @@ test('successful GLOBAL selector route short-circuits Decodo, Gemini, Tavily and
  assert.equal(current.renderingOutcomes[0].usage.browserActions,2);
  assert.equal(current.renderingOutcomes[0].usage.countryActions,0);
  assert.equal(current.researchLinkOutcomes[0].result,'VERIFIED');assert.equal(current.researchLinkOutcomes[0].transport,'DIRECT_BROWSER');
+ assert.equal(current.learnedStrategyTrace.attempted[0].method,'BROWSER');assert.equal(current.learnedStrategyTrace.attempted[0].result,'VERIFIED');assert.equal(current.learnedStrategyTrace.verifiedStrategyId,'shared-browser');
 });
 
 test('verified Browser selector teaches a durable source-bound route and cross-market parser hint',async t=>{
@@ -347,6 +350,34 @@ test('completed canonical batch publishes and reloads Browser routing without pr
  recoverCompletedPricingRoutes(createProviderPricingRouteMemory(),child,{id:targetId,serviceId:service,targetMarket:'NO'},{memoryRoot,runsRoot,jobId,recordedAt:new Date().toISOString()});
  const loaded=loadPricingRouteMemory(memoryRoot,{services:[service]});assert.equal(loaded.routes.size,1);assert.equal(loaded.methodOutcomes.filter(row=>row.method==='BROWSER'&&row.result==='SUCCESS').length,1);
  assert.equal(loaded.provenMethods.filter(row=>row.method==='BROWSER').length,1);assert.equal(providerPricingStrategiesForTarget(loaded,target('GB'))[0]?.method,'BROWSER');
+ const foreignUrl='https://help.fresh-provider.example/countries?redirect=true',foreign={service:'fresh-provider',serviceName:'Fresh Provider',market:'GB',capabilities:{direct:true,decodo:true,browser:true},researchLinks:[{id:'fresh-selector',url:foreignUrl,kind:'INTERACTIVE_ROUTE',marketScope:'GLOBAL',enabled:true,truthAuthority:'NONE'}]};
+ const transferred=providerPricingStrategiesForTarget(loadPricingRouteMemory(memoryRoot,{services:['fresh-provider']}),foreign);
+ assert.equal(transferred.find(row=>row.method==='BROWSER')?.url,foreignUrl);assert.equal(transferred.find(row=>row.method==='BROWSER')?.priorityTier,3);
+ assert.deepEqual(transferred.find(row=>row.method==='BROWSER')?.sourceServices,[service]);assert(!JSON.stringify(transferred).includes('help.orbit.com'));
+ // Independently proven Decodo success for service A shares the same durable
+ // index. Service C can consider both transports only on C-owned URLs.
+ const aJob=randomUUID(),aUrl='https://provider-a.example/au/pricing',aBody='<html>Provider A monthly subscriptions</html>',aHash=digest(aBody),aDir=path.join(temp(t),'acquisitions','source-a');
+ fs.mkdirSync(path.join(aDir,'raw'),{recursive:true});fs.writeFileSync(path.join(aDir,'raw',aHash+'.body'),aBody);
+ const reference={observation:'provider-a-source',sha256:aHash},aTarget={service:'provider-a',serviceName:'Provider A',market:'AU',reads:[],decisions:[{url:aUrl,eligible:true,authority:{hostname:'provider-a.example',service:'provider-a',validated:true}}],acquisitionOutcomes:[{url:aUrl,runDirectory:aDir,sourceHash:aHash,sourceClassification:{status:'PROVIDER_SOURCE',finalUrl:aUrl,sourceHash:aHash},countryV3Evaluation:{status:'EVALUATED',sourceHash:aHash,receiptStatus:'HASH_VERIFIED',geoClass:'G1'}}],providerInterpretations:[{url:aUrl,v3Observation:{id:reference.observation,kind:'PROVIDER',url:aUrl,sha256:aHash,context:{transport:'DECODO',networkGeography:'AU'}},v3Truth:{established:true,prices:{AU:{established:true,propositions:{PRICE_AMOUNT:{state:'ESTABLISHED',evidence:[{value:12,reference}]},CURRENCY:{state:'ESTABLISHED',evidence:[{value:'AUD',reference}]},MONTHLY_CADENCE:{state:'ESTABLISHED',evidence:[{value:true,reference}]}}}}}}]};
+ const aLearned=learnProviderPricingRoutesFromTarget({memory:createProviderPricingRouteMemory(),target:aTarget,directory:path.dirname(path.dirname(aDir))});assert.equal(aLearned.length,1);
+ const recordedAt=new Date().toISOString();assert.equal(publishPricingRouteMemory(memoryRoot,aLearned,{jobId:aJob,checkpoint:'priority-research-links',market:'AU',recordedAt,acquiredAt:recordedAt}).published,1);
+ const aCheckpoint=path.join(temp(t),'adaptive-state.json');fs.writeFileSync(aCheckpoint,JSON.stringify({targets:{'price-research:provider-a:AU':aTarget},services:{'provider-a':{used:{acquisitions:1}}}}));
+ assert.equal(publishPricingMethodOutcomes(memoryRoot,{jobId:aJob,checkpoint:'priority-research-links',service:'provider-a',market:'AU',recordedAt,checkpointFile:aCheckpoint,confirmedSuccessUrls:[aUrl],confirmedSuccessMethods:{[aUrl]:'APPROVED_PROXY'}}).published,1);
+ const cPrice={id:'fresh-price',url:'https://help.fresh-provider.example/gb/pricing',kind:'DIRECT_SOURCE',marketScope:'MARKET_SPECIFIC',marketCode:'GB',enabled:true,truthAuthority:'NONE'};
+ const cMethods=providerPricingStrategiesForTarget(loadPricingRouteMemory(memoryRoot,{services:['fresh-provider']}),{...foreign,researchLinks:[cPrice,foreign.researchLinks[0]]});
+ assert(cMethods.some(row=>row.method==='DECODO'&&row.url===cPrice.url&&row.sourceServices.includes('provider-a')));
+ assert(cMethods.some(row=>row.method==='BROWSER'&&row.url===foreignUrl&&row.sourceServices.includes(service)));
+ assert(cMethods.every(row=>row.priorityTier===3&&row.url.includes('fresh-provider.example')&&!Object.hasOwn(row,'sourceHash')));
+ const cBase={...foreign,operationsObjective:'PRICE_RESEARCH',verified:[],researchLinkOutcomes:[],reads:[],acquisitionOutcomes:[]};
+ const cDecodo={...cBase,researchLinks:[{...cPrice,marketScope:'GLOBAL',marketCode:null}],learnedPricingStrategies:providerPricingStrategiesForTarget(loadPricingRouteMemory(memoryRoot,{services:['fresh-provider']}),{...foreign,researchLinks:[{...cPrice,marketScope:'GLOBAL',marketCode:null}]})};
+ assert.equal(nextResearchLink(cDecodo).route,'DECODO');assert.equal(nextResearchLink(cDecodo).learnedStrategyId,cDecodo.learnedPricingStrategies[0].id);
+ const cAttempt={...cDecodo,id:'price-research:fresh-provider:GB',researchObjective:'SERVICE_COVERAGE',smartResearch:{version:2},authorities:[],urls:[cPrice.url],leads:[{url:cPrice.url,title:'Fresh Provider pricing'}],queries:[],decisions:[],blockedOrigins:[],gaps:['plan','amount','currency','cadence','priceRole','ownership','market'],learnedStrategyTrace:{loaded:0,globalLoaded:1,relevant:1,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null}};
+ const acquisitions=[],cRun=await runOpenWebResearch({directory:temp(t),targets:[cAttempt],maxActions:1,search:async()=>{throw Error('DISCOVERY_NOT_EXPECTED');},read:async()=>{throw Error('DIRECT_NOT_EXPECTED');},acquire:async({target:current,candidate,route})=>{acquisitions.push({service:current.service,market:current.market,url:candidate.url,route});return {classification:'CONTENT_NOT_COMMERCIAL',verified:[],acquisitionBytes:0};}});
+ assert.deepEqual(acquisitions,[{service:'fresh-provider',market:'GB',url:cPrice.url,route:'DECODO'}]);
+ assert.equal(cRun.targets[0].learnedStrategyTrace.attempted[0].id,cDecodo.learnedPricingStrategies[0].id);
+ assert.equal(cRun.targets[0].learnedStrategyTrace.verifiedStrategyId,null);
+ const cBrowser={...cBase,capabilities:{direct:true,decodo:false,browser:true},learnedPricingStrategies:providerPricingStrategiesForTarget(loadPricingRouteMemory(memoryRoot,{services:['fresh-provider']}),{...foreign,capabilities:{direct:true,decodo:false,browser:true}})};
+ assert.equal(nextResearchLink(cBrowser).route,'DIRECT');assert.equal(nextResearchLink(cBrowser).learnedStrategyMethod,'BROWSER');assert.equal(nextResearchLink(cBrowser).url,foreignUrl);
  const memoryFile=path.join(memoryRoot,'provider-pricing-routes-v1.json'),firstBytes=fs.readFileSync(memoryFile),firstDigest=digest(firstBytes.toString('utf8'));
  const browserJournal=fs.readFileSync(path.join(directory,'hybrid-rendered','journal.jsonl'),'utf8').trim().split('\n').map(JSON.parse),acquiredAt=browserJournal.find(row=>row.type==='ACTION_RESULT'&&row.outcome==='OBSERVED').checkpoint.freshAt;
  assert.equal(loaded.routes.get(service+'|'+url).lastSuccessAt,acquiredAt);

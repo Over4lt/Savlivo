@@ -39,7 +39,20 @@ test('a proven Decodo method is loaded after restart as a bounded acquisition hi
  const planned=await runAdaptiveCampaign({directory:path.join(root,'job-b'),manifest:{targets:[next],conditionalFollowupTargets:[]},providerPricingRouteMemory:state,stopBeforeNetwork:true,maxActions:1,createAdapters:()=>{throw Error('NO_NETWORK_EXPECTED');}});
  assert.equal(planned.services.max.pending?.plan?.route,'DECODO');assert.equal(planned.services.max.pending?.plan?.url,strategies[0].url);assert.equal(planned.targets[next.id].learnedStrategyTrace.relevant,1);
  assert.deepEqual(providerPricingStrategiesForTarget(state,{...nz,service:'netflix',serviceName:'Netflix'}),[]);
+ const foreignUrl='https://fresh-provider.example/nz/pricing',foreign={service:'fresh-provider',serviceName:'Fresh Provider',market:'NZ',capabilities:{direct:true,decodo:true,browser:false},researchLinks:[{id:'fresh-market-link',url:foreignUrl,kind:'DIRECT_SOURCE',marketScope:'MARKET_SPECIFIC',marketCode:'NZ',enabled:true,truthAuthority:'NONE'}]};
+ const transferred=providerPricingStrategiesForTarget(loadPricingRouteMemory(root,{services:['fresh-provider']}),foreign);
+ assert.equal(transferred[0].priorityTier,3);assert.equal(transferred[0].method,'DECODO');assert.equal(transferred[0].url,foreignUrl);assert.deepEqual(transferred[0].sourceServices,['max']);
+ assert(!JSON.stringify(transferred).includes('hbomax.com'));assert(!JSON.stringify(transferred).includes(sourceHash));
  assert.equal(publishPricingMethodOutcomes(root,{jobId:'11111111-1111-4111-8111-111111111111',checkpoint:'priority-research-links',service:'max',market:'AU',recordedAt:observed,checkpointFile:file,confirmedSuccessUrls:[url],confirmedSuccessMethods:{[url]:'APPROVED_PROXY'}}).published,0);
+});
+
+test('a missing foreign source proof removes its shared method without blocking the new service',t=>{
+ const root=fixture(t),proof=provenRoute(root),sourceHash=proof.learned[0].sources[0].sha256;publish(root,proof.learned);
+ const file=path.join(root,'adaptive-state.json');fs.writeFileSync(file,JSON.stringify({targets:{'price-research:max:AU':{service:'max',market:'AU',providerInterpretations:[{url,v3Observation:{sha256:sourceHash,context:{transport:'DECODO'}},v3Truth:{established:true}}]}}}));
+ publishPricingMethodOutcomes(root,{jobId:'11111111-1111-4111-8111-111111111111',checkpoint:'priority-research-links',service:'max',market:'AU',recordedAt:observed,checkpointFile:file,confirmedSuccessUrls:[url],confirmedSuccessMethods:{[url]:'APPROVED_PROXY'}});
+ fs.rmSync(path.join(root,'blobs','sha256',sourceHash.slice(0,2),sourceHash));
+ const foreign={service:'fresh-provider',serviceName:'Fresh Provider',market:'NZ',researchLinks:[{id:'fresh',url:'https://fresh-provider.example/nz/pricing',kind:'DIRECT_SOURCE',marketScope:'MARKET_SPECIFIC',marketCode:'NZ',enabled:true,truthAuthority:'NONE'}],capabilities:{decodo:true}};
+ const loaded=loadPricingRouteMemory(root,{services:['fresh-provider']});assert.equal(loaded.sharedMethodBank.size,0);assert.deepEqual(providerPricingStrategiesForTarget(loaded,foreign),[]);
 });
 
 test('Max NO, SE and DK inherit only acquisition priority from a proved route, never old price or G1 evidence',t=>{

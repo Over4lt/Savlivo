@@ -6,7 +6,7 @@ import {providerMarketSelectorRoute} from './retained-render-source.mjs';
 export function nextResearchLink(target,executionContext=null){
  if(target?.operationsObjective!=='PRICE_RESEARCH'||(target.verified??[]).length>0||projectEstablishedV3Offerings(target).some(row=>row.market===target.market))return null;
  const attempted=new Set((target.researchLinkOutcomes??[]).map(row=>row.id));
- const links=(target.researchLinks??[]).slice(0,20),countryRoutes=target.service==='max'||(target.derivedCountryCandidates??[]).some(row=>row.service===target.service&&row.market===target.market),exact=countryRoutes?links.filter(link=>link.marketScope==='MARKET_SPECIFIC'):links,global=countryRoutes?links.filter(link=>link.marketScope==='GLOBAL'):[];
+ const links=(target.researchLinks??[]).slice(0,20),exact=links.filter(link=>link.marketScope==='MARKET_SPECIFIC'),global=links.filter(link=>link.marketScope==='GLOBAL');
  for(const link of exact){
   if(!link?.enabled||link.truthAuthority!=='NONE'||attempted.has(link.id)||link.marketScope==='MARKET_SPECIFIC'&&link.marketCode!==target.market)continue;
   const directProbe=providerMarketSelectorRoute(link)&&target.capabilities?.direct===true&&target.capabilities?.browser===true&&executionContext?.available?.direct!==false&&executionContext?.available?.browser!==false&&!(target.reads??[]).some(row=>row.requestedUrl===link.url);
@@ -17,9 +17,13 @@ export function nextResearchLink(target,executionContext=null){
   if((target.learnedStrategyTrace?.attempted??[]).some(row=>row.id===strategy.id))continue;
   if(strategy.method==='DECODO'&&(target.acquisitionOutcomes??[]).some(row=>row.url===strategy.url&&row.transport==='DECODO'))continue;
   if(strategy.method==='DIRECT'&&(target.reads??[]).some(row=>row.requestedUrl===strategy.url))continue;
-  // Browser still requires a newly retained selector page through its
-  // configured Research Link; a remembered result grants no rendering proof.
-  if(strategy.method==='BROWSER'){const trace=target.learnedStrategyTrace;if(trace&&!trace.rejected.some(row=>row.id===strategy.id)&&trace.rejected.length<16)trace.rejected.push({id:strategy.id,method:'BROWSER',reason:'CURRENT_SELECTOR_RESEARCH_LINK_REQUIRED'});continue;}
+  // Browser learning chooses only a fresh provider selector probe. The actual
+  // Browser action still requires its own retained source and market proof.
+  if(strategy.method==='BROWSER'){
+   const link=(target.researchLinks??[]).find(row=>providerMarketSelectorRoute(row)&&row.url===strategy.url),trace=target.learnedStrategyTrace;
+   if(!link||target.capabilities?.direct!==true||target.capabilities?.browser!==true){if(trace&&!trace.rejected.some(row=>row.id===strategy.id)&&trace.rejected.length<16)trace.rejected.push({id:strategy.id,method:'BROWSER',priorityTier:strategy.priorityTier,reason:'CURRENT_SELECTOR_RESEARCH_LINK_REQUIRED'});continue;}
+   return {route:'DIRECT',reason:'PROVIDER_MARKET_SELECTOR_PROBE',url:strategy.url,researchLinkId:link.id,learnedStrategyId:strategy.id,learnedStrategyMethod:'BROWSER',targetMarket:target.market,truthAuthority:'NONE',directAppropriate:true,discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}]};
+  }
   return {route:strategy.method,reason:strategy.method==='DECODO'?'PRICE_RESEARCH_VERIFICATION_REQUIRED':'LEARNED_PROVIDER_PRICING_METHOD',url:strategy.url,learnedStrategyId:strategy.id,targetMarket:target.market,truthAuthority:'NONE',directAppropriate:strategy.method==='DIRECT',discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}]};
  }
  if(target.learnedStrategyTrace?.relevant>0&&!target.learnedStrategyTrace.fallbackReason)target.learnedStrategyTrace.fallbackReason='LEARNED_STRATEGIES_ATTEMPTED_OR_INCOMPATIBLE';
@@ -40,7 +44,7 @@ export function prepareResearchLinkPlan(target,executionContext){
   const plan=nextResearchLink(target,executionContext);if(!plan)return null;
   const gate=executableAction(target,plan,executionContext);
   if(gate.executable)return plan;
-  if(plan.learnedStrategyId){const trace=target.learnedStrategyTrace??={loaded:0,relevant:0,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null};if(trace.rejected.length<16)trace.rejected.push({id:plan.learnedStrategyId,method:plan.route,reason:gate.reason});continue;}
+  if(plan.learnedStrategyId){const trace=target.learnedStrategyTrace??={loaded:0,relevant:0,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null},strategy=(target.learnedPricingStrategies??[]).find(row=>row.id===plan.learnedStrategyId);if(trace.rejected.length<16)trace.rejected.push({id:plan.learnedStrategyId,method:strategy?.method??plan.route,priorityTier:strategy?.priorityTier??null,reason:gate.reason});continue;}
   if(plan.route==='DIRECT'){const fallback={...plan,route:'DECODO',reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED',directAppropriate:false};if(executableAction(target,fallback,executionContext).executable)return fallback;}
   if(plan.derivedCountrySource){(target.derivedCountrySourceOutcomes??=[]).push({url:plan.url,reason:gate.reason});continue;}
   const link=target.researchLinks.find(row=>row.id===plan.researchLinkId);

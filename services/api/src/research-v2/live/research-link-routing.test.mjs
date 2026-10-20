@@ -31,6 +31,17 @@ test('learned Decodo methods precede discovery and fall through to the next prov
  assert.equal(two.targets[0].learnedStrategyTrace.verifiedStrategyId,null);assert.equal(planResearch(two.targets[0]).route!=='DECODO'||planResearch(two.targets[0]).url!==first,true);
 });
 
+test('a different source already Verified in the target cannot mark a failed learned method successful',async t=>{
+ const url='https://streamco.example/no/learned',hash='a'.repeat(64),observation={id:'independent-source',url:'https://streamco.example/no/other',sha256:hash,context:{transport:'DECODO'}},reference={observation:observation.id,sha256:hash};
+ const values={SERVICE_IDENTITY:'streamco',PRICE_AMOUNT:129,CURRENCY:'NOK',MONTHLY_CADENCE:true,MONTHLY_SUBSCRIPTION:true,CONSUMER_SUBSCRIPTION:true,TARGET_MARKET:'NO'};
+ const propositions=Object.fromEntries(Object.entries(values).map(([key,value])=>[key,{state:'ESTABLISHED',value,evidence:[{reference}]}]));
+ const priorTruth={eligibility:{NO:{result:'ELIGIBLE'}},offers:[{id:'existing-plan',market:'NO',propositions}]};
+ const x=target('NO',{researchLinks:[],urls:[url],leads:[{url,learnedProviderPricingRoute:true,routingRole:'PRICING'}],learnedPricingStrategies:[{id:'learned',market:'NO',url,method:'DECODO'}],learnedStrategyTrace:{loaded:1,relevant:1,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null}});
+ const result=await runOpenWebResearch({directory:temporary(t),targets:[x],maxActions:1,search:never,read:never,acquire:async({target:current})=>{current.v3Observation=observation;current.v3Truth=priorTruth;return {classification:'CONTENT_NOT_COMMERCIAL',verified:[],acquisitionBytes:0};}});
+ assert.equal(result.targets[0].learnedStrategyTrace.attempted[0].result,'CONTENT_NOT_COMMERCIAL');
+ assert.equal(result.targets[0].learnedStrategyTrace.verifiedStrategyId,null);
+});
+
 test('learned method selection respects capability, proof identity and acquisition budget',()=>{
  const url='https://streamco.example/no/pricing',strategy={id:'documented',market:'NO',url,method:'DECODO'};
  const x=target('NO',{researchLinks:[],urls:[url],leads:[{url,learnedProviderPricingRoute:true,routingRole:'PRICING'}],learnedPricingStrategies:[strategy],learnedStrategyTrace:{loaded:1,relevant:1,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null}});

@@ -98,9 +98,9 @@ export async function runAdaptiveCampaign({directory,manifest,retainedStates=[],
  try{const fresh=diagnostic.sync('INITIALIZE_ADAPTIVE',()=>initializeAdaptiveState(manifest,{retainedStates,limits,budgetScope,initialUsage,profile}));state=fs.existsSync(file)?diagnostic.sync('CHECKPOINT_PARSE',()=>JSON.parse(fs.readFileSync(file))):fresh;if(state.fingerprint!==fresh.fingerprint)throw Error('ADAPTIVE_INPUT_CHANGED');diagnostic.sync('ADMISSION_REVALIDATION',()=>{for(const target of Object.values(state.targets))revalidateTargetAdmission(target);});
  for(const target of Object.values(state.targets)){
   const strategies=providerPricingStrategiesForTarget(providerPricingRouteMemory,target);
-  target.learnedPricingStrategies=strategies.map(({id,market,url,method,sourceMarket,sourceUrl,score})=>({id,market,url,method,sourceMarket,sourceUrl,score}));
-  target.learnedStrategyTrace??={loaded:providerPricingRouteMemory?.provenMethodsByService?.get(target.service)?.length??0,relevant:strategies.length,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null};
-  target.learnedStrategyTrace.loaded=providerPricingRouteMemory?.provenMethodsByService?.get(target.service)?.length??0;target.learnedStrategyTrace.relevant=strategies.length;
+  target.learnedPricingStrategies=strategies.map(({id,market,url,method,sourceMarket,sourceUrl,sourceServices,parserStrategy,priorityTier,compatibilityReason,score})=>({id,market,url,method,sourceMarket,sourceUrl,sourceServices,parserStrategy,priorityTier,compatibilityReason,score}));
+  target.learnedStrategyTrace??={loaded:0,globalLoaded:0,relevant:strategies.length,attempted:[],rejected:[],fallbackReason:null,verifiedStrategyId:null};
+  target.learnedStrategyTrace.loaded=providerPricingRouteMemory?.provenMethodsByService?.get(target.service)?.length??0;target.learnedStrategyTrace.globalLoaded=strategies.filter(row=>row.priorityTier===3).length;target.learnedStrategyTrace.relevant=strategies.length;
   if(strategies.length&&['NO_COMPATIBLE_TARGET_ROUTE','NO_DOCUMENTED_SUCCESS'].includes(target.learnedStrategyTrace.fallbackReason))target.learnedStrategyTrace.fallbackReason=null;
   if(!strategies.length&&!target.learnedStrategyTrace.fallbackReason)target.learnedStrategyTrace.fallbackReason=target.learnedStrategyTrace.loaded?'NO_COMPATIBLE_TARGET_ROUTE':'NO_DOCUMENTED_SUCCESS';
   for(const row of providerPricingRoutesForTarget(providerPricingRouteMemory,target)){
@@ -109,6 +109,10 @@ export async function runAdaptiveCampaign({directory,manifest,retainedStates=[],
   if(lead){lead.learnedProviderPricingRoute=true;lead.routingRole='PRICING';lead.routingMemoryOnly=true;}
   else {if(target.leads.length>=72){const replace=target.leads.findLastIndex(item=>!item.learnedProviderPricingRoute&&!item.sourceBoundCandidate&&!item.providerSeedObjectiveLead&&!(target.reads??[]).some(read=>[read.url,read.requestedUrl].includes(item.url)));if(replace>=0)target.leads.splice(replace,1);}if(target.leads.length<72)target.leads.push({url:row.url,title:target.serviceName+' provider pricing resource',rank:-1,routingRole:'PRICING',learnedProviderPricingRoute:true,routingMemoryOnly:true,from:{method:'HYBRID_PROVIDER_PRICING_ROUTE_MEMORY'}});}
   if(target.leads.some(item=>item.url===row.url)&&target.executionBlocked==='NO_EXECUTABLE_PROGRESS_RECONCILE'){delete target.executionBlocked;state.services[target.service].stop=null;state.complete=false;}
+  }
+  for(const strategy of strategies.filter(row=>row.priorityTier===3)){
+   if(!(target.urls??=[]).includes(strategy.url))target.urls.push(strategy.url);
+   if(!(target.leads??=[]).some(row=>row.url===strategy.url)&&target.leads.length<72){const link=(target.researchLinks??[]).find(row=>row.enabled&&row.url===strategy.url);target.leads.push({url:strategy.url,title:target.serviceName+' official source candidate',rank:-1,routingRole:'PRICING',learnedProviderPricingRoute:true,routingMemoryOnly:true,...(link?{researchLinkId:link.id}:{}),from:{method:'SHARED_PROVIDER_PRICING_METHOD'}});}
   }
  }
  const assess=service=>{rehydrateAdaptiveProviderAuthority(state,directory,service,providerSeedRoot);return diagnostic.sync('ASSESS',()=>assessAdaptiveService(state,service));};checkpoint();

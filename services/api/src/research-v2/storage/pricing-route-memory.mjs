@@ -5,7 +5,7 @@ import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {canonical,digest,safe,sha,stableBytes} from './core.mjs';
 import {putEvidence,readObservation} from './evidence.mjs';
-import {createProviderPricingRouteMemory,hybridProviderResourceMemoryContract,isValidatedPricingRouteLearning,validatedPricingRouteBody} from '../live/hybrid-provider-resource-memory.mjs';
+import {createProviderPricingRouteMemory,hybridProviderResourceMemoryContract,isValidatedPricingRouteLearning,validatedPricingRouteBody,rememberProvenPricingMethod} from '../live/hybrid-provider-resource-memory.mjs';
 import {htmlExtractionRules,validExtractionRecipe} from '../../research-v3/subscription-page.mjs';
 
 const schema='V2_PROVIDER_PRICING_ROUTE_MEMORY_V1',name='provider-pricing-routes-v1.json';
@@ -48,20 +48,26 @@ function readStore(root,{services=null,verifyProofs=true}={}){
  return {...payload,methodOutcomes:payload.methodOutcomes??[]};
 }
 export function loadPricingRouteMemory(root,{services=null}={}){
+ // Service-scoped routes stay isolated, while the existing durable index also
+ // supplies a cross-service view of transport/parser methods with valid proof.
  const memory=createProviderPricingRouteMemory(),store=readStore(root,{services});
  for(const entry of store.entries){const row=structuredClone(entry.route);if(services!==null&&!services.includes(row.service))continue;row.failures=0;memory.routes.set(row.service+'|'+row.url,row);if(!memory.byService.has(row.service))memory.byService.set(row.service,new Map());memory.byService.get(row.service).set(row.url,row);}
  memory.methodOutcomes=store.methodOutcomes.filter(row=>services===null||services.includes(row.service));memory.methodOutcomesByTargetUrl=new Map();for(const row of memory.methodOutcomes){const key=row.service+'|'+row.market+'|'+row.url;if(!memory.methodOutcomesByTargetUrl.has(key))memory.methodOutcomesByTargetUrl.set(key,[]);memory.methodOutcomesByTargetUrl.get(key).push(row);}
  // Method success is usable only when the exact original source also has a
  // durable origin whose retained bytes still satisfy its evidence hash.
  const entries=new Map(store.entries.map(entry=>[entry.route.service+'|'+entry.route.url,entry]));
- const latestSuccesses=new Map();for(const row of memory.methodOutcomes.filter(row=>row.result==='SUCCESS').sort((a,b)=>b.at.localeCompare(a.at))){const key=row.service+'|'+row.url+'|'+row.method;if(!latestSuccesses.has(key))latestSuccesses.set(key,row);}
+ const latestSuccesses=new Map();for(const row of store.methodOutcomes.filter(row=>row.result==='SUCCESS').sort((a,b)=>b.at.localeCompare(a.at))){const key=row.service+'|'+row.url+'|'+row.method;if(!latestSuccesses.has(key))latestSuccesses.set(key,row);}
  for(const outcome of latestSuccesses.values()){
   const origin=entries.get(outcome.service+'|'+outcome.url)?.origins.find(item=>item.jobId===outcome.jobId&&item.checkpoint===outcome.checkpoint&&item.market===outcome.market&&item.sourceHash===outcome.sourceHash);
   if(!origin)continue;
   try{const proof=readObservation(root,origin.evidenceObservationId);if(proof.blob.sha256!==outcome.sourceHash||proof.observation?.jobId!==outcome.jobId||proof.observation?.market!==outcome.market||proof.observation?.url!==outcome.url||proof.observation?.truthAuthority!=='NONE')continue;}
   catch{continue;}
-  const item={id:outcome.id,service:outcome.service,market:outcome.market,url:outcome.url,sourceHash:outcome.sourceHash,method:outcome.method,at:outcome.at};memory.provenMethods.push(item);if(!memory.provenMethodsByService.has(item.service))memory.provenMethodsByService.set(item.service,[]);memory.provenMethodsByService.get(item.service).push(item);
+  const item={id:outcome.id,service:outcome.service,market:outcome.market,url:outcome.url,sourceHash:outcome.sourceHash,method:outcome.method,parserStrategy:outcome.parserStrategy,usage:outcome.usage,at:outcome.at};rememberProvenPricingMethod(memory,item);
+  if(services!==null&&!services.includes(item.service))continue;
+  memory.provenMethods.push(item);if(!memory.provenMethodsByService.has(item.service))memory.provenMethodsByService.set(item.service,[]);memory.provenMethodsByService.get(item.service).push(item);
  }
+ const recent=Date.now()-7*86400000;
+ for(const row of store.methodOutcomes)if(row.result!=='SUCCESS'&&Date.parse(row.at)>=recent)for(const profile of memory.sharedMethodBank.values())if(profile.method===row.method&&(row.parserStrategy===null||profile.parserStrategy===row.parserStrategy))profile.recentFailures=Math.min(2,profile.recentFailures+1);
  // Generic parser rules are hints for a new source only. Provider-specific
  // rules, URLs, market receipts and presentation facts never cross services.
  memory.genericExtractionHints=[];

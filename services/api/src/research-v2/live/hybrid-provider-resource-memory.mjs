@@ -4,10 +4,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {canonical,digest,normalizeUrl} from '../../research-v3/model.mjs';
-import {validatedV3ProviderAuthorityBinding} from './provider-routing-authority.mjs';
+import {providerRoutingAuthority,validatedV3ProviderAuthorityBinding} from './provider-routing-authority.mjs';
 import {providerSeedCampaignState} from '../../research-v3/research-target.mjs';
 import {interpretSubscriptionPage,validExtractionRecipe} from '../../research-v3/subscription-page.mjs';
 import {readBrowserPricingRouteEvidence} from './browser-pricing-route-evidence.mjs';
+import {providerMarketSelectorRoute} from './retained-render-source.mjs';
+import {canonicalReviewedProviderRoot} from '../../research-v3/reviewed-provider-namespaces.mjs';
 
 export const hybridProviderResourceMemoryContract=Object.freeze({
  contractVersion:1,
@@ -120,7 +122,15 @@ export function recordHybridProviderResourceFailure({root,target,resourceId,outc
 // are market scoped. Known-service PRICE_RESEARCH also uses this bounded,
 // routing-only batch view. It is rebuilt from completed child checkpoints on
 // resume; no prior-market observation or Truth is passed to a new target.
-export function createProviderPricingRouteMemory(){return {routes:new Map(),byService:new Map(),methodOutcomes:[],provenMethods:[],provenMethodsByService:new Map()};}
+export function createProviderPricingRouteMemory(){return {routes:new Map(),byService:new Map(),methodOutcomes:[],provenMethods:[],provenMethodsByService:new Map(),sharedMethodBank:new Map()};}
+// This is a projection of independently proven successes, never a source or
+// market authority. The durable V1 method outcomes remain the only index.
+export function rememberProvenPricingMethod(memory,item){
+ if(!['DIRECT','DECODO','BROWSER'].includes(item?.method)||!item?.service||!item?.id)return;
+ memory.sharedMethodBank??=new Map();const parserStrategy=item.parserStrategy??null,key=item.method+'|'+(parserStrategy??'NONE');
+ const row=memory.sharedMethodBank.get(key)??{method:item.method,parserStrategy,successes:new Map(),recentFailures:0};
+ row.successes.set(item.id,{service:item.service,market:item.market,at:item.at,usage:item.usage??null});memory.sharedMethodBank.set(key,row);
+}
 const validatedPricingRouteRows=new WeakSet();
 const validatedPricingRouteSeals=new WeakMap();
 export const isValidatedPricingRouteLearning=row=>!!row&&validatedPricingRouteRows.has(row)&&validatedPricingRouteSeals.get(row)===canonical({...row,lastSuccessAt:null});
@@ -180,7 +190,7 @@ export function learnProviderPricingRoutesFromTarget({memory,target,directory,no
   const row={service:target.service,serviceName:target.serviceName,url,host,role:'PRICING',meaning:hybridProviderResourceMemoryContract.meaning,successes:(prior?.successes??0)+Number(!prior?.sources?.some(row=>row.market===source.market&&row.sha256===source.sha256)),failures:prior?.failures??0,lastSuccessAt:now,sources,propositions:[...new Set([...(prior?.propositions??[]),...propositions])].sort(),...(priorityAuthority?{countryRouteEvidenceSha256:derivedCandidate.providerRouteEvidenceSha256}:{})};
   memory.routes.set(key,row);if(!memory.byService.has(target.service))memory.byService.set(target.service,new Map());memory.byService.get(target.service).set(url,row);const validated=structuredClone(row);validatedPricingRouteRows.add(validated);validatedPricingRouteSeals.set(validated,canonical({...validated,lastSuccessAt:null}));if(retainedBody!==null)validatedPricingRouteBodies.set(validated,Buffer.from(retainedBody));learned.push(validated);
   const method=browserEvidence?'BROWSER':observation.context?.transport==='DECODO'?'DECODO':directAuthority?'DIRECT':null;
-  if(method&&retainedBody!==null&&truth.established===true&&establishedMonthlyPrice){memory.provenMethods??=[];memory.provenMethodsByService??=new Map();const id=[target.service,target.market,url,hash,method].join('|'),serviceMethods=memory.provenMethodsByService.get(target.service)??[];if(!serviceMethods.some(item=>item.id===id)){const item={id,service:target.service,market:target.market,url,sourceHash:hash,method,at:now};memory.provenMethods.push(item);serviceMethods.push(item);memory.provenMethodsByService.set(target.service,serviceMethods);}}
+  if(method&&retainedBody!==null&&truth.established===true&&establishedMonthlyPrice){memory.provenMethods??=[];memory.provenMethodsByService??=new Map();const id=[target.service,target.market,url,hash,method].join('|'),serviceMethods=memory.provenMethodsByService.get(target.service)??[];if(!serviceMethods.some(item=>item.id===id)){const item={id,service:target.service,market:target.market,url,sourceHash:hash,method,parserStrategy:recipe?recipe.rule+'_V1':null,at:now};memory.provenMethods.push(item);serviceMethods.push(item);memory.provenMethodsByService.set(target.service,serviceMethods);rememberProvenPricingMethod(memory,item);}}
   const serviceRows=routeRows(memory,target.service).sort((a,b)=>(b.successes-b.failures)-(a.successes-a.failures)||b.lastSuccessAt.localeCompare(a.lastSuccessAt)||a.url.localeCompare(b.url));
   for(const stale of serviceRows.slice(pricingRouteLimit)){memory.routes.delete(routeKey(stale.service,stale.url));memory.byService.get(stale.service).delete(stale.url);}
  }
@@ -204,6 +214,14 @@ export function providerPricingRoutesForTarget(memory,target){
 
 // A strategy is an acquisition hint only. Its source success is joined to a
 // proven route; the new market still needs its own acquisition and V3 proof.
+function targetOwnedMethodCandidates(target){
+ const candidates=new Map(),add=(url,kind,relevance,link=null)=>{const normalized=normalizeUrl(url);if(!normalized)return;const parsed=new URL(normalized);if(parsed.protocol!=='https:'||parsed.username||parsed.password||parsed.hash)return;const prior=candidates.get(normalized);if(!prior||relevance>prior.relevance)candidates.set(normalized,{url:normalized,kind,relevance,link});};
+ for(const row of target.derivedCountryCandidates??[])if(row.service===target.service&&row.market===target.market&&/^[a-f0-9]{64}$/.test(row.providerRouteEvidenceSha256??''))add(row.url,'TARGET_MARKET_ROUTE',3);
+ for(const link of target.researchLinks??[])if(link.enabled===true&&link.truthAuthority==='NONE'&&(link.marketScope==='GLOBAL'||link.marketScope==='MARKET_SPECIFIC'&&link.marketCode===target.market))add(link.url,link.marketScope==='MARKET_SPECIFIC'?'TARGET_MARKET_RESEARCH_LINK':'TARGET_GLOBAL_RESEARCH_LINK',link.marketScope==='MARKET_SPECIFIC'?3:2,link);
+ for(const url of target.knownCommercialUrls??[])if(providerRoutingAuthority(target,url))add(url,'TARGET_OFFICIAL_COMMERCIAL_URL',2);
+ for(const binding of target.reviewedProviderNamespaces??[]){const root=canonicalReviewedProviderRoot(binding);if(root&&providerRoutingAuthority(target,root.url))add(root.url,'TARGET_REVIEWED_PROVIDER_ROOT',1);}
+ return [...candidates.values()].sort((a,b)=>b.relevance-a.relevance||a.url.localeCompare(b.url)).slice(0,8);
+}
 export function providerPricingStrategiesForTarget(memory,target){
  if(!memory?.provenMethods||!target?.service||!target?.market)return [];
  const serviceMethods=memory.provenMethodsByService?.get(target.service)??memory.provenMethods.filter(item=>item.service===target.service);
@@ -217,10 +235,23 @@ export function providerPricingStrategiesForTarget(memory,target){
   for(const method of methods){
    if(method.method==='BROWSER'&&!(target.researchLinks??[]).some(link=>link.enabled&&link.url===route.url))continue;
    const sameMarket=method.market===target.market,penalty=recentMethodPenalty(memory,target.service,target.market,route.url),cost={DIRECT:1,DECODO:3,BROWSER:5}[method.method];
-   strategies.push({id:digest([target.service,target.market,route.url,method.method,sourceUrl]),service:target.service,market:target.market,url:route.url,method:method.method,sourceMarket:method.market,sourceUrl,score:route.successes*10+Number(sameMarket)*8-penalty*4-cost,meaning:hybridProviderResourceMemoryContract.meaning});
+   strategies.push({id:digest([target.service,target.market,route.url,method.method,sourceUrl]),service:target.service,market:target.market,url:route.url,method:method.method,sourceMarket:method.market,sourceUrl,priorityTier:sameMarket?1:2,compatibilityReason:sameMarket?'SAME_SERVICE_MARKET_PROVEN':'SAME_SERVICE_ROUTE_DERIVED',score:route.successes*10-penalty*4-cost,meaning:hybridProviderResourceMemoryContract.meaning});
   }
  }
- return [...new Map(strategies.sort((a,b)=>b.score-a.score||a.url.localeCompare(b.url)||a.method.localeCompare(b.method)).map(row=>[row.method+'|'+row.url,row])).values()].slice(0,16);
+ for(const candidate of targetOwnedMethodCandidates(target))for(const profile of memory.sharedMethodBank?.values()??[]){
+  const proven=[...profile.successes.values()].filter(row=>row.service!==target.service),services=[...new Set(proven.map(row=>row.service))].sort();if(!services.length)continue;
+  if(profile.method==='BROWSER'&&!(candidate.link&&providerMarketSelectorRoute(candidate.link)&&target.capabilities?.direct===true&&target.capabilities?.browser===true))continue;
+  if(profile.method==='DECODO'&&(candidate.kind==='TARGET_REVIEWED_PROVIDER_ROOT'||target.capabilities?.decodo===false))continue;
+  if(profile.method==='DIRECT'&&target.capabilities?.direct===false)continue;
+  const cost={DIRECT:1,DECODO:3,BROWSER:5}[profile.method],usage=proven.map(row=>row.usage?.acquisitions).filter(Number.isSafeInteger),averageAcquisitions=usage.length?usage.reduce((sum,value)=>sum+value,0)/usage.length:cost;
+  strategies.push({id:digest([target.service,target.market,candidate.url,profile.method,profile.parserStrategy]),service:target.service,market:target.market,url:candidate.url,method:profile.method,sourceServices:services.slice(0,8),parserStrategy:profile.parserStrategy,priorityTier:3,compatibilityReason:candidate.kind,score:Math.min(100,proven.length*10)+services.length*5+candidate.relevance*2-Math.min(2,profile.recentFailures)*4-averageAcquisitions-cost,meaning:hybridProviderResourceMemoryContract.meaning});
+ }
+ const ranked=strategies.sort((a,b)=>a.priorityTier-b.priorityTier||b.score-a.score||a.url.localeCompare(b.url)||a.method.localeCompare(b.method)),unique=new Map();
+ for(const row of ranked){const key=row.method+'|'+row.url;if(!unique.has(key))unique.set(key,row);}
+ const distinct=[...unique.values()];
+ // Keep room for a transferable fallback when many service-owned routes are
+ // present but unavailable in this run. The durable index retains every proof.
+ return [...distinct.filter(row=>row.priorityTier<3).slice(0,12),...distinct.filter(row=>row.priorityTier===3).slice(0,4)];
 }
 
 export function prioritizeDerivedCountryCandidates(memory,target,candidates){
