@@ -1,5 +1,6 @@
 import {pool} from '../db.ts';
 import {OperationError} from './control.mjs';
+import {currentProviderPriceClassSql} from '../../../../packages/contracts/src/verified-price-classification.ts';
 
 // Mirrors the active Suggested and qualified Verified evidence used by the
 // canonical product-pricing projection. Historical suggestions and user prices
@@ -10,10 +11,7 @@ export const marketPriceStatusSql=`WITH evidence AS (
   WHERE active=true AND service_slug=ANY($1::text[])
   UNION ALL
   SELECT service_slug,country_code,plan_identity,billing_provider_slug,
-    CASE WHEN verification IN ('registry','authoritative-provider')
-      OR (verification='multi-source' AND verified_by_agreement=true AND source_count>=2)
-      THEN CASE WHEN source LIKE 'official-provider-adapter:%' THEN 'old_verified' ELSE 'verified' END
-      ELSE 'suggested' END AS kind
+    ${currentProviderPriceClassSql} AS kind
   FROM verified_provider_prices
   WHERE monthly_price_minor>0 AND service_slug=ANY($1::text[])
 )

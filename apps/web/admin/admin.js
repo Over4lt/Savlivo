@@ -121,7 +121,7 @@ async function refresh() {
     paragraph(panel,`Collection ${data.collectionEnabled ? "enabled" : "disabled"}. Catalog services: ${data.catalogServices}.`);
     for(const note of data.notes)paragraph(panel,note);
     paragraph(panel,`Data quality: ${data.dataQuality.selectableMarkets} selectable markets; ${data.dataQuality.registryRows} registry fallbacks in scope.`);
-    table("Persisted provider-price records (not user spending)",[["verification","Verification"],["prices","Prices"]],data.dataQuality.persistedPrices);
+    table("Persisted provider-price records (not user spending)",[["verification","Verification"],["price_status","Current status"],["prices","Prices"]],data.dataQuality.persistedPrices);
     const analyticsHeading=document.createElement("h2");analyticsHeading.id="analytics";analyticsHeading.textContent="Analytics";panel.append(analyticsHeading);
     if(data.analyticsV2Enabled) {
       const analytics=await request(`analytics?range=${encodeURIComponent(analyticsRange)}`);
@@ -291,7 +291,7 @@ function priceQuery() {
 }
 async function loadPriceAnalytics(body,refreshVersion=generation) {
   const version=++priceRequestVersion,session=token;
-  body.replaceChildren();paragraph(body,"Loading Verified price history…");
+  body.replaceChildren();paragraph(body,"Loading provider price history…");
   try {
     let data=await request(priceQuery());
     if(!Array.isArray(data?.services))throw new Error("Price Analytics is unavailable.");
@@ -334,7 +334,7 @@ function priceEvidence(parent,url) {
 }
 function renderPriceAnalytics(body,data) {
   body.replaceChildren();
-  paragraph(body,"Provider-Verified monthly prices only. Suggested prices and personal overrides are excluded. Verification dates are not proven provider-effective dates.");
+  paragraph(body,"Current Verified and Old Verified prices are counted separately. Historical provider observations retain their original source class. Suggested prices and personal overrides are excluded. Verification dates are not proven provider-effective dates.");
   const controls=document.createElement("div");controls.className="price-analytics-controls";
   priceSelect(controls,"Service",[["","Choose service"],...(data.services??[]).map(row=>[row.slug,row.name])],priceService,value=>{
     priceService=value;priceMarket="";pricePlan="";void loadPriceAnalytics(body);
@@ -352,12 +352,12 @@ function renderPriceAnalytics(body,data) {
     priceMode=value;renderPriceAnalytics(body,data);
   });
   body.append(controls);
-  if(data.state==="SELECT_SERVICE") {paragraph(body,"Choose a service to inspect its Verified price history.");return;}
+  if(data.state==="SELECT_SERVICE") {paragraph(body,"Choose a service to inspect its provider price history.");return;}
   if(data.state==="NARROW_FILTERS") {paragraph(body,"This selection exceeds the bounded history view. Choose a market or subscription plan.");return;}
   if(data.state!=="AVAILABLE") {paragraph(body,"Price history is unavailable.");return;}
   if(data.servicesTruncated||data.planOptionsTruncated)paragraph(body,"Some filter options exceed the bounded list. Narrow the service or market.");
   const summary=data.summary,metrics=document.createElement("div");metrics.className="price-metrics";
-  for(const [label,value] of [["Markets with current Verified prices",summary.markets],["Current Verified plans",summary.plans],["Price changes in the last 30 days",summary.priceChanges30d]]) {
+  for(const [label,value] of [["Markets with current Verified prices",summary.markets],["Current Verified plans",summary.plans],["Markets with Old Verified prices",summary.oldVerifiedMarkets??0],["Old Verified plans",summary.oldVerifiedPlans??0],["Price changes in the last 30 days",summary.priceChanges30d]]) {
     const card=document.createElement("div"),heading=document.createElement("strong"),number=document.createElement("span");
     heading.textContent=label;number.textContent=String(value);card.append(heading,number);metrics.append(card);
   }
@@ -370,19 +370,19 @@ function renderPriceAnalytics(body,data) {
   priceHeading(body,"Most recent Verified dates");
   if(!summary.recentVerifications.length)paragraph(body,"No current Verified plans in this selection.");
   else {const list=document.createElement("ul");for(const row of summary.recentVerifications){const item=document.createElement("li");item.textContent=`${row.market} · ${row.planName}: Verified ${priceDate(row.verifiedAt)}; last checked ${priceDate(row.lastCheckedAt)}`;list.append(item);}body.append(list);}
-  priceHeading(body,"Historical Verified prices");
+  priceHeading(body,"Historical provider price observations");
   if(data.chartState==="NARROW_FILTERS")paragraph(body,"More than 16 semantic series match. Choose a market or plan to draw a readable chart.");
   else if(data.chartState==="EMPTY")paragraph(body,"No structured Verified history for this selection. Current prices may exist, but older history is unavailable until an approved as-of bootstrap or a future Verified write.");
   else priceCharts(body,data.series);
   if(data.series.some(row=>row.olderHistoryUnavailable))paragraph(body,"Some series begin with an as-of bootstrap. Prices before that recorded baseline are unavailable.");
-  priceHeading(body,"Verified price changes");
+  priceHeading(body,"Documented provider price changes");
   priceChanges(body,data.changes);
   if(data.changesTruncated)paragraph(body,"Only the 200 most recent changes are shown. Narrow the filters for a complete view.");
   priceHeading(body,"Market price movement");
-  paragraph(body,"Each tile compares one semantic plan series with its own Verified baseline. Plans and currencies are never averaged across markets.");
+  paragraph(body,"Each tile compares one semantic plan series with its own documented baseline. Plans and currencies are never averaged across markets.");
   priceHeatmap(body,data.heatmap);
   if(data.heatmapTruncated)paragraph(body,"Only 300 market-plan series are shown. Narrow the filters for a complete view.");
-  paragraph(body,"Horizontal steps show successive recorded Verified values, not proven provider-effective periods. The older 62 unlinked observations are excluded from this series view.");
+  paragraph(body,"Horizontal steps show successive recorded provider observations, including Old Verified where applicable, not proven provider-effective periods. The older 62 unlinked observations are excluded from this series view.");
 }
 function priceCharts(parent,series) {
   const groups=new Map();
@@ -395,7 +395,7 @@ function priceCharts(parent,series) {
     if(!measured.length){paragraph(parent,"A valid baseline is unavailable for this display mode.");continue;}
     const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("class","price-step-chart");
     svg.setAttribute("viewBox","0 0 820 260");svg.setAttribute("role","img");
-    svg.setAttribute("aria-label",`Step chart of ${rows.length} Verified price series. Exact values and dates appear in the change log and point tooltips.`);
+    svg.setAttribute("aria-label",`Step chart of ${rows.length} provider price series. Exact values and source classes appear in the point tooltips.`);
     const dated=rows.flatMap(row=>row.points.map(point=>Date.parse(point.at))).filter(Number.isFinite),
       left=Math.min(...dated),right=Math.max(...dated,left+86400000,...(rows.some(row=>row.current)?[Date.now()]:[])),
       bottom=Math.min(...measured,priceMode==="percent"?0:priceMode==="index"?100:Infinity),
@@ -416,7 +416,7 @@ function priceCharts(parent,series) {
         const dot=document.createElementNS("http://www.w3.org/2000/svg","circle"),tip=document.createElementNS("http://www.w3.org/2000/svg","title");
         dot.setAttribute("cx",x(Date.parse(point.at)).toFixed(1));dot.setAttribute("cy",y(value(point)).toFixed(1));
         dot.setAttribute("r","4");dot.setAttribute("fill",palette[index%palette.length]);
-        tip.textContent=`${row.market} · ${row.planName} · ${priceDate(point.at)} · ${priceMoney(point.amountMinor,row.currency)}${point.kind==="BOOTSTRAP_BASELINE"?` (as-of baseline; provider Verified ${priceDate(point.verifiedAt)})`:point.kind==="CARRIED_BASELINE"?" (carried from prior Verified baseline)":""}`;
+        tip.textContent=`${row.market} · ${row.planName} · ${priceDate(point.at)} · ${priceMoney(point.amountMinor,row.currency)} · ${point.priceStatus?.replaceAll('_',' ')??'Source class unavailable'}${point.kind==="BOOTSTRAP_BASELINE"?` (as-of baseline; provider checked ${priceDate(point.verifiedAt)})`:point.kind==="CARRIED_BASELINE"?" (carried baseline)":""}`;
         dot.append(tip);svg.append(dot);
       }
     }
@@ -426,7 +426,7 @@ function priceCharts(parent,series) {
     for(const [index,row] of rows.entries()){
       const item=document.createElement("li"),swatch=document.createElement("span"),label=document.createElement("span");
       swatch.className=`price-legend-swatch price-color-${index%palette.length}`;swatch.setAttribute("aria-hidden","true");
-      label.textContent=`${row.market} · ${row.planName} (${row.currency})${index>=palette.length?" · dashed":""}${row.baselineKind===null?" · baseline unavailable":""}`;
+      label.textContent=`${row.market} · ${row.planName} (${row.currency}) · ${row.latestPriceStatus?.replaceAll('_',' ')??'Source class unavailable'}${index>=palette.length?" · dashed":""}${row.baselineKind===null?" · baseline unavailable":""}`;
       item.append(swatch,label);
       legend.append(item);
     }parent.append(legend);
@@ -436,10 +436,10 @@ function priceChanges(parent,rows) {
   if(!rows.length){paragraph(parent,"No documented monetary changes in this period. Initial baselines and name-only updates are excluded.");return;}
   const wrap=document.createElement("div");wrap.className="table-wrap";
   const tableNode=document.createElement("table"),head=document.createElement("thead"),body=document.createElement("tbody"),header=document.createElement("tr");
-  for(const label of ["Service","Market","Plan","Previous","New","Change","Verified / recorded","Evidence"]){const cell=document.createElement("th");cell.scope="col";cell.textContent=label;header.append(cell);}head.append(header);
+  for(const label of ["Service","Market","Plan","Previous","New","Change","Source class","Checked / recorded","Evidence"]){const cell=document.createElement("th");cell.scope="col";cell.textContent=label;header.append(cell);}head.append(header);
   for(const row of rows) {
     const line=document.createElement("tr");
-    for(const value of [row.serviceName,row.marketName+` (${row.market})`,row.planName,priceMoney(row.previousMinor,row.currency),priceMoney(row.newMinor,row.currency),`${priceMoney(row.absoluteMinor,row.currency)} (${pricePercent(row.percent)})`,`${priceDate(row.verifiedAt)} / ${priceDate(row.recordedAt)}${row.providerEffectiveAt?` · provider effective ${priceDate(row.providerEffectiveAt)}`:""}`]){
+    for(const value of [row.serviceName,row.marketName+` (${row.market})`,row.planName,priceMoney(row.previousMinor,row.currency),priceMoney(row.newMinor,row.currency),`${priceMoney(row.absoluteMinor,row.currency)} (${pricePercent(row.percent)})`,`${row.previousPriceStatus?.replaceAll('_',' ')??'Unknown'} → ${row.newPriceStatus?.replaceAll('_',' ')??'Unknown'}`,`${priceDate(row.verifiedAt)} / ${priceDate(row.recordedAt)}${row.providerEffectiveAt?` · provider effective ${priceDate(row.providerEffectiveAt)}`:""}`]){
       const cell=document.createElement("td");cell.textContent=value;line.append(cell);
     }
     const evidence=document.createElement("td");priceEvidence(evidence,row.sourceUrl);line.append(evidence);body.append(line);
@@ -447,11 +447,11 @@ function priceChanges(parent,rows) {
   tableNode.append(head,body);wrap.append(tableNode);parent.append(wrap);
 }
 function priceHeatmap(parent,rows) {
-  if(!rows.length){paragraph(parent,"No structured Verified series in this selection.");return;}
+  if(!rows.length){paragraph(parent,"No structured provider price series in this selection.");return;}
   const grid=document.createElement("div");grid.className="price-heatmap";
   for(const row of rows){const tile=document.createElement("div");tile.className=`price-heat-tile ${row.percent===null?"unavailable":row.percent>0?"increase":row.percent<0?"decrease":"flat"}`;
-    const title=document.createElement("strong");title.textContent=`${row.marketName} (${row.market}) · ${row.planName}`;tile.append(title);
-    paragraph(tile,row.percent===null?"Unavailable: no comparable Verified baseline and later value":`${pricePercent(row.percent)} · ${priceMoney(row.baselineMinor,row.currency)} → ${priceMoney(row.lastMinor,row.currency)}`);
+    const title=document.createElement("strong");title.textContent=`${row.marketName} (${row.market}) · ${row.planName} · ${row.latestPriceStatus?.replaceAll('_',' ')??'Source class unavailable'}`;tile.append(title);
+    paragraph(tile,row.percent===null?"Unavailable: no comparable documented baseline and later value":`${pricePercent(row.percent)} · ${priceMoney(row.baselineMinor,row.currency)} → ${priceMoney(row.lastMinor,row.currency)}`);
     grid.append(tile);
   }parent.append(grid);
 }

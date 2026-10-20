@@ -37,13 +37,33 @@ kept by the monotonic merge, not new research success. If the plan-bound V3
 result is unavailable, `New Verified` is unavailable rather than inferred
 from a persisted aggregate. Existing run result artifacts are unchanged.
 
+## Read-only classification across displays
+
+The shared `classifyCurrentProviderPrice` projection separates a qualified
+`official-provider-adapter:*` row as `OLD_VERIFIED`; qualified current rows
+from other sources remain `VERIFIED`, and unqualified rows remain `SUGGESTED`.
+The same rule is used by the market-status SQL, product plan projection,
+regional API response (`items[].priceStatus`), Admin coverage, and current
+Price Analytics counts. Mobile regional plan choices now include current V3
+rows and label retained adapter rows as Old Verified. Public plan responses
+keep legacy evidence in `plans[].oldVerified` rather than `plans[].verified`.
+
+Historical price observations retain their source, dates, amounts, and
+semantic series. Price Analytics labels older adapter observations on chart
+points and changes, while its **current Verified** counts exclude them.
+An unmatched Old Verified plan can still supply an explicitly labelled
+regional price; it is never silently represented as a fresh V3 result.
+
+The regional 24-hour cache continues to bound provider acquisition, but each
+cache hit checks the current persisted rows. A later V3 write becomes visible
+without another paid provider request. If this bounded DB read fails, the
+existing snapshot remains available with its original timestamp.
+
 ## Safety boundary and known limitations
 
-* This patch makes **no DB updates, migrations, removals, re-verifications, or
-  research runs**. It does not bulk-demote or delete old price rows.
-* Other product/public price views that still directly read
-  `verified_provider_prices` may continue to show legacy rows as current.
-  That requires a separate audited product-display policy and rollout.
+* The read-model changes make **no DB updates, migrations, removals,
+  re-verifications, or research runs**. They do not bulk-demote or delete
+  old price rows.
 * When a plan changes identity, name, billing route, or currency, no automatic
   delete/overwrite is allowed without proven equivalence; investigate per
   service rather than guess.
@@ -51,28 +71,6 @@ from a persisted aggregate. Existing run result artifacts are unchanged.
   new unsafe path is added for carrying cached legacy prices into Truth.
 * The selected market remains Old Verified if **any** legacy row remains, even
   if newly verifiable plans also make that same market eligible for Verified.
-
-## Read-model consistency still to decide
-
-The current product-pricing projection in `product-pricing.ts` treats any
-qualified `official-provider-adapter:*` row as Verified. The legacy provider
-dashboard in `private-data-http.ts` also counts it under its original
-verification class. `price-analytics.ts` includes such rows in its current
-qualified-Verified count, while keeping structured historical series separate.
-The regional pricing snapshot in `pricing.ts` retains unmatched old adapter
-rows as current offers. These reads have different purposes; changing their
-meaning is a product-display policy decision, not a Truth or history rewrite.
-Its in-process 24-hour snapshot cache can also delay display of a newly
-persisted V3 successor until refresh; the Admin market-status read uses the
-database directly. Cross-process cache invalidation needs a separate bounded
-design before promising immediate public-price updates.
-
-A consistent next step is a shared, read-only source classification for
-qualified current rows: `V3_VERIFIED`, `OLD_ADAPTER_VERIFIED`, and other
-qualified provider evidence. Expose the classes separately in Admin coverage
-and current-price analytics. Keep immutable observation history under its
-original source and verification fields. Decide explicitly whether public
-price cards should show an unmatched old row with a legacy/freshness label or
-withhold its current-price claim; do not silently demote or delete it. Apply
-that decision through the common product projection and tests for every
-consumer, including the legacy dashboard, before changing public behavior.
+* The `verification` field retains its original provider evidence type for
+  compatibility; consumers must use `priceStatus` or the `oldVerified` plan
+  array for the current display class.

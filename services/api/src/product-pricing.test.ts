@@ -11,8 +11,10 @@ import type {AdapterPrice} from "./pricing-adapters.js";
 import {
   mergeProductPlans,
   projectCatalogProductPlans,
-  projectCombinedResearchProductPlans
+  projectCombinedResearchProductPlans,
+  withProductPricing
 } from "./product-pricing.js";
+import {classifyCurrentProviderPrice} from "../../../packages/contracts/src/verified-price-classification.js";
 
 const suggested = (amount: number, extra: Record<string, unknown> = {}) => ({
   suggestedId: `suggested:${amount}:${String(extra.provenance ?? "v3")}`,
@@ -179,6 +181,8 @@ test("Admin coverage reports all five observational states", () => {
     VERIFIED_ONLY: 2,
     SUGGESTED_AND_VERIFIED_MATCH: 1,
     SUGGESTED_AND_VERIFIED_CONFLICT: 1,
+    SUGGESTED_AND_OLD_VERIFIED: 0,
+    OLD_VERIFIED_ONLY: 0,
     NO_PRICE: 1
   });
   assert.equal(coverage.providersWithSuggested, 1);
@@ -187,6 +191,36 @@ test("Admin coverage reports all five observational states", () => {
   assert.equal(coverage.plansWithVerified, 4);
   assert.equal(coverage.suggestedVerifiedOverlap, 2);
   assert.equal(coverage.suggestedVerifiedConflicts, 1);
+});
+
+test("Max NO/SE/DK reads distinguish old adapter evidence from current V3 Truth", () => {
+  const row = (market: string, plan: string, amount: number, source: string): AdapterPrice => ({
+    serviceSlug:"max",planSlug:plan.toLowerCase(),planName:plan,billingProviderSlug:"direct",
+    countryCode:market,currency:market==="NO"?"NOK":market==="SE"?"SEK":"DKK",
+    monthlyPriceMinor:amount,updatedAt:"2026-10-20T00:00:00Z",source,
+    sourceUrl:"https://www.hbomax.com/",confidence:"official-provider-adapter",
+    priceType:"exact",verification:"authoritative-provider",sourceCount:1,verifiedByAgreement:false
+  });
+  const no=projectCatalogProductPlans([row("NO","Basic",9900,"official-provider-adapter:max")])[0];
+  assert.equal(productPriceStatus(no),"OLD_VERIFIED_ONLY");
+  assert.equal(no.verified.length,0);
+  assert.equal(no.oldVerified?.[0].monthlyPriceMinor,9900);
+  assert.equal(productPriceTruth(no).authority,"OLD_VERIFIED");
+  assert.deepEqual(productPriceRows(no).rows.map(value=>value.label),["Old Verified"]);
+  const se=projectCatalogProductPlans([
+    row("SE","Basic",9900,"v3-truth"),row("SE","Premium",19900,"official-provider-adapter:max")
+  ]);
+  assert.deepEqual(se.map(plan=>productPriceStatus(plan)),["VERIFIED_ONLY","OLD_VERIFIED_ONLY"]);
+  const dk=projectCatalogProductPlans([row("DK","Premium",15900,"official-provider-adapter:max")]);
+  assert.equal(dk[0].verified.length,0);
+  const coverage=summarizeProductPricing([no,...se,...dk]);
+  assert.equal(coverage.plansWithVerified,1);
+  assert.equal(coverage.plansWithOldVerified,3);
+  assert.equal(coverage.statusCounts.OLD_VERIFIED_ONLY,3);
+  const response=withProductPricing({items:[row("NO","Basic",9900,"official-provider-adapter:max")]},[]);
+  assert.equal(response.items[0].priceStatus,"OLD_VERIFIED");
+  assert.equal(response.plans[0].verified.length,0);
+  assert.equal(classifyCurrentProviderPrice({...row("DK","Premium",15900,"official-provider-adapter:max"),verification:"single-source"}),"SUGGESTED");
 });
 
 const catalogPrice = (

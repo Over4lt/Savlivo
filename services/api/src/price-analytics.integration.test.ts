@@ -3,11 +3,27 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {pool} from "./db.js";
 import {privateDataPool} from "./private-data-db.js";
-import {priceAnalyticsReport} from "./price-analytics.js";
+import {priceAnalyticsReport,projectPriceAnalytics} from "./price-analytics.js";
 
 const enabled=process.env.SAVLIVO_DISPOSABLE_DB_TEST==="1";
 const id=(digit:string)=>`vh:${digit.repeat(64)}`;
 const sql=(path:string)=>readFileSync(new URL(`../../../${path}`,import.meta.url),"utf8");
+
+test("Price Analytics current counts exclude old adapter rows but preserve historical series",()=>{
+  const base={service_slug:"max",plan_slug:"basic",plan_name:"Basic",history_series_id:id("a"),
+    country_code:"NO",currency:"NOK",monthly_price_minor:9900,
+    verified_at:"2026-10-19T00:00:00Z",last_checked_at:"2026-10-19T00:00:00Z",
+    verification:"authoritative-provider",source_count:1,verified_by_agreement:false};
+  const current=[{...base,source:"official-provider-adapter:max"},
+    {...base,plan_slug:"standard",plan_name:"Standard",history_series_id:id("b"),
+      monthly_price_minor:12900,source:"v3-truth"}];
+  const result=projectPriceAnalytics(current,[],{service:"max",market:null,plan:null,period:"All"});
+  assert.equal(result.summary.plans,1);
+  assert.equal(result.summary.markets,1);
+  assert.equal(result.summary.oldVerifiedPlans,1);
+  assert.equal(result.summary.oldVerifiedMarkets,1);
+  assert.deepEqual(result.summary.recentVerifications.map(row=>row.planName),["Standard"]);
+});
 
 test("Price Analytics reads only structured provider-Verified history from a disposable database",{skip:!enabled},async t=>{
   assert.equal(process.env.DATABASE_URL,"postgresql://postgres@127.0.0.1:55439/savlivo_test");

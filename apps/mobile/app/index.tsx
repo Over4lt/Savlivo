@@ -2,6 +2,7 @@ import { translateUi, appLocale, appLanguages, type AppLanguage } from "../lib/u
 import { browseCatalog } from "../lib/catalog-browse";
 import { configuredSavlivoPrice } from "../lib/savlivo-plan-prices";
 import { resolveSavedManagement, type ManagementIntent } from "../../../packages/contracts/src/assistant-actions";
+import { classifyCurrentProviderPrice } from "../../../packages/contracts/src/verified-price-classification";
 import { discoveryRequestIsCurrent, parseAddSubscriptionIntent, validateAddSubscriptionIntent, validateManualSubscription } from "../../../packages/contracts/src/discovery";
 import { transitionCatalogDraft, serviceCatalog, searchCatalog, catalogDiscoveryPolicy, catalogCategories, billingProviders, serviceBillingProviders, billingProvidersForService, defaultBillingProviderForService, isBillingProviderAllowed, allCurrencies, serviceEligibleForCatalog, serviceAvailableInMarket, type BillingProviderSlug } from "../../../packages/contracts/src/catalog";
 import {
@@ -4789,9 +4790,7 @@ export default function Home() {
         entry.serviceSlug === serviceSlug &&
         entry.billingProviderSlug === billingProviderSlug &&
         entry.priceType === "range" &&
-        String(entry.source ?? "").startsWith(
-          "official-provider-adapter:"
-        ) &&
+        String(entry.source ?? "").startsWith("official-provider-adapter:") &&
         typeof entry.monthlyPriceMinor === "number" &&
         typeof entry.monthlyPriceMaxMinor === "number"
     );
@@ -5030,9 +5029,8 @@ export default function Home() {
         entry.serviceSlug === serviceSlug &&
         entry.billingProviderSlug === billingProviderSlug &&
         entry.priceType === "exact" &&
-        String(entry.source ?? "").startsWith(
-          "official-provider-adapter:"
-        ) &&
+        (String(entry.source ?? "").startsWith("official-provider-adapter:") ||
+          entry.source === "v3-truth") &&
         typeof entry.monthlyPriceMinor === "number"
     );
 
@@ -5079,6 +5077,16 @@ export default function Home() {
       billingProviderInput,
       subscriptionPlanInput || undefined
     );
+  }
+
+  function selectedPlanPriceStatus() {
+    const rows = regionalPlanOptions(serviceSlugInput,billingProviderInput);
+    const wanted = subscriptionPlanInput.toLowerCase();
+    const selected = wanted ? rows.find((entry: any) =>
+      String(entry.planName ?? "").toLowerCase() === wanted ||
+      String(entry.planSlug ?? "").toLowerCase() === wanted) :
+      rows.length === 1 ? rows[0] : null;
+    return selected ? classifyCurrentProviderPrice(selected) : null;
   }
 
   function syncPlanAndPrice(
@@ -10172,10 +10180,7 @@ export default function Home() {
                           styles.priceVerificationText,
                           {
                             color:
-                              planOption.verification === "registry" ||
-                              planOption.verification === "multi-source" ||
-                              planOption.verification ===
-                                "authoritative-provider"
+                              classifyCurrentProviderPrice(planOption) === "VERIFIED"
                                 ? darkMode
                                   ? "#A7D7B8"
                                   : "#357A4F"
@@ -10183,12 +10188,11 @@ export default function Home() {
                           }
                         ]}
                       >
-                        {planOption.verification === "registry" ||
-                        planOption.verification === "multi-source" ||
-                        planOption.verification ===
-                          "authoritative-provider"
+                        {classifyCurrentProviderPrice(planOption) === "VERIFIED"
                           ? tr("✓ Verified")
-                          : tr("Estimated current price")}
+                          : classifyCurrentProviderPrice(planOption) === "OLD_VERIFIED"
+                            ? tr("Old Verified")
+                            : tr("Estimated current price")}
                       </Text>
                     </Pressable>
                   );
@@ -10302,7 +10306,11 @@ export default function Home() {
                           }
                         ]}
                       >
-                        {tr("Verified local catalog price")}
+                        {selectedPlanPriceStatus() === "VERIFIED"
+                          ? tr("Verified local catalog price")
+                          : selectedPlanPriceStatus() === "OLD_VERIFIED"
+                            ? tr("Old Verified")
+                            : tr("Estimated current price")}
                       </Text>
                     </Pressable>
                   ) : null}

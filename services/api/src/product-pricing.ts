@@ -1,4 +1,5 @@
 import type {AdapterPrice} from "./pricing-adapters.js";
+import {classifyCurrentProviderPrice} from "../../../packages/contracts/src/verified-price-classification.js";
 import {
   catalogPlanIdentity,
   type ProductPlanPricing,
@@ -104,20 +105,17 @@ export function projectCatalogProductPlans(items: AdapterPrice[]): ProductPlanPr
         warnings: [],
         provenance: item.verification ?? "VERIFIED_CATALOG"
       };
-      const verified = item.verification === "registry" ||
-        item.verification === "authoritative-provider" ||
-        (item.verification === "multi-source" &&
-          item.verifiedByAgreement === true &&
-          (item.sourceCount ?? 0) >= 2);
+      const status = classifyCurrentProviderPrice(item);
       return {
         planIdentity: item.planIdentity ?? catalogPlanIdentity(item),
         serviceSlug: item.serviceSlug,
         planName: item.planName,
         billingProviderSlug: item.billingProviderSlug,
         countryCode: item.countryCode,
-        suggested: verified ? null : {...evidence, warnings: ["SOURCE_NOT_VERIFIED"]},
+        suggested: status === "SUGGESTED" ? {...evidence, warnings: ["SOURCE_NOT_VERIFIED"]} : null,
         suggestedHistory: [],
-        verified: verified ? [evidence] : []
+        verified: status === "VERIFIED" ? [evidence] : [],
+        oldVerified: status === "OLD_VERIFIED" ? [evidence] : []
       };
     });
 }
@@ -142,6 +140,8 @@ export function mergeProductPlans(
     if (plan.suggested) existing.suggested = structuredClone(plan.suggested);
     existing.suggestedHistory.push(...structuredClone(plan.suggestedHistory));
     existing.verified.push(...structuredClone(plan.verified));
+    existing.oldVerified ??= [];
+    existing.oldVerified.push(...structuredClone(plan.oldVerified ?? []));
   }
   return [...plans.values()];
 }
@@ -152,6 +152,8 @@ export function withProductPricing<T extends {items: AdapterPrice[]}>(
 ) {
   return {
     ...snapshot,
+    items: snapshot.items.map(item => ({...item,priceStatus:item.priceType === "exact"
+      ? classifyCurrentProviderPrice(item) : "SUGGESTED"})),
     plans: mergeProductPlans(suggestedPlans, projectCatalogProductPlans(snapshot.items))
   };
 }

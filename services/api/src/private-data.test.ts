@@ -139,7 +139,8 @@ test("Price Analytics read requires the existing Admin session and audit; filter
     if(query.includes("FROM verified_provider_prices WHERE service_slug"))return {rows:[{
       service_slug:"disney-plus",plan_slug:"standard",plan_name:"Standard",history_series_id:null,
       country_code:"NO",currency:"NOK",monthly_price_minor:10900,
-      verified_at:"2026-10-01T00:00:00Z",last_checked_at:"2026-10-18T00:00:00Z"
+      verified_at:"2026-10-01T00:00:00Z",last_checked_at:"2026-10-18T00:00:00Z",
+      source:"v3-truth",verification:"authoritative-provider",source_count:1,verified_by_agreement:false
     }]};
     return {rows:[]};
   });

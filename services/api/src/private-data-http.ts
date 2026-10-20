@@ -14,6 +14,7 @@ import {summarizeProductPricing} from "../../../packages/contracts/src/product-p
 import {mergeProductPlans, projectCatalogProductPlans} from "./product-pricing.js";
 import {suggestedRowsToProductPlans, type SuggestedRow} from "./suggested-pricing-store.js";
 import type {AdapterPrice} from "./pricing-adapters.js";
+import {currentProviderPriceClassSql} from "../../../packages/contracts/src/verified-price-classification.js";
 
 import {hashSession, authenticatedAdmin, beginRegistration, finishRegistration, beginAuthentication, finishAuthentication, revokeAdminSessions} from "./admin-passkeys.js";
 export {hashSession, authenticatedAdmin} from "./admin-passkeys.js";
@@ -76,8 +77,9 @@ export function dashboardFilters(url: URL): {market: string | null} {
 export async function dashboardData(market: string | null) {
   // This original endpoint remains provider-only. V2 aggregates use a separately gated route.
   const [storedPrices, suggestedRows, verifiedRows] = await Promise.all([
-    pool.query(`SELECT verification,count(*)::int AS prices FROM verified_provider_prices
-      WHERE ($1::text IS NULL OR country_code=$1) GROUP BY verification ORDER BY verification`, [market]),
+    pool.query(`SELECT verification,${currentProviderPriceClassSql} AS price_status,count(*)::int AS prices
+      FROM verified_provider_prices WHERE ($1::text IS NULL OR country_code=$1)
+      GROUP BY verification,price_status ORDER BY verification,price_status`, [market]),
     pool.query(`SELECT suggested_id,origin_suggested_id,plan_identity,service_slug,plan_name,
       billing_provider_slug,country_code,currency,monthly_price_minor,payment_cadence,provenance,
       source_url,researched_at,warnings,active FROM suggested_provider_prices

@@ -39,6 +39,30 @@ test('on-demand pricing retains persisted evidence, caches it, and explicit refr
   }finally{pool.query=originalQuery;globalThis.fetch=originalFetch;}
 });
 
+test('24-hour adapter cache observes a later V3 write without another provider request',async()=>{
+  const originalQuery=pool.query,originalFetch=globalThis.fetch;
+  let fetches=0,readFails=false;
+  const old={service_slug:'max',plan_slug:'legacy-fixture-tier',plan_name:'Legacy fixture tier',billing_provider_slug:'direct',
+    country_code:'SE',currency:'SEK',monthly_price_minor:9900,source:'official-provider-adapter:max',
+    source_url:'https://www.hbomax.com/se',verification:'authoritative-provider',source_count:1,
+    verified_by_agreement:false,last_checked_at:new Date('2026-10-19T00:00:00Z')};
+  let rows=[old];
+  globalThis.fetch=async()=>{fetches++;throw Error('OFFLINE_FIXTURE');};
+  pool.query=(async()=>{if(readFails)throw Error('DB_READ_FAILED');return {rows,rowCount:rows.length};}) as unknown as typeof pool.query;
+  try{
+    const first=await getRegionalPricing('SE',{forceRefresh:true});
+    assert.equal(first.items.find(item=>item.planSlug==='legacy-fixture-tier')?.monthlyPriceMinor,9900);
+    const calls=fetches;
+    rows=[{...old,monthly_price_minor:10900,source:'v3-truth',last_checked_at:new Date('2026-10-20T00:00:00Z')}];
+    const updated=await getRegionalPricing('SE');
+    assert.equal(updated.items.find(item=>item.planSlug==='legacy-fixture-tier')?.monthlyPriceMinor,10900);
+    assert.equal(updated.items.find(item=>item.planSlug==='legacy-fixture-tier')?.source,'v3-truth');
+    assert.equal(fetches,calls);
+    readFails=true;
+    assert.equal(await getRegionalPricing('SE'),updated);
+  }finally{pool.query=originalQuery;globalThis.fetch=originalFetch;}
+});
+
 test('real adapter fan-out across simultaneous markets uses at most four slots',async()=>{
   const {fetchProviderLocalPrices}=await import('./pricing-adapters.js');
   const original=globalThis.fetch;let active=0,peak=0,calls=0;

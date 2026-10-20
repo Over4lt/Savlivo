@@ -21,6 +21,21 @@ test('Operations groups provider price state by collapsed service and market wit
  const chess=services.find(node=>text(node).includes('chess-com —')),fixture=services.find(node=>text(node).includes('fixture —'));assert.equal(descendants(chess).filter(node=>node.className==='ops-price-market').length,2);assert.equal(descendants(fixture).filter(node=>node.className==='ops-price-market').length,0);
  await button(root,'Expand all').listeners.click();assert([...services,...markets].every(node=>node.open===true));await button(root,'Collapse all').listeners.click();assert([...services,...markets].every(node=>node.open===false));dispose();
 });
+test('Operations shows Old Verified separately from current Verified coverage',async()=>{
+ const root=setup(),priceCoverage={statusCounts:{OLD_VERIFIED_ONLY:1,VERIFIED_ONLY:1},
+  providersWithSuggested:0,plansWithSuggested:0,providersWithVerified:1,plansWithVerified:1,
+  providersWithOldVerified:1,plansWithOldVerified:1,suggestedCoveragePercent:0,verifiedCoveragePercent:50,
+  suggestedVerifiedOverlap:0,suggestedVerifiedConflicts:0,rows:[
+   {serviceSlug:'max',planName:'Basic',countryCode:'NO',status:'OLD_VERIFIED_ONLY',suggested:null,verified:null,oldVerified:'NOK 99.00'},
+   {serviceSlug:'max',planName:'Standard',countryCode:'NO',status:'VERIFIED_ONLY',suggested:null,verified:'NOK 149.00',oldVerified:null}
+  ]};
+ const dispose=await mountOperations(root,request,undefined,{priceCoverage}),all=text(root);
+ assert(all.includes('Old Verified: 1 plans across 1 providers'));
+ assert(all.includes('max — 1 market · 2 plans · Suggested 0 · Verified 1 · Old Verified 1'));
+ assert(all.includes('OLD VERIFIED ONLY'));
+ assert(all.includes('NOK 99.00'));
+ dispose();
+});
 test('operations loading state before response',async()=>{const root=setup();let resolve;const pending=mountOperations(root,p=>p.endsWith('/summary')?new Promise(r=>{resolve=r;}):Promise.resolve({rows:[],total:0}));assert(text(root).includes('Loading operations'));resolve(summary);const dispose=await pending;dispose();});
 test('operations error state allows retry',async()=>{const root=setup(),dispose=await mountOperations(root,async()=>{throw Error('fixture unavailable');});assert(text(root).includes('Operations unavailable'));assert(button(root,'Retry'));dispose();});
 test('empty schedules and scheduling-disabled controls',async()=>{const root=setup(),dispose=await mountOperations(root,request);await button(root,'Schedules').listeners.click();assert(text(root).includes('No automatic schedules'));assert(button(root,'Create schedule').disabled);dispose();});

@@ -19,6 +19,7 @@ export type ProductPlanPricing = {
   suggested: ProductPriceEvidence | null;
   suggestedHistory: ProductPriceEvidence[];
   verified: ProductPriceEvidence[];
+  oldVerified?: ProductPriceEvidence[];
 };
 
 export type ProductPriceStatus =
@@ -26,6 +27,8 @@ export type ProductPriceStatus =
   | "VERIFIED_ONLY"
   | "SUGGESTED_AND_VERIFIED_MATCH"
   | "SUGGESTED_AND_VERIFIED_CONFLICT"
+  | "SUGGESTED_AND_OLD_VERIFIED"
+  | "OLD_VERIFIED_ONLY"
   | "NO_PRICE";
 
 export function productPriceTruth(plan: ProductPlanPricing) {
@@ -38,7 +41,7 @@ export function productPriceTruth(plan: ProductPlanPricing) {
   const authoritativeConflict = verifiedFacts.size > 1;
   const activePrice = authoritativeConflict
     ? null
-    : plan.verified[0] ?? plan.suggested;
+    : plan.verified[0] ?? plan.suggested ?? plan.oldVerified?.[0] ?? null;
   const suggestedEvidence = [plan.suggested, ...plan.suggestedHistory]
     .filter((value): value is ProductPriceEvidence => Boolean(value));
   const suggestedMismatch = Boolean(
@@ -55,6 +58,8 @@ export function productPriceTruth(plan: ProductPlanPricing) {
         ? "VERIFIED" as const
         : plan.suggested
           ? "SUGGESTED" as const
+          : plan.oldVerified?.length
+            ? "OLD_VERIFIED" as const
           : "NONE" as const,
     authoritativeConflict,
     suggestedMismatch
@@ -80,7 +85,8 @@ export function catalogPlanIdentity(value: {
 
 export function productPriceStatus(plan: ProductPlanPricing): ProductPriceStatus {
   const truth = productPriceTruth(plan);
-  if (!plan.suggested && !plan.verified.length) return "NO_PRICE";
+  if (!plan.suggested && !plan.verified.length) return plan.oldVerified?.length ? "OLD_VERIFIED_ONLY" : "NO_PRICE";
+  if (plan.suggested && !plan.verified.length && plan.oldVerified?.length) return "SUGGESTED_AND_OLD_VERIFIED";
   if (plan.suggested && !plan.verified.length) return "SUGGESTED_ONLY";
   if (truth.authoritativeConflict) return "SUGGESTED_AND_VERIFIED_CONFLICT";
   if (!plan.suggested || truth.suggestedMismatch) return "VERIFIED_ONLY";
@@ -94,7 +100,7 @@ export function productPriceRows(
 ) {
   const truth = productPriceTruth(plan);
   const rows: Array<{
-    label: "Suggested" | "Verified" | "Your price";
+    label: "Suggested" | "Verified" | "Old Verified" | "Your price";
     monthlyPriceMinor: number;
     currency: string;
   }> = [];
@@ -105,6 +111,11 @@ export function productPriceRows(
   });
   for (const value of plan.verified) rows.push({
     label: "Verified",
+    monthlyPriceMinor: value.monthlyPriceMinor,
+    currency: value.currency
+  });
+  for (const value of plan.oldVerified ?? []) rows.push({
+    label: "Old Verified",
     monthlyPriceMinor: value.monthlyPriceMinor,
     currency: value.currency
   });
@@ -129,12 +140,16 @@ export function summarizeProductPricing(
     VERIFIED_ONLY: 0,
     SUGGESTED_AND_VERIFIED_MATCH: 0,
     SUGGESTED_AND_VERIFIED_CONFLICT: 0,
+    SUGGESTED_AND_OLD_VERIFIED: 0,
+    OLD_VERIFIED_ONLY: 0,
     NO_PRICE: 0
   };
   const providersWithSuggested = new Set<string>();
   const providersWithVerified = new Set<string>();
+  const providersWithOldVerified = new Set<string>();
   let plansWithSuggested = 0;
   let plansWithVerified = 0;
+  let plansWithOldVerified = 0;
   let overlap = 0;
   const rows = plans.map(plan => {
     const status = productPriceStatus(plan), truth = productPriceTruth(plan);
@@ -146,6 +161,10 @@ export function summarizeProductPricing(
     if (plan.verified.length) {
       plansWithVerified += 1;
       providersWithVerified.add(plan.serviceSlug);
+    }
+    if (plan.oldVerified?.length) {
+      plansWithOldVerified += 1;
+      providersWithOldVerified.add(plan.serviceSlug);
     }
     if (plan.suggested && plan.verified.length) overlap += 1;
     return {
@@ -160,11 +179,14 @@ export function summarizeProductPricing(
         : null,
       verified: plan.verified.length
         ? plan.verified.map(value => `${value.currency} ${(value.monthlyPriceMinor / 100).toFixed(2)}`).join(", ")
+        : null,
+      oldVerified: plan.oldVerified?.length
+        ? plan.oldVerified.map(value => `${value.currency} ${(value.monthlyPriceMinor / 100).toFixed(2)}`).join(", ")
         : null
     };
   });
   const pricedProviders = new Set(plans
-    .filter(plan => plan.suggested || plan.verified.length)
+    .filter(plan => plan.suggested || plan.verified.length || plan.oldVerified?.length)
     .map(plan => plan.serviceSlug));
   const noPriceProviders = [...new Set(catalogServiceSlugs)]
     .filter(serviceSlug => !pricedProviders.has(serviceSlug));
@@ -177,7 +199,8 @@ export function summarizeProductPricing(
     suggestedMismatch: false,
     authoritativeConflict: false,
     suggested: null,
-    verified: null
+    verified: null,
+    oldVerified: null
   })));
   const denominator = plans.length + noPriceProviders.length;
   const percentage = (count: number) => denominator
@@ -189,6 +212,8 @@ export function summarizeProductPricing(
     plansWithSuggested,
     providersWithVerified: providersWithVerified.size,
     plansWithVerified,
+    providersWithOldVerified: providersWithOldVerified.size,
+    plansWithOldVerified,
     suggestedCoveragePercent: percentage(plansWithSuggested),
     verifiedCoveragePercent: percentage(plansWithVerified),
     suggestedVerifiedOverlap: overlap,

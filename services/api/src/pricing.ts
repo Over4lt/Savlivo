@@ -23,7 +23,7 @@ export type PricingSnapshot = {
 const REFRESH_MS = 24 * 60 * 60 * 1000;
 const memoryCache = new Map<
   string,
-  { fetchedAt: number; snapshot: PricingSnapshot }
+  { fetchedAt: number; snapshot: PricingSnapshot; freshItems: AdapterPrice[] }
 >();
 
 
@@ -84,7 +84,8 @@ export function mergeFreshAndPersistedPricing(
         (fresh?.sourceCount ?? 0) >= 2
       );
 
-    if (!freshIsStrong) {
+    if (!freshIsStrong || persisted.source === "v3-truth" ||
+        Date.parse(persisted.updatedAt) > Date.parse(fresh!.updatedAt)) {
       merged.set(
         key,
         persisted
@@ -103,12 +104,33 @@ export async function getRegionalPricing(
   const currency = countryCurrencies[code] ?? "";
   const cached = memoryCache.get(code);
 
+  const snapshotFor = (items: AdapterPrice[]): PricingSnapshot => ({
+    countryCode: code,
+    currency,
+    updatedAt: items.map(item => item.updatedAt).sort().at(-1) ?? new Date().toISOString(),
+    source: items.length ? [...new Set(items.map(item => item.source))].join(",") : "no-exact-provider-price-found",
+    items
+  });
+
   if (
     !options?.forceRefresh &&
     cached &&
     Date.now() - cached.fetchedAt < REFRESH_MS
   ) {
-    return cached.snapshot;
+    if (!currency) return cached.snapshot;
+    try {
+      // A completed V3 write may have occurred in another process during the
+      // 24-hour adapter TTL. This bounded DB read never acquires a provider.
+      const persisted = await loadPersistedVerifiedPrices(code,currency);
+      const items = mergeFreshAndPersistedPricing(cached.freshItems,persisted);
+      if (JSON.stringify(items) === JSON.stringify(cached.snapshot.items)) return cached.snapshot;
+      const snapshot = snapshotFor(items);
+      memoryCache.set(code,{...cached,snapshot});
+      return snapshot;
+    } catch (err) {
+      console.error("persisted pricing cache check failed",err);
+      return cached.snapshot;
+    }
   }
 
   if (!currency) {
@@ -119,7 +141,7 @@ export async function getRegionalPricing(
       source: "unsupported-currency-map",
       items: []
     };
-    memoryCache.set(code, { fetchedAt: Date.now(), snapshot: empty });
+    memoryCache.set(code, { fetchedAt: Date.now(), snapshot: empty, freshItems: [] });
     return empty;
   }
 
@@ -162,24 +184,12 @@ export async function getRegionalPricing(
     return cached.snapshot;
   }
 
-  const snapshot: PricingSnapshot = {
-    countryCode: code,
-    currency,
-    updatedAt:
-      items
-        .map((item) => item.updatedAt)
-        .sort()
-        .at(-1) ?? new Date().toISOString(),
-    source:
-      items.length
-        ? [...new Set(items.map((item) => item.source))].join(",")
-        : "no-exact-provider-price-found",
-    items
-  };
+  const snapshot = snapshotFor(items);
 
   memoryCache.set(code, {
     fetchedAt: Date.now(),
-    snapshot
+    snapshot,
+    freshItems
   });
 
   return snapshot;
