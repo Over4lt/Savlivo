@@ -51,6 +51,19 @@ export function loadPricingRouteMemory(root,{services=null}={}){
  for(const entry of store.entries){const row=structuredClone(entry.route);if(services!==null&&!services.includes(row.service))continue;row.failures=0;memory.routes.set(row.service+'|'+row.url,row);if(!memory.byService.has(row.service))memory.byService.set(row.service,new Map());memory.byService.get(row.service).set(row.url,row);}
  memory.methodOutcomes=store.methodOutcomes.filter(row=>services===null||services.includes(row.service));memory.methodOutcomesByTargetUrl=new Map();for(const row of memory.methodOutcomes){const key=row.service+'|'+row.market+'|'+row.url;if(!memory.methodOutcomesByTargetUrl.has(key))memory.methodOutcomesByTargetUrl.set(key,[]);memory.methodOutcomesByTargetUrl.get(key).push(row);}return memory;
 }
+function mergeRoute(previous,incoming){
+ if(!previous)return incoming;
+ const newer=Date.parse(incoming.lastSuccessAt)>Date.parse(previous.lastSuccessAt),primary=newer?incoming:previous,secondary=newer?previous:incoming;
+ const sources=new Map();
+ for(const source of [...secondary.sources,...primary.sources]){
+  const key=source.market+'|'+source.sha256,earlier=sources.get(key);
+  sources.delete(key);
+  sources.set(key,source.extractionRecipe?source:earlier?.extractionRecipe?earlier:source);
+ }
+ // Never evict a proven existing source while importing an older observation.
+ if(sources.size>8)throw Error('PRICING_ROUTE_MEMORY_BOUND');
+ return route({...primary,sources:[...sources.values()],successes:Math.max(previous.successes,incoming.successes),propositions:[...new Set([...previous.propositions,...incoming.propositions])].sort()});
+}
 export function publishPricingRouteMemory(root,learned,{jobId,checkpoint,market,recordedAt,acquiredAt}){
  if(!Array.isArray(learned)||!/^[a-zA-Z0-9-]{1,100}$/.test(jobId??'')||!/^[a-z0-9-]{1,100}$/.test(checkpoint??'')||!/^([A-Z]{2})$/.test(market??'')||!Number.isFinite(Date.parse(recordedAt))||!Number.isFinite(Date.parse(acquiredAt))||Date.parse(acquiredAt)>Date.parse(recordedAt))throw Error('PRICING_ROUTE_MEMORY_INVALID');
  if(!learned.length)return {published:0};
@@ -60,15 +73,19 @@ export function publishPricingRouteMemory(root,learned,{jobId,checkpoint,market,
   const store=readStore(root,{verifyProofs:false}),entries=new Map(store.entries.map(entry=>[entry.route.service+'|'+entry.route.url,entry]));let published=0;
   for(const raw of learned){if(!isValidatedPricingRouteLearning(raw))throw Error('PRICING_ROUTE_PROOF_REQUIRED');const row=route(structuredClone(raw)),key=row.service+'|'+row.url,previous=entries.get(key),origins=[...(previous?.origins??[])],body=validatedPricingRouteBody(raw);
    const current=row.sources.filter(source=>source.market===market&&body&&sha(body)===source.sha256);if(!current.length)throw Error('PRICING_ROUTE_PROOF_REQUIRED');
+   let added=0;
    for(const source of current){
     if(origins.some(item=>item.jobId===jobId&&item.checkpoint===checkpoint&&item.market===source.market&&item.sourceHash===source.sha256))continue;
     const evidenceObservationId='pricing-route-'+digest([jobId,checkpoint,market,row.url,source.sha256]).slice(0,40);
     putEvidence(root,{bytes:body,expectedHash:source.sha256,observationId:evidenceObservationId,observation:{service:row.service,market,url:row.url,jobId,checkpoint,recordedAt,acquiredAt,truthAuthority:'NONE'}});
     readObservation(root,evidenceObservationId);
     origins.push({jobId,checkpoint,market:source.market,sourceHash:source.sha256,observation:source.observation,evidenceObservationId,recordedAt,acquiredAt});
+    added++;
    }
-   entries.set(key,{route:row,origins:origins.slice(-32)});published++;
+   if(!added)continue;
+   entries.set(key,{route:mergeRoute(previous?.route,row),origins:origins.slice(-32)});published+=added;
   }
+  if(!published)return {published:0};
   if(entries.size>10000)throw Error('PRICING_ROUTE_MEMORY_BOUND');
   const payload={schema,entries:[...entries.values()].sort((a,b)=>(a.route.service+'|'+a.route.url).localeCompare(b.route.service+'|'+b.route.url)),methodOutcomes:store.methodOutcomes},file=safe(root,name),pending=safe(root,name+'.pending-'+randomUUID()),bytes=canonical({...payload,contentHash:digest(payload)}),handle=fs.openSync(pending,'wx',0o600);
   try{fs.writeFileSync(handle,bytes);fs.fsyncSync(handle);}finally{fs.closeSync(handle);}
@@ -111,10 +128,10 @@ export function publishPricingMethodOutcomes(root,{jobId,checkpoint,service,mark
  const unique=[...new Map(observations.map(row=>[row.id,row])).values()];
  if(!unique.length)return {published:0};
  fs.mkdirSync(path.resolve(root),{recursive:true,mode:0o700});const lock=safe(root,'provider-pricing-routes-v1.lock'),fd=fs.openSync(lock,'wx',0o600);
- try{const store=readStore(root,{verifyProofs:false}),old=new Map(store.methodOutcomes.map(row=>[row.id,row]));for(const row of unique)if(!old.has(row.id))old.set(row.id,row);
+ try{const store=readStore(root,{verifyProofs:false}),old=new Map(store.methodOutcomes.map(row=>[row.id,row])),added=unique.filter(row=>!old.has(row.id));if(!added.length)return {published:0};for(const row of added)old.set(row.id,row);
   const payload={schema,entries:store.entries,methodOutcomes:[...old.values()].sort((a,b)=>a.at.localeCompare(b.at)||a.id.localeCompare(b.id)).slice(-4096)},file=safe(root,name),pending=safe(root,name+'.pending-'+randomUUID()),bytes=canonical({...payload,contentHash:digest(payload)}),handle=fs.openSync(pending,'wx',0o600);
   try{fs.writeFileSync(handle,bytes);fs.fsyncSync(handle);}finally{fs.closeSync(handle);}
   try{fs.renameSync(pending,file);const dir=fs.openSync(root,'r');try{fs.fsyncSync(dir);}finally{fs.closeSync(dir);}}finally{if(fs.existsSync(pending))fs.unlinkSync(pending);}
-  readStore(root,{verifyProofs:false});return {published:unique.length};
+  readStore(root,{verifyProofs:false});return {published:added.length};
  }finally{fs.closeSync(fd);fs.unlinkSync(lock);}
 }

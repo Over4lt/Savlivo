@@ -13,12 +13,16 @@ const validTarget=target=>target&&typeof target.serviceId==='string'&&/^[a-z0-9]
 const writeJson=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});const pending=file+`.${process.pid}.pending`;fs.writeFileSync(pending,JSON.stringify(value,null,2)+'\n',{mode:0o600});fs.renameSync(pending,file);};
 const childDirectory=(directory,target,index)=>path.join(directory,'price-research-targets',`${String(index+1).padStart(2,'0')}-${target.serviceId}-${target.targetMarket}`);
 export function recoverCompletedPricingRoutes(memory,child,target,{memoryRoot=null,runsRoot=null,jobId=null,recordedAt=null,replayFailures=true,result=null,knownService=false}={}){
+ // A completed target's journal time is required even for in-batch learning:
+ // replay must never turn an old acquisition into a new success.
+ if(!Number.isFinite(Date.parse(recordedAt)))return;
  for(const attempt of ['priority-research-links','known-service','known-service-v3-verification-retry-1']){
   const campaign=path.join(child,attempt),file=path.join(campaign,'adaptive-state.json');if(!fs.existsSync(file))continue;
   let current,learned;
+  const priorSuccess=new Map(memory.routes);
   try{
    const state=JSON.parse(fs.readFileSync(file,'utf8'));current=state.targets?.[target.id];
-   learned=learnProviderPricingRoutesFromTarget({memory,target:current,directory:path.join(campaign,'targets',target.id,'open-web-discovery')});
+   learned=learnProviderPricingRoutesFromTarget({memory,target:current,directory:path.join(campaign,'targets',target.id,'open-web-discovery'),now:recordedAt});
   }catch{/* Corrupt route metadata cannot grant routing priority. */continue;}
   const useful=new Set(learned.map(row=>row.url));
   if(replayFailures)for(const lead of current?.leads??[])if(lead.learnedProviderPricingRoute===true&&!useful.has(lead.url)&&(current.reads??[]).some(read=>read.requestedUrl===lead.url))recordProviderPricingRouteFailure(memory,current,lead.url);
@@ -27,7 +31,12 @@ export function recoverCompletedPricingRoutes(memory,child,target,{memoryRoot=nu
    if(!isPublicPricingRouteUrl(row.url))continue;
    const source=row.sources.findLast(source=>source.market===target.targetMarket);if(!source)continue;
    let proof;try{proof=knownService?loadSinglePriceRouteProof({jobRoot:child,jobId,service:target.serviceId,market:target.targetMarket,sourceHash:source.sha256}):loadRetainedVerifiedEvidence({runsRoot,jobId,service:target.serviceId,market:target.targetMarket,sourceHash:source.sha256});}catch{continue;}
-   if(proof.sourceUrl!==row.url)continue;
+   const acquiredAt=Date.parse(proof.acquiredAt);
+   if(proof.sourceUrl!==row.url||!Number.isFinite(acquiredAt)||acquiredAt>Date.parse(recordedAt)||acquiredAt>Date.now())continue;
+   const prior=priorSuccess.get(row.service+'|'+row.url)?.lastSuccessAt;
+   row.lastSuccessAt=new Date(Math.max(acquiredAt,Number.isFinite(Date.parse(prior))?Date.parse(prior):acquiredAt)).toISOString();
+   const currentRoute=memory.routes.get(row.service+'|'+row.url);
+   if(currentRoute)currentRoute.lastSuccessAt=row.lastSuccessAt;
    publishPricingRouteMemory(memoryRoot,[row],{jobId,checkpoint:attempt,market:target.targetMarket,recordedAt,acquiredAt:proof.acquiredAt});
    confirmedSuccessUrls.push(row.url);
    confirmedSuccessMethods[row.url]=proof.attempt?.method??proof.method??null;

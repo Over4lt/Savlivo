@@ -47,7 +47,7 @@ test('documented failed route and known request counts survive restart without b
  const en='https://www.hbomax.com/es/en',es='https://www.hbomax.com/es/es',file=path.join(root,'adaptive-state.json');
  fs.writeFileSync(file,JSON.stringify({targets:{'price-research:max:ES':{service:'max',market:'ES',leads:[{url:en,learnedProviderPricingRoute:true}],reads:[{requestedUrl:en,outcome:'OK',bodyHash:'a'.repeat(64)}],providerInterpretations:[]}},services:{max:{used:{reads:1,searches:0,acquisitions:1,retainedReviews:0,bytes:2048}}}}));
  const fields={jobId:'22222222-2222-4222-8222-222222222222',checkpoint:'known-service',service:'max',market:'ES',recordedAt:new Date(Date.now()-1000).toISOString(),checkpointFile:file,result:{targets:[{target:{service:'max',market:'ES'},googleRequests:0,strictGeminiRequests:0}]}};
- assert.equal(publishPricingMethodOutcomes(root,fields).published,1);assert.equal(publishPricingMethodOutcomes(root,fields).published,1);
+ assert.equal(publishPricingMethodOutcomes(root,fields).published,1);assert.equal(publishPricingMethodOutcomes(root,fields).published,0);
  const stored=JSON.parse(fs.readFileSync(path.join(root,'provider-pricing-routes-v1.json')));assert.equal(stored.methodOutcomes.length,1);
  assert.deepEqual(stored.methodOutcomes[0].usage,{reads:1,searches:0,acquisitions:1,retainedReviews:0,bytes:2048,googleRequests:0,strictGeminiRequests:0,billedCost:null});
  assert.equal(stored.methodOutcomes[0].result,'NO_DURABLE_SUCCESS_PROOF');assert(!JSON.stringify(stored).includes('11.99'));assert(!JSON.stringify(stored).includes(sourceText));
