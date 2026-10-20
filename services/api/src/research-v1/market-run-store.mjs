@@ -1,8 +1,8 @@
 // Local single-owner append-only research journal; not a distributed transaction.
 import assert from 'node:assert/strict';
 import {encodeCheckpointPayload,decodeCheckpointPayload} from './checkpoint-objects.mjs';
-import {mkdirSync,readdirSync,readFileSync,openSync,writeFileSync,fsyncSync,closeSync,linkSync,unlinkSync,rmdirSync,existsSync,statSync,lstatSync} from 'node:fs';
-import {resolve,join,dirname} from 'node:path';
+import {mkdirSync,readdirSync,readFileSync,openSync,writeFileSync,fsyncSync,closeSync,fchmodSync,linkSync,unlinkSync,rmdirSync,existsSync,statSync,lstatSync} from 'node:fs';
+import {resolve,join,dirname,basename} from 'node:path';
 import {hostname} from 'node:os';
 import {randomUUID,createHash} from 'node:crypto';
 export const storeVersion='MARKET_RUN_STORE_V1';
@@ -12,6 +12,51 @@ function publish(dir,name,value){
  const temp=join(dir,'.pending-'+randomUUID()),fd=openSync(temp,'wx',0o600);
  try{writeFileSync(fd,JSON.stringify(value)+'\n');fsyncSync(fd);}finally{closeSync(fd);}
  linkSync(temp,join(dir,name));syncDir(dir);unlinkSync(temp);syncDir(dir);
+}
+const unshareable=new Set(['EXDEV','EPERM','EACCES','ENOTSUP','EOPNOTSUPP','EROFS','EMLINK']);
+function savlivoRoot(directory){
+ let current=resolve(directory);
+ while(basename(current)!=='.savlivo'){
+  const parent=dirname(current);if(parent===current)return null;current=parent;
+ }
+ return current;
+}
+function protectedDirectory(directory){
+ if(existsSync(directory)){
+  const stat=lstatSync(directory);
+  return !stat.isSymbolicLink()&&stat.isDirectory()&&!(stat.mode&0o022);
+ }
+ mkdirSync(directory,{mode:0o700});return protectedDirectory(directory);
+}
+function sharedCheckpointObject(objects,hash,raw){
+ const root=savlivoRoot(objects);if(!root)return false;
+ const bytes=Buffer.from(raw+'\n'),parts=[root,join(root,'research-v1'),join(root,'research-v1','shared-checkpoint-objects'),join(root,'research-v1','shared-checkpoint-objects','sha256'),join(root,'research-v1','shared-checkpoint-objects','sha256',hash.slice(0,2))];
+ try{
+  if(!parts.every(protectedDirectory))return false;
+  const bucket=parts.at(-1);if(statSync(bucket).dev!==statSync(objects).dev)return false;
+  const shared=join(bucket,hash+'.json');
+  if(!existsSync(shared)){
+   const pending=join(bucket,'.pending-'+randomUUID()),fd=openSync(pending,'wx',0o600);
+   try{
+    try{writeFileSync(fd,bytes);fchmodSync(fd,0o400);fsyncSync(fd);}finally{closeSync(fd);}
+    try{linkSync(pending,shared);}catch(error){if(error.code!=='EEXIST')throw error;}
+    syncDir(bucket);
+   }finally{unlinkSync(pending);}
+  }
+  const stat=lstatSync(shared);
+  if(stat.isSymbolicLink()||!stat.isFile()||(stat.mode&0o222)||stat.dev!==statSync(objects).dev)return false;
+  assert.equal(stat.size,bytes.length,'Shared checkpoint object collision');
+  assert(readFileSync(shared).equals(bytes),'Shared checkpoint object collision');
+  const local=join(objects,hash+'.json');
+  try{linkSync(shared,local);}catch(error){
+   if(error.code==='EEXIST'){assert(!lstatSync(local).isSymbolicLink()&&readFileSync(local).equals(bytes),'Immutable object changed');return true;}
+   if(unshareable.has(error.code))return false;
+   throw error;
+  }
+  const linked=lstatSync(local);
+  assert(!linked.isSymbolicLink()&&linked.ino===stat.ino&&linked.dev===stat.dev&&!(linked.mode&0o222)&&readFileSync(local).equals(bytes),'Shared checkpoint object changed');
+  syncDir(objects);return true;
+ }catch(error){if(unshareable.has(error.code))return false;throw error;}
 }
 // Read-only inspection uses exactly the store's chain checks, without acquiring or
 // modifying historical ownership. Active/incomplete stores are not knowledge.
@@ -67,7 +112,7 @@ export function openMarketRunStore(directory,{recoverDeadOwnerToken=null,checkpo
    if(logicalBytes>200000000)throw Object.assign(Error('Checkpoint expanded payload bound'),{code:'CHECKPOINT_EXPANDED_SIZE_LIMIT'});
    if(checkpointObjects&&['TASK_CHECKPOINT','TASK_COMPLETE'].includes(type)&&logicalBytes>1000000){
     const objects=join(dir,'.objects');mkdirSync(objects,{recursive:true});assert(!lstatSync(objects).isSymbolicLink(),'Invalid object directory');
-    payload=encodeCheckpointPayload(payload,(hash,raw)=>{const name=hash+'.json',path=join(objects,name);if(existsSync(path)){assert(!lstatSync(path).isSymbolicLink()&&readFileSync(path,'utf8')===raw+'\n','Immutable object changed');}else publish(objects,name,JSON.parse(raw));});
+    payload=encodeCheckpointPayload(payload,(hash,raw)=>{const name=hash+'.json',path=join(objects,name);assert.equal(digest(raw),hash,'Checkpoint object hash mismatch');if(existsSync(path)){assert(!lstatSync(path).isSymbolicLink()&&readFileSync(path,'utf8')===raw+'\n','Immutable object changed');}else if(!sharedCheckpointObject(objects,hash,raw))publish(objects,name,JSON.parse(raw));});
    }assert(typeof type==='string');assert(count<100000,'Journal record limit');
    const body={version:storeVersion,sequence:count+1,previous:head,type,payload:structuredClone(payload)};
    if(Buffer.byteLength(JSON.stringify(body))>50000000)throw Object.assign(Error('Journal record size limit'),{code:'JOURNAL_RECORD_SIZE_LIMIT'});const record={...body,hash:digest(body)};
