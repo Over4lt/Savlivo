@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {equivalentVerifiedPlan,planVerifiedCurrentRepair,semanticPlanLabel} from './verified-price-reconciliation.mjs';
+import {activeCurrentPrices,equivalentVerifiedPlan,planVerifiedCurrentRepair,semanticPlanLabel} from './verified-price-reconciliation.mjs';
+import {documentedV3IdentityLinks} from './verified-price-identity-links.mjs';
 
 const row=(planName,planSlug,amount,overrides={})=>({serviceSlug:'service-one',planSlug,planName,
  billingProviderSlug:'direct',countryCode:'NO',currency:'NOK',monthlyPriceMinor:amount,
@@ -66,4 +67,19 @@ test('equal timestamps refuse freshness guessing',()=>{
  const pair=[old[1],{...fresh[1],verifiedAt:old[1].verifiedAt}];
  const plan=planVerifiedCurrentRepair(pair,pair.map(history),'Service One');
  assert.equal(plan.ready,false);assert.equal(plan.refused[0].reason,'AMBIGUOUS_FRESHNESS');
+});
+
+test('only exact source-bound Max NL links hide their retained hash aliases in active reads',()=>{
+ const pairs=documentedV3IdentityLinks.map(link=>({hash:{serviceSlug:link.serviceSlug,countryCode:link.countryCode,billingProviderSlug:link.billingProviderSlug,currency:link.currency,sourceUrl:link.sourceUrl,source:'v3-truth',verification:'authoritative-provider',planSlug:link.exactOfferId,planName:link.exactOfferId,monthlyPriceMinor:link.amountMinor},readable:{serviceSlug:link.serviceSlug,countryCode:link.countryCode,billingProviderSlug:link.billingProviderSlug,currency:link.currency,sourceUrl:link.sourceUrl,source:'v3-truth',verification:'authoritative-provider',planSlug:link.planSlug,planName:link.planName,monthlyPriceMinor:link.amountMinor}}));
+ const rows=pairs.flatMap(pair=>[pair.hash,pair.readable]);
+ assert.deepEqual(activeCurrentPrices(rows,()=> 'Max').map(row=>row.planName),['Basic With Ads','Standard','Premium']);
+ for(const changed of [{sourceUrl:'https://other.example/nl/en'},{countryCode:'BE'},{billingProviderSlug:'apple'},{currency:'USD'},{monthlyPriceMinor:9999},{verification:'single-source'}]){
+  const altered={...pairs[0].hash,...changed};
+  assert(activeCurrentPrices([altered,pairs[0].readable],()=> 'Max').includes(altered),JSON.stringify(changed));
+ }
+ const duplicate={...pairs[0].readable};
+ assert(activeCurrentPrices([pairs[0].hash,pairs[0].readable,duplicate],()=> 'Max').includes(pairs[0].hash));
+ assert(activeCurrentPrices([pairs[0].hash,{...pairs[0].readable,monthlyPriceMinor:699}],()=> 'Max').includes(pairs[0].hash));
+ const unrelated={...pairs[0].hash,planSlug:'f'.repeat(64),planName:'f'.repeat(64)};
+ assert(activeCurrentPrices([unrelated,pairs[0].readable],()=> 'Max').includes(unrelated));
 });

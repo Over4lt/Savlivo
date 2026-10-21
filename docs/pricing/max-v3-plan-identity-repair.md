@@ -22,6 +22,34 @@ old evidence and are hidden from active product options. A future bundle needs
 its own official source and ordinary V3 verification; it cannot inherit a
 standalone plan's evidence.
 
+## NL read projection (2026-10-21)
+
+The completed `c50b560d-dc8d-d08e-99a1-306ddcbf4593` Max NL target has
+one retained Decodo provider body at `https://www.hbomax.com/nl/en`, SHA-256
+`e7667c6e1aa08ee9a09d8671474650e540cb6502b9ad76ee76c8d534f97b0afc`.
+The original journal and G1 receipt passed `loadRetainedVerifiedEvidence`.
+Its source-bound V3 references link offer IDs `54c576…2580d`,
+`41227e…cbc6b5` and `e02a30…ff98` to Basic With Ads, Standard and Premium,
+respectively. They match the three existing readable V3 rows by exact plan
+identity, service, market, billing route, currency and source URL; price
+equality alone was not used. The three adapter-only Max + Videoland rows are
+bundles, not predecessors of those standalone subscriptions.
+
+The read projection contains only these three documented links. It shows the
+three readable V3 plans as active and keeps all nine database rows and their
+history unchanged. Any absent, changed or ambiguous successor makes a hash
+row visible again rather than guessing. This is a compatibility projection,
+not a database repair or a new Verified admission path. Other hash-named rows
+remain visible until they receive their own proof and repair.
+
+The existing 82-row repair dry-run still blocks the NL rows. The authentic
+source was acquired at `2026-10-21T10:49:53.483Z`, while the current V3 rows
+were written with `verified_at=2026-10-21T10:49:59.605Z`; the dry-run currently
+requires those timestamps to be identical. After that contract is corrected,
+the NL rows also need a separately reviewed collision plan because their
+readable successors already occupy the canonical keys. No production repair
+was run here.
+
 Original retained NO, SE and DK sources and receipts were replayed read-only:
 
 | Market | Body SHA-256 | Source-bound monthly offerings |

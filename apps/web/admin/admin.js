@@ -121,7 +121,7 @@ async function refresh() {
     paragraph(panel,`Collection ${data.collectionEnabled ? "enabled" : "disabled"}. Catalog services: ${data.catalogServices}.`);
     for(const note of data.notes)paragraph(panel,note);
     paragraph(panel,`Data quality: ${data.dataQuality.selectableMarkets} selectable markets; ${data.dataQuality.registryRows} registry fallbacks in scope.`);
-    table("Persisted provider-price records (not user spending)",[["verification","Verification"],["price_status","Current status"],["prices","Prices"]],data.dataQuality.persistedPrices);
+    table("Persisted provider-price records, including retained rows (not user spending)",[["verification","Verification"],["price_status","Stored row class"],["prices","Rows"]],data.dataQuality.persistedPrices);
     const analyticsHeading=document.createElement("h2");analyticsHeading.id="analytics";analyticsHeading.textContent="Analytics";panel.append(analyticsHeading);
     if(data.analyticsV2Enabled) {
       const analytics=await request(`analytics?range=${encodeURIComponent(analyticsRange)}`);

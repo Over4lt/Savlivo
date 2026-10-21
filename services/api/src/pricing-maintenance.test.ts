@@ -87,6 +87,25 @@ test('BE refresh and cache never present the retired Disney+ ads adapter price a
   }finally{pool.query=originalQuery;pool.connect=originalConnect;globalThis.fetch=originalFetch;}
 });
 
+test('NL pricing and its cached API snapshot expose three source-linked Max plans while retaining database rows',async()=>{
+  const originalQuery=pool.query,originalConnect=pool.connect,originalFetch=globalThis.fetch;
+  const ids=['54c576f7d7721e8f5a26c1c66ccd4d3a0e379888c8ae59aeff753a0d0772580d','41227e6fdf91d631115a5f99b52cf76f96f01ba7ee992412d771452c46cbc6b5','e02a30f15b3a511a3531b036eec16137ccc07ae55c5c8da7231fbba1eddbac98'];
+  const names=['Basic With Ads','Standard','Premium'],slugs=['basic-with-ads','standard','premium'],amounts=[599,1199,1699];
+  const row=(slug:string,name:string,amount:number,source:string)=>({plan_identity:`catalog:max:nl:${slug}:direct:eur`,service_slug:'max',plan_slug:slug,plan_name:name,billing_provider_slug:'direct',country_code:'NL',currency:'EUR',monthly_price_minor:amount,source,source_url:'https://www.hbomax.com/nl/en',verification:'authoritative-provider',source_count:1,verified_by_agreement:false,last_checked_at:new Date('2026-10-21T10:49:59.605Z')});
+  const rows=[...slugs.map((slug,i)=>row(slug,names[i],amounts[i],'v3-truth')),...ids.map((id,i)=>row(id,id,amounts[i],'v3-truth')),
+    ...['HBO Max Basic met reclame \\u0026 Videoland Basis','HBO Max Standaard \\u0026 Videoland Plus','HBO Max Premium \\u0026 Videoland Premium'].map((name,i)=>row('bundle-'+i,name,[999,1799,2399][i],'official-provider-adapter:max'))];
+  globalThis.fetch=async()=>{throw Error('OFFLINE_FIXTURE');};
+  pool.query=(async()=>({rows,rowCount:rows.length})) as unknown as typeof pool.query;
+  pool.connect=(async()=>{throw Error('NO_TEST_WRITES');}) as unknown as typeof pool.connect;
+  try{
+    for(const snapshot of [await getRegionalPricing('NL',{forceRefresh:true}),await getRegionalPricing('NL')]){
+      const max=snapshot.items.filter(item=>item.serviceSlug==='max');
+      assert.deepEqual(max.map(item=>[item.planSlug,item.planName,item.monthlyPriceMinor]),[['basic-with-ads','Basic With Ads',599],['standard','Standard',1199],['premium','Premium',1699]]);
+    }
+    assert.equal(rows.length,9,'read projection leaves all persisted rows intact');
+  }finally{pool.query=originalQuery;pool.connect=originalConnect;globalThis.fetch=originalFetch;}
+});
+
 test('real adapter fan-out across simultaneous markets uses at most four slots',async()=>{
   const {fetchProviderLocalPrices}=await import('./pricing-adapters.js');
   const original=globalThis.fetch;let active=0,peak=0,calls=0;

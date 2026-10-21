@@ -10,7 +10,7 @@ const id=(digit:string)=>`vh:${digit.repeat(64)}`;
 const sql=(path:string)=>readFileSync(new URL(`../../../${path}`,import.meta.url),"utf8");
 
 test("Price Analytics current counts exclude old adapter rows but preserve historical series",()=>{
-  const base={service_slug:"max",plan_slug:"basic",plan_name:"Basic",history_series_id:id("a"),
+  const base={service_slug:"max",plan_slug:"basic",plan_name:"Basic",billing_provider_slug:"direct",history_series_id:id("a"),
     country_code:"NO",currency:"NOK",monthly_price_minor:9900,
     verified_at:"2026-10-19T00:00:00Z",last_checked_at:"2026-10-19T00:00:00Z",
     verification:"authoritative-provider",source_count:1,verified_by_agreement:false};

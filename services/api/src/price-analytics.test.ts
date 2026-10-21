@@ -8,9 +8,23 @@ const filters={service:"disney-plus",market:null,plan:null,period:"3M" as const}
 type Current=Parameters<typeof projectPriceAnalytics>[0][number];
 type Event=Parameters<typeof projectPriceAnalytics>[1][number];
 const current=(series:string,market="NO",currency="NOK",amount=10900):Current=>({
-  service_slug:"disney-plus",plan_slug:"standard",plan_name:"Disney+ Standard",history_series_id:series,
+  service_slug:"disney-plus",plan_slug:"standard",plan_name:"Disney+ Standard",billing_provider_slug:"direct",history_series_id:series,
   country_code:market,currency,monthly_price_minor:amount,verified_at:"2026-10-01T00:00:00Z",last_checked_at:"2026-10-18T00:00:00Z",
   source:"v3-truth",verification:"authoritative-provider",source_count:1,verified_by_agreement:false
+});
+
+test("retained Max NL adapter bundles do not count as active Old Verified plans",()=>{
+  const ordinary=[current(id("a"),"NL","EUR",599),current(id("b"),"NL","EUR",1199),current(id("c"),"NL","EUR",1699)]
+    .map((row,index)=>({...row,service_slug:"max",plan_slug:["basic-with-ads","standard","premium"][index],plan_name:["Basic With Ads","Standard","Premium"][index],source_url:"https://www.hbomax.com/nl/en"}));
+  const ids=["54c576f7d7721e8f5a26c1c66ccd4d3a0e379888c8ae59aeff753a0d0772580d","41227e6fdf91d631115a5f99b52cf76f96f01ba7ee992412d771452c46cbc6b5","e02a30f15b3a511a3531b036eec16137ccc07ae55c5c8da7231fbba1eddbac98"];
+  const hashes=ids.map((id,index)=>({...ordinary[index],plan_slug:id,plan_name:id,history_series_id:`vh:${id}`}));
+  const bundles=["HBO Max Basic met reclame \\u0026 Videoland Basis","HBO Max Standaard \\u0026 Videoland Plus","HBO Max Premium \\u0026 Videoland Premium"]
+    .map((name,index)=>({...ordinary[index],plan_slug:"bundle-"+index,plan_name:name,source:"official-provider-adapter:max",history_series_id:null}));
+  const report=projectPriceAnalytics([...ordinary,...hashes,...bundles],[],{service:"max",market:"NL",plan:null,period:"All"},now);
+  assert.equal(report.summary.plans,3);assert.equal(report.summary.oldVerifiedPlans,0);
+  assert.equal(report.summary.oldVerifiedMarkets,0);
+  const hashOnly=projectPriceAnalytics([...ordinary,...hashes,...bundles],[],{service:"max",market:"NL",plan:hashes[0].history_series_id,period:"All"},now);
+  assert.equal(hashOnly.summary.plans,0,"a history-series filter cannot revive an inactive hash alias");
 });
 const event=(series:string,kind:Event["history_event_kind"],amount:number,date:string,other:Partial<Event>={}):Event=>({
   history_series_id:series,history_event_kind:kind,plan_identity:"catalog:disney-plus:no:standard:direct:nok",

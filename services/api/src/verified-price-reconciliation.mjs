@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {documentedV3Successor} from './verified-price-identity-links.mjs';
 
 const text=value=>String(value??'').normalize('NFKC').trim().replace(/\s+/gu,' ');
 const key=value=>text(value).toLocaleLowerCase('und');
@@ -55,6 +56,7 @@ const rowKey=row=>[row.serviceSlug,row.planSlug,row.billingProviderSlug,row.coun
 export function activeCurrentPrices(rows,serviceNameFor){
  const v3=rows.filter(row=>row.source==='v3-truth'&&verified(row));
  return rows.filter(row=>{
+  if(row.source==='v3-truth'&&verified(row)&&documentedV3Successor(row,v3))return false;
   if(!row.source?.startsWith('official-provider-adapter:'))return true;
   if(bundlePlanName(row.planName))return false;
   const serviceName=serviceNameFor(row.serviceSlug);

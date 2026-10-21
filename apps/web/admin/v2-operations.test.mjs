@@ -580,6 +580,11 @@ test('Old Verified is selected independently per service and may coexist with ne
  assert.deepEqual(marketPriceCategories(markets,['max'],rows,new Set(['max\u0000DK'])).oldVerified,[]);
 });
 
+test('retained NL bundles do not select the active Old Verified market category',()=>{
+ const categories=marketPriceCategories([{id:'NL'}],['max'],[{serviceId:'max',market:'NL',suggestedCount:0,verifiedCount:3,oldVerifiedCount:0,retainedOldVerifiedCount:3}]);
+ assert.deepEqual(categories.verified,['NL']);assert.deepEqual(categories.oldVerified,[]);
+});
+
 test('Research links require exactly one service, independently of markets and price status',()=>{
  assert.equal(researchLinksVisible(new Set()),false);
  assert.equal(researchLinksVisible(new Set(['chess-com','1password'])),false);
@@ -684,10 +689,11 @@ test('Old Verified market button chooses only eligible legacy markets for one se
  const statusRows=[
   {serviceId:'chess-com',market:'ES',suggestedCount:2,verifiedCount:0,oldVerifiedCount:3},
   {serviceId:'chess-com',market:'X1',suggestedCount:0,verifiedCount:1,oldVerifiedCount:1},
-  {serviceId:'chess-com',market:'X2',suggestedCount:0,verifiedCount:1,oldVerifiedCount:0}
+  {serviceId:'chess-com',market:'X2',suggestedCount:0,verifiedCount:1,oldVerifiedCount:0,retainedOldVerifiedCount:3}
  ],{root,calls}=await canonicalBuilder(t,{statusRows});
  const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
  assert(button(root,'Old Verified (2)'));
+ assert(text(canonicalMarketLabel(root,'X2')).includes('3 retained Old Verified row(s), not active'));
  await button(root,'Old Verified (2)').listeners.click();
  assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,['ES','X1']);
  await button(root,'Preflight').listeners.click();

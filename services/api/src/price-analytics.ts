@@ -2,11 +2,13 @@ import {privateDataPool as pool} from "./private-data-db.js";
 import {countryCurrencyData} from "../../../packages/contracts/src/markets.js";
 import {serviceCatalog} from "../../../packages/contracts/src/catalog.js";
 import {classifyCurrentProviderPrice} from "../../../packages/contracts/src/verified-price-classification.js";
+import {activeCurrentPrices} from "./verified-price-reconciliation.mjs";
 
 export type PriceAnalyticsFilters={service:string|null;market:string|null;plan:string|null;period:"3M"|"6M"|"1Y"|"All"};
 type Current={service_slug:string;plan_slug:string;plan_name:string;history_series_id:string|null;country_code:string;
+  billing_provider_slug:string;
   currency:string;monthly_price_minor:number;verified_at:string|Date;last_checked_at:string|Date;
-  source?:string;verification?:string;source_count?:number;verified_by_agreement?:boolean};
+  source?:string;source_url?:string;verification?:string;source_count?:number;verified_by_agreement?:boolean};
 type Event={history_series_id:string;history_event_kind:"BASELINE"|"BOOTSTRAP_BASELINE"|"PRICE_CHANGE";
   plan_identity:string;plan_name:string;service_slug:string;country_code:string;currency:string;billing_interval:string;
   monthly_price_minor:number;provider_verified_at:string|Date;observed_at:string|Date;provider_effective_at:string|Date|null;
@@ -46,11 +48,19 @@ export function periodStart(period:PriceAnalyticsFilters["period"],now:Date):Dat
 
 export function projectPriceAnalytics(current:Current[],events:Event[],filters:PriceAnalyticsFilters,now=new Date()) {
   const start=periodStart(filters.period,now)?.getTime()??-Infinity,ending=now.getTime();
+  // Resolve active successors before filtering to one history series. Otherwise
+  // the series filter hides the readable successor and revives a retained alias.
   const selected=current.filter(row=>row.service_slug===filters.service&&
-    (!filters.market||row.country_code===filters.market)&&(!filters.plan||row.history_series_id===filters.plan));
-  const old=selected.filter(row=>classifyCurrentProviderPrice({source:row.source,verification:row.verification,
+    (!filters.market||row.country_code===filters.market));
+  const candidates=selected.map(row=>({...row,serviceSlug:row.service_slug,planSlug:row.plan_slug,planName:row.plan_name,
+    billingProviderSlug:row.billing_provider_slug,countryCode:row.country_code,sourceUrl:row.source_url,
+    monthlyPriceMinor:row.monthly_price_minor,sourceCount:row.source_count,verifiedByAgreement:row.verified_by_agreement}));
+  const activeRows=new Set(activeCurrentPrices(candidates,nameOf));
+  const currentActive=selected.filter((row,index)=>activeRows.has(candidates[index])&&
+    (!filters.plan||row.history_series_id===filters.plan));
+  const old=currentActive.filter(row=>classifyCurrentProviderPrice({source:row.source,verification:row.verification,
     sourceCount:row.source_count,verifiedByAgreement:row.verified_by_agreement})==="OLD_VERIFIED");
-  const active=selected.filter(row=>classifyCurrentProviderPrice({source:row.source,
+  const active=currentActive.filter(row=>classifyCurrentProviderPrice({source:row.source,
     verification:row.verification,sourceCount:row.source_count,
     verifiedByAgreement:row.verified_by_agreement})==="VERIFIED");
   const seriesMap=new Map<string,Event[]>();
@@ -151,12 +161,12 @@ export async function priceAnalyticsReport(filters:PriceAnalyticsFilters) {
   const planOptions=plans.rows.slice(0,300).map(row=>({seriesId:row.history_series_id,
     name:row.plan_name,market:row.country_code,currency:row.currency}));
   if(plans.rows.length>300&&!filters.plan)return {state:"NARROW_FILTERS" as const,services:availableServices,markets,planOptions,filters};
-  const current=await pool.query<Current>(`SELECT service_slug,plan_slug,plan_name,history_series_id,
+  const current=await pool.query<Current>(`SELECT service_slug,plan_slug,plan_name,billing_provider_slug,history_series_id,
       country_code::text,currency::text,monthly_price_minor,verified_at,last_checked_at,
-      source,verification,source_count,verified_by_agreement
+      source,source_url,verification,source_count,verified_by_agreement
     FROM verified_provider_prices WHERE service_slug=$1 AND ($2::text IS NULL OR country_code=$2)
-      AND ($3::text IS NULL OR history_series_id=$3) AND ${isStrong}
-    ORDER BY country_code,plan_slug,billing_provider_slug LIMIT 2001`,[filters.service,filters.market,filters.plan]);
+      AND ${isStrong}
+    ORDER BY country_code,plan_slug,billing_provider_slug LIMIT 2001`,[filters.service,filters.market]);
   if(current.rows.length>2000)return {state:"NARROW_FILTERS" as const,services:availableServices,markets,planOptions,filters};
   const columns=`h.history_series_id,h.history_event_kind,h.plan_identity,h.plan_name,h.service_slug,
     h.country_code::text,h.currency::text,h.billing_interval,h.monthly_price_minor,h.provider_verified_at,
