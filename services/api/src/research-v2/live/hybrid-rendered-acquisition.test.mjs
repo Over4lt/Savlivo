@@ -147,14 +147,22 @@ for(const marketCode of ['NO','SE','DK'])test(`failed Decodo ${marketCode} sourc
 test('routing hint cannot fabricate a parent body, skip the failed Decodo proof, or reuse wrong country',async t=>{
  const input=reacquisition('NO'),browser=capability().browser;
  for(const current of [{...input.current,acquisitionOutcomes:[]},{...input.current,blockedOrigins:[new URL(url).origin]},{...input.current,capabilities:{...input.current.capabilities,decodo:false}}])assert.notEqual(planHybridRenderedAcquisition(current,{url,transport:'DECODO',parent:input.parent}).scheduled,true);
+ const denied={...input.current,acquisitionOutcomes:[{...input.current.acquisitionOutcomes[0],responseTooLarge:false,accessBlocked:true}]};
+ assert.equal(planHybridRenderedAcquisition(denied,{url,transport:'DECODO',parent:input.parent}).scheduled,false);
  assert.equal(planHybridRenderedAcquisition(input.current,{url,transport:'DECODO',parent:{...input.parent,body:'invented'}}).reason,'DECODO_BROWSER_FAILURE_PROOF_REQUIRED');
  const mismatch=capability({country:'SE'}),result=await runHybridRenderedAcquisition({directory:temp(t),target:input.current,objective:input.objective,parent:input.parent,transport:'DECODO',browser:mismatch.browser});
  assert.equal(result.outcome,'ACQUISITION_FAILED');assert.equal(result.v3Truth,undefined);assert.equal(result.truthState,'UNRESOLVED');
 });
 
-test('country-proxied Browser cannot turn a conflicting displayed currency into target-market Verified',async t=>{
- const input=reacquisition('SE'),c=capability({body:establishedBody,country:'SE'}),result=await runHybridRenderedAcquisition({directory:temp(t),target:input.current,objective:input.objective,parent:input.parent,transport:'DECODO',browser:c.browser});
- assert.equal(result.outcome,'MARKET_MISMATCH');assert.equal(result.reason,'BROWSER_MARKET_CURRENCY_CONFLICT');assert.equal(result.acquisition.countryReceipt.verifiedCountry,'SE');assert.equal(result.v3Truth,undefined);assert(result.artifacts.refs['page.html']);
+test('NO country proof admits an explicit USD monthly charge without converting it to NOK',async t=>{
+ const input=reacquisition('NO'),body=establishedBody.replaceAll('NOK','USD'),c=capability({body,country:'NO'}),result=await runHybridRenderedAcquisition({directory:temp(t),target:input.current,objective:input.objective,parent:input.parent,transport:'DECODO',browser:c.browser});
+ assert.equal(result.outcome,'OBSERVED',JSON.stringify(result));assert.equal(result.observation.sha256,digest(body));assert.equal(result.acquisition.countryReceipt.verifiedCountry,'NO');assert.equal(result.v3Truth.established,true,JSON.stringify(result.v3Truth.needs));assert.equal(result.v3Truth.prices.NO.propositions.CURRENCY.value,'USD');assert.equal(result.v3Truth.prices.NO.propositions.TARGET_MARKET.value,'NO');
+});
+
+test('currency alone never proves or disproves market when provider content names another country',async t=>{
+ const input=reacquisition('NO'),base=capability({body:establishedBody.replaceAll('NOK','USD'),country:'NO'}),browser=async(...args)=>({...await base.browser(...args),marketSelector:{kind:'PROVIDER_MARKET_SELECTOR',code:'GB',label:'Current country GB'}});browser.close=base.browser.close;
+ const result=await runHybridRenderedAcquisition({directory:temp(t),target:input.current,objective:input.objective,parent:input.parent,transport:'DECODO',browser});
+ assert.equal(result.outcome,'MARKET_MISMATCH');assert.equal(result.reason,'BROWSER_PROVIDER_MARKET_CONFLICT');assert.equal(result.acquisition.countryReceipt.verifiedCountry,'NO');assert.equal(result.v3Truth,undefined);
 });
 
 test('a provider-displayed country contradicting the Decodo target blocks V3 admission',async t=>{

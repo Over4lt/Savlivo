@@ -12,7 +12,6 @@ import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.
 import {retainRenderedObservation,admitRenderedInterpretation} from '../../research-v3/rendered-research.mjs';
 import {safeRenderedControl} from '../../research-v3/rendered-interactions.mjs';
 import {evaluate} from '../../research-v3/truth.mjs';
-import {compatibleCurrencies} from '../../research-v3/market-currencies.mjs';
 import {refreshCatalog} from '../../research-v3/subscription-catalog.mjs';
 import {sourceBoundContinuations} from './provider-source-v3.mjs';
 import {projectV3SuggestedCandidates} from '../../research-v3/suggested-projection.mjs';
@@ -73,11 +72,6 @@ function persistArtifacts(directory,action,result,observation,retained) {
 
 function retainedProviderSourceForRendering(target,parent,url,transport){
  return !!parent&&parent.url===url&&typeof parent.body==='string'&&digest(parent.body)===parent.sha256&&(retainedProviderRenderingAuthority(target,{url,transport,sourceHash:parent.sha256})||transport==='DIRECT'&&retainedProviderSelectorAuthority(target,{url,sourceHash:parent.sha256}));
-}
-
-function conflictingSourceCurrency(truth,market){
- const currency=truth.prices?.[market]?.propositions?.CURRENCY;
- return currency?.state==='ESTABLISHED'&&!compatibleCurrencies(market).includes(currency.value);
 }
 
 export function planHybridRenderedAcquisition(target,{url,transport='DIRECT',executionContext,parent=null}={}) {
@@ -173,8 +167,8 @@ export async function runHybridRenderedAcquisition({directory,target,objective,p
    const artifacts=persistArtifacts(directory,completedAction,result,observation,retained);
    const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},v3Truth=evaluate(knowledge);
    const displayedMarketConflict=transport==='DECODO'&&result.marketSelector?.kind==='PROVIDER_MARKET_SELECTOR'&&typeof result.marketSelector.code==='string'&&result.marketSelector.code.toUpperCase()!==target.market;
-   if(displayedMarketConflict||conflictingSourceCurrency(v3Truth,target.market)){
-    const reason=displayedMarketConflict?'BROWSER_PROVIDER_MARKET_CONFLICT':'BROWSER_MARKET_CURRENCY_CONFLICT';
+   if(displayedMarketConflict){
+    const reason='BROWSER_PROVIDER_MARKET_CONFLICT';
     journal.append('NETWORK_SETTLED',{actionId:action.id,used:result.browserLedger.length,reserved:limits.perAttemptNetworkRequests});
     journal.append('ACTION_RESULT',{actionId:action.id,outcome:'MARKET_MISMATCH',reason,sourceHash:observation.sha256,artifacts});
     return {outcome:'MARKET_MISMATCH',reason,truthState:'UNRESOLVED',sourceHash:observation.sha256,artifacts,acquisition,networkSession:result.networkSession,usage:journal.usage()};
