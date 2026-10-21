@@ -89,10 +89,10 @@ test('same bounded hydration structure can serve another provider without a Max 
  assert.deepEqual(rows.services.map(row=>row.name),['Orbit']);assert.deepEqual(rows.offerings.map(row=>row.name),['Silver','Gold']);
 });
 
-const localizedHydration=({market,locale,currency,label,periodicity,period,action,code,plans,annual=[],bundle=[],duplicate=false})=>{
+const localizedHydration=({market,locale,currency,label,periodicity,period,action,code,plans,annual=[],annualLabel='Yearly',bundle=[],duplicate=false})=>{
  const make=(row,group,cadence,unit)=>({collectionTitle:group,content:{planCard:{...card(row.name,row.amount,unit,row.id),periodicityText:cadence,price:{...card(row.name,row.amount,unit,row.id).price,currencyCode:currency},ctas:[{text:action,code}]}}});
  const items={[label]:plans.map(row=>make(row,label,periodicity,period))};
- if(annual.length)items.Yearly=annual.map(row=>make(row,'Yearly','Yearly','year'));
+ if(annual.length)items[annualLabel]=annual.map(row=>make(row,annualLabel,annualLabel,'year'));
  if(bundle.length)items.Bundle=bundle.map(row=>make(row,'Bundle','Monthly','month'));
  const mappedData={idref1:{items}};
  if(duplicate)mappedData.idref2={items:structuredClone(items)};
@@ -103,6 +103,7 @@ const localizedHydration=({market,locale,currency,label,periodicity,period,actio
 // Compact structural fixtures; exact retained production bodies are replayed separately.
 const documentedLayouts=[
  {market:'NO',locale:'no',currency:'NOK',label:'månedlig',periodicity:'Månedlig',period:'måned',action:'Velg abonnement',code:'choose.plan.add-on',plans:[{name:'Basis med reklame',amount:'89,00',id:'24902'},{name:'Standard',amount:'149,00',id:'34704'},{name:'Premium',amount:'189,00',id:'34713'}],annual:[{name:'Basis med reklame',amount:'890,00',id:'24908'},{name:'Standard',amount:'1 490,00',id:'34721'}]},
+ {market:'SE',locale:'sv',currency:'SEK',label:'månatligen',periodicity:'Månatligen',period:'månad',action:'Välj plan',code:'choose.plan.add-on',plans:[{name:'Basic med reklam',amount:'89,00',id:'24902'},{name:'Standard',amount:'149,00',id:'34704'},{name:'Premium',amount:'189,00',id:'34713'}],annualLabel:'årligen',annual:[{name:'Basic med reklam',amount:'890,00',id:'24908'},{name:'Standard',amount:'1 490,00',id:'34721'},{name:'Premium',amount:'1 890,00',id:'34722'}]},
  {market:'PL',locale:'pl',currency:'PLN',label:'miesięcznie',periodicity:'Miesięcznie',period:'miesiąc',action:'Wybierz pakiet',code:'choose.plan.add-on',plans:[{name:'Podstawowy',amount:'29,99',id:'29191'},{name:'Standardowy',amount:'39,99',id:'29192'},{name:'Premium',amount:'49,99',id:'26206'}],annual:[{name:'Podstawowy',amount:'299,00',id:'29193'},{name:'Standardowy',amount:'399,00',id:'29194'}]},
  {market:'BR',locale:'pt',currency:'BRL',label:'Mensal',periodicity:'Por mês',period:'mês',action:'Selecionar plano',code:'continue.account-creation.pre-purchase',plans:[{name:'Básico com anúncios',amount:'29,90',id:'31001'},{name:'Standard',amount:'44,90',id:'31002'},{name:'Platinum',amount:'55,90',id:'31003'}],annual:[{name:'Básico com anúncios',amount:'22,90',id:'31004'},{name:'Standard',amount:'34,90',id:'31005'}],duplicate:true},
  {market:'MY',locale:'en',currency:'MYR',label:'Monthly',periodicity:'Monthly',period:'month',action:'Select Plan',code:'continue.account-creation.pre-purchase',plans:[{name:'Standard',amount:'24.90',id:'32001'},{name:'Premium',amount:'39.90',id:'32002'}],annual:[{name:'Standard',amount:'199.90',id:'32003'},{name:'Premium',amount:'319.90',id:'32004'}],bundle:[{name:'HBO Max & Viu Bundle',amount:'33.90',id:'32005'}]},
@@ -161,6 +162,25 @@ test('Norwegian monthly cards reject annual labels, add-ons, wrong currency and 
  const o={...observation(body,{country:'SE',sourceUrl:url}),transport:{requestedCountry:'SE',verifiedCountry:'SE',verification:'BRACKET_VERIFIED'}};
  const projection=projectObservation(o,objective);o.nativeStructured=projection.nativeStructured;o.candidates=admittedProjectionCandidates(projection);
  assert.equal(evaluate({objective,observations:[o],attempts:[],policyBlocks:[],stop:null}).established,false);
+});
+
+test('Swedish monthly cards require exact cadence, purchase action, currency and SE market proof',()=>{
+ const layout=documentedLayouts.find(row=>row.market==='SE'),{body,url}=localizedHydration(layout);
+ const parse=(value,currency='SEK')=>interpretSubscriptionPage({body:value,url,providerName:'Max',marketCurrencyHint:currency}).offerings;
+ assert.deepEqual(parse(body).map(row=>row.name),['Basic med reklam','Standard','Premium']);
+ assert.deepEqual(parse(body,'NOK'),[]);
+ assert.deepEqual(parse(body.replaceAll('Månatligen','Årligen')),[]);
+ assert.deepEqual(parse(body.replaceAll('Välj plan','Välj tillägg')),[]);
+ const addOn=localizedHydration({...layout,plans:[...layout.plans.slice(0,2),{name:'Sporttillägg',amount:'50,00',id:'34713'}]});
+ assert.deepEqual(parse(addOn.body).map(row=>row.name),['Basic med reklam','Standard']);
+ const promotion=localizedHydration({...layout,plans:[...layout.plans.slice(0,2),{name:'Premium kampanj',amount:'50,00',id:'34713'}]});
+ assert.deepEqual(parse(promotion.body).map(row=>row.name),['Basic med reklam','Standard']);
+ const objective={kind:'PRICE',serviceId:'max',serviceName:'Max',providerHosts:['www.hbomax.com'],markets:['SE'],seeds:[url]};
+ for(const options of [{country:'NO'},{receipt:false},{hash:'0'.repeat(64)}]){
+  const o={...observation(body,{...options,sourceUrl:url}),transport:options.receipt===false?undefined:{requestedCountry:options.country??'SE',verifiedCountry:options.country??'SE',verification:'BRACKET_VERIFIED'}};
+  const projection=projectObservation(o,objective);o.nativeStructured=projection.nativeStructured;o.candidates=admittedProjectionCandidates(projection);
+  assert.equal(evaluate({objective,observations:[o],attempts:[],policyBlocks:[],stop:null}).established,false);
+ }
 });
 
 test('hydration JSON remains bounded after admitting larger complete country pages',()=>{

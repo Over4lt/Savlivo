@@ -438,6 +438,7 @@ const hydrationMonthlyLabels=new Map([
  ['Mensal',{periodicity:'Por mês',period:'mês'}],
  ['miesięcznie',{periodicity:'Miesięcznie',period:'miesiąc'}],
  ['månedlig',{periodicity:'Månedlig',period:'måned'}],
+ ['månatligen',{periodicity:'Månatligen',period:'månad'}],
 ]);
 export const subscriptionExtractionVersion=1;
 export const hydrationFieldBindings=Object.freeze({planIdentity:'pricePlan.id',planName:'productName.plainText',monthlyAmount:'price.amount.plainText',currency:'price.currencyCode',period:'price.period.plainText',periodicity:'periodicityText',purchaseAction:'ctas',market:'V3_SOURCE_BOUND_MARKET_EVIDENCE'});
@@ -493,9 +494,10 @@ function hydrationPlanCards(parsed,providerName,marketCurrencyHint,trace=null,pr
    const action=card?.ctas?.find(cta=>
     (/^(?:select|choose|subscribe)(?:\s+(?:a\s+)?plan|\s+now)?$/iu.test(cta?.text??'')||label==='Mensal'&&cta?.text==='Selecionar plano')&&/(?:purchase|subscription|account-creation)/iu.test(cta?.code??'')||
     label==='miesięcznie'&&cta?.text==='Wybierz pakiet'&&cta?.code==='choose.plan.add-on'||
-    label==='månedlig'&&cta?.text==='Velg abonnement'&&cta?.code==='choose.plan.add-on');
+    label==='månedlig'&&cta?.text==='Velg abonnement'&&cta?.code==='choose.plan.add-on'||
+    label==='månatligen'&&cta?.text==='Välj plan'&&cta?.code==='choose.plan.add-on');
    if(item?.collectionTitle!==label||card?.periodicityText!==cadence.periodicity||price?.period?.plainText!==cadence.period||!validCurrencies.has(price?.currencyCode)||price.currencyCode!==marketCurrencyHint||amount===null||amount<0||
-    typeof name!=='string'||!name||name.length>80||nonStandalonePresentation(name,providerName)||label==='månedlig'&&/(?:tillegg|rabatt|kampanje)/iu.test(name+' '+JSON.stringify(card?.badge??''))||!action||/\b(?:student|trial|introductory|promotion(?:al)?|discount|first month)\b/iu.test(JSON.stringify(card?.badge??'')+' '+name))continue;
+    typeof name!=='string'||!name||name.length>80||nonStandalonePresentation(name,providerName)||label==='månedlig'&&/(?:tillegg|rabatt|kampanje)/iu.test(name+' '+JSON.stringify(card?.badge??''))||label==='månatligen'&&/(?:tillägg|rabatt|kampanj)/iu.test(name+' '+JSON.stringify(card?.badge??''))||!action||/\b(?:student|trial|introductory|promotion(?:al)?|discount|first month)\b/iu.test(JSON.stringify(card?.badge??'')+' '+name))continue;
    const matching=spans.filter(span=>JSON.stringify(span.value)===JSON.stringify(card));if(!matching.length)continue;
    const identity=card.pricePlan.id,facts=JSON.stringify([name,amount,price.currencyCode,label,action.text,action.code]);
    if(seenPlans.has(identity)){if(seenPlans.get(identity)!==facts)return [];continue;}
