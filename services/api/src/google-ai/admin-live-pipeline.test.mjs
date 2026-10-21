@@ -119,8 +119,20 @@ test('I: acquisition budget stop preserves useful V3 Suggested through publicati
 });
 
 test('exact established V3 offer identity reaches the Verified adapter unchanged',()=>{
- const observation='wahoo-provider',bodyHash='c'.repeat(64),offerIdentity=name=>({kind:'SPAN',start:10,end:10+name.length,quote:name,sha256:digest(name)}),reference=name=>({observation,sha256:bodyHash,pointer:'/offers/'+name.toLowerCase(),source:{offer:name,offerIdentity:offerIdentity(name)}}),proposition=(name,value)=>({state:'ESTABLISHED',value,evidence:[{value,reference:reference(name)}],contradictions:[]}),offer=(name,amount)=>({id:digest(name),market:'DE',propositions:{SERVICE_IDENTITY:{state:'ESTABLISHED',value:true,evidence:[]},PRICE_AMOUNT:proposition(name,amount),CURRENCY:proposition(name,'EUR'),MONTHLY_CADENCE:{state:'UNRESOLVED',value:null,evidence:[]},MONTHLY_SUBSCRIPTION:proposition(name,true),CONSUMER_SUBSCRIPTION:proposition(name,true),TARGET_MARKET:proposition(name,'DE')}}),offers=[offer('Core',4.99),offer('Pro',17.99)],current={serviceName:'Wahoo App',market:'DE',v3Observation:{id:observation,url:'https://provider.example/pricing',sha256:bodyHash,context:{transport:'DIRECT'}},v3Truth:{offers,eligibility:{DE:{result:'ELIGIBLE'}}}},result=v3ResultFromTarget(current);
+ const observation='wahoo-provider',body='<article>Core EUR 4.99 monthly</article><article>Pro EUR 17.99 monthly</article>',bodyHash=digest(body);
+ const reference=name=>{
+  const start=body.indexOf(name),end=start+name.length,sourceStart=body.lastIndexOf('<article>',start),sourceEnd=body.indexOf('</article>',end)+'</article>'.length;
+  return {observation,sha256:bodyHash,pointer:'/offers/'+name.toLowerCase(),source:{start:sourceStart,end:sourceEnd,sha256:digest(body.slice(sourceStart,sourceEnd)),nativePageStructure:true,offer:name,offerIdentity:{kind:'SPAN',start,end,quote:name,sha256:digest(name)}}};
+ };
+ const proposition=(name,value)=>({state:'ESTABLISHED',value,evidence:[{value,reference:reference(name)}],contradictions:[]});
+ const offer=(name,amount)=>({id:digest(name),market:'DE',propositions:{SERVICE_IDENTITY:{state:'ESTABLISHED',value:true,evidence:[]},PRICE_AMOUNT:proposition(name,amount),CURRENCY:proposition(name,'EUR'),MONTHLY_CADENCE:{state:'UNRESOLVED',value:null,evidence:[]},MONTHLY_SUBSCRIPTION:proposition(name,true),CONSUMER_SUBSCRIPTION:proposition(name,true),TARGET_MARKET:proposition(name,'DE')}});
+ const offers=[offer('Core',4.99),offer('Pro',17.99)],current={service:'wahoo-app',serviceName:'Wahoo App',market:'DE',v3Observation:{id:observation,url:'https://provider.example/pricing',body,sha256:bodyHash,context:{transport:'DIRECT'}},v3Truth:{offers,eligibility:{DE:{result:'ELIGIBLE'}}}},result=v3ResultFromTarget(current);
  assert.deepEqual(result.verified.map(row=>[row.plan,row.planIdentity]),[['Core','catalog:wahoo-app:de:core:direct:eur'],['Pro','catalog:wahoo-app:de:pro:direct:eur']]);assert(result.verified.every(row=>row.verificationEvidence?.verification==='authoritative-provider'&&row.verificationEvidence.verifiedAt===row.verifiedAt));
+ const withoutIdentity=structuredClone(current);delete withoutIdentity.v3Truth.offers[0].propositions.PRICE_AMOUNT.evidence[0].reference.source.offerIdentity;
+ assert.deepEqual(v3ResultFromTarget(withoutIdentity).verified.map(row=>row.plan),['Pro']);
+ const wrongSourceHash=structuredClone(current);wrongSourceHash.v3Truth.offers[0].propositions.PRICE_AMOUNT.evidence[0].reference.source.sha256=digest('changed source');
+ assert.deepEqual(v3ResultFromTarget(wrongSourceHash).verified.map(row=>row.plan),['Pro']);
+ const wrongMarket=structuredClone(current);wrongMarket.market='NO';assert.deepEqual(v3ResultFromTarget(wrongMarket).verified,[]);
 });
 
 
