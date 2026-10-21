@@ -102,6 +102,7 @@ const localizedHydration=({market,locale,currency,label,periodicity,period,actio
 
 // Compact structural fixtures; exact retained production bodies are replayed separately.
 const documentedLayouts=[
+ {market:'NO',locale:'no',currency:'NOK',label:'månedlig',periodicity:'Månedlig',period:'måned',action:'Velg abonnement',code:'choose.plan.add-on',plans:[{name:'Basis med reklame',amount:'89,00',id:'24902'},{name:'Standard',amount:'149,00',id:'34704'},{name:'Premium',amount:'189,00',id:'34713'}],annual:[{name:'Basis med reklame',amount:'890,00',id:'24908'},{name:'Standard',amount:'1 490,00',id:'34721'}]},
  {market:'PL',locale:'pl',currency:'PLN',label:'miesięcznie',periodicity:'Miesięcznie',period:'miesiąc',action:'Wybierz pakiet',code:'choose.plan.add-on',plans:[{name:'Podstawowy',amount:'29,99',id:'29191'},{name:'Standardowy',amount:'39,99',id:'29192'},{name:'Premium',amount:'49,99',id:'26206'}],annual:[{name:'Podstawowy',amount:'299,00',id:'29193'},{name:'Standardowy',amount:'399,00',id:'29194'}]},
  {market:'BR',locale:'pt',currency:'BRL',label:'Mensal',periodicity:'Por mês',period:'mês',action:'Selecionar plano',code:'continue.account-creation.pre-purchase',plans:[{name:'Básico com anúncios',amount:'29,90',id:'31001'},{name:'Standard',amount:'44,90',id:'31002'},{name:'Platinum',amount:'55,90',id:'31003'}],annual:[{name:'Básico com anúncios',amount:'22,90',id:'31004'},{name:'Standard',amount:'34,90',id:'31005'}],duplicate:true},
  {market:'MY',locale:'en',currency:'MYR',label:'Monthly',periodicity:'Monthly',period:'month',action:'Select Plan',code:'continue.account-creation.pre-purchase',plans:[{name:'Standard',amount:'24.90',id:'32001'},{name:'Premium',amount:'39.90',id:'32002'}],annual:[{name:'Standard',amount:'199.90',id:'32003'},{name:'Premium',amount:'319.90',id:'32004'}],bundle:[{name:'HBO Max & Viu Bundle',amount:'33.90',id:'32005'}]},
@@ -123,7 +124,7 @@ for(const layout of documentedLayouts)test(`${layout.market} hydration layout yi
 });
 
 test('localized hydration rejects annual installments, add-ons, conflicting duplicates and wrong market proof',()=>{
- const pl=documentedLayouts[0],br=documentedLayouts[1];
+ const pl=documentedLayouts.find(row=>row.market==='PL'),br=documentedLayouts.find(row=>row.market==='BR');
  const polish=localizedHydration(pl),brazilian=localizedHydration(br);
  assert.deepEqual(interpretSubscriptionPage({body:polish.body,url:polish.url,providerName:'Max',marketCurrencyHint:'BRL'}).offerings,[]);
  assert.deepEqual(interpretSubscriptionPage({body:polish.body.replaceAll('Wybierz pakiet','Wybierz dodatek'),url:polish.url,providerName:'Max',marketCurrencyHint:'PLN'}).offerings,[]);
@@ -143,8 +144,27 @@ test('localized hydration rejects annual installments, add-ons, conflicting dupl
  }
 });
 
+test('Norwegian monthly cards reject annual labels, add-ons, wrong currency and wrong country proof',()=>{
+ const layout=documentedLayouts.find(row=>row.market==='NO'),{body,url}=localizedHydration(layout);
+ const parse=(value,currency='NOK')=>interpretSubscriptionPage({body:value,url,providerName:'Max',marketCurrencyHint:currency}).offerings;
+ assert.deepEqual(parse(body).map(row=>row.name),layout.plans.map(row=>row.name));
+ assert.deepEqual(parse(body,'SEK'),[]);
+ assert.deepEqual(parse(body.replaceAll('Månedlig','Årlig')),[]);
+ assert.deepEqual(parse(body.replaceAll('Velg abonnement','Velg tillegg')),[]);
+ const ancillary=localizedHydration({...layout,plans:[...layout.plans.slice(0,2),{name:'Sportstillegg',amount:'50,00',id:'34713'}]});
+ assert.deepEqual(interpretSubscriptionPage({body:ancillary.body,url,providerName:'Max',marketCurrencyHint:'NOK'}).offerings.map(row=>row.name),layout.plans.slice(0,2).map(row=>row.name));
+ const discounted=localizedHydration({...layout,plans:[...layout.plans.slice(0,2),{name:'Premium kampanje',amount:'50,00',id:'34713'}]});
+ assert.deepEqual(interpretSubscriptionPage({body:discounted.body,url,providerName:'Max',marketCurrencyHint:'NOK'}).offerings.map(row=>row.name),layout.plans.slice(0,2).map(row=>row.name));
+ const foreignCurrency=localizedHydration({...layout,currency:'USD'});
+ assert.deepEqual(interpretSubscriptionPage({body:foreignCurrency.body,url,providerName:'Max',marketCurrencyHint:'USD'}).offerings.map(row=>row.charges[0].currency),['USD','USD','USD'],'the parser does not infer wrong market from currency alone');
+ const objective={kind:'PRICE',serviceId:'max',serviceName:'Max',providerHosts:['www.hbomax.com'],markets:['NO'],seeds:[url]};
+ const o={...observation(body,{country:'SE',sourceUrl:url}),transport:{requestedCountry:'SE',verifiedCountry:'SE',verification:'BRACKET_VERIFIED'}};
+ const projection=projectObservation(o,objective);o.nativeStructured=projection.nativeStructured;o.candidates=admittedProjectionCandidates(projection);
+ assert.equal(evaluate({objective,observations:[o],attempts:[],policyBlocks:[],stop:null}).established,false);
+});
+
 test('hydration JSON remains bounded after admitting larger complete country pages',()=>{
- const layout=documentedLayouts[2],{body,url}=localizedHydration(layout);
+ const layout=documentedLayouts.find(row=>row.market==='MY'),{body,url}=localizedHydration(layout);
  const oversized=body.replace('"mappedData":','"padding":"'+ 'x'.repeat(1_500_000)+'","mappedData":');
  assert.deepEqual(interpretSubscriptionPage({body:oversized,url,providerName:'Max',marketCurrencyHint:'MYR'}).offerings,[]);
 });

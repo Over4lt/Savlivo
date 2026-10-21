@@ -8,14 +8,21 @@ import {providerSourceDomainFamily} from '../../research-v3/provider-source-fami
 import {normalizeFrontierUrl} from './source-frontier.mjs';
 
 const thirdParty=/\b(?:not affiliated with|unaffiliated with|independent of|unofficial|third.party (?:seller|reseller|review)|affiliate|reseller|comparison site|news article|independent review)\b/iu;
-// Max's own /affiliate footer route appears in its HTML and serialized CMS
-// navigation. Its path label is not a statement that the pricing page is an
-// affiliate or reseller. Only remove this exact first-party route token;
-// explicit third-party prose remains subject to the unchanged classifier.
+// Max's own /affiliate footer link appears in the HTML and serialized CMS
+// beside its Affiliate-program label. These exact navigation tokens do not
+// describe the price page. Inspect every other third-party mention as usual.
 function thirdPartyPresentation(body,target,url){
- let reviewBody=body;
- try{if(target?.service==='max'&&new URL(url).hostname==='www.hbomax.com')reviewBody=body.replace(/["']\/affiliate(?=\\*["'])/gu,'');}catch{/* Invalid URLs remain under the ordinary classifier. */}
- return thirdParty.test(reviewBody);
+ let maxNavigation=false;
+ try{maxNavigation=target?.service==='max'&&new URL(url).hostname==='www.hbomax.com';}catch{/* Invalid URLs remain under the ordinary classifier. */}
+ for(const match of body.matchAll(new RegExp(thirdParty.source,'giu'))){
+  if(maxNavigation&&match[0].toLowerCase()==='affiliate'){
+   const at=match.index,after=body.slice(at+match[0].length);
+   if(body[at-1]==='/'&&/^(?:["'\\]|\b)/u.test(after))continue;
+   if(after.startsWith('-program')&&/\/affiliate\b/iu.test(body.slice(Math.max(0,at-256),at+256)))continue;
+  }
+  return true;
+ }
+ return false;
 }
 const identity=value=>String(value??'').normalize('NFKC').toLocaleLowerCase('en').match(/[\p{L}\p{N}]+/gu)?.join(' ')??'';
 function competingProviderDeclaration(body,serviceName){
