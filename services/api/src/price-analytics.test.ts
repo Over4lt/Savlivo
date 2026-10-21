@@ -9,7 +9,8 @@ type Current=Parameters<typeof projectPriceAnalytics>[0][number];
 type Event=Parameters<typeof projectPriceAnalytics>[1][number];
 const current=(series:string,market="NO",currency="NOK",amount=10900):Current=>({
   service_slug:"disney-plus",plan_slug:"standard",plan_name:"Disney+ Standard",history_series_id:series,
-  country_code:market,currency,monthly_price_minor:amount,verified_at:"2026-10-01T00:00:00Z",last_checked_at:"2026-10-18T00:00:00Z"
+  country_code:market,currency,monthly_price_minor:amount,verified_at:"2026-10-01T00:00:00Z",last_checked_at:"2026-10-18T00:00:00Z",
+  source:"v3-truth",verification:"authoritative-provider",source_count:1,verified_by_agreement:false
 });
 const event=(series:string,kind:Event["history_event_kind"],amount:number,date:string,other:Partial<Event>={}):Event=>({
   history_series_id:series,history_event_kind:kind,plan_identity:"catalog:disney-plus:no:standard:direct:nok",

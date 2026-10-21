@@ -10,7 +10,7 @@ import {
   loadPersistedVerifiedPrices,
   persistVerifiedLivePrices
 } from "./pricing-store.js";
-import { equivalentVerifiedPlan } from "./verified-price-reconciliation.mjs";
+import { activeCurrentPrices } from "./verified-price-reconciliation.mjs";
 
 export type PricingSnapshot = {
   countryCode: string;
@@ -56,15 +56,10 @@ export function mergeFreshAndPersistedPricing(
     ].join("|");
 
   const merged = new Map<string, AdapterPrice>();
-  const v3Rows = persistedItems.filter(item => item.source === "v3-truth");
-
+  const nameFor = (slug: string) => serviceCatalog.find(service => service.slug === slug)?.name;
+  const eligible = new Set(activeCurrentPrices([...freshItems,...persistedItems],nameFor));
   for (const item of freshItems) {
-    if (item.source.startsWith("official-provider-adapter:")) {
-      const serviceName = serviceCatalog.find(service => service.slug === item.serviceSlug)?.name;
-      const successors = v3Rows.filter(row => keyFor(row) === keyFor(item) ||
-        serviceName && equivalentVerifiedPlan(row,item,serviceName));
-      if (successors.length === 1) continue;
-    }
+    if (!eligible.has(item)) continue;
     merged.set(
       keyFor(item),
       item
@@ -72,6 +67,7 @@ export function mergeFreshAndPersistedPricing(
   }
 
   for (const persisted of persistedItems) {
+    if (!eligible.has(persisted)) continue;
     const key = keyFor(persisted);
     const fresh = merged.get(key);
 

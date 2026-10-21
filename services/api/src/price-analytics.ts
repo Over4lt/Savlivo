@@ -13,6 +13,7 @@ type Event={history_series_id:string;history_event_kind:"BASELINE"|"BOOTSTRAP_BA
   source_url:string;source?:string};
 const periods=["3M","6M","1Y","All"] as const;
 const isStrong="(verification='authoritative-provider' OR (verification='multi-source' AND source_count>=2 AND verified_by_agreement))";
+const isStrongHistory="(h.verification='authoritative-provider' OR (h.verification='multi-source' AND h.source_count>=2 AND h.verified_by_agreement))";
 const stamp=(value:string|Date)=>new Date(value).toISOString();
 const eventTime=(row:Event)=>stamp(row.history_event_kind==="BOOTSTRAP_BASELINE"?row.observed_at:row.provider_verified_at);
 const sqlEventTime="(CASE WHEN h.history_event_kind='BOOTSTRAP_BASELINE' THEN h.observed_at ELSE h.provider_verified_at END)";
@@ -137,10 +138,16 @@ export async function priceAnalyticsReport(filters:PriceAnalyticsFilters) {
   const markets=countryCurrencyData.map(([code,name])=>({code,name}));
   if(!filters.service)return {state:"SELECT_SERVICE" as const,services:availableServices,servicesTruncated,markets,filters};
   const plans=await pool.query<{history_series_id:string;plan_name:string;country_code:string;currency:string}>(
-    `SELECT DISTINCT ON (history_series_id) history_series_id,plan_name,country_code::text,currency::text
-      FROM verified_price_observations WHERE service_slug=$1 AND ($2::text IS NULL OR country_code=$2)
-        AND history_series_id IS NOT NULL AND ${isStrong}
-      ORDER BY history_series_id,(CASE WHEN history_event_kind='BOOTSTRAP_BASELINE' THEN observed_at ELSE provider_verified_at END) DESC LIMIT 301`,[filters.service,filters.market]);
+    `SELECT DISTINCT ON (h.history_series_id) h.history_series_id,
+        COALESCE(current_price.plan_name,h.plan_name) AS plan_name,
+        h.country_code::text,h.currency::text
+      FROM verified_price_observations h
+      LEFT JOIN verified_provider_prices current_price ON
+        current_price.history_series_id=h.history_series_id AND current_price.service_slug=h.service_slug
+        AND current_price.country_code=h.country_code AND current_price.currency=h.currency
+      WHERE h.service_slug=$1 AND ($2::text IS NULL OR h.country_code=$2)
+        AND h.history_series_id IS NOT NULL AND ${isStrongHistory}
+      ORDER BY h.history_series_id,(CASE WHEN h.history_event_kind='BOOTSTRAP_BASELINE' THEN h.observed_at ELSE h.provider_verified_at END) DESC LIMIT 301`,[filters.service,filters.market]);
   const planOptions=plans.rows.slice(0,300).map(row=>({seriesId:row.history_series_id,
     name:row.plan_name,market:row.country_code,currency:row.currency}));
   if(plans.rows.length>300&&!filters.plan)return {state:"NARROW_FILTERS" as const,services:availableServices,markets,planOptions,filters};

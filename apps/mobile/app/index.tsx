@@ -1,6 +1,7 @@
 import { translateUi, appLocale, appLanguages, type AppLanguage } from "../lib/ui-localization";
 import { browseCatalog } from "../lib/catalog-browse";
 import { configuredSavlivoPrice } from "../lib/savlivo-plan-prices";
+import {matchesRegionalPlan} from "../lib/regional-plan-match";
 import { resolveSavedManagement, type ManagementIntent } from "../../../packages/contracts/src/assistant-actions";
 import { classifyCurrentProviderPrice } from "../../../packages/contracts/src/verified-price-classification";
 import { discoveryRequestIsCurrent, parseAddSubscriptionIntent, validateAddSubscriptionIntent, validateManualSubscription } from "../../../packages/contracts/src/discovery";
@@ -5057,12 +5058,7 @@ export default function Home() {
     const rows = regionalPlanOptions(serviceSlug, billingProviderSlug);
 
     if (planName) {
-      const wanted = planName.toLowerCase();
-      const exact = rows.find(
-        (entry: any) =>
-          String(entry.planName ?? "").toLowerCase() === wanted ||
-          String(entry.planSlug ?? "").toLowerCase() === wanted
-      );
+      const exact = rows.find((entry: any) => matchesRegionalPlan(entry,planName,serviceSlug));
       return typeof exact?.monthlyPriceMinor === "number"
         ? exact.monthlyPriceMinor
         : null;
@@ -5081,10 +5077,8 @@ export default function Home() {
 
   function selectedPlanPriceStatus() {
     const rows = regionalPlanOptions(serviceSlugInput,billingProviderInput);
-    const wanted = subscriptionPlanInput.toLowerCase();
-    const selected = wanted ? rows.find((entry: any) =>
-      String(entry.planName ?? "").toLowerCase() === wanted ||
-      String(entry.planSlug ?? "").toLowerCase() === wanted) :
+    const selected = subscriptionPlanInput ? rows.find((entry: any) =>
+      matchesRegionalPlan(entry,subscriptionPlanInput,serviceSlugInput)) :
       rows.length === 1 ? rows[0] : null;
     return selected ? classifyCurrentProviderPrice(selected) : null;
   }
@@ -5102,13 +5096,7 @@ export default function Home() {
     const preferred =
       plans.find(
         (row: any) =>
-          preferredPlan &&
-          (
-            String(row.planName).toLowerCase() ===
-              preferredPlan.toLowerCase() ||
-            String(row.planSlug).toLowerCase() ===
-              preferredPlan.toLowerCase()
-          )
+          preferredPlan && matchesRegionalPlan(row,preferredPlan,serviceSlugInput)
       ) ??
       (plans.length === 1 ? plans[0] : null);
 
@@ -5474,13 +5462,7 @@ export default function Home() {
     );
 
     const exactPlan = item.planName
-      ? plans.find(
-          (row: any) =>
-            String(row.planName ?? "").toLowerCase() ===
-              item.planName!.toLowerCase() ||
-            String(row.planSlug ?? "").toLowerCase() ===
-              item.planName!.toLowerCase()
-        )
+      ? plans.find((row: any) => matchesRegionalPlan(row,item.planName!,item.serviceSlug))
       : null;
 
     // Editing an existing subscription must always preserve
@@ -10129,9 +10111,7 @@ export default function Home() {
                       planOption.planSlug ??
                       "Standard"
                   );
-                  const selected =
-                    subscriptionPlanInput.toLowerCase() ===
-                    name.toLowerCase();
+                  const selected = matchesRegionalPlan(planOption,subscriptionPlanInput,serviceSlugInput);
 
                   return (
                     <Pressable

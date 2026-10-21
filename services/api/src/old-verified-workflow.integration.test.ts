@@ -116,4 +116,30 @@ test("disposable Postgres preserves partial Old Verified, renamed alias, price h
       'https://www.disneyplus.com/nl-be','authoritative-provider',2,false)`));
   await persistVerifiedLivePrices([beV3("Standard with Ads","standard-with-ads",799)]);
   assert.equal((await loadPersistedVerifiedPrices("BE","EUR")).find(row=>row.planSlug==="standard-with-ads")?.source,"v3-truth");
+
+  // Localized source names keep the canonical plan key and replace only that
+  // adapter tier. Concurrent repeats cannot create another current row or
+  // another observation for the same provider timestamp.
+  for(const [market,localized,minor] of [
+    ["NO","Basis med reklame",8900],
+    ["SE","Basic med reklam",8900],
+    ["DK","Basic With Ads",7900]
+  ] as const){
+    const oldAds=price(market,"Basic With Ads",minor,"official-provider-adapter:max",oldAt);
+    await persistVerifiedLivePrices([oldAds]);
+    const fresh={...price(market,localized,minor,"v3-truth",newAt),
+      planSlug:"basic-with-ads",planIdentity:`catalog:max:${market.toLowerCase()}:basic-with-ads:direct:${oldAds.currency.toLowerCase()}`};
+    await Promise.all([persistVerifiedLivePrices([fresh]),persistVerifiedLivePrices([fresh])]);
+    const current=(await loadPersistedVerifiedPrices(market,oldAds.currency)).filter(row=>row.planSlug==="basic-with-ads");
+    assert.equal(current.length,1);assert.equal(current[0].source,"v3-truth");
+    assert.equal(current[0].planName,localized);assert.equal(current[0].monthlyPriceMinor,minor);
+    const report=await priceAnalyticsReport({service:"max",market,plan:null,period:"All"});
+    if(report.state!=="AVAILABLE")throw new Error("PRICE_ANALYTICS_UNAVAILABLE");
+    const series=await pool.query(`SELECT history_series_id FROM verified_provider_prices
+      WHERE service_slug='max' AND country_code=$1 AND plan_slug='basic-with-ads'`,[market]);
+    assert.equal(report.planOptions.find(row=>row.seriesId===series.rows[0].history_series_id)?.name,localized);
+    const observations=await pool.query(`SELECT source,history_event_kind FROM verified_price_observations
+      WHERE service_slug='max' AND country_code=$1 AND plan_slug='basic-with-ads'`,[market]);
+    assert.equal(observations.rowCount,1);assert.equal(observations.rows[0].source,"official-provider-adapter:max");
+  }
 });

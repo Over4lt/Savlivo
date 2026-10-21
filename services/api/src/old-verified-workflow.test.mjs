@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {persistVerifiedLivePricesInTransaction} from './pricing-store.ts';
 import {mergeFreshAndPersistedPricing} from './pricing.ts';
-import {runAdminV4FirstResearch} from './google-ai/admin-live-pipeline.mjs';
+import {runAdminV4FirstResearch,verifiedAdapters} from './google-ai/admin-live-pipeline.mjs';
+import {canonicalVerifiedPlanSlug,bundlePlanName,activeCurrentPrices} from './verified-price-reconciliation.mjs';
+import {projectCatalogProductPlans} from './product-pricing.ts';
+import {productPriceStatus} from '../../../packages/contracts/src/product-pricing.ts';
 
 const oldPrice=(market,plan,minor,at='2026-08-01T00:00:00.000Z')=>({
  serviceSlug:'max',serviceName:'Max',planSlug:plan.toLowerCase().replaceAll(' ','-'),planName:plan,
@@ -108,6 +111,13 @@ test('unproven Max DK rename never deletes an old tier by guessing equivalence',
  assert.deepEqual(db.history.map(row=>row.kind),['BASELINE']);
 });
 
+test('equal amounts alone never link different Max subscriptions',async()=>{
+ const old=oldPrice('DK','Standard',12900),db=store([old]);
+ await persistVerifiedLivePricesInTransaction([v3Price(old,'Ultimate',12900)],db.client);
+ assert.deepEqual(db.current.map(row=>[row.planName,row.source]),
+  [['Standard','official-provider-adapter:max'],['Ultimate','v3-truth']]);
+});
+
 test('unreplaced Max adapter rows retain their ordinary bounded refresh behavior',async()=>{
  const old=oldPrice('DK','Basic',9900),db=store([old]);
  const refreshed={...old,monthlyPriceMinor:10900,updatedAt:'2026-10-20T00:00:00.000Z'};
@@ -115,4 +125,66 @@ test('unreplaced Max adapter rows retain their ordinary bounded refresh behavior
  assert.equal(db.current[0].monthlyPriceMinor,10900);
  assert.deepEqual(db.history.map(row=>[row.kind,row.minor]),[
   ['BOOTSTRAP_BASELINE',9900],['PRICE_CHANGE',10900]]);
+});
+
+test('Max NO, SE and DK source names link three V3 offers to three catalog plans',async()=>{
+ for(const [market,names,amounts] of [
+  ['NO',['Basis med reklame','Standard','Premium'],[8900,14900,18900]],
+  ['SE',['Basic med reklam','Standard','Premium'],[8900,14900,18900]],
+  ['DK',['Basic With Ads','Standard','Premium'],[7900,12900,16900]]
+ ]){
+  const old=['Basic With Ads','Standard','Premium'].map((name,i)=>oldPrice(market,name,amounts[i]));
+  const target={service:'max',serviceName:'Max',market};
+  const rows=verifiedAdapters(target,names.map((plan,i)=>({plan,amount:amounts[i]/100,currency:old[i].currency,sourceUrl:`https://www.hbomax.com/${market.toLowerCase()}/en`,verifiedAt:'2026-10-21T10:00:00.000Z'})));
+  assert.deepEqual(rows.map(row=>row.planSlug),['basic-with-ads','standard','premium']);
+  assert.deepEqual(rows.map(row=>row.planName),names);
+  assert(rows.every(row=>!/[a-f0-9]{64}/iu.test(row.planName)));
+  const db=store(old);
+  assert.equal((await persistVerifiedLivePricesInTransaction(rows,db.client)).persisted,3);
+  assert.equal(db.current.length,3);
+  assert(db.current.every(row=>row.source==='v3-truth'));
+  assert.deepEqual(db.current.map(row=>row.monthlyPriceMinor),amounts);
+  const persisted=db.current.map(row=>({...row,priceType:'exact',updatedAt:row.lastCheckedAt}));
+  assert.deepEqual(projectCatalogProductPlans(mergeFreshAndPersistedPricing(old,persisted)).map(productPriceStatus),
+    ['VERIFIED_ONLY','VERIFIED_ONLY','VERIFIED_ONLY']);
+  assert.equal(db.history.length,3,'unchanged amount adds only original adapter baseline');
+  assert(db.history.every(row=>row.source==='official-provider-adapter:max'));
+  assert.equal((await persistVerifiedLivePricesInTransaction(old.map(row=>({...row,updatedAt:'2026-10-22T00:00:00.000Z'})),db.client)).persisted,0);
+ }
+});
+
+test('read projection hides only uniquely replaced Old Verified and keeps ambiguous or other provider rows',()=>{
+ const old=oldPrice('SE','Basic With Ads',8900);
+ const newV3=v3Price(old,'Basic med reklam',8900);newV3.planSlug='basic-med-reklam';
+ assert.deepEqual(mergeFreshAndPersistedPricing([], [old,newV3]).map(row=>row.source),['v3-truth']);
+ const otherProvider={...old,billingProviderSlug:'apple-app-store'};
+ assert.equal(mergeFreshAndPersistedPricing([], [otherProvider,newV3]).length,2);
+ const otherMarket={...newV3,countryCode:'NO',currency:'NOK'};
+ assert.equal(mergeFreshAndPersistedPricing([], [old,otherMarket]).length,2);
+ const ambiguous={...newV3,planSlug:'another-localized-ads'};
+ assert.equal(mergeFreshAndPersistedPricing([], [old,newV3,ambiguous]).length,3);
+ assert.equal(canonicalVerifiedPlanSlug('netflix','Basic med reklam'),null);
+ assert.equal(canonicalVerifiedPlanSlug('max','f'.repeat(64)),null);
+});
+
+test('Max NL keeps three V3 subscriptions and hides three historical adapter-only bundles',()=>{
+ const old=['Basic With Ads','Standard','Premium'].map((name,index)=>({
+  ...oldPrice('DK',name,[599,1199,1699][index]),countryCode:'NL',currency:'EUR'}));
+ const bundles=['HBO Max Basic met reclame \\u0026 Videoland Basis',
+  'HBO Max Standaard \\u0026 Videoland Plus',
+  'HBO Max Premium \\u0026 Videoland Premium'].map((name,index)=>({
+   ...old[0],planName:name,planSlug:'bundle-'+index,monthlyPriceMinor:[999,1799,2399][index]}));
+ const current=[...old,...bundles,...old.map(row=>v3Price(row,row.planName,row.monthlyPriceMinor))];
+ assert.equal(bundles.every(row=>bundlePlanName(row.planName)),true);
+ assert.equal(bundlePlanName('Disney+ Premium'),false);
+ const active=mergeFreshAndPersistedPricing(old,current);
+ assert.deepEqual(active.map(row=>row.planName),['Basic With Ads','Standard','Premium']);
+ assert(active.every(row=>row.source==='v3-truth'));
+ assert.deepEqual(projectCatalogProductPlans(current).map(productPriceStatus),
+  ['VERIFIED_ONLY','VERIFIED_ONLY','VERIFIED_ONLY']);
+ assert.equal(current.length,9,'read selection must preserve stored rows');
+ const newlyVerifiedBundle={...bundles[0],source:'v3-truth',planSlug:'max-videoland-basic'};
+ assert.equal(activeCurrentPrices([...current,newlyVerifiedBundle],()=> 'Max')
+  .filter(row=>bundlePlanName(row.planName)).length,1,
+  'a separately V3 verified bundle is an independent active product');
 });

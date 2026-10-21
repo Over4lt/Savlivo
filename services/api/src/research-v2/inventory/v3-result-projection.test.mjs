@@ -5,6 +5,7 @@ import {projectEstablishedV3Offerings,projectTargetV3Result,projectV3Verificatio
 import {writeLifecycleDisposition} from './lifecycle-continuation.mjs';
 import {acceptV3TruthNeeds} from '../live/market-proof-continuation.mjs';
 import {digest} from '../../research-v3/model.mjs';
+import {v3ResultFromTarget} from '../../google-ai/admin-live-pipeline.mjs';
 
 const hash='a'.repeat(64),url='https://provider.example/membership',observationId='provider-observation';
 const reference=(pointer,transport='DECODO')=>({observation:observationId,sha256:hash,pointer,source:{start:10,end:20,sha256:'b'.repeat(64),structuralPath:'/catalog/months/'+pointer.split('/').at(-1),parentPath:'/catalog/months',observation:observationId,sourceHash:hash,nativeStructured:true,admitted:true},...(transport==='DECODO'?{marketContext:{basis:'VERIFIED_COUNTRY_OBSERVATION',country:'NO',verification:'BRACKET_VERIFIED'}}:{})});
@@ -16,7 +17,7 @@ function offer(id,amount,{transport='DECODO',currency='NOK',currencyState='ESTAB
  }};
 }
 function withExactOfferIdentity(row,name,{disagreeingProposition=null}={}){
- for(const [propositionName,propositionValue]of Object.entries(row.propositions))for(const evidence of propositionValue.evidence??[]){if(propositionName==='SERVICE_IDENTITY')continue;const current=propositionName===disagreeingProposition?'Different Plan':name;evidence.reference.source={...evidence.reference.source,offer:current,offerIdentity:{kind:'SPAN',start:30,end:30+current.length,quote:current,sha256:digest(current)}};}
+ for(const [propositionName,propositionValue]of Object.entries(row.propositions))for(const evidence of propositionValue.evidence??[]){if(propositionName==='SERVICE_IDENTITY')continue;const current=propositionName===disagreeingProposition?'Different Plan':name;evidence.reference.source={...evidence.reference.source,start:0,end:100,sha256:digest('test'),nativePageStructure:true,offer:current,offerIdentity:{kind:'SPAN',start:30,end:30+current.length,quote:current,sha256:digest(current)}};}
  return row;
 }
 function truth(offers=[offer('gold',79.99),offer('platinum',129.99),offer('diamond',199.99)]){
@@ -34,6 +35,37 @@ test('pure projection preserves every independently established offer and source
 test('exact source-bound offer identity survives established V3 projection',()=>{
  const rows=projectEstablishedV3Offerings(target({v3Truth:truth([withExactOfferIdentity(offer('core',4.99),'Core'),withExactOfferIdentity(offer('pro',17.99),'Pro')])}));
  assert.deepEqual(rows.map(row=>[row.name,row.offerIdentity.name,row.offerIdentity.locator.quote]),[['Core','Core','Core'],['Pro','Pro','Pro']]);
+});
+
+test('source-bound offer name wins over internal hash and hash never becomes display fallback',()=>{
+ const internal='f'.repeat(64),bound=withExactOfferIdentity({...offer(internal,89),name:internal},'Basis med reklame');
+ const current=target({v3Truth:truth([bound])});
+ assert.equal(projectEstablishedV3Offerings(current)[0].name,'Basis med reklame');
+ assert.deepEqual(projectV3VerificationEvidence(current).map(row=>[row.plan,row.exactOfferId,row.offerIdentityName]),
+  [['Basis med reklame',internal,'Basis med reklame']]);
+ const unbound=target({v3Truth:truth([offer(internal,89)])});
+ assert.equal(projectV3VerificationEvidence(unbound)[0].plan,null);
+ assert.deepEqual(v3ResultFromTarget(current).verified.map(row=>row.plan),['Basis med reklame']);
+ assert.equal(v3ResultFromTarget(unbound).verified.length,0);
+ assert.equal(v3ResultFromTarget({...current,market:'SE'}).verified.length,0);
+});
+
+test('JSON-quoted source name decodes only with matching nested source bytes and hash',()=>{
+ const name='Basis med reklame',raw=JSON.stringify(name),body='x'.repeat(30)+raw+'x'.repeat(20);
+ const row=withExactOfferIdentity(offer('f'.repeat(64),89),name);
+ for(const value of Object.values(row.propositions))for(const evidence of value.evidence??[]){
+  evidence.reference.sha256=digest(body);
+  if(!evidence.reference.source?.offerIdentity)continue;
+  evidence.reference.source.start=0;evidence.reference.source.end=body.length;
+  evidence.reference.source.sha256=digest(body);
+  evidence.reference.source.offerIdentity={kind:'SPAN',start:30,end:30+raw.length,quote:raw,sha256:digest(raw)};
+ }
+ const current=target({v3Truth:truth([row]),v3Observation:{...target().v3Observation,sha256:digest(body),body}});
+ assert.equal(projectV3VerificationEvidence(current)[0].offerIdentityName,name);
+ assert.equal(v3ResultFromTarget(current).verified[0].plan,name);
+ current.v3Observation.body=body.replace('Basis','basIs');
+ assert.equal(projectV3VerificationEvidence(current)[0].offerIdentityName,null);
+ assert.equal(v3ResultFromTarget(current).verified.length,0);
 });
 
 test('absent or disagreeing exact offer identity remains unlinked',()=>{

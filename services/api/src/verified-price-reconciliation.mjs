@@ -3,6 +3,23 @@ import {createHash} from 'node:crypto';
 const text=value=>String(value??'').normalize('NFKC').trim().replace(/\s+/gu,' ');
 const key=value=>text(value).toLocaleLowerCase('und');
 const verified=row=>row?.verification==='authoritative-provider'||row?.verification==='multi-source'&&row.verifiedByAgreement===true&&Number(row.sourceCount)>=2;
+const maxPlanAliases=new Map([
+ ['basic with ads','basic-with-ads'],['basis med reklame','basic-with-ads'],
+ ['basic med reklam','basic-with-ads'],['basis med reklamer','basic-with-ads'],
+ ['standard','standard'],['premium','premium']
+]);
+
+// An exact provider-specific name equivalence, never a price-based match.
+export function canonicalVerifiedPlanSlug(serviceSlug,planName){
+ const label=text(planName);
+ if(!label||/^[a-f0-9]{64}$/iu.test(label))return null;
+ if(serviceSlug==='max'){
+  const core=label.replace(/^max[\s:–—-]+/iu,'');
+  const known=maxPlanAliases.get(key(core));
+  if(known)return known;
+ }
+ return null;
+}
 
 export function semanticPlanLabel(planName,serviceName){
  const label=text(planName),brand=text(serviceName);
@@ -18,10 +35,33 @@ export function semanticPlanLabel(planName,serviceName){
 export function semanticVerifiedAlias(a,b,serviceName){
  for(const field of ['serviceSlug','billingProviderSlug','countryCode','currency'])if(a[field]!==b[field])return false;
  const left=semanticPlanLabel(a.planName,serviceName),right=semanticPlanLabel(b.planName,serviceName);
- return !!left&&!!right&&left.prefixed!==right.prefixed&&left.core===right.core;
+ if(left&&right&&left.prefixed!==right.prefixed&&left.core===right.core)return true;
+ const leftSlug=canonicalVerifiedPlanSlug(a.serviceSlug,a.planName),rightSlug=canonicalVerifiedPlanSlug(b.serviceSlug,b.planName);
+ return !!leftSlug&&leftSlug===rightSlug&&a.planSlug!==b.planSlug;
 }
 export function equivalentVerifiedPlan(a,b,serviceName){
  return verified(a)&&verified(b)&&a.verification===b.verification&&semanticVerifiedAlias(a,b,serviceName);
+}
+
+// A bundle is a separate product. Historical adapter-only bundles remain in
+// storage, but they need their own V3 source before appearing in the catalog.
+export function bundlePlanName(name){
+ const label=text(name);
+ return /\b(?:bundle|bundles|pakket|pakke|pacote|combo)\b/iu.test(label)||
+  /\s(?:\+|&|\\u0026)\s/iu.test(label);
+}
+
+const rowKey=row=>[row.serviceSlug,row.planSlug,row.billingProviderSlug,row.countryCode,row.currency].join('\u0000');
+export function activeCurrentPrices(rows,serviceNameFor){
+ const v3=rows.filter(row=>row.source==='v3-truth'&&verified(row));
+ return rows.filter(row=>{
+  if(!row.source?.startsWith('official-provider-adapter:'))return true;
+  if(bundlePlanName(row.planName))return false;
+  const serviceName=serviceNameFor(row.serviceSlug);
+  const successors=v3.filter(candidate=>rowKey(candidate)===rowKey(row)||
+   serviceName&&equivalentVerifiedPlan(candidate,row,serviceName));
+  return successors.length!==1;
+ });
 }
 
 const timestamp=row=>Date.parse(row.verifiedAt??'');

@@ -11,11 +11,13 @@ import {createV4SuggestedSnapshot,createV3Handoff} from './research-handoff.mjs'
 import {canonicalPlanEvidenceCounts,mergeResearch,normalizeSuggestedResearchRow} from './monotonic-merge.mjs';
 import {researchMonthlyRecurringWithRecovery} from './monthly-recurring.mjs';
 import {reviewedProviderNamespacesFor,reviewedNamespaceMatches} from '../research-v3/reviewed-provider-namespaces.mjs';
-import {equivalentVerifiedPlan} from '../verified-price-reconciliation.mjs';
+import {canonicalVerifiedPlanSlug,equivalentVerifiedPlan} from '../verified-price-reconciliation.mjs';
 
 export const adminGooglePipelineLimits=Object.freeze({targets:32});
 const slug=value=>String(value??'').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,120)||'plan';
+const planSlugFor=(service,plan)=>canonicalVerifiedPlanSlug(service,plan)??slug(plan);
 const pricePlanIdentity=(target,plan,currency)=>catalogPlanIdentity({serviceSlug:target.service??slug(target.serviceName),planSlug:slug(plan),billingProviderSlug:'direct',countryCode:target.market,currency});
+const verifiedPricePlanIdentity=(target,plan,currency)=>catalogPlanIdentity({serviceSlug:target.service??slug(target.serviceName),planSlug:planSlugFor(target.service,plan),billingProviderSlug:'direct',countryCode:target.market,currency});
 const targetKey=target=>target.id??`${target.service}:${target.market}`;
 const safeTarget=target=>{
   if(!target||typeof target.service!=='string'||!/^[a-z0-9-]+$/.test(target.service)||typeof target.serviceName!=='string'||!target.serviceName.trim()||!/^[A-Z]{2}$/.test(target.market??''))throw Error('ADMIN_V4_TARGET_INVALID');
@@ -38,12 +40,16 @@ function v4State(target,acquisition){
 }
 
 function verifiedFromTarget(target){
-  return projectV3VerificationEvidence(target).map(evidence=>{const {offerIdentityName,...verificationEvidence}=evidence,verifiedAt=evidence.verifiedAt??new Date().toISOString();return {
-    plan:evidence.plan,planIdentity:pricePlanIdentity({...target,market:evidence.truthMarket},evidence.plan,evidence.currency),
+  return projectV3VerificationEvidence(target).flatMap(evidence=>{const plan=evidence.offerIdentityName??evidence.plan;
+    // A Truth offer ID is an internal hash; it cannot name a catalog plan.
+    if(typeof plan!=='string'||!plan.trim()||/^[a-f0-9]{64}$/iu.test(plan.trim())||
+      evidence.serviceId!==target.service||evidence.targetMarket!==target.market||evidence.truthMarket!==target.market)return [];
+    const verifiedAt=evidence.verifiedAt??new Date().toISOString();return [{
+    plan,planIdentity:verifiedPricePlanIdentity({...target,market:evidence.truthMarket},plan,evidence.currency),
     amount:evidence.amount,currency:evidence.currency,
     paymentCadence:'MONTHLY_RECURRING',sourceUrl:evidence.sourceUrl,
-    verifiedAt,provenance:'V3_VERIFIED',verificationEvidence:{...verificationEvidence,verifiedAt}
-  };});
+    verifiedAt,provenance:'V3_VERIFIED',verificationEvidence:{...evidence,verifiedAt}
+  }];});
 }
 
 export function v3ResultFromTarget(target){
@@ -59,9 +65,9 @@ export function readLifecycleV3Results(output,targets){
 }
 
 export function verifiedAdapters(target,rows){
-  return rows.filter(row=>row.sourceUrl&&Number(row.amount)>0&&/^[A-Z]{3}$/.test(row.currency??'')).map(row=>({
-    planIdentity:row.planIdentity,
-    serviceSlug:target.service,serviceName:target.serviceName,planSlug:slug(row.plan),planName:String(row.plan),billingProviderSlug:'direct',countryCode:target.market,
+  return rows.filter(row=>row.sourceUrl&&Number(row.amount)>0&&/^[A-Z]{3}$/.test(row.currency??'')&&typeof row.plan==='string'&&row.plan.trim()&&!/^[a-f0-9]{64}$/iu.test(row.plan.trim())).map(row=>({
+    planIdentity:row.planIdentity??verifiedPricePlanIdentity(target,row.plan,row.currency),
+    serviceSlug:target.service,serviceName:target.serviceName,planSlug:planSlugFor(target.service,row.plan),planName:String(row.plan),billingProviderSlug:'direct',countryCode:target.market,
     currency:row.currency,monthlyPriceMinor:Math.round(Number(row.amount)*100),updatedAt:row.verifiedAt??new Date().toISOString(),
     source:'v3-truth',sourceUrl:row.sourceUrl,confidence:'official-provider-adapter',priceType:'exact',verification:'authoritative-provider',sourceCount:1,verifiedByAgreement:false
   }));
@@ -87,7 +93,7 @@ function currentRowsBeforeVerifiedWrite(persisted,incoming,serviceName){
 
 function alignVerifiedWithPersisted(target,rows,persisted){
   const byKey=new Map(persisted.filter(item=>item.serviceSlug===target.service&&item.billingProviderSlug==='direct'&&item.countryCode===target.market&&item.planIdentity).map(item=>[[item.planSlug,item.currency].join('\u0000'),item.planIdentity]));
-  return rows.map(row=>({...row,planIdentity:byKey.get([slug(row.plan),row.currency].join('\u0000'))??pricePlanIdentity(target,row.plan,row.currency)}));
+  return rows.map(row=>({...row,planIdentity:byKey.get([planSlugFor(target.service,row.plan),row.currency].join('\u0000'))??verifiedPricePlanIdentity(target,row.plan,row.currency)}));
 }
 
 const contradictory=value=>['CONFLICT','MISMATCH','DISTINCT'].includes(String(value??'').toUpperCase());

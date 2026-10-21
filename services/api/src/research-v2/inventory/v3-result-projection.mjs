@@ -25,8 +25,18 @@ function exactOfferIdentity(target,propositions){
  const observation=target?.v3Observation;if(!observation)return null;let selected=null;
  for(const name of requiredPricePropositions.filter(name=>name!=='SERVICE_IDENTITY')){
   const identities=[];for(const row of propositions[name]?.evidence??[]){const reference=row?.reference,source=reference?.source,locator=source?.offerIdentity,offerName=source?.offer;
-   if(reference?.observation!==observation.id||reference?.sha256!==observation.sha256||locator?.kind!=='SPAN'||!Number.isSafeInteger(locator.start)||!Number.isSafeInteger(locator.end)||locator.end<=locator.start||typeof locator.quote!=='string'||!locator.quote||digest(locator.quote)!==locator.sha256||offerName!==locator.quote)continue;
-   identities.push({name:locator.quote,observation:reference.observation,bodySha256:reference.sha256,locator:clone(locator)});
+   // Stored V3 observations intentionally omit the full body. Truth's web
+   // source projector created both the enclosing presentation and this exact
+   // name span from the already hash-checked original body. Require those
+   // nested, hash-bound V3 locators; recheck bytes when a body is present.
+   if(reference?.observation!==observation.id||reference?.sha256!==observation.sha256||source?.nativePageStructure!==true||!Number.isSafeInteger(source.start)||!Number.isSafeInteger(source.end)||source.end<=source.start||!/^[a-f0-9]{64}$/u.test(source.sha256??'')||locator?.kind!=='SPAN'||!Number.isSafeInteger(locator.start)||!Number.isSafeInteger(locator.end)||locator.start<source.start||locator.end>source.end||locator.end<=locator.start||typeof locator.quote!=='string'||!locator.quote||digest(locator.quote)!==locator.sha256||typeof observation.body==='string'&&(observation.body.slice(locator.start,locator.end)!==locator.quote||digest(observation.body.slice(source.start,source.end))!==source.sha256))continue;
+   // Hydrated JSON locators include the string's quotation marks in the
+   // original source bytes. Compare the decoded token with the parser's
+   // source-bound name, while preserving the original byte locator.
+   let decoded=locator.quote;
+   if(locator.quote.startsWith('"'))try{decoded=JSON.parse(locator.quote);}catch{continue;}
+   if(typeof decoded!=='string'||!decoded.trim()||decoded!==offerName||/^[a-f0-9]{64}$/iu.test(decoded))continue;
+   identities.push({name:decoded,observation:reference.observation,bodySha256:reference.sha256,locator:clone(locator)});
   }
   const unique=new Map(identities.map(identity=>[canonical(identity),identity]));if(unique.size!==1)return null;const current=[...unique.values()][0];if(selected&&canonical(selected)!==canonical(current))return null;selected=current;
  }
@@ -41,7 +51,7 @@ export function projectEstablishedV3Offerings(target){
   if(typeof market!=='string'||!established(offer,truth,market))continue;
   const references=sourceReferences(offer),marketReference=propositions.TARGET_MARKET?.evidence?.[0]?.reference,offerIdentity=exactOfferIdentity(target,propositions);
   projected.push({
-   id:offer.id??null,name:offer.name??offer.plan??offerIdentity?.name??null,...(offerIdentity?{offerIdentity}:{}),market,established:true,
+   id:offer.id??null,name:offerIdentity?.name??offer.name??offer.plan??null,...(offerIdentity?{offerIdentity}:{}),market,established:true,
    ordinaryRecurringPrice:{amount:propositions.PRICE_AMOUNT.value,currency:propositions.CURRENCY.value},
    subscription:{monthly:propositions.MONTHLY_SUBSCRIPTION.value,consumer:propositions.CONSUMER_SUBSCRIPTION.value,billingInterval:propositions.MONTHLY_SUBSCRIPTION.value===true?'P1M':null,displayMonthlyCadence:propositions.MONTHLY_CADENCE?.state==='ESTABLISHED'?propositions.MONTHLY_CADENCE.value:null},
    eligibility:clone(truth.eligibility[market]),
@@ -63,7 +73,8 @@ export function projectV3VerificationEvidence(target){
    provider:typeof target?.serviceName==='string'?target.serviceName:null,
    serviceId:typeof target?.service==='string'?target.service:null,
    targetMarket:typeof target?.market==='string'?target.market:null,
-   plan:row.name??row.id,
+   // The offer ID is an internal key, never a subscription name.
+   plan:row.name,
    exactOfferId:row.id,
    offerIdentityName:row.offerIdentity?.name??null,
    amount:row.ordinaryRecurringPrice.amount,

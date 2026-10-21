@@ -1,5 +1,7 @@
 import type {AdapterPrice} from "./pricing-adapters.js";
 import {classifyCurrentProviderPrice} from "../../../packages/contracts/src/verified-price-classification.js";
+import {serviceCatalog} from "../../../packages/contracts/src/catalog.js";
+import {activeCurrentPrices} from "./verified-price-reconciliation.mjs";
 import {
   catalogPlanIdentity,
   type ProductPlanPricing,
@@ -102,7 +104,7 @@ export function projectCombinedResearchProductPlans(input: {
 }
 
 export function projectCatalogProductPlans(items: AdapterPrice[]): ProductPlanPricing[] {
-  return items
+  return (activeCurrentPrices(items,(slug: string)=>serviceCatalog.find(service=>service.slug===slug)?.name) as AdapterPrice[])
     .filter(item => item.priceType === "exact" && Number.isSafeInteger(item.monthlyPriceMinor) && item.monthlyPriceMinor > 0)
     .map(item => {
       const evidence: ProductPriceEvidence = {
