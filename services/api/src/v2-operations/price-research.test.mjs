@@ -9,6 +9,7 @@ import {executePriceResearch,priceResearchPlan,reviewedNamespacePriceResearchSee
 import {runAdminV4FirstResearch} from '../google-ai/admin-live-pipeline.mjs';
 import {reviewedProviderNamespacesFor} from '../research-v3/reviewed-provider-namespaces.mjs';
 import {applyResearchHandoff} from '../research-v2/inventory/reviewed-cohort-execution.mjs';
+import {perTargetRequestCeiling} from './price-research-mode.mjs';
 
 const caps={direct:false,tavily:false,decodo:false,browser:false,groq:false};
 test('unresolved priority V3 evidence crosses phases only with the exact retained source hash',t=>{
@@ -51,16 +52,27 @@ test('canonical selection Preflight freezes the exact complete scope and Start q
  const job=await ops.start(pre.token,'admin',true);assert.equal(job.status,'QUEUED');assert.deepEqual(job.config,stored);assert.equal((await ops.start(pre.token,'admin',true)).id,job.id);assert.equal(ops.db().jobs.length,1);const manifest=JSON.parse(fs.readFileSync(path.join(ops.config.root,'runs',job.id,'manifest.json')));assert.equal(manifest.targets.length,4);assert.equal(manifest.limits.perTargetRequests,96);assert.equal(manifest.limits.totalRequests,384);assert(manifest.targets.every(row=>row.marketApplicabilityEstablished===false));
 });
 
-test('Suggested Only preflight freezes two markets, one request each, and disables expensive capabilities',async t=>{
+test('Suggested Only preflight freezes two markets, at most two Google requests each, and disables expensive capabilities',async t=>{
  const ops=batchFixture(t);ops.config.env.GEMINI_API_KEY='offline-test-key';
  const targeting=await ops.priceResearchTargeting({services:['chess-com'],markets:['NO','SE']});
  const input={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['chess-com'],markets:['NO','SE'],targetingRevision:targeting.revision,researchMode:'suggested_only',capabilities:{direct:true,tavily:true,decodo:true,browser:true,groq:true}};
- const pre=await ops.preflight(input,'admin');assert.equal(pre.liveReady,true);assert.equal(pre.batchTargetCount,2);assert.equal(pre.perTargetRequestCeiling,1);assert.equal(pre.totalSafetyCeiling,2);
- const job=await ops.start(pre.token,'admin',true);assert.equal(job.config.researchMode,'suggested_only');assert.equal(job.config.batchRequestCeiling,2);assert.deepEqual(job.config.capabilities,caps);
+ const pre=await ops.preflight(input,'admin');assert.equal(pre.liveReady,true);assert.equal(pre.batchTargetCount,2);assert.equal(pre.perTargetRequestCeiling,2);assert.equal(pre.totalSafetyCeiling,4);
+ const job=await ops.start(pre.token,'admin',true);assert.equal(job.config.researchMode,'suggested_only');assert.equal(job.config.batchRequestCeiling,4);assert.deepEqual(job.config.capabilities,caps);
  const manifest=JSON.parse(fs.readFileSync(path.join(ops.config.root,'runs',job.id,'manifest.json')));
- assert.equal(manifest.priceResearch.researchMode,'suggested_only');assert.deepEqual(manifest.limits,{perTargetRequests:1,totalRequests:2});
+ assert.equal(manifest.priceResearch.researchMode,'suggested_only');assert.deepEqual(manifest.limits,{perTargetRequests:2,totalRequests:4});
  await assert.rejects(ops.preflight({...input,researchMode:'invalid'},'admin'),/INVALID_PRICE_RESEARCH_MODE/);
  await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'PROVIDER_OR_BRAND_SEED',seedName:'Unlisted Brand',market:'NO',identityDiscoveryConsent:true,researchMode:'suggested_only',capabilities:caps},'admin'),/SUGGESTED_ONLY_REQUIRES_KNOWN_SERVICE/);
+});
+
+test('new single-market Suggested Only jobs freeze two calls; older jobs without a ceiling retain one',async t=>{
+ const ops=fixture(t);ops.config.env.GEMINI_API_KEY='offline-test-key';
+ const input={objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'chess-com',market:'NO',researchMode:'suggested_only',capabilities:caps};
+ const pre=await ops.preflight(input,'admin');
+ assert.equal(pre.totalSafetyCeiling,2);
+ const job=await ops.start(pre.token,'admin',true);
+ assert.equal(job.config.perTargetRequestCeiling,2);
+ assert.equal(perTargetRequestCeiling(job.config),2);
+ assert.equal(perTargetRequestCeiling({...job.config,perTargetRequestCeiling:undefined}),1);
 });
 
 test('exclusions filter Preflight, freeze only eligible targets, and preserve existing job snapshots',async t=>{

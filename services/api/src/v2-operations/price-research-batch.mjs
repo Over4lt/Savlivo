@@ -144,7 +144,7 @@ export async function executePriceResearchBatch({job,directory,apiKey,client,sho
   if(shouldStop()){progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}
   const childDir=childDirectory(directory,target,index),startedAt=new Date().toISOString();Object.assign(outcome,record(journal,index,target,'RUNNING',{startedAt}));delete outcome.index;progress.status='RUNNING';progress.nextIndex=index;progress.current={index,targetId:target.id,status:'RUNNING',startedAt};writeJson(file,compact(progress));
   let result;
-  try{result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,...(researchModeOf(config)==='suggested_only'?{researchMode:'suggested_only'}:{}),capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop,providerPricingRouteMemory});}
+  try{result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,...(researchModeOf(config)==='suggested_only'?{researchMode:'suggested_only',perTargetRequestCeiling:perTarget}:{}),capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop,providerPricingRouteMemory});}
   catch(error){
    const finishedAt=new Date().toISOString();
    if(shouldStop()||error?.message==='PRICE_RESEARCH_STOPPED'){Object.assign(outcome,record(journal,index,target,'STOPPED',{startedAt,finishedAt}));delete outcome.index;progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}

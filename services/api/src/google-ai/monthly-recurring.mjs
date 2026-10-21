@@ -162,10 +162,12 @@ function failureAudit({query,model,startedAt,finishedAt,requestCount,status,cita
   return {schemaVersion:1,query,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model,timestamp:finishedAt,normalizedAnswer:null,citations:sourceCitations,request:{requestCount,startedAt,finishedAt,runtimeMs:Math.max(0,Date.parse(finishedAt)-Date.parse(startedAt)),status,usage,normalizationFailures:boundedFailureReasons(failureReasons)}};
 }
 
-export async function researchMonthlyRecurringWithGoogleAi({providerName,targetMarket,providerNamespace=null,apiKey,fetchImpl=fetch,clock=()=>new Date().toISOString(),endpoint=googleAiDefaults.endpoint,model=googleAiDefaults.model,timeoutMs=googleAiDefaults.timeoutMs,maxResponseBytes=googleAiDefaults.maxResponseBytes,maxRequests=googleAiDefaults.maxRequests}={}){
+export async function researchMonthlyRecurringWithGoogleAi({providerName,targetMarket,providerNamespace=null,suggestedOnlyFollowup=false,apiKey,fetchImpl=fetch,clock=()=>new Date().toISOString(),endpoint=googleAiDefaults.endpoint,model=googleAiDefaults.model,timeoutMs=googleAiDefaults.timeoutMs,maxResponseBytes=googleAiDefaults.maxResponseBytes,maxRequests=googleAiDefaults.maxRequests}={}){
   const provider=clean(providerName,120),market=clean(targetMarket,8)?.toUpperCase();
   if(!provider||!/^[A-Z]{2}$/.test(market??''))throw Error('GOOGLE_AI_RESEARCH_INPUT_INVALID');
-  const query=buildGoogleAiQuery({providerName:provider,targetMarket:market,providerNamespace}),objective=`${query}\n\n${jsonContract}`,startedAt=clock();
+  const baseQuery=buildGoogleAiQuery({providerName:provider,targetMarket:market,providerNamespace});
+  const query=suggestedOnlyFollowup?`${baseQuery} Search specifically for the ordinary monthly subscription price in ${market}, including documented country-local distributors when the provider page does not publish it. Cite the exact grounded page for each price and distinguish subscription from bundles, channels, rentals, purchases, promotions and annual billing.`:baseQuery;
+  const objective=`${query}\n\n${jsonContract}`,startedAt=clock();
   if(typeof apiKey!=='string'||!apiKey.trim())return {status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:failureAudit({query,model,startedAt,finishedAt:startedAt,requestCount:0,status:'CREDENTIAL_UNAVAILABLE'})};
   if(!/^gemini-[a-z0-9.-]{1,80}$/.test(model)||!Number.isInteger(maxRequests)||maxRequests<1||maxRequests>2)throw Error('GOOGLE_AI_RESEARCH_CONFIG_INVALID');
   let requests=0,lastMalformed='MALFORMED_RESPONSE',validationFailures=[],retainedCitations=[],retainedUsage=null;

@@ -162,31 +162,45 @@ export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,
 
 // The light mode deliberately stops at the existing V4 Suggested projection.
 // Grounding URLs are leads, never acquired source bodies or V3 authority.
-export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,apiKey,acquireGoogle=researchMonthlyRecurringWithGoogleAi,persistSuggested=persistSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices}={}){
+const groundedUrl=value=>{try{const url=new URL(value);if(url.protocol!=='https:'||url.username||url.password)return null;url.hash='';return url.href;}catch{return null;}};
+const nonSubscriptionName=/\b(?:channels?|add[- ]?ons?|rentals?|rent|purchases?|buy|pay[- ]?per[- ]?view|bundles?|pakket?|pakke|combo)\b/iu;
+function groundedSuggestedAcquisition(acquisition,target){
+ const grounded=new Set((acquisition?.audit?.groundingCitations??[]).map(row=>groundedUrl(row?.url)).filter(Boolean));
+ const plans=(acquisition?.aiResult?.plans??[]).filter(row=>{
+  const name=String(row?.planName??''),cadence=String(row?.paymentCadence??'').toUpperCase();
+  return grounded.has(groundedUrl(row?.sourceUrl))&&
+   /^(?:MONTH|MONTHLY|MONTHLY_RECURRING)$/.test(cadence)&&
+   !nonStandalonePresentation(name,target.serviceName)&&!nonSubscriptionName.test(name);
+ });
+ return {...acquisition,aiResult:{...(acquisition?.aiResult??{provider:target.serviceName,market:target.market,sources:[],warnings:[]}),plans}};
+}
+
+export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,apiKey,maxGoogleRequests=2,acquireGoogle=researchMonthlyRecurringWithGoogleAi,persistSuggested=persistSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices}={}){
  if(!Array.isArray(targets)||!targets.length||targets.length>adminGooglePipelineLimits.targets)throw Error('ADMIN_SUGGESTED_ONLY_INPUT_INVALID');
+ if(maxGoogleRequests!==1&&maxGoogleRequests!==2)throw Error('SUGGESTED_ONLY_BUDGET_VIOLATION');
  const results=[];
  for(const target of targets.map(safeTarget)){
-  const acquisition=await acquireGoogle({providerName:target.serviceName,targetMarket:target.market,providerNamespace:target.providerNamespace,apiKey,maxRequests:1});
-  const requests=acquisition?.audit?.request?.requestCount;
-  if(!Number.isSafeInteger(requests)||requests<0||requests>1||acquisition.recovery?.attempted||requests===0&&acquisition.aiResult?.plans?.length)throw Error('SUGGESTED_ONLY_BUDGET_VIOLATION');
-  const grounded=new Set((acquisition.audit?.groundingCitations??[]).map(row=>row?.url).filter(Boolean));
-  const acceptable=acquisition.status==='GOOGLE_AI_SUCCESS'?acquisition.aiResult?.plans?.filter(row=>{
-   const name=String(row?.planName??''),evidence=String(row?.sourceEvidence??''),marketEvidence=String(row?.marketEvidence??''),basis=String(row?.billingBasis??'');
-   return grounded.has(row?.sourceUrl)&&evidence.trim()&&marketEvidence.trim()&&
-    Number.isFinite(Number(row?.ordinaryRecurringPrice??row?.amount))&&Number(row?.ordinaryRecurringPrice??row?.amount)>0&&
-    /^[A-Z]{3}$/.test(row?.currency??'')&&/^(?:MONTH|MONTHLY|MONTHLY_RECURRING)$/iu.test(String(row?.paymentCadence??''))&&
-    row.annualOnly!==true&&row.freeTier!==true&&!/(?:annual|yearly|year|one[- ]?time|intro|promo|discount|first month)/iu.test(basis+' '+String(row?.commitment??''))&&
-    !nonStandalonePresentation(name,target.serviceName)&&!/(?:\bchannels?\b|\badd[- ]?ons?\b|\brental?\b|\brent\b|\bpurchase\b|\bbuy\b|\bpay[- ]?per[- ]?view\b|\bbundle\b|\bpakket?\b|\bpakke\b|\bcombo\b)/iu.test(name+' '+String(row?.summary??''));
-  })??[]:[];
-  const bounded={...acquisition,aiResult:{...(acquisition.aiResult??{provider:target.serviceName,market:target.market,sources:[],warnings:[]}),plans:acceptable.slice(0,8)}};
-  const state=v4State(target,bounded),combined=mergeResearch({snapshot:state.snapshot});
-  const productPlans=projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined});
+  let acquisition,state,combined,productPlans,requests=0;
+  const attempts=[];
+  for(let attempt=1;attempt<=maxGoogleRequests;attempt++){
+   const candidate=await acquireGoogle({providerName:target.serviceName,targetMarket:target.market,
+    providerNamespace:null,apiKey,maxRequests:1,suggestedOnlyFollowup:attempt===2});
+   const used=candidate?.audit?.request?.requestCount;
+   if(!Number.isSafeInteger(used)||used<0||used>1||candidate.recovery?.attempted||
+    used===0&&candidate.aiResult?.plans?.length||requests+used>maxGoogleRequests)throw Error('SUGGESTED_ONLY_BUDGET_VIOLATION');
+   requests+=used;acquisition=groundedSuggestedAcquisition(candidate,target);
+   state=v4State(target,acquisition);combined=mergeResearch({snapshot:state.snapshot});
+   productPlans=projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined});
+   attempts.push({status:candidate.status,requests:used,groundedCandidates:acquisition.aiResult.plans.length,qualifyingSuggested:productPlans.length});
+   if(productPlans.length||used===0||attempt===maxGoogleRequests||
+    ['CREDENTIAL_UNAVAILABLE','POLICY_BLOCK','HTTP_402','HTTP_403','HTTP_429'].includes(candidate.audit?.request?.status))break;
+  }
   if(productPlans.length)await persistSuggested(productPlans);
   const currency=countryCurrencies[target.market],previous=currency?await loadVerified(target.market,currency):[];
   const previousRows=previous.filter(row=>row.serviceSlug===target.service),existing=existingVerifiedRows(previousRows,target);
   const reportCombined={...mergeResearch({snapshot:state.snapshot,existingVerified:existing}),resultClass:productPlans.length?'SUGGESTED':'NO_RESULT'};
   const stopReason=productPlans.length?'SUFFICIENT_SUGGESTED_CANDIDATES':acquisition.status==='GOOGLE_AI_ACCESS_FAILURE'?'SUGGESTED_ONLY_SOURCE_UNAVAILABLE':acquisition.status==='GOOGLE_AI_MALFORMED_RESPONSE'?'SUGGESTED_ONLY_RESPONSE_INVALID':'SUGGESTED_ONLY_NO_QUALIFYING_MONTHLY_PRICE';
-  const result={target,researchMode:'suggested_only',googleStatus:acquisition.status,googleRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,recoveryReason:null,recoveryOutcome:null,earlySuggestedPersisted:productPlans.length,combined:reportCombined,planCounts:canonicalPlanEvidenceCounts(reportCombined),sourceAcquisitions:[],researchLinkAvailable:false,researchLinks:[],verificationEvidence:[],verificationRetry:null,persisted:{suggestedPlans:productPlans.length,verified:0},stopReason,capabilityUsage:{googleAiRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0}};
+  const result={target,researchMode:'suggested_only',googleStatus:acquisition.status,googleAttempts:attempts,googleRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,recoveryReason:null,recoveryOutcome:null,earlySuggestedPersisted:productPlans.length,combined:reportCombined,planCounts:canonicalPlanEvidenceCounts(reportCombined),sourceAcquisitions:[],researchLinkAvailable:false,researchLinks:[],verificationEvidence:[],verificationRetry:null,persisted:{suggestedPlans:productPlans.length,verified:0},stopReason,capabilityUsage:{googleAiRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0}};
   results.push(result);
   if(artifactDirectory)writeJson(path.join(artifactDirectory,'google-ai-v4',target.id.replace(/[^a-zA-Z0-9_.:-]/g,'_')+'-final.json'),result);
  }

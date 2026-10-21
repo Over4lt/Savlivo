@@ -28,11 +28,23 @@ test('batch executes one child at a time in deterministic namespaces and complet
 test('Suggested Only mode and one-call budget survive interrupted multi-market resume',async t=>{
  const f=fixture(t,[target('prime-video','NO'),target('prime-video','SE')]),seen=[];f.job.config.researchMode='suggested_only';f.job.config.perTargetRequestCeiling=1;f.job.config.batchRequestCeiling=2;f.job.config.capabilities={direct:false,tavily:false,decodo:false,browser:false,groq:false};
  let stop=false;
- const first=await executePriceResearchBatch({...f,shouldStop:()=>stop,executeTarget:async({job})=>{seen.push([job.config.market,job.config.researchMode]);stop=true;return {researchMode:'suggested_only',targets:[]};}});
- assert.equal(first.status,'STOPPED');assert.deepEqual(seen,[['NO','suggested_only']]);
- const resumed=await executePriceResearchBatch({...f,executeTarget:async({job})=>{seen.push([job.config.market,job.config.researchMode]);return {researchMode:'suggested_only',targets:[]};}});
- assert.equal(resumed.status,'COMPLETE');assert.equal(resumed.batchRequestCeiling,2);assert.deepEqual(seen,[['NO','suggested_only'],['SE','suggested_only']]);
+ const first=await executePriceResearchBatch({...f,shouldStop:()=>stop,executeTarget:async({job})=>{seen.push([job.config.market,job.config.researchMode,job.config.perTargetRequestCeiling]);stop=true;return {researchMode:'suggested_only',targets:[]};}});
+ assert.equal(first.status,'STOPPED');assert.deepEqual(seen,[['NO','suggested_only',1]]);
+ const resumed=await executePriceResearchBatch({...f,executeTarget:async({job})=>{seen.push([job.config.market,job.config.researchMode,job.config.perTargetRequestCeiling]);return {researchMode:'suggested_only',targets:[]};}});
+ assert.equal(resumed.status,'COMPLETE');assert.equal(resumed.batchRequestCeiling,2);assert.deepEqual(seen,[['NO','suggested_only',1],['SE','suggested_only',1]]);
  await assert.rejects(executePriceResearchBatch({...f,job:{...f.job,config:{...f.job.config,researchMode:'standard',perTargetRequestCeiling:96,batchRequestCeiling:192}},executeTarget:async()=>{throw Error('MUST_NOT_RUN');}}),/PRICE_RESEARCH_BATCH_BINDING_CHANGED/);
+});
+
+test('new two-request Suggested Only budget survives resume without repeating completed markets',async t=>{
+ const f=fixture(t,[target('prime-video','NO'),target('prime-video','DK')]),seen=[];
+ Object.assign(f.job.config,{researchMode:'suggested_only',perTargetRequestCeiling:2,batchRequestCeiling:4,
+  capabilities:{direct:false,tavily:false,decodo:false,browser:false,groq:false}});
+ let stop=false;
+ const first=await executePriceResearchBatch({...f,shouldStop:()=>stop,executeTarget:async({job})=>{seen.push([job.config.market,job.config.perTargetRequestCeiling]);stop=true;return {researchMode:'suggested_only',targets:[]};}});
+ assert.equal(first.status,'STOPPED');assert.deepEqual(seen,[['NO',2]]);
+ const resumed=await executePriceResearchBatch({...f,executeTarget:async({job})=>{seen.push([job.config.market,job.config.perTargetRequestCeiling]);return {researchMode:'suggested_only',targets:[]};}});
+ assert.equal(resumed.status,'COMPLETE');assert.deepEqual(seen,[['NO',2],['DK',2]]);
+ assert.equal(resumed.batchRequestCeiling,4);
 });
 
 test('one-market canonical batch reaches Research-link priority adapters and persists its attempted outcome',async t=>{

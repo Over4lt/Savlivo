@@ -55,6 +55,18 @@ test('legitimate empty plan result is no price, not malformed',async()=>{
  const result=await run(generated(payload([])));assert.equal(result.status,'GOOGLE_AI_NO_PRICE');assert.equal(result.audit.request.requestCount,1);
 });
 
+test('Suggested Only follow-up is a distinct grounded monthly search that does not restrict distributors to official hosts',async()=>{
+ const seen=[];
+ const result=await researchMonthlyRecurringWithGoogleAi({providerName:'Example',targetMarket:'DE',apiKey:secret,
+  providerNamespace:null,suggestedOnlyFollowup:true,maxRequests:1,
+  fetchImpl:async(_url,init)=>{seen.push(JSON.parse(init.body));return response(generated(payload([])));}});
+ assert.equal(result.audit.request.requestCount,1);assert.equal(seen.length,1);
+ const prompt=seen[0].contents[0].parts[0].text;
+ assert.match(prompt,/documented country-local distributors/);
+ assert.doesNotMatch(prompt,/In sources, return only HTTPS URLs on/);
+ assert.deepEqual(seen[0].tools,[{googleSearch:{}}]);
+});
+
 test('transport and HTTP failures are sanitized access failures without retrying',async()=>{
  const thrown=await researchMonthlyRecurringWithGoogleAi({providerName:'Example',targetMarket:'DE',apiKey:secret,fetchImpl:async()=>{throw Error(secret);}});assert.equal(thrown.status,'GOOGLE_AI_ACCESS_FAILURE');assert.equal(thrown.audit.request.requestCount,1);assert.equal(JSON.stringify(thrown).includes(secret),false);
  const denied=await researchMonthlyRecurringWithGoogleAi({providerName:'Example',targetMarket:'DE',apiKey:secret,fetchImpl:async()=>new Response('{}',{status:403})});assert.equal(denied.status,'GOOGLE_AI_ACCESS_FAILURE');assert.equal(denied.audit.request.status,'HTTP_403');

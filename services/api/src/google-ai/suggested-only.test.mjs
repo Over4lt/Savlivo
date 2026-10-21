@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {runAdminSuggestedOnlyResearch} from './admin-live-pipeline.mjs';
+import {runAdminSuggestedOnlyResearch,runAdminV4FirstResearch} from './admin-live-pipeline.mjs';
 import {normalizeGoogleAiResponse} from './monthly-recurring.mjs';
+import {reviewedProviderNamespacesFor} from '../research-v3/reviewed-provider-namespaces.mjs';
 
 const target={id:'price-research:prime-video:NO',service:'prime-video',serviceName:'Prime Video',market:'NO'};
 const altibox='https://www.altibox.no/underholdning/prime-video/';
@@ -34,8 +35,99 @@ test('ungrounded, wrong-market and annual-only leads stop with NO_RESULT without
  assert.equal(result.targets[0].capabilityUsage.decodoAttempts,0);assert.equal(result.targets[0].capabilityUsage.browserAttempts,0);
 });
 
-test('Suggested Only rejects a researcher that exceeds its one-request budget',async()=>{
+test('Suggested Only rejects a researcher that exceeds one request in a single acquisition',async()=>{
  await assert.rejects(runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>acquisition([plan('Prime Video',89)],{audit:{request:{requestCount:2},groundingCitations:[{url:altibox}]}}),persistSuggested:async()=>{throw Error('MUST_NOT_WRITE');},loadVerified:async()=>[]}),/SUGGESTED_ONLY_BUDGET_VIOLATION/);
+});
+
+test('standard and Suggested Only use the same V4 Suggested projection for a grounded distributor price',async()=>{
+ const candidate=plan('Prime Video',89,{commitment:'one-year commitment paid monthly',sourceEvidence:null,marketEvidence:null});
+ const standardRows=[],suggestedRows=[];
+ const standard=await runAdminV4FirstResearch({targets:[target],acquireGoogle:async()=>acquisition([candidate]),
+  persistSuggested:async rows=>standardRows.push(...rows),persistVerified:async()=>assert.fail('no V3 verified rows'),
+  loadSuggested:async()=>[],loadVerified:async()=>[],runDownstream:async()=>({v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}})});
+ const light=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>acquisition([candidate]),
+  persistSuggested:async rows=>suggestedRows.push(...rows),loadVerified:async()=>[]});
+ assert.equal(standardRows.length,2,'standard persists its early and final Suggested projections');assert.equal(suggestedRows.length,1);
+ assert.deepEqual(suggestedRows[0],standardRows[0]);
+ assert.equal(light.targets[0].combined.resultClass,'SUGGESTED');
+ assert.equal(standard.targets[0].earlySuggestedPersisted,1);
+ assert.equal(light.targets[0].googleRequests,1);
+ assert.equal(light.targets[0].persisted.verified,0);
+});
+
+test('a no-price first result gets one targeted Google follow-up within the two-request budget',async()=>{
+ const calls=[],stored=[];
+ const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async options=>{
+  calls.push(options);return calls.length===1?acquisition([],{status:'GOOGLE_AI_NO_PRICE'}):acquisition([plan('Prime Video',89)]);
+ },persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.equal(calls.length,2);assert.deepEqual(calls.map(row=>row.maxRequests),[1,1]);
+ assert.deepEqual(calls.map(row=>row.suggestedOnlyFollowup),[false,true]);
+ assert(calls.every(row=>row.providerNamespace===null),'distributors are not excluded by an official-domain query filter');
+ assert.equal(stored.length,1);assert.equal(result.targets[0].googleRequests,2);
+ assert.deepEqual(result.targets[0].googleAttempts.map(row=>row.qualifyingSuggested),[0,1]);
+ assert.equal(result.targets[0].capabilityUsage.googleAiRequests,2);
+ assert.equal(result.targets[0].persisted.verified,0);
+});
+
+test('Suggested Only does not impose an official-host query filter even for a reviewed provider namespace',async()=>{
+ const hulu={id:'price-research:hulu:NO',service:'hulu',serviceName:'Hulu',market:'NO',
+  reviewedProviderNamespaces:reviewedProviderNamespacesFor('hulu','Hulu')};
+ const calls=[];
+ await runAdminSuggestedOnlyResearch({targets:[hulu],maxGoogleRequests:1,
+  acquireGoogle:async options=>{calls.push(options);return acquisition([],{status:'GOOGLE_AI_NO_PRICE'});},
+  persistSuggested:async()=>assert.fail('no candidate'),loadVerified:async()=>[]});
+ assert.equal(calls.length,1);
+ assert.equal(calls[0].providerNamespace,null);
+});
+
+test('Prime Video DK can use a grounded Danish distributor after an empty first result',async()=>{
+ const dkTarget={...target,id:'price-research:prime-video:DK',market:'DK'};
+ const distributor='https://www.yousee.dk/underholdning/prime-video/';
+ const dkPlan={...plan('Prime Video',69),currency:'DKK',sourceUrl:distributor,
+  sourceEvidence:'Prime Video 69 kr. per måned',marketEvidence:'Tilgængelig for kunder i Danmark',billingBasis:'paid monthly'};
+ let calls=0;const stored=[];
+ const result=await runAdminSuggestedOnlyResearch({targets:[dkTarget],acquireGoogle:async()=>{
+  calls++;const row=acquisition(calls===1?[]:[dkPlan],{status:calls===1?'GOOGLE_AI_NO_PRICE':'GOOGLE_AI_SUCCESS'});
+  return {...row,aiResult:{...row.aiResult,market:'DK',sources:[{title:'Danish distributor',url:distributor}]},
+   audit:{...row.audit,groundingCitations:[{url:distributor}]}};
+ },persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.equal(calls,2);assert.equal(result.targets[0].googleRequests,2);
+ assert.equal(stored.length,1);assert.equal(stored[0].suggested.monthlyPriceMinor,6900);
+ assert.equal(stored[0].suggested.currency,'DKK');assert.equal(stored[0].suggested.sourceUrl,distributor);
+ assert.equal(result.targets[0].persisted.verified,0);
+});
+
+test('a wrong-market or annual first answer may be followed by one valid grounded answer',async()=>{
+ let calls=0;const stored=[];
+ const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>{
+  calls++;return acquisition(calls===1?[
+   plan('Prime Video',89,{marketEvidence:'US only'}),
+   plan('Prime Video annual',69,{annualOnly:true,billingBasis:'billed annually'})
+  ]:[plan('Prime Video',79)]);
+ },persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.equal(calls,2);assert.equal(stored.length,1);
+ assert.equal(stored[0].suggested.monthlyPriceMinor,7900);
+ assert.equal(result.targets[0].persisted.suggestedPlans,1);
+});
+
+test('empty responses stop after two Google calls and hard access failures do not retry',async()=>{
+ let calls=0,writes=0;
+ const empty=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>{calls++;return acquisition([],{status:'GOOGLE_AI_NO_PRICE'});},persistSuggested:async()=>{writes++;},loadVerified:async()=>[]});
+ assert.equal(calls,2);assert.equal(writes,0);assert.equal(empty.targets[0].combined.resultClass,'NO_RESULT');
+ assert.equal(empty.targets[0].googleRequests,2);
+ calls=0;
+ await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>{calls++;return acquisition([],{status:'GOOGLE_AI_ACCESS_FAILURE',audit:{request:{requestCount:1,status:'HTTP_402'},groundingCitations:[]}});},persistSuggested:async()=>{writes++;},loadVerified:async()=>[]});
+ assert.equal(calls,1);assert.equal(writes,0);
+});
+
+test('grounding URLs may differ only by fragment; unrelated AI-listed URLs still fail closed',async()=>{
+ const stored=[];
+ const result=await runAdminSuggestedOnlyResearch({targets:[target],maxGoogleRequests:1,acquireGoogle:async()=>acquisition([
+  plan('Prime Video',89,{sourceUrl:altibox+'#plans'}),
+  plan('Invented URL',99,{sourceUrl:'https://other.example/prices'})
+ ]),persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.equal(stored.length,1);assert.equal(stored[0].suggested.sourceUrl,altibox+'#plans');
+ assert.equal(result.targets[0].googleRequests,1);
 });
 
 test('AI-listed URLs without actual Google grounding are not accepted as cited evidence',async()=>{

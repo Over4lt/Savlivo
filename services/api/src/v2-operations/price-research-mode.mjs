@@ -1,4 +1,4 @@
-export const suggestedOnlyRequestCeiling=1;
+export const suggestedOnlyRequestCeiling=2;
 
 export function researchModeOf(config){
  const value=config?.researchMode??'standard';
@@ -7,7 +7,9 @@ export function researchModeOf(config){
 }
 
 export function perTargetRequestCeiling(config){
- return researchModeOf(config)==='suggested_only'?suggestedOnlyRequestCeiling:96;
+ // Older single-target jobs omitted this field under their one-request
+ // contract. New preflights explicitly freeze the two-request ceiling.
+ return researchModeOf(config)==='suggested_only'?(config?.perTargetRequestCeiling===2?2:1):96;
 }
 
 export function modeCapabilities(mode,capabilities){
