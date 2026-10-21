@@ -1,9 +1,8 @@
 import { translateUi, appLocale, appLanguages, type AppLanguage } from "../lib/ui-localization";
 import { browseCatalog } from "../lib/catalog-browse";
 import { configuredSavlivoPrice } from "../lib/savlivo-plan-prices";
-import {matchesRegionalPlan} from "../lib/regional-plan-match";
+import { automaticPlanPrice, matchingRegionalProductPlan, regionalProductPlanOptions } from "../lib/regional-product-pricing";
 import { resolveSavedManagement, type ManagementIntent } from "../../../packages/contracts/src/assistant-actions";
-import { classifyCurrentProviderPrice } from "../../../packages/contracts/src/verified-price-classification";
 import { discoveryRequestIsCurrent, parseAddSubscriptionIntent, validateAddSubscriptionIntent, validateManualSubscription } from "../../../packages/contracts/src/discovery";
 import { transitionCatalogDraft, serviceCatalog, searchCatalog, catalogDiscoveryPolicy, catalogCategories, billingProviders, serviceBillingProviders, billingProvidersForService, defaultBillingProviderForService, isBillingProviderAllowed, allCurrencies, serviceEligibleForCatalog, serviceAvailableInMarket, type BillingProviderSlug } from "../../../packages/contracts/src/catalog";
 import {
@@ -3894,7 +3893,7 @@ export default function Home() {
       const remote=await askRemoteAssistant(question,aiMessages.slice(-10).map(({role,text})=>({role,text})),{
         countryCode:selectedCountryCode,countryName:selectedCountryName,currency:selectedCurrency,languageHint:selectedLanguage,
         currentMonthlySpendMinor:currentMonthlySpendRegionalMinor,currentAnnualSpendMinor:currentAnnualSpendRegionalMinor,
-        currentMonthlySavingsMinor:currentMonthlySavingsRegionalMinor,savedSoFarMinor:savedSoFarRegionalMinor
+        currentMonthlySavingsMinor:currentMonthlySavingsRegionalMinor ?? undefined,savedSoFarMinor:savedSoFarRegionalMinor
       });
       if(!discoveryRequestIsCurrent({countryCode:requestMarket,epoch:requestEpoch},{countryCode:selectedCountryCodeRef.current,epoch:discoveryEpochRef.current}))return;
       if(typeof remote.answer!=="string")throw new Error("INVALID_ASSISTANT_RESPONSE");
@@ -4970,7 +4969,8 @@ export default function Home() {
       : null;
   }
 
-  function formatFinancialAggregate(minor: number) {
+  function formatFinancialAggregate(minor: number | null) {
+    if (minor === null) return tr("Price unavailable");
     const currency = financialCurrency();
 
     if (!currency) {
@@ -5022,25 +5022,10 @@ export default function Home() {
   ) {
     const expectedCurrency = selectedCountryCurrency();
     if(serviceSlug === "manual")return [];
-
-    const rows = (pricingSnapshot?.items ?? []).filter(
-      (entry: any) =>
-        entry.countryCode === selectedCountryCode &&
-        entry.currency === expectedCurrency &&
-        entry.serviceSlug === serviceSlug &&
-        entry.billingProviderSlug === billingProviderSlug &&
-        entry.priceType === "exact" &&
-        (String(entry.source ?? "").startsWith("official-provider-adapter:") ||
-          entry.source === "v3-truth") &&
-        typeof entry.monthlyPriceMinor === "number"
-    );
-
-    const unique = new Map<string, any>();
-    for (const row of rows) {
-      const key = String(row.planSlug ?? row.planName ?? "default");
-      unique.set(key, row);
-    }
-    return [...unique.values()];
+    return regionalProductPlanOptions(pricingSnapshot?.plans ?? [], {
+      serviceSlug, billingProviderSlug, countryCode: selectedCountryCode,
+      currency: expectedCurrency
+    });
   }
 
   function serviceHasRegionalPricing(serviceSlug: string) {
@@ -5057,14 +5042,7 @@ export default function Home() {
   ) {
     const rows = regionalPlanOptions(serviceSlug, billingProviderSlug);
 
-    if (planName) {
-      const exact = rows.find((entry: any) => matchesRegionalPlan(entry,planName,serviceSlug));
-      return typeof exact?.monthlyPriceMinor === "number"
-        ? exact.monthlyPriceMinor
-        : null;
-    }
-
-    return rows.length === 1 ? rows[0].monthlyPriceMinor : null;
+    return matchingRegionalProductPlan(rows, planName)?.monthlyPriceMinor ?? null;
   }
 
   function selectedPlanPriceMinor() {
@@ -5077,10 +5055,7 @@ export default function Home() {
 
   function selectedPlanPriceStatus() {
     const rows = regionalPlanOptions(serviceSlugInput,billingProviderInput);
-    const selected = subscriptionPlanInput ? rows.find((entry: any) =>
-      matchesRegionalPlan(entry,subscriptionPlanInput,serviceSlugInput)) :
-      rows.length === 1 ? rows[0] : null;
-    return selected ? classifyCurrentProviderPrice(selected) : null;
+    return matchingRegionalProductPlan(rows, subscriptionPlanInput || undefined)?.priceStatus ?? null;
   }
 
   function syncPlanAndPrice(
@@ -5093,12 +5068,7 @@ export default function Home() {
       billingProviderSlug
     );
 
-    const preferred =
-      plans.find(
-        (row: any) =>
-          preferredPlan && matchesRegionalPlan(row,preferredPlan,serviceSlugInput)
-      ) ??
-      (plans.length === 1 ? plans[0] : null);
+    const preferred = matchingRegionalProductPlan(plans, preferredPlan);
 
     const nextPlan = preferred
       ? String(
@@ -5116,20 +5086,12 @@ export default function Home() {
       !preferred ||
       typeof preferred.monthlyPriceMinor !== "number"
     ) {
-      /*
-       * No verified catalog price exists for this selection.
-       * Leave the fields available for manual entry.
-       *
-       * Do not invent or FX-convert a price.
-       */
+      // Leave the fields available for manual entry. Never FX-convert.
       return;
     }
 
-    // The catalog price already belongs to the selected country.
-    // Never FX-convert it.
-    setMonthlyPriceInput(
-      (preferred.monthlyPriceMinor / 100).toFixed(2)
-    );
+    const automaticMinor = automaticPlanPrice(preferred, Boolean(editingSubscriptionIdRef.current));
+    if (automaticMinor !== null) setMonthlyPriceInput((automaticMinor / 100).toFixed(2));
   }
 
   function formatRegionalAggregate(
@@ -5237,7 +5199,7 @@ export default function Home() {
       return null;
     }
 
-    // Verified regional price already belongs to this country.
+    // The selected provider price already belongs to this country.
     // Never convert it through USD or any other currency.
     return formatRegionalMinor(
       minor,
@@ -5430,15 +5392,20 @@ export default function Home() {
 
   function openCatalogAction(action: unknown) {
     if(saveServiceBusyRef.current)return false;
-    const candidate=validateAddSubscriptionIntent(action,selectedCountryCodeRef.current,selectedCountryCurrency(),pricingSnapshot?.items??[]);
+    const candidate=validateAddSubscriptionIntent(action,selectedCountryCodeRef.current,selectedCountryCurrency(),[]);
     if(!candidate || !requireActivePlan("subscription management"))return false;
     Keyboard.dismiss();
     if(candidate.kind==="manual")beginManualService(candidate.customServiceName);
     else {
       beginAddService(candidate.serviceSlug);
       setBillingProviderInput(candidate.billingProviderSlug);
-      setSubscriptionPlanInput("planName" in candidate.prefill ? String(candidate.prefill.planName) : "");
-      setMonthlyPriceInput("monthlyPriceMinor" in candidate.prefill ? (Number(candidate.prefill.monthlyPriceMinor)/100).toFixed(2) : "");
+      const query = action && typeof action === "object" && "planQuery" in action &&
+        typeof action.planQuery === "string" ? action.planQuery : "";
+      const option = query ? matchingRegionalProductPlan(
+        regionalPlanOptions(candidate.serviceSlug, candidate.billingProviderSlug), query
+      ) : null;
+      setSubscriptionPlanInput(option?.planName ?? "");
+      setMonthlyPriceInput(option ? (option.monthlyPriceMinor / 100).toFixed(2) : "");
     }
     return true;
   }
@@ -5462,7 +5429,7 @@ export default function Home() {
     );
 
     const exactPlan = item.planName
-      ? plans.find((row: any) => matchesRegionalPlan(row,item.planName!,item.serviceSlug))
+      ? matchingRegionalProductPlan(plans, item.planName)
       : null;
 
     // Editing an existing subscription must always preserve
@@ -10105,17 +10072,20 @@ export default function Home() {
                 {regionalPlanOptions(
                   serviceSlugInput,
                   billingProviderInput
-                ).map((planOption: any) => {
+                ).map((planOption) => {
                   const name = String(
                     planOption.planName ??
                       planOption.planSlug ??
                       "Standard"
                   );
-                  const selected = matchesRegionalPlan(planOption,subscriptionPlanInput,serviceSlugInput);
+                  const selected = matchingRegionalProductPlan(
+                    regionalPlanOptions(serviceSlugInput, billingProviderInput),
+                    subscriptionPlanInput
+                  )?.planIdentity === planOption.planIdentity;
 
                   return (
                     <Pressable
-                      key={`${planOption.planSlug}-${planOption.monthlyPriceMinor}`}
+                      key={planOption.planIdentity}
                       style={[
                         styles.choiceChip,
                         {
@@ -10160,7 +10130,7 @@ export default function Home() {
                           styles.priceVerificationText,
                           {
                             color:
-                              classifyCurrentProviderPrice(planOption) === "VERIFIED"
+                              planOption.priceStatus === "VERIFIED"
                                 ? darkMode
                                   ? "#A7D7B8"
                                   : "#357A4F"
@@ -10168,11 +10138,11 @@ export default function Home() {
                           }
                         ]}
                       >
-                        {classifyCurrentProviderPrice(planOption) === "VERIFIED"
+                        {planOption.priceStatus === "VERIFIED"
                           ? tr("✓ Verified")
-                          : classifyCurrentProviderPrice(planOption) === "OLD_VERIFIED"
-                            ? tr("Old Verified")
-                            : tr("Estimated current price")}
+                          : planOption.priceStatus === "SUGGESTED"
+                            ? tr("Suggested")
+                            : `${tr("Old Verified")} · ${tr("Price may be outdated")}`}
                       </Text>
                     </Pressable>
                   );
@@ -10180,7 +10150,7 @@ export default function Home() {
               </View>
             ) : (
               <Text style={[styles.formHint, { color: theme.muted }]}>
-                {tr("No verified regional plan pricing is available yet.")}
+                {tr("No regional plan pricing is available yet.")}
               </Text>
             )}
 
@@ -10189,8 +10159,8 @@ export default function Home() {
               serviceSlugInput,
               billingProviderInput
             ).some(
-              (planOption: any) =>
-                planOption.verification === "single-source"
+              (planOption) =>
+                planOption.priceStatus === "SUGGESTED"
             ) ? (
               <Text style={[styles.formHint, { color: theme.muted }]}>
                 {tr("Estimated prices can vary by platform, promotion, and account. Check your actual subscription and edit the price manually below if needed.")}
@@ -10288,8 +10258,10 @@ export default function Home() {
                       >
                         {selectedPlanPriceStatus() === "VERIFIED"
                           ? tr("Verified local catalog price")
+                          : selectedPlanPriceStatus() === "SUGGESTED"
+                            ? tr("Suggested")
                           : selectedPlanPriceStatus() === "OLD_VERIFIED"
-                            ? tr("Old Verified")
+                            ? `${tr("Old Verified")} · ${tr("Price may be outdated")}`
                             : tr("Estimated current price")}
                       </Text>
                     </Pressable>
