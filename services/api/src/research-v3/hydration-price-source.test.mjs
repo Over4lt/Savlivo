@@ -104,6 +104,7 @@ const localizedHydration=({market,locale,currency,label,periodicity,period,actio
 const documentedLayouts=[
  {market:'NO',locale:'no',currency:'NOK',label:'månedlig',periodicity:'Månedlig',period:'måned',action:'Velg abonnement',code:'choose.plan.add-on',plans:[{name:'Basis med reklame',amount:'89,00',id:'24902'},{name:'Standard',amount:'149,00',id:'34704'},{name:'Premium',amount:'189,00',id:'34713'}],annual:[{name:'Basis med reklame',amount:'890,00',id:'24908'},{name:'Standard',amount:'1 490,00',id:'34721'}]},
  {market:'SE',locale:'sv',currency:'SEK',label:'månatligen',periodicity:'Månatligen',period:'månad',action:'Välj plan',code:'choose.plan.add-on',plans:[{name:'Basic med reklam',amount:'89,00',id:'24902'},{name:'Standard',amount:'149,00',id:'34704'},{name:'Premium',amount:'189,00',id:'34713'}],annualLabel:'årligen',annual:[{name:'Basic med reklam',amount:'890,00',id:'24908'},{name:'Standard',amount:'1 490,00',id:'34721'},{name:'Premium',amount:'1 890,00',id:'34722'}]},
+ {market:'SE',locale:'en',currency:'SEK',label:'Monthly',periodicity:'Monthly',period:'month',action:'Select Plan',code:'choose.plan.add-on',plans:[{name:'Basic With Ads',amount:'89,00',id:'24902'},{name:'Standard',amount:'149,00',id:'34704'},{name:'Premium',amount:'189,00',id:'34713'}],annual:[{name:'Basic With Ads',amount:'890,00',id:'24908'},{name:'Standard',amount:'1490,00',id:'34721'},{name:'Premium',amount:'1890,00',id:'34722'}]},
  {market:'PL',locale:'pl',currency:'PLN',label:'miesięcznie',periodicity:'Miesięcznie',period:'miesiąc',action:'Wybierz pakiet',code:'choose.plan.add-on',plans:[{name:'Podstawowy',amount:'29,99',id:'29191'},{name:'Standardowy',amount:'39,99',id:'29192'},{name:'Premium',amount:'49,99',id:'26206'}],annual:[{name:'Podstawowy',amount:'299,00',id:'29193'},{name:'Standardowy',amount:'399,00',id:'29194'}]},
  {market:'BR',locale:'pt',currency:'BRL',label:'Mensal',periodicity:'Por mês',period:'mês',action:'Selecionar plano',code:'continue.account-creation.pre-purchase',plans:[{name:'Básico com anúncios',amount:'29,90',id:'31001'},{name:'Standard',amount:'44,90',id:'31002'},{name:'Platinum',amount:'55,90',id:'31003'}],annual:[{name:'Básico com anúncios',amount:'22,90',id:'31004'},{name:'Standard',amount:'34,90',id:'31005'}],duplicate:true},
  {market:'MY',locale:'en',currency:'MYR',label:'Monthly',periodicity:'Monthly',period:'month',action:'Select Plan',code:'continue.account-creation.pre-purchase',plans:[{name:'Standard',amount:'24.90',id:'32001'},{name:'Premium',amount:'39.90',id:'32002'}],annual:[{name:'Standard',amount:'199.90',id:'32003'},{name:'Premium',amount:'319.90',id:'32004'}],bundle:[{name:'HBO Max & Viu Bundle',amount:'33.90',id:'32005'}]},
@@ -111,7 +112,7 @@ const documentedLayouts=[
  {market:'TW',locale:'en',currency:'TWD',label:'Monthly',periodicity:'Monthly',period:'month',action:'Select Plan',code:'continue.account-creation.pre-purchase',plans:[{name:'Standard',amount:'220.00',id:'34001'},{name:'Premium',amount:'299.00',id:'34002'}],annual:[{name:'Standard',amount:'2190.00',id:'34003'},{name:'Premium',amount:'2990.00',id:'34004'}]},
 ];
 
-for(const layout of documentedLayouts)test(`${layout.market} hydration layout yields only distinct source-bound monthly offers`,()=>{
+for(const layout of documentedLayouts)test(`${layout.market}/${layout.locale} hydration layout yields only distinct source-bound monthly offers`,()=>{
  const {body,url}=localizedHydration(layout),parsed=interpretSubscriptionPage({body,url,providerName:'Max',marketCurrencyHint:layout.currency});
  assert.deepEqual(parsed.offerings.map(row=>[row.name,row.charges[0].amount,row.charges[0].currency,row.charges[0].billingCadence]),layout.plans.map(row=>[row.name,Number(row.amount.replace(',','.')),layout.currency,'MONTHLY']));
  assert.equal(parsed.services.length,1);
@@ -178,6 +179,24 @@ test('Swedish monthly cards require exact cadence, purchase action, currency and
  const objective={kind:'PRICE',serviceId:'max',serviceName:'Max',providerHosts:['www.hbomax.com'],markets:['SE'],seeds:[url]};
  for(const options of [{country:'NO'},{receipt:false},{hash:'0'.repeat(64)}]){
   const o={...observation(body,{...options,sourceUrl:url}),transport:options.receipt===false?undefined:{requestedCountry:options.country??'SE',verifiedCountry:options.country??'SE',verification:'BRACKET_VERIFIED'}};
+  const projection=projectObservation(o,objective);o.nativeStructured=projection.nativeStructured;o.candidates=admittedProjectionCandidates(projection);
+  assert.equal(evaluate({objective,observations:[o],attempts:[],policyBlocks:[],stop:null}).established,false);
+ }
+});
+
+test('English SE plan cards with provider add-on action still reject add-ons, annual amounts and wrong market proof',()=>{
+ const layout=documentedLayouts.find(row=>row.market==='SE'&&row.locale==='en'),{body,url}=localizedHydration(layout);
+ const parse=(value,currency='SEK',sourceUrl=url)=>interpretSubscriptionPage({body:value,url:sourceUrl,providerName:'Max',marketCurrencyHint:currency}).offerings;
+ assert.deepEqual(parse(body).map(row=>[row.name,row.charges[0].amount]),[['Basic With Ads',89],['Standard',149],['Premium',189]]);
+ assert.deepEqual(parse(body,'NOK'),[]);
+ assert.deepEqual(parse(body.replaceAll('"periodicityText":"Monthly"','"periodicityText":"Yearly"')),[]);
+ assert.deepEqual(parse(body.replaceAll('Select Plan','Select Add-on')),[]);
+ assert.deepEqual(parse(body,'SEK','https://other.example/se/en'),[]);
+ const ancillary=localizedHydration({...layout,plans:[...layout.plans.slice(0,2),{name:'Sports add-on',amount:'50,00',id:'34713'}]});
+ assert.deepEqual(parse(ancillary.body).map(row=>row.name),['Basic With Ads','Standard']);
+ const objective={kind:'PRICE',serviceId:'max',serviceName:'Max',providerHosts:['www.hbomax.com'],markets:['SE'],seeds:[url]};
+ for(const country of ['NO',null]){
+  const o={...observation(body,{country:country??'SE',sourceUrl:url,receipt:country!==null}),transport:country?{requestedCountry:country,verifiedCountry:country,verification:'BRACKET_VERIFIED'}:undefined};
   const projection=projectObservation(o,objective);o.nativeStructured=projection.nativeStructured;o.candidates=admittedProjectionCandidates(projection);
   assert.equal(evaluate({objective,observations:[o],attempts:[],policyBlocks:[],stop:null}).established,false);
  }

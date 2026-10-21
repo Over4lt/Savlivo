@@ -495,7 +495,8 @@ function hydrationPlanCards(parsed,providerName,marketCurrencyHint,trace=null,pr
     (/^(?:select|choose|subscribe)(?:\s+(?:a\s+)?plan|\s+now)?$/iu.test(cta?.text??'')||label==='Mensal'&&cta?.text==='Selecionar plano')&&/(?:purchase|subscription|account-creation)/iu.test(cta?.code??'')||
     label==='miesięcznie'&&cta?.text==='Wybierz pakiet'&&cta?.code==='choose.plan.add-on'||
     label==='månedlig'&&cta?.text==='Velg abonnement'&&cta?.code==='choose.plan.add-on'||
-    label==='månatligen'&&cta?.text==='Välj plan'&&cta?.code==='choose.plan.add-on');
+    label==='månatligen'&&cta?.text==='Välj plan'&&cta?.code==='choose.plan.add-on'||
+    label==='Monthly'&&providerName==='Max'&&parsed.host==='www.hbomax.com'&&cta?.text==='Select Plan'&&cta?.code==='choose.plan.add-on');
    if(item?.collectionTitle!==label||card?.periodicityText!==cadence.periodicity||price?.period?.plainText!==cadence.period||!validCurrencies.has(price?.currencyCode)||price.currencyCode!==marketCurrencyHint||amount===null||amount<0||
     typeof name!=='string'||!name||name.length>80||nonStandalonePresentation(name,providerName)||label==='månedlig'&&/(?:tillegg|rabatt|kampanje)/iu.test(name+' '+JSON.stringify(card?.badge??''))||label==='månatligen'&&/(?:tillägg|rabatt|kampanj)/iu.test(name+' '+JSON.stringify(card?.badge??''))||!action||/\b(?:student|trial|introductory|promotion(?:al)?|discount|first month)\b/iu.test(JSON.stringify(card?.badge??'')+' '+name))continue;
    const matching=spans.filter(span=>JSON.stringify(span.value)===JSON.stringify(card));if(!matching.length)continue;

@@ -18,7 +18,7 @@ function thirdPartyPresentation(body,target,url){
   if(maxNavigation&&match[0].toLowerCase()==='affiliate'){
    const at=match.index,after=body.slice(at+match[0].length);
    if(body[at-1]==='/'&&/^(?:["'\\]|\b)/u.test(after))continue;
-   if(after.startsWith('-program')&&/\/affiliate\b/iu.test(body.slice(Math.max(0,at-256),at+256)))continue;
+   if(/^[- ]program\b/iu.test(after)&&/\/affiliate\b/iu.test(body.slice(Math.max(0,at-256),at+256)))continue;
   }
   return true;
  }

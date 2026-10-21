@@ -286,6 +286,17 @@ test('Max NO footer Affiliate-program navigation is not a third-party declaratio
  assert.equal(classify(body,{...target('NO'),service:'other',serviceName:'Other'}).status,'THIRD_PARTY_SOURCE');
 });
 
+test('Max English Affiliate Program footer remains provider source without admitting affiliate reseller prose',()=>{
+ const url='https://www.hbomax.com/se/en';
+ const body='<html lang="en-SE"><head><title>HBO Max | Plans</title></head><body><h1>HBO Max plans</h1><footer><a href="/affiliate">Affiliate Program</a></footer><script type="application/json">{"label":{"en_US":"Affiliate Program"},"url":"/affiliate"}</script></body></html>';
+ const classify=(value,current=target('SE'))=>{const hash=digest(value);return classifyAcquiredSource({target:current,page:{url,requestedUrl:url,outcome:'OK',httpStatus:200,contentType:'text/html',truncated:false,bodyHash:hash,sourceIntegrity:{sha256:hash},accessDecisions:[{decision:'ALLOWED'}]},body:value,observationId:'se-footer'});};
+ assert.equal(classify(body).status,'PROVIDER_SOURCE');
+ assert.equal(classify(body+'<p>We are an affiliate reseller of HBO Max.</p>').status,'THIRD_PARTY_SOURCE');
+ assert.equal(classify(body+'<p>Not affiliated with HBO Max.</p>').status,'THIRD_PARTY_SOURCE');
+ assert.equal(classify(body.replaceAll('/affiliate','/elsewhere')).status,'THIRD_PARTY_SOURCE');
+ assert.equal(classify(body,{...target('SE'),service:'other',serviceName:'Other'}).status,'THIRD_PARTY_SOURCE');
+});
+
 test('Max ES monthly cards bind three standalone offerings and exclude the DAZN bundle',()=>{
  const parsed=interpretSubscriptionPage({body:esExcerpt,url:esUrl,providerName:'Max',marketCurrencyHint:'EUR'});
  assert.deepEqual(parsed.services.map(row=>row.name),['Max']);
