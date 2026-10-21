@@ -78,6 +78,16 @@ test('an exhausted V3 verification retry replaces the earlier no-progress stop d
  const row=priceResearchBatchStatus({status:'COMPLETE',config},directory).outcomes[0];assert.equal(row.status,'COMPLETE');assert.equal(row.resultClass,'SUGGESTED');assert.equal(row.stopReason,'V3_VERIFICATION_RETRY_EXHAUSTED');assert.equal(row.researchOutcome,'SUGGESTED_ONLY');assert.equal(row.verificationEvidenceAvailable,undefined);
 });
 
+test('Suggested Only status reports mode, zero new Verified, NO_RESULT and actual skipped capabilities',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'suggested-status-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const target={id:'price-research:prime-video:NO',serviceId:'prime-video',serviceName:'Prime Video',targetMarket:'NO',marketApplicabilityEstablished:false};
+ const config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['prime-video'],markets:['NO'],targetingRevision:'a'.repeat(64),batchTargets:[target],logicalTargetCount:1,researchMode:'suggested_only',perTargetRequestCeiling:1,batchRequestCeiling:1,capabilities:{direct:false,tavily:false,decodo:false,browser:false,groq:false}};
+ await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',researchMode:'suggested_only',targets:[{target:{id:target.id},researchMode:'suggested_only',combined:{kind:'CombinedResearchResult',resultClass:'NO_RESULT',plans:[],suggested:[],operationalFailures:[]},persisted:{suggestedPlans:0,verified:0},stopReason:'SUGGESTED_ONLY_BUDGET_EXHAUSTED',capabilityUsage:{googleAiRequests:1,strictGeminiRequests:1,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0}}]})});
+ const batch=priceResearchBatchStatus({status:'COMPLETE',config},directory),row=batch.outcomes[0];
+ assert.equal(batch.researchMode,'suggested_only');assert.equal(row.resultClass,'NO_RESULT');assert.equal(row.researchOutcome,'NO_RESULT');assert.equal(row.verified,0);assert.equal(row.stopReason,'SUGGESTED_ONLY_BUDGET_EXHAUSTED');
+ assert.deepEqual(row.capabilityUsage,{googleAiRequests:1,strictGeminiRequests:1,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0});
+});
+
 test('Max-style retained Verified cannot become fresh Verified when V3 retry is exhausted',async t=>{
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'old-verified-status-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
  const target={id:'price-research:max:NO',serviceId:'max',serviceName:'Max',targetMarket:'NO',marketApplicabilityEstablished:false},config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['max'],markets:['NO'],targetingRevision:'a'.repeat(64),batchTargets:[target],logicalTargetCount:1,perTargetRequestCeiling:96,batchRequestCeiling:96};

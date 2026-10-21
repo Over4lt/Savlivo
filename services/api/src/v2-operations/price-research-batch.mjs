@@ -6,6 +6,7 @@ import {createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,re
 import {loadPricingRouteMemory,publishPricingRouteMemory,publishPricingMethodOutcomes,isPublicPricingRouteUrl} from '../research-v2/storage/pricing-route-memory.mjs';
 import {loadRetainedVerifiedEvidence} from './verified-reconciliation-v1.mjs';
 import {loadSinglePriceRouteProof,loadBrowserPriceRouteProof} from './single-price-route-proof.mjs';
+import {researchModeOf,perTargetRequestCeiling} from './price-research-mode.mjs';
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const safeCode=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{0,159}$/.test(value)?value:'PRICE_RESEARCH_CHILD_FAILED';
@@ -44,7 +45,7 @@ export function recoverCompletedPricingRoutes(memory,child,target,{memoryRoot=nu
   if(memoryRoot&&jobId&&recordedAt)publishPricingMethodOutcomes(memoryRoot,{jobId,checkpoint:attempt,service:target.serviceId,market:target.targetMarket,recordedAt,checkpointFile:file,result,confirmedSuccessUrls,confirmedSuccessMethods});
  }
 }
-const binding=config=>digest({targetingRevision:config.targetingRevision,services:config.services,markets:config.markets,batchTargets:config.batchTargets,logicalTargetCount:config.logicalTargetCount,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling});
+const binding=config=>digest({targetingRevision:config.targetingRevision,services:config.services,markets:config.markets,batchTargets:config.batchTargets,logicalTargetCount:config.logicalTargetCount,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling,...(config.researchMode?{researchMode:config.researchMode}:{})});
 const legacyBinding=config=>digest({targetingRevision:config.targetingRevision,services:config.services,markets:config.markets,cursor:config.cursor??null,batchTargets:config.batchTargets,logicalTargetCount:config.logicalTargetCount,continuationCursor:config.continuationCursor??null,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling});
 const progressFile=directory=>path.join(directory,'price-research-batch-progress.json');
 const journalFile=directory=>path.join(directory,'price-research-batch-progress.jsonl');
@@ -125,8 +126,8 @@ function legacyTargetAccessStop(directory,target,index,outcome){
 
 export async function executePriceResearchBatch({job,directory,apiKey,client,shouldStop=()=>false,executeTarget,memoryRoot=null}){
  const config=job?.config;
- const expectedCeiling=config?.batchTargets?.length*96;
- if(config?.targetKind!=='CANONICAL_SELECTION'||!Array.isArray(config.batchTargets)||config.batchTargets.length<1||config.batchTargets.some(target=>!validTarget(target))||new Set(config.batchTargets.map(target=>`${target.serviceId}:${target.targetMarket}`)).size!==config.batchTargets.length||config.logicalTargetCount!==config.batchTargets.length||config.perTargetRequestCeiling!==96||!Number.isSafeInteger(expectedCeiling)||config.batchRequestCeiling!==expectedCeiling||typeof executeTarget!=='function')throw Error('INVALID_PRICE_RESEARCH_BATCH');
+ const perTarget=perTargetRequestCeiling(config),expectedCeiling=config?.batchTargets?.length*perTarget;
+ if(config?.targetKind!=='CANONICAL_SELECTION'||!Array.isArray(config.batchTargets)||config.batchTargets.length<1||config.batchTargets.some(target=>!validTarget(target))||new Set(config.batchTargets.map(target=>`${target.serviceId}:${target.targetMarket}`)).size!==config.batchTargets.length||config.logicalTargetCount!==config.batchTargets.length||config.perTargetRequestCeiling!==perTarget||!Number.isSafeInteger(expectedCeiling)||config.batchRequestCeiling!==expectedCeiling||typeof executeTarget!=='function')throw Error('INVALID_PRICE_RESEARCH_BATCH');
  const {file,journal,progress}=loadProgress(config,directory);let providerPricingRouteMemory=createProviderPricingRouteMemory();
  if(memoryRoot)try{providerPricingRouteMemory=loadPricingRouteMemory(memoryRoot,{services:config.services});}catch{/* Invalid durable hints cannot grant authority or interrupt research. */}
  for(let index=0;index<config.batchTargets.length;index++){
@@ -143,7 +144,7 @@ export async function executePriceResearchBatch({job,directory,apiKey,client,sho
   if(shouldStop()){progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}
   const childDir=childDirectory(directory,target,index),startedAt=new Date().toISOString();Object.assign(outcome,record(journal,index,target,'RUNNING',{startedAt}));delete outcome.index;progress.status='RUNNING';progress.nextIndex=index;progress.current={index,targetId:target.id,status:'RUNNING',startedAt};writeJson(file,compact(progress));
   let result;
-  try{result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop,providerPricingRouteMemory});}
+  try{result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,...(researchModeOf(config)==='suggested_only'?{researchMode:'suggested_only'}:{}),capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop,providerPricingRouteMemory});}
   catch(error){
    const finishedAt=new Date().toISOString();
    if(shouldStop()||error?.message==='PRICE_RESEARCH_STOPPED'){Object.assign(outcome,record(journal,index,target,'STOPPED',{startedAt,finishedAt}));delete outcome.index;progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}

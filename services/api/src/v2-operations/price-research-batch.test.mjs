@@ -25,6 +25,16 @@ test('batch executes one child at a time in deterministic namespaces and complet
  const recovered=await executePriceResearchBatch({...f,executeTarget:async()=>{throw Error('DUPLICATE_EXECUTION');}});assert.equal(recovered.status,'COMPLETE');assert.deepEqual(order,['alpha:DE','alpha:NO','beta:DE']);
 });
 
+test('Suggested Only mode and one-call budget survive interrupted multi-market resume',async t=>{
+ const f=fixture(t,[target('prime-video','NO'),target('prime-video','SE')]),seen=[];f.job.config.researchMode='suggested_only';f.job.config.perTargetRequestCeiling=1;f.job.config.batchRequestCeiling=2;f.job.config.capabilities={direct:false,tavily:false,decodo:false,browser:false,groq:false};
+ let stop=false;
+ const first=await executePriceResearchBatch({...f,shouldStop:()=>stop,executeTarget:async({job})=>{seen.push([job.config.market,job.config.researchMode]);stop=true;return {researchMode:'suggested_only',targets:[]};}});
+ assert.equal(first.status,'STOPPED');assert.deepEqual(seen,[['NO','suggested_only']]);
+ const resumed=await executePriceResearchBatch({...f,executeTarget:async({job})=>{seen.push([job.config.market,job.config.researchMode]);return {researchMode:'suggested_only',targets:[]};}});
+ assert.equal(resumed.status,'COMPLETE');assert.equal(resumed.batchRequestCeiling,2);assert.deepEqual(seen,[['NO','suggested_only'],['SE','suggested_only']]);
+ await assert.rejects(executePriceResearchBatch({...f,job:{...f.job,config:{...f.job.config,researchMode:'standard',perTargetRequestCeiling:96,batchRequestCeiling:192}},executeTarget:async()=>{throw Error('MUST_NOT_RUN');}}),/PRICE_RESEARCH_BATCH_BINDING_CHANGED/);
+});
+
 test('one-market canonical batch reaches Research-link priority adapters and persists its attempted outcome',async t=>{
  const f=fixture(t,[target('streamco','DE')]),link={id:'11111111-1111-4111-8111-111111111111',url:'https://help.streamco.example/pricing',kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true,truthAuthority:'NONE'},calls=[],updates=[];
  f.job.config.capabilities={direct:true,tavily:true,decodo:true,browser:false,groq:false};

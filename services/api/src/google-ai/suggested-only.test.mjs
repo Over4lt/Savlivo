@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {runAdminSuggestedOnlyResearch} from './admin-live-pipeline.mjs';
+import {normalizeGoogleAiResponse} from './monthly-recurring.mjs';
+
+const target={id:'price-research:prime-video:NO',service:'prime-video',serviceName:'Prime Video',market:'NO'};
+const altibox='https://www.altibox.no/underholdning/prime-video/';
+const plan=(planName,amount,overrides={})=>({planName,amount,currency:'NOK',ordinaryRecurringPrice:amount,paymentCadence:'MONTHLY',commitment:null,annualOnly:false,freeTier:false,billingBasis:'per month',sourceUrl:altibox,sourceEvidence:`${planName} ${amount} kr per month`,marketEvidence:'Available to customers in Norway',summary:'Standalone subscription',...overrides});
+const acquisition=(plans,overrides={})=>({status:'GOOGLE_AI_SUCCESS',aiResult:{provider:'Prime Video',market:'NO',plans,sources:[{title:'Altibox Prime Video',url:altibox}],warnings:[],timestamp:'2026-10-21T12:00:00.000Z',requestCount:1},audit:{timestamp:'2026-10-21T12:00:00.000Z',request:{requestCount:1},groundingCitations:[{title:'Altibox Prime Video',url:altibox}]},...overrides});
+
+test('Prime Video NO stores only grounded standalone monthly Suggested; no V3 or Verified writer runs',async()=>{
+ const stored=[],requested=[],verified=[{serviceSlug:'prime-video',planName:'Existing',monthlyPriceMinor:12900,currency:'NOK',source:'v3-truth',sourceUrl:'https://www.primevideo.com/',updatedAt:'2026-10-20T12:00:00.000Z'}];
+ const result=await runAdminSuggestedOnlyResearch({targets:[target],apiKey:'offline',acquireGoogle:async options=>{requested.push(options);return acquisition([
+  plan('Prime Video',89),plan('Prime Video annual',69,{annualOnly:true,billingBasis:'annual equivalent'}),
+  plan('Prime Video Channels add-on',39),plan('Prime Video + partner bundle',119),
+  plan('Uncited price',99,{sourceUrl:'https://uncited.example/pricing'})
+ ]);},persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>verified});
+ const row=result.targets[0];assert.equal(result.researchMode,'suggested_only');assert.equal(requested.length,1);assert.equal(requested[0].maxRequests,1);
+ assert.equal(stored.length,1);assert.equal(stored[0].planName,'Prime Video');assert.equal(stored[0].suggested.monthlyPriceMinor,8900);
+ assert.equal(stored[0].suggested.sourceUrl,altibox);assert.equal(stored[0].suggested.provenance,'GOOGLE_AI_V4');
+ assert(stored[0].suggested.warnings.includes('FIRST_PARTY_NOT_CONFIRMED'));
+ assert.equal(row.persisted.verified,0);assert.equal(row.persisted.suggestedPlans,1);assert.equal(row.combined.resultClass,'SUGGESTED');
+ assert.deepEqual(row.verificationEvidence,[]);assert.equal(row.verificationRetry,null);assert.equal(result.downstreamResult,null);
+ assert.deepEqual(row.capabilityUsage,{googleAiRequests:1,strictGeminiRequests:1,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0});
+ assert.equal(verified[0].monthlyPriceMinor,12900);
+});
+
+test('ungrounded, wrong-market and annual-only leads stop with NO_RESULT without escalation',async()=>{
+ let persisted=0;const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>acquisition([
+  plan('Prime Video',89,{marketEvidence:'US only'}),plan('Prime Video annual',69,{annualOnly:true}),
+  plan('Prime Video',89,{sourceUrl:'https://uncited.example/prime'})
+ ]),persistSuggested:async()=>{persisted++;},loadVerified:async()=>[]});
+ assert.equal(persisted,0);assert.equal(result.targets[0].combined.resultClass,'NO_RESULT');assert.equal(result.targets[0].persisted.verified,0);
+ assert.equal(result.targets[0].capabilityUsage.decodoAttempts,0);assert.equal(result.targets[0].capabilityUsage.browserAttempts,0);
+});
+
+test('Suggested Only rejects a researcher that exceeds its one-request budget',async()=>{
+ await assert.rejects(runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>acquisition([plan('Prime Video',89)],{audit:{request:{requestCount:2},groundingCitations:[{url:altibox}]}}),persistSuggested:async()=>{throw Error('MUST_NOT_WRITE');},loadVerified:async()=>[]}),/SUGGESTED_ONLY_BUDGET_VIOLATION/);
+});
+
+test('AI-listed URLs without actual Google grounding are not accepted as cited evidence',async()=>{
+ const full={provider:'Prime Video',market:'NO',plans:[{...plan('Prime Video',89),introPrice:null,introDuration:null,warnings:[]}],sources:[{title:'Altibox Prime Video',url:altibox}],warnings:[]};
+ const normalized=normalizeGoogleAiResponse({candidates:[{content:{parts:[{text:JSON.stringify(full)}]},finishReason:'STOP'}]},
+  {providerName:'Prime Video',targetMarket:'NO',query:'offline',model:'gemini-offline',requestCount:1,startedAt:'2026-10-21T12:00:00.000Z',finishedAt:'2026-10-21T12:00:01.000Z'});
+ assert.equal(normalized.audit.citations.length,1);assert.deepEqual(normalized.audit.groundingCitations,[]);
+ let written=false;const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>normalized,persistSuggested:async()=>{written=true;},loadVerified:async()=>[]});
+ assert.equal(written,false);assert.equal(result.targets[0].combined.resultClass,'NO_RESULT');assert.equal(result.targets[0].stopReason,'SUGGESTED_ONLY_NO_QUALIFYING_MONTHLY_PRICE');
+});

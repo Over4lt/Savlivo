@@ -668,6 +668,18 @@ test('market status selectors replace explicit canonical Markets Set and manual 
 const canonicalServiceCheck=(root,name)=>descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes(name)).children[0];
 const canonicalMarketLabel=(root,id)=>descendants(root).find(node=>node.className==='ops-canonical-markets').children.find(node=>node.className==='ops-facet-options').children.find(node=>node.textContent.endsWith('('+id+')'));
 
+test('Suggested Only checkbox is off by default, binds preflight mode and invalidates Start when changed',async t=>{
+ const {root,calls}=await canonicalBuilder(t,{preflightResult:{config:{researchMode:'suggested_only'},totalSafetyCeiling:1}}),mode=checkbox(root,'Kun Suggested-priser (raskere søk)');
+ assert.equal(mode.checked,false);
+ const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
+ const es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();
+ mode.checked=true;await mode.listeners.change();await button(root,'Preflight').listeners.click();
+ const request=calls.find(row=>row.p.endsWith('/preflight')).body;
+ assert.equal(request.researchMode,'suggested_only');assert.deepEqual(request.capabilities,{direct:false,tavily:false,decodo:false,browser:false,groq:false});
+ assert(text(root).includes('Research Mode: SUGGESTED_ONLY'));assert(button(root,'Confirm and queue run'));
+ mode.checked=false;await mode.listeners.change();assert(!button(root,'Confirm and queue run'));
+});
+
 test('Old Verified market button chooses only eligible legacy markets for one service',async t=>{
  const statusRows=[
   {serviceId:'chess-com',market:'ES',suggestedCount:2,verifiedCount:0,oldVerifiedCount:3},

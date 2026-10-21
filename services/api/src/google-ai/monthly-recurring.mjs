@@ -133,7 +133,7 @@ export function normalizeGoogleAiResponse(response,{providerName,targetMarket,qu
   const timestamp=finishedAt,aiResult={provider:providerName,market:targetMarket,plans,sources,warnings:[...new Set(parsed.warnings.map(value=>clean(value,300)).filter(Boolean))],timestamp,requestCount};
   const usable=plans.some(row=>monthly(row.paymentCadence)&&!row.annualOnly&&!row.freeTier&&Number(row.ordinaryRecurringPrice??row.amount)>0&&/^[A-Z]{3}$/.test(row.currency??''));
   const finishReasons=response.candidates.map(candidate=>clean(candidate?.finishReason,80)).filter(Boolean);
-  return {status:usable?'GOOGLE_AI_SUCCESS':'GOOGLE_AI_NO_PRICE',aiResult,audit:{schemaVersion:1,query,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model,timestamp,normalizedAnswer:aiResult,citations:sources,request:{requestCount,startedAt,finishedAt,runtimeMs:Date.parse(finishedAt)-Date.parse(startedAt),responseId:clean(response.responseId,256),status:finishReasons.join(',')||'COMPLETED',usage:safeUsage(response.usageMetadata)}}};
+  return {status:usable?'GOOGLE_AI_SUCCESS':'GOOGLE_AI_NO_PRICE',aiResult,audit:{schemaVersion:1,query,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model,timestamp,normalizedAnswer:aiResult,citations:sources,groundingCitations:grounding,request:{requestCount,startedAt,finishedAt,runtimeMs:Date.parse(finishedAt)-Date.parse(startedAt),responseId:clean(response.responseId,256),status:finishReasons.join(',')||'COMPLETED',usage:safeUsage(response.usageMetadata)}}};
 }
 
 async function boundedJson(response,maxBytes){
