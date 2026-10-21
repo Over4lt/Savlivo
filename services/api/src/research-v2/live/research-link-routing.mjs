@@ -2,6 +2,7 @@
 import {executableAction,resourceKey} from './execution-capabilities.mjs';
 import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
 import {providerMarketSelectorRoute} from './retained-render-source.mjs';
+import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 
 export function nextResearchLink(target,executionContext=null){
  if(target?.operationsObjective!=='PRICE_RESEARCH'||(target.verified??[]).length>0||projectEstablishedV3Offerings(target).some(row=>row.market===target.market))return null;
@@ -21,8 +22,10 @@ export function nextResearchLink(target,executionContext=null){
   // Browser action still requires its own retained source and market proof.
   if(strategy.method==='BROWSER'){
    const link=(target.researchLinks??[]).find(row=>providerMarketSelectorRoute(row)&&row.url===strategy.url),trace=target.learnedStrategyTrace;
-   if(!link||target.capabilities?.direct!==true||target.capabilities?.browser!==true){if(trace&&!trace.rejected.some(row=>row.id===strategy.id)&&trace.rejected.length<16)trace.rejected.push({id:strategy.id,method:'BROWSER',priorityTier:strategy.priorityTier,reason:'CURRENT_SELECTOR_RESEARCH_LINK_REQUIRED'});continue;}
-   return {route:'DIRECT',reason:'PROVIDER_MARKET_SELECTOR_PROBE',url:strategy.url,researchLinkId:link.id,learnedStrategyId:strategy.id,learnedStrategyMethod:'BROWSER',targetMarket:target.market,truthAuthority:'NONE',directAppropriate:true,discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}]};
+   if(link&&target.capabilities?.direct===true&&target.capabilities?.browser===true)return {route:'DIRECT',reason:'PROVIDER_MARKET_SELECTOR_PROBE',url:strategy.url,researchLinkId:link.id,learnedStrategyId:strategy.id,learnedStrategyMethod:'BROWSER',targetMarket:target.market,truthAuthority:'NONE',directAppropriate:true,discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}]};
+   const countryLink=(target.researchLinks??[]).find(row=>row.enabled===true&&row.url===strategy.url&&row.truthAuthority==='NONE'&&(row.marketScope==='GLOBAL'||row.marketScope==='MARKET_SPECIFIC'&&row.marketCode===target.market));
+   if(target.capabilities?.decodo===true&&target.capabilities?.browser===true&&providerRoutingAuthority(target,strategy.url))return {route:'DECODO',reason:'PRICE_RESEARCH_VERIFICATION_REQUIRED',url:strategy.url,...(countryLink?{researchLinkId:countryLink.id}:{}),learnedStrategyId:strategy.id,learnedStrategyMethod:'BROWSER',targetMarket:target.market,truthAuthority:'NONE',directAppropriate:false,discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}],decodoVerification:{status:'PENDING',url:strategy.url}};
+   if(trace&&!trace.rejected.some(row=>row.id===strategy.id)&&trace.rejected.length<16)trace.rejected.push({id:strategy.id,method:'BROWSER',priorityTier:strategy.priorityTier,reason:target.capabilities?.browser===true?'BROWSER_TRANSPORT_UNAVAILABLE':'CURRENT_SELECTOR_RESEARCH_LINK_REQUIRED'});continue;
   }
   return {route:strategy.method,reason:strategy.method==='DECODO'?'PRICE_RESEARCH_VERIFICATION_REQUIRED':'LEARNED_PROVIDER_PRICING_METHOD',url:strategy.url,learnedStrategyId:strategy.id,targetMarket:target.market,truthAuthority:'NONE',directAppropriate:strategy.method==='DIRECT',discoveryRequired:false,decodoConditional:true,runnable:true,candidates:[{value:10}]};
  }

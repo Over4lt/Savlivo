@@ -5,13 +5,14 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {planResearch} from './research-planner.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
-import {retainedProviderRenderingAuthority,retainedProviderSelectorAuthority} from './retained-render-source.mjs';
+import {retainedProviderRenderingAuthority,retainedProviderSelectorAuthority,failedDecodoBrowserRoute} from './retained-render-source.mjs';
 import {authorityBinding} from '../../research-v3/discovery-authority.mjs';
 import {canonical,digest,context,providerBound} from '../../research-v3/model.mjs';
 import {adaptV2CurrentSource} from '../../research-v3/v2-current-source-adapter.mjs';
-import {retainRenderedObservation} from '../../research-v3/rendered-research.mjs';
+import {retainRenderedObservation,admitRenderedInterpretation} from '../../research-v3/rendered-research.mjs';
 import {safeRenderedControl} from '../../research-v3/rendered-interactions.mjs';
 import {evaluate} from '../../research-v3/truth.mjs';
+import {compatibleCurrencies} from '../../research-v3/market-currencies.mjs';
 import {refreshCatalog} from '../../research-v3/subscription-catalog.mjs';
 import {sourceBoundContinuations} from './provider-source-v3.mjs';
 import {projectV3SuggestedCandidates} from '../../research-v3/suggested-projection.mjs';
@@ -32,8 +33,8 @@ function journalAt(directory,limits) {
  const append=(type,data={})=>{const row={sequence:events.length+1,type,...data},fd=fs.openSync(file,'a',0o600);try{fs.writeSync(fd,JSON.stringify(row)+'\n');fs.fsyncSync(fd);}finally{fs.closeSync(fd);}events.push(row);return row;};
  if(!events.length)append('LIMITS',{limits});
  else if(events[0].type!=='LIMITS'||canonical(events[0].limits)!==canonical(limits))throw Error('HYBRID_BROWSER_RESUME_LIMITS_CHANGED');
- const usage=()=>events.filter(row=>row.type==='RESERVE').reduce((all,row)=>({...all,[row.kind]:(all[row.kind]??0)+row.amount}),{actions:0,browserActions:0,networkRequests:0,countryActions:0});
- const reserve=(kind,amount=1)=>{const next=usage()[kind]+amount;if(!Number.isSafeInteger(amount)||amount<1||next>limits[kind]){append('BOUND_STOP',{kind,used:usage()[kind],requested:amount,limit:limits[kind]});throw Error('HYBRID_BROWSER_'+kind.toUpperCase()+'_BOUND');}append('RESERVE',{kind,amount});};
+ const usage=()=>events.filter(row=>row.type==='RESERVE').reduce((all,row)=>({...all,[row.kind]:(all[row.kind]??0)+row.amount}),{actions:0,browserActions:0,networkRequests:0,countryActions:0,visualRequests:0});
+ const reserve=(kind,amount=1)=>{const limit=kind==='visualRequests'?limits.visualRequests??1:limits[kind],next=usage()[kind]+amount;if(!Number.isSafeInteger(amount)||amount<1||next>limit){append('BOUND_STOP',{kind,used:usage()[kind],requested:amount,limit});throw Error('HYBRID_BROWSER_'+kind.toUpperCase()+'_BOUND');}append('RESERVE',{kind,amount});};
  return {events,append,usage,reserve};
 }
 
@@ -65,7 +66,7 @@ function learnedHint(target,result){
 function persistArtifacts(directory,action,result,observation,retained) {
  const root=path.join(directory,'artifacts');fs.mkdirSync(root,{recursive:true});const prefix=action.id.replace(/[^A-Za-z0-9_-]/g,'_');
  const artifactMetadata={...retained.artifact,image:{...retained.artifact.image,bytesBase64:null}},overviewMetadata={...retained.overview,bytesBase64:null};
- const values=[['page.html',Buffer.from(result.page.body)],['screenshot.png',Buffer.from(result.pngBytes)],['overview.png',Buffer.from(retained.overview.bytesBase64,'base64')],['dom.json',Buffer.from(JSON.stringify(result.dom))],['request-ledger.json',Buffer.from(JSON.stringify(result.browserLedger))],['rendered-artifact-metadata.json',Buffer.from(JSON.stringify(artifactMetadata))],['rendered-overview-metadata.json',Buffer.from(JSON.stringify(overviewMetadata))]];
+ const values=[['page.html',Buffer.from(result.page.body)],['screenshot.png',Buffer.from(result.pngBytes)],['overview.png',Buffer.from(retained.overview.bytesBase64,'base64')],['dom.json',Buffer.from(JSON.stringify(result.dom))],['request-ledger.json',Buffer.from(JSON.stringify(result.browserLedger))],['rendered-artifact-metadata.json',Buffer.from(JSON.stringify(artifactMetadata))],['rendered-overview-metadata.json',Buffer.from(JSON.stringify(overviewMetadata))],...(observation.visualEvidence?.length?[['visual-evidence.json',Buffer.from(JSON.stringify(observation.visualEvidence))]]:[])];
  const refs={};for(const [suffix,bytes] of values){const file=path.join(root,prefix+'-'+suffix);publish(file,bytes);refs[suffix]=artifactRef(file,bytes);}
  return {root,refs,observation:{id:observation.id,url:observation.url,sha256:observation.sha256,transport:observation.context.transport,networkGeography:observation.context.networkGeography??null,renderId:retained.artifact.id}};
 }
@@ -74,17 +75,24 @@ function retainedProviderSourceForRendering(target,parent,url,transport){
  return !!parent&&parent.url===url&&typeof parent.body==='string'&&digest(parent.body)===parent.sha256&&(retainedProviderRenderingAuthority(target,{url,transport,sourceHash:parent.sha256})||transport==='DIRECT'&&retainedProviderSelectorAuthority(target,{url,sourceHash:parent.sha256}));
 }
 
+function conflictingSourceCurrency(truth,market){
+ const currency=truth.prices?.[market]?.propositions?.CURRENCY;
+ return currency?.state==='ESTABLISHED'&&!compatibleCurrencies(market).includes(currency.value);
+}
+
 export function planHybridRenderedAcquisition(target,{url,transport='DIRECT',executionContext,parent=null}={}) {
  const planningTarget=target.renderingNeed?target:{...target,demonstratedRendering:true,renderingNeed:{kind:'RENDERED_REPRESENTATION',url,transport,market:target.market,sourceHash:target.v3Observation?.sha256??null,runDirectory:null,motivatingNeeds:structuredClone(target.v3Truth?.needs??[])}};
  const plan=planResearch(planningTarget,{renderingDemonstrated:true,unreadUrls:url?[url]:undefined,executionContext});
  if(plan.route!=='PARK_RENDERING'||plan.reason!=='RENDERING_REQUIRED')return {scheduled:false,reason:plan.reason,plan};
  if(target.capabilities?.browser!==true)return {scheduled:false,reason:'BROWSER_DISABLED',plan};
+ if(parent?.kind==='ROUTING_HINT'&&!failedDecodoBrowserRoute(target,target.renderingNeed))return {scheduled:false,reason:'DECODO_BROWSER_FAILURE_PROOF_REQUIRED',plan};
+ if(parent?.kind==='ROUTING_HINT'&&(parent.url!==url||parent.outcome!=='UNOBSERVED'||parent.context?.transport!=='DECODO'||parent.context?.networkGeography!==target.market||Object.hasOwn(parent,'body')||Object.hasOwn(parent,'sha256')))return {scheduled:false,reason:'DECODO_BROWSER_FAILURE_PROOF_REQUIRED',plan};
  if(!url||!providerRoutingAuthority(target,url)&&!retainedProviderSourceForRendering(target,parent,url,transport))return {scheduled:false,reason:'EXACT_HOST_AUTHORITY_REQUIRED',plan};
  if(!['DIRECT','DECODO'].includes(transport)||transport==='DECODO'&&(target.capabilities?.decodo!==true||!iso(target.market)))return {scheduled:false,reason:'BROWSER_TRANSPORT_UNAVAILABLE',plan};
  return {scheduled:true,reason:'RENDERING_REQUIRED',route:'BROWSER',url,transport,country:transport==='DECODO'?target.market:null,plan};
 }
 
-export async function runHybridRenderedAcquisition({directory,target,objective,parent,url=parent?.url,transport='DIRECT',browser,limits=hybridRenderedLimits,clock=()=>new Date().toISOString()}={}) {
+export async function runHybridRenderedAcquisition({directory,target,objective,parent,url=parent?.url,transport='DIRECT',browser,interpretVisual=null,limits=hybridRenderedLimits,clock=()=>new Date().toISOString()}={}) {
  if(!directory||!browser||!objective||!parent)throw Error('HYBRID_BROWSER_INPUT_REQUIRED');
  const schedule=planHybridRenderedAcquisition(target,{url,transport,parent});
  if(!schedule.scheduled)return {outcome:'NOT_SCHEDULED',reason:schedule.reason,schedule};
@@ -152,9 +160,28 @@ export async function runHybridRenderedAcquisition({directory,target,objective,p
      journal.append('PROVIDER_MARKET_ACTION_RESULT',{actionId:marketAction.id,outcome:'COMPLETED',sourceHash:observation.sha256,targetMarket:target.market});
     }catch(error){journal.append('PROVIDER_MARKET_ACTION_RESULT',{actionId:marketAction.id,outcome:'UNRESOLVED',reason:safeCode(error),...(error?.selectorDiagnostic?{selectorDiagnostic:error.selectorDiagnostic}:{})});}
    }
-   const artifacts=persistArtifacts(directory,completedAction,result,observation,retained),compact={contractVersion:hybridRenderedContract.version,actionId:action.id,outcome:'OBSERVED',url:observation.url,bodySha256:observation.sha256,sourceHashes:{mainDocument:result.page.responseMetadata?.mainDocumentSha256??null,renderedDom:result.page.responseMetadata?.renderedDomSha256??null},acquisition,networkSession:{...result.networkSession,ledgerRef:artifacts.refs['request-ledger.json'],ledgerSha256:result.networkSession.ledgerSha256},artifacts:{...artifacts,...(priorArtifacts?{prior:{refs:priorArtifacts.refs,observation:priorArtifacts.observation}}:{}),...(marketPriorArtifacts?{marketPrior:{refs:marketPriorArtifacts.refs,observation:marketPriorArtifacts.observation}}:{})},consent,marketSelection,usage:{...journal.usage(),actualNetworkRequests:result.browserLedger.length},freshAt:result.page.acquiredAt};
+   let visualStatus='NOT_REQUIRED';
+   if(!evaluate({objective,observations:[observation],attempts:[],policyBlocks:[],stop:null}).established){
+    visualStatus='VISUAL_CAPABILITY_UNAVAILABLE';
+    // The visual adapter grounds its interpretation in the retained screenshot
+    // and source-visible regions; sparse DOM text must not suppress this path.
+    if(typeof interpretVisual==='function'&&limits.visualRequests!==0){
+     try{journal.reserve('visualRequests');const visual=await interpretVisual({observation:structuredClone(observation),artifact:structuredClone(retained.artifact),overview:structuredClone(retained.overview),dom:structuredClone(retained.dom),objective:structuredClone(objective),targets:[target.id]});visualStatus=visual?.envelope?admitRenderedInterpretation(observation,objective,visual.envelope).reason:'VISUAL_INTERPRETATION_UNAVAILABLE';journal.append('VISUAL_INTERPRETATION_RESULT',{actionId:action.id,status:visualStatus});}
+     catch(error){visualStatus=safeCode(error);journal.append('VISUAL_INTERPRETATION_RESULT',{actionId:action.id,status:visualStatus});}
+    }
+   }
+   const artifacts=persistArtifacts(directory,completedAction,result,observation,retained);
+   const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},v3Truth=evaluate(knowledge);
+   const displayedMarketConflict=transport==='DECODO'&&result.marketSelector?.kind==='PROVIDER_MARKET_SELECTOR'&&typeof result.marketSelector.code==='string'&&result.marketSelector.code.toUpperCase()!==target.market;
+   if(displayedMarketConflict||conflictingSourceCurrency(v3Truth,target.market)){
+    const reason=displayedMarketConflict?'BROWSER_PROVIDER_MARKET_CONFLICT':'BROWSER_MARKET_CURRENCY_CONFLICT';
+    journal.append('NETWORK_SETTLED',{actionId:action.id,used:result.browserLedger.length,reserved:limits.perAttemptNetworkRequests});
+    journal.append('ACTION_RESULT',{actionId:action.id,outcome:'MARKET_MISMATCH',reason,sourceHash:observation.sha256,artifacts});
+    return {outcome:'MARKET_MISMATCH',reason,truthState:'UNRESOLVED',sourceHash:observation.sha256,artifacts,acquisition,networkSession:result.networkSession,usage:journal.usage()};
+   }
+   const compact={contractVersion:hybridRenderedContract.version,actionId:action.id,outcome:'OBSERVED',url:observation.url,bodySha256:observation.sha256,sourceHashes:{mainDocument:result.page.responseMetadata?.mainDocumentSha256??null,renderedDom:result.page.responseMetadata?.renderedDomSha256??null},acquisition,networkSession:{...result.networkSession,ledgerRef:artifacts.refs['request-ledger.json'],ledgerSha256:result.networkSession.ledgerSha256},artifacts:{...artifacts,...(priorArtifacts?{prior:{refs:priorArtifacts.refs,observation:priorArtifacts.observation}}:{}),...(marketPriorArtifacts?{marketPrior:{refs:marketPriorArtifacts.refs,observation:marketPriorArtifacts.observation}}:{})},consent,marketSelection,visualStatus,usage:{...journal.usage(),actualNetworkRequests:result.browserLedger.length},freshAt:result.page.acquiredAt};
    journal.append('NETWORK_SETTLED',{actionId:action.id,used:result.browserLedger.length,reserved:limits.perAttemptNetworkRequests});journal.append('ACTION_RESULT',{actionId:action.id,outcome:'OBSERVED',checkpoint:compact});
-   const knowledge={objective,observations:[observation],attempts:[],policyBlocks:[],stop:null},v3Truth=evaluate(knowledge),v3Catalog=refreshCatalog(knowledge,v3Truth),v3Observation={id:observation.id,kind:observation.kind,url:observation.url,sha256:observation.sha256,context:observation.context,candidateCount:observation.candidates.length,nativeStructuredFacts:observation.nativeStructured?.facts?.length??0},{navigation,v3Continuations}=sourceBoundContinuations(observation,objective,v3Truth);v3Observation.continuationCount=v3Continuations.length;v3Observation.continuationLimited=navigation.limited;
+   const v3Catalog=refreshCatalog(knowledge,v3Truth),v3Observation={id:observation.id,kind:observation.kind,url:observation.url,sha256:observation.sha256,context:observation.context,candidateCount:observation.candidates.length,nativeStructuredFacts:observation.nativeStructured?.facts?.length??0},{navigation,v3Continuations}=sourceBoundContinuations(observation,objective,v3Truth);v3Observation.continuationCount=v3Continuations.length;v3Observation.continuationLimited=navigation.limited;
    if(observation.extractionTrace?.recipe)v3Observation.extractionTrace={...observation.extractionTrace,sourceUrl:observation.url,sourceHash:observation.sha256,market:target.market,acquisitionMethod:acquisition.route,marketEvidence:acquisition.route==='PROVIDER_SELECTED_MARKET'?{kind:'PROVIDER_SELECTED_MARKET',sourceHash:observation.sha256}:acquisition.route==='DECODO'?{kind:'G1_BRACKET_VERIFIED',requestedCountry:target.market,verifiedCountry:target.market,sourceHash:observation.sha256}:null};
    const providerAuthority={status:'AUTHORITATIVE_PROVIDER',binding:authorityBinding(objective,observation.url)},projected=projectV3SuggestedCandidates({observation,objective,targetMarket:target.market,providerAuthority,truth:v3Truth}),researchCandidateLineage=(target.researchCandidateLineage??[]).map(row=>!row.sourceHash&&row.sourceUrl===observation.url?{...row,sourceHash:observation.sha256}:row),v3ResearchLineage=sourceBoundLineageBindings({handoff:{adaptiveTargetPatch:{researchCandidateLineage}},observation,candidates:projected}),v3SuggestedCandidates=projectV3SuggestedCandidates({observation,objective,targetMarket:target.market,providerAuthority,truth:v3Truth,researchLineage:v3ResearchLineage.bindings});
    return {...compact,observation,v3Observation,v3Truth,v3Catalog,v3SuggestedCandidates,v3ResearchLineage,v3Continuations,renderingRequired:false,schedule};

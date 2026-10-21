@@ -37,12 +37,21 @@ export function readBrowserPricingRouteEvidence({directory,target,interpretation
  const checkpoint=matching[0].checkpoint,reference=checkpoint?.artifacts?.refs?.['page.html'];
  if(checkpoint?.actionId!==outcome.actionId||checkpoint.url!==url||checkpoint.bodySha256!==hash||!reference||canonical(reference)!==canonical(outcome.artifacts.refs['page.html'])||path.resolve(checkpoint.artifacts.root)!==artifactRoot||checkpoint.artifacts.observation?.id!==observation.id||checkpoint.artifacts.observation?.sha256!==hash)fail();
  const body=artifact(artifactRoot,reference,8_000_000).toString('utf8');
- if(digest(body)!==hash||checkpoint.acquisition?.route!=='PROVIDER_SELECTED_MARKET'||canonical(checkpoint.marketSelection)!==canonical(checkpoint.acquisition.marketReceipt)||checkpoint.networkSession?.transport!=='DIRECT'||checkpoint.networkSession?.requestedCountry!==null)fail();
- validateProviderSelectedMarketReceipt(checkpoint.marketSelection,{observationId:observation.id,url,body,sourceHash:hash,targetMarket:target.market});
+ if(digest(body)!==hash||checkpoint.sourceHashes?.renderedDom!==hash)fail();
+ if(checkpoint.acquisition?.route==='PROVIDER_SELECTED_MARKET'){
+  if(canonical(checkpoint.marketSelection)!==canonical(checkpoint.acquisition.marketReceipt)||checkpoint.networkSession?.transport!=='DIRECT'||checkpoint.networkSession?.requestedCountry!==null)fail();
+  validateProviderSelectedMarketReceipt(checkpoint.marketSelection,{observationId:observation.id,url,body,sourceHash:hash,targetMarket:target.market});
+ }else if(checkpoint.acquisition?.route==='DECODO'){
+  const receipt=checkpoint.acquisition.countryReceipt,session=checkpoint.networkSession;
+  if(checkpoint.marketSelection!==null||receipt?.kind!=='V3_VERIFIED_COUNTRY_RECEIPT'||receipt.verification!=='BRACKET_VERIFIED'||receipt.requestedCountry!==target.market||receipt.verifiedCountry!==target.market||session?.transport!=='DECODO'||session.requestedCountry!==target.market||session.proxyApplied!==true||observation.context?.transport!=='DECODO'||observation.context?.networkGeography!==target.market)fail();
+ }else fail();
  const ledger=checkpoint.artifacts.refs?.['request-ledger.json'];
- if(!ledger||canonical(ledger)!==canonical(checkpoint.networkSession.ledgerRef)||checkpoint.networkSession.ledgerSha256!==digest(JSON.parse(artifact(artifactRoot,ledger,2_000_000).toString('utf8'))))fail();
+ if(!ledger||canonical(ledger)!==canonical(checkpoint.networkSession.ledgerRef))fail();
+ const requests=JSON.parse(artifact(artifactRoot,ledger,2_000_000).toString('utf8')),session=checkpoint.networkSession;
+ if(!Array.isArray(requests)||requests.length!==session.requestCount||session.ledgerSha256!==digest(requests)||!requests.every(row=>row.sessionBinding===session.sessionBinding&&row.transport===session.transport&&row.requestedCountry===session.requestedCountry))fail();
+ if(checkpoint.acquisition.route==='DECODO'&&requests.filter(row=>row.resourceType==='geography').length<2)fail();
  if(!Number.isFinite(Date.parse(checkpoint.freshAt))||Date.parse(checkpoint.freshAt)>Date.now())fail();
- const decision=(target.decisions??[]).find(row=>row.eligible===true&&row.route==='BROWSER'&&normalizeUrl(row.url)===url);
+ const decision=(target.decisions??[]).find(row=>row.eligible===true&&row.route==='BROWSER'&&normalizeUrl(row.url)===normalizeUrl(interpretation.url));
  if(!decision)fail();
  const authority=providerRoutingAuthority(target,url),selectorAuthority=!authority&&retainedProviderSelectorAuthority(target,{url,sourceHash:outcome.sourceHash});
  if(!authority&&!selectorAuthority)fail();
@@ -53,5 +62,5 @@ export function readBrowserPricingRouteEvidence({directory,target,interpretation
   const retained=regular(path.join(bodyRoot,outcome.sourceHash+'.txt'),8_000_000,bodyRoot);
   if(digest(retained.toString('utf8'))!==outcome.sourceHash)fail();
  }
- return {body,url,sha256:hash,acquiredAt:checkpoint.freshAt,method:'BROWSER',marketEvidence:{kind:'PROVIDER_SELECTED_MARKET',sourceHash:hash,targetMarket:target.market}};
+ return {body,url,sha256:hash,acquiredAt:checkpoint.freshAt,method:'BROWSER',marketEvidence:checkpoint.acquisition.route==='DECODO'?{kind:'G1_BRACKET_VERIFIED',sourceHash:hash,targetMarket:target.market}:{kind:'PROVIDER_SELECTED_MARKET',sourceHash:hash,targetMarket:target.market}};
 }

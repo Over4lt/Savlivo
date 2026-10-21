@@ -8,6 +8,7 @@ import {createDecodoProvider} from '../../../../docs/catalog/global-47/research-
 import {runLive} from '../research-v2/live/runner.mjs';
 import {randomBytes} from 'node:crypto';
 import {createLocalContainerRenderedBrowser,localContainerBrowserConfiguration} from '../research-v3/local-container-browser.mjs';
+import {createLiveVisualInterpreter} from '../research-v3/live-visual.mjs';
 
 const unavailable=(reason)=>({available:false,reason,readiness:'UNAVAILABLE'});
 const available=(reason,extra={})=>({available:true,reason,readiness:'AVAILABLE',...extra});
@@ -41,7 +42,7 @@ export async function createPriceResearchAdapters({market,capabilities,env=proce
  return async({stage,directory,targets=[]})=>{
   if(stage==='PROVIDER_SEED')return {search:async args=>{if(!capabilities.tavily)throw Error('TAVILY_NOT_PERMITTED');outerSearch??=await createTavilySearch({env,maxCalls:2});return outerSearch(args);},read:async({url,maxBytes=2097152,stopOnCrossHostRedirect=false})=>{if(!capabilities.direct)throw Error('DIRECT_NOT_PERMITTED');return createV2RobotsPublicAdapter({authorities:[],retainRaw:true,maxLinks:80,maxReads:1,maxRequests:4,network:{timeoutMs:15000,maxBytes,maxRedirects:1,pricingResources:false}}).read({url,targetCountry:market,maxRedirects:1,stopOnCrossHostRedirect});}};
   if(stage!=='KNOWN_SERVICE_CHILD'&&stage!=='RESEARCH_LINK_PRIORITY')throw Error('UNKNOWN_ADAPTER_STAGE');
-  const dependencies=capabilities.browser?{createRenderedBrowser:()=>createRenderedBrowser({env,proxyFor:context=>runtime?{server:'http://gate.decodo.com:7000',username:'user-'+runtime.DECODO_USERNAME+'-country-'+context.networkGeography.toLowerCase()+'-session-'+randomBytes(16).toString('hex'),password:runtime.DECODO_PASSWORD}:null})}:{},discovery=await createDiscovery({inventory:targets,env,bounds:{searches:2},searchEnabled:capabilities.tavily}),live=discovery.bind({dir:directory,runtime,bundle,runLive,dependencies});
+  const dependencies=capabilities.browser?{createRenderedBrowser:()=>createRenderedBrowser({env,proxyFor:context=>runtime?{server:'http://gate.decodo.com:7000',username:'user-'+runtime.DECODO_USERNAME+'-country-'+context.networkGeography.toLowerCase()+'-session-'+randomBytes(16).toString('hex'),password:runtime.DECODO_PASSWORD}:null}),...(env.OPENAI_API_KEY?.trim()?{interpretVisual:createLiveVisualInterpreter({env})}:{})}:{},discovery=await createDiscovery({inventory:targets,env,bounds:{searches:2},searchEnabled:capabilities.tavily}),live=discovery.bind({dir:directory,runtime,bundle,runLive,dependencies});
   return {search:live.search,read:live.read,classify:live.classify,consumeProvider:live.consumeProvider,acquire:live.acquire,...(capabilities.browser?{render:live.render}:{})};
  };
 }

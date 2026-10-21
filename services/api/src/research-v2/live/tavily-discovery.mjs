@@ -11,6 +11,7 @@ import path from 'node:path';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 import {runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
 import {activeRenderingNeed} from './rendering-diagnosis.mjs';
+import {failedDecodoBrowserRoute} from './retained-render-source.mjs';
 import {priceResearchAcquisitionCandidate} from './price-research-candidate.mjs';
 import {sourceBoundPriceDecodoContinuation} from './source-bound-price-priority.mjs';
 import {providerSourceDomainFamily} from '../../research-v3/provider-source-family.mjs';
@@ -84,12 +85,13 @@ export async function createTavilyDiscovery({inventory,env=process.env,readKeych
     return {...geo,channel:verification?'PRICE_RESEARCH_DECODO':independent?'INDEPENDENT_DECODO':'DIRECT_THEN_GEO',routingReason:verification||independent?reason:direct.acquisitionEscalation.primaryFailureReason,...(!independent&&!verification?{direct}:{})};
    },
    async render({target,directory,need=activeRenderingNeed(target)}){
-    if(!need||!need.runDirectory)throw Error('RENDERED_PARENT_REQUIRED');
-    const rows=need.transport==='DIRECT'&&need.runDirectory===directory?(target.reads??[]).filter(row=>row.outcome==='OK'&&row.url===need.url&&row.bodyHash===need.sourceHash&&row.bodyFile===`bodies/${row.bodyHash}.txt`).map(row=>{const body=fs.readFileSync(path.join(directory,row.bodyFile),'utf8');if(digest(body)!==row.bodyHash)throw Error('RENDERED_PARENT_HASH_FAILURE');return {url:row.url,body,bodyHash:row.bodyHash};}):retainedParents(need.runDirectory,target),raw=rows.find(row=>row.url===need.url&&(!need.sourceHash||row.bodyHash===need.sourceHash));if(!raw)throw Error('RENDERED_PARENT_REQUIRED');
-    const prior=[...(target.providerInterpretations??[]),{v3Observation:target.v3Observation}].reverse().map(row=>row?.v3Observation).find(row=>row?.url===need.url&&row.sha256===raw.bodyHash),parent={id:prior?.id??'render-parent-'+raw.bodyHash.slice(0,24),kind:'PROVIDER',url:raw.url,context:prior?.context??{transport:need.transport,networkGeography:need.transport==='DECODO'?target.market:'UNBOUND',representation:'PROVIDER_PAGE'},outcome:'OK',body:raw.body,sha256:raw.bodyHash};
+    const reacquisition=failedDecodoBrowserRoute(target,need);
+    if(!need||!need.runDirectory&&!reacquisition)throw Error('RENDERED_PARENT_REQUIRED');
+    const rows=reacquisition?[]:need.transport==='DIRECT'&&need.runDirectory===directory?(target.reads??[]).filter(row=>row.outcome==='OK'&&row.url===need.url&&row.bodyHash===need.sourceHash&&row.bodyFile===`bodies/${row.bodyHash}.txt`).map(row=>{const body=fs.readFileSync(path.join(directory,row.bodyFile),'utf8');if(digest(body)!==row.bodyHash)throw Error('RENDERED_PARENT_HASH_FAILURE');return {url:row.url,body,bodyHash:row.bodyHash};}):retainedParents(need.runDirectory,target),raw=rows.find(row=>row.url===need.url&&(!need.sourceHash||row.bodyHash===need.sourceHash));if(!raw&&!reacquisition)throw Error('RENDERED_PARENT_REQUIRED');
+    const prior=raw&&[...(target.providerInterpretations??[]),{v3Observation:target.v3Observation}].reverse().map(row=>row?.v3Observation).find(row=>row?.url===need.url&&row.sha256===raw.bodyHash),parent=reacquisition?{id:'browser-route-'+digest([target.id,need.url,target.market]).slice(0,24),kind:'ROUTING_HINT',url:need.url,context:{transport:'DECODO',networkGeography:target.market,representation:'ROUTING_ONLY'},outcome:'UNOBSERVED'}:{id:prior?.id??'render-parent-'+raw.bodyHash.slice(0,24),kind:'PROVIDER',url:raw.url,context:prior?.context??{transport:need.transport,networkGeography:need.transport==='DECODO'?target.market:'UNBOUND',representation:'PROVIDER_PAGE'},outcome:'OK',body:raw.body,sha256:raw.bodyHash};
     const serviceName=target.providerSeedCandidateServiceContext?.serviceName??target.serviceName,objective={kind:'PRICE',serviceId:target.service,serviceName,providerHosts:[new URL(need.url).hostname],markets:[target.market],seeds:[target.providerSeedCandidateServiceContext?.objectiveResource?.url??need.url]},browser=dependencies.createRenderedBrowser?await dependencies.createRenderedBrowser({target,need}):dependencies.renderedBrowser;
     if(typeof browser!=='function')throw Error('RENDERED_BROWSER_CONFIGURATION_REQUIRED');
-    return (dependencies.runHybridRenderedAcquisition??runHybridRenderedAcquisition)({directory:directory+'/hybrid-rendered',target:{...target,serviceName},objective,parent,url:need.url,transport:need.transport,browser});
+    return (dependencies.runHybridRenderedAcquisition??runHybridRenderedAcquisition)({directory:directory+'/hybrid-rendered',target:{...target,serviceName},objective,parent,url:need.url,transport:need.transport,browser,interpretVisual:dependencies.interpretVisual});
    }
   };
  }};

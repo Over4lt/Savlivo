@@ -158,7 +158,7 @@ export function learnProviderPricingRoutesFromTarget({memory,target,directory,no
   const propositions=[...new Set(Object.values(truth.prices??{}).flatMap(price=>Object.entries(price?.propositions??{}).filter(([name,value])=>pricingPropositions.has(name)&&value?.state==='ESTABLISHED'&&references(value,observation.id,hash)).map(([name])=>name)))];
   if(!propositions.length)continue;
   const host=new URL(url).hostname,decision=(target.decisions??[]).find(row=>row.eligible===true&&normalizeUrl(row.url)===normalizeUrl(interpretation.url));
-  if(!decision||normalizeUrl(interpretation.url)!==url)continue;
+  if(!decision||interpretation.renderedAcquisition!==true&&normalizeUrl(interpretation.url)!==url)continue;
   const directAuthority=decision.authority?.hostname===host&&decision.authority?.service===target.service&&decision.authority?.validated===true;
   const acquisition=(target.acquisitionOutcomes??[]).find(row=>row.url===decision.url&&row.runDirectory&&row.sourceHash===hash&&row.sourceClassification?.status==='PROVIDER_SOURCE'&&row.sourceClassification?.finalUrl===url&&row.sourceClassification?.sourceHash===hash&&row.countryV3Evaluation?.status==='EVALUATED'&&row.countryV3Evaluation?.sourceHash===hash&&row.countryV3Evaluation?.receiptStatus==='HASH_VERIFIED'&&row.countryV3Evaluation?.geoClass==='G1');
   const derivedCandidate=(target.derivedCountryCandidates??[]).find(row=>row.service===target.service&&row.market===target.market&&row.url===url&&/^[a-f0-9]{64}$/.test(row.providerRouteEvidenceSha256??''));
@@ -233,14 +233,14 @@ export function providerPricingStrategiesForTarget(memory,target){
   if(!route.countryRouteEvidenceSha256&&!route.sources?.some(source=>source.market===target.market)&&!globalRoute)continue;
   const methods=serviceMethods.filter(item=>item.url===sourceUrl&&(route.countryRouteEvidenceSha256||globalRoute||item.market===target.market));
   for(const method of methods){
-   if(method.method==='BROWSER'&&!(target.researchLinks??[]).some(link=>link.enabled&&link.url===route.url))continue;
+   if(method.method==='BROWSER'&&!(target.researchLinks??[]).some(link=>link.enabled&&link.url===route.url)&&method.market!==target.market)continue;
    const sameMarket=method.market===target.market,penalty=recentMethodPenalty(memory,target.service,target.market,route.url),cost={DIRECT:1,DECODO:3,BROWSER:5}[method.method];
    strategies.push({id:digest([target.service,target.market,route.url,method.method,sourceUrl]),service:target.service,market:target.market,url:route.url,method:method.method,sourceMarket:method.market,sourceUrl,priorityTier:sameMarket?1:2,compatibilityReason:sameMarket?'SAME_SERVICE_MARKET_PROVEN':'SAME_SERVICE_ROUTE_DERIVED',score:route.successes*10-penalty*4-cost,meaning:hybridProviderResourceMemoryContract.meaning});
   }
  }
  for(const candidate of targetOwnedMethodCandidates(target))for(const profile of memory.sharedMethodBank?.values()??[]){
   const proven=[...profile.successes.values()].filter(row=>row.service!==target.service),services=[...new Set(proven.map(row=>row.service))].sort();if(!services.length)continue;
-  if(profile.method==='BROWSER'&&!(candidate.link&&providerMarketSelectorRoute(candidate.link)&&target.capabilities?.direct===true&&target.capabilities?.browser===true))continue;
+  if(profile.method==='BROWSER'&&!(candidate.link&&target.capabilities?.browser===true&&(providerMarketSelectorRoute(candidate.link)&&target.capabilities?.direct===true||target.capabilities?.decodo===true)))continue;
   if(profile.method==='DECODO'&&(candidate.kind==='TARGET_REVIEWED_PROVIDER_ROOT'||target.capabilities?.decodo===false))continue;
   if(profile.method==='DIRECT'&&target.capabilities?.direct===false)continue;
   const cost={DIRECT:1,DECODO:3,BROWSER:5}[profile.method],usage=proven.map(row=>row.usage?.acquisitions).filter(Number.isSafeInteger),averageAcquisitions=usage.length?usage.reduce((sum,value)=>sum+value,0)/usage.length:cost;

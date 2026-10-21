@@ -12,6 +12,18 @@ export const researchLinkPriorityTarget=(baseTarget,capabilities)=>({...baseTarg
 // Routing permission for a Browser continuation on the exact Decodo source
 // already classified as a provider source. This never supplies price Truth.
 import {providerSourceDomainFamily} from '../../research-v3/provider-source-family.mjs';
+import {providerRoutingAuthority} from './provider-routing-authority.mjs';
+
+// A failed, permitted Decodo response may justify one fresh Browser acquisition.
+// This is a routing proof only: it contains no provider body, market receipt or
+// price evidence. Browser must obtain and verify all three independently.
+export function failedDecodoBrowserRoute(target,need){
+ if(target?.operationsObjective!=='PRICE_RESEARCH'||need?.kind!=='DECODO_BROWSER_REACQUISITION'||need.transport!=='DECODO'||need.market!==target.market||need.sourceHash!==null||!target.capabilities?.browser||!target.capabilities?.decodo||!providerRoutingAuthority(target,need.url))return false;
+ if((target.blockedOrigins??[]).includes(new URL(need.url).origin))return false;
+ const attempts=(target.acquisitionOutcomes??[]).filter(row=>row.url===need.url&&row.researchLinkId===need.researchLinkId&&row.channel==='PRICE_RESEARCH_DECODO'&&row.classification==='ACQUISITION_FAILED'&&row.responseTooLarge===true&&row.sourceClassification?.status==='UNKNOWN_SOURCE'&&row.sourceClassification?.sourceHash===null&&row.countryV3Evaluation?.status==='UNRESOLVED');
+ const link=(target.researchLinks??[]).find(row=>row.id===need.researchLinkId&&row.enabled===true&&row.truthAuthority==='NONE'&&row.url===need.url&&(row.marketScope==='GLOBAL'||row.marketScope==='MARKET_SPECIFIC'&&row.marketCode===target.market));
+ return attempts.length===1&&!!link;
+}
 
 export function retainedProviderRenderingAuthority(target,{url,transport,sourceHash}={}){
  if(transport!=='DECODO'||!/^[a-f0-9]{64}$/.test(sourceHash??'')||!providerSourceDomainFamily(target,url))return false;

@@ -64,6 +64,14 @@ test('missing retained source-bound parent fails closed before browser creation'
  await assert.rejects(live.render({target,directory:root,need:{runDirectory,url:target.urls[0],sourceHash:'0'.repeat(64),transport:'DIRECT'}}),/RENDERED_PARENT_REQUIRED/);
 });
 
+test('documented Decodo body-limit failure hands only a route hint to the same-country Browser bridge',async t=>{
+ const root=temp(t),url=target.urls[0],link={id:'global-provider',url,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',enabled:true,truthAuthority:'NONE'},need={kind:'DECODO_BROWSER_REACQUISITION',url,transport:'DECODO',market:'DE',sourceHash:null,researchLinkId:link.id};
+ const current={...target,operationsObjective:'PRICE_RESEARCH',capabilities:{...target.capabilities,decodo:true},authorities:[{...target.authorities[0],checkedAt:'2026-10-01'}],researchLinks:[link],acquisitionOutcomes:[{url,channel:'PRICE_RESEARCH_DECODO',researchLinkId:link.id,classification:'ACQUISITION_FAILED',responseTooLarge:true,sourceClassification:{status:'UNKNOWN_SOURCE',sourceHash:null},countryV3Evaluation:{status:'UNRESOLVED'}}]};
+ let received;const discovery=await createTavilyDiscovery({inventory:[current],searchEnabled:false}),live=discovery.bind({dir:root,runtime:null,bundle:null,runLive:null,dependencies:{createRenderedBrowser:async()=>async()=>{},runHybridRenderedAcquisition:async input=>{received=input;return {outcome:'BRIDGE_CALLED'};}}});
+ assert.equal((await live.render({target:current,directory:root,need})).outcome,'BRIDGE_CALLED');assert.equal(received.transport,'DECODO');assert.equal(received.parent.context.networkGeography,'DE');assert.equal(received.parent.kind,'ROUTING_HINT');assert.equal(Object.hasOwn(received.parent,'body'),false);assert.equal(Object.hasOwn(received.parent,'sha256'),false);
+ await assert.rejects(live.render({target:{...current,acquisitionOutcomes:[]},directory:root,need}),/RENDERED_PARENT_REQUIRED/);
+});
+
 const none={direct:false,tavily:false,decodo:false,browser:false,groq:false};
 test('PRICE_RESEARCH Tavily readiness uses environment first with Keychain fallback',async()=>{
  let reads=0;const fromEnv=await priceResearchCapabilityPreflight({...none,tavily:true},{env:{TAVILY_API_KEY:'env-private'},readTavily:async()=>{reads++;return 'local-private';},readGemini:async()=>null});assert.equal(fromEnv.ready,true);assert.equal(fromEnv.availability.tavily.credentialSource,'ENVIRONMENT');assert.equal(reads,0);

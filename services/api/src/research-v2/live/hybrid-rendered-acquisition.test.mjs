@@ -11,6 +11,10 @@ import {evaluate} from '../../research-v3/truth.mjs';
 import {hybridRenderedLimits,planHybridRenderedAcquisition,runHybridRenderedAcquisition} from './hybrid-rendered-acquisition.mjs';
 import {safeRenderedControl} from '../../research-v3/rendered-interactions.mjs';
 import {projectEstablishedV3Offerings} from '../inventory/v3-result-projection.mjs';
+import {compileVisualObservation} from '../../research-v3/live-visual.mjs';
+import {createProviderPricingRouteMemory,learnProviderPricingRoutesFromTarget,providerPricingStrategiesForTarget} from './hybrid-provider-resource-memory.mjs';
+import {publishPricingRouteMemory,publishPricingMethodOutcomes,loadPricingRouteMemory} from '../storage/pricing-route-memory.mjs';
+import {readBrowserPricingRouteEvidence} from './browser-pricing-route-evidence.mjs';
 
 const {PNG}=pngjs,host='provider.example',url=`https://${host}/pricing`,service='fixture',serviceName='Example service',market='NO';
 const objective={kind:'PRICE',serviceId:service,serviceName,providerHosts:[host],markets:[market],seeds:[url]};
@@ -32,8 +36,15 @@ function fakeChromium({body=establishedBody,renderedBody=body,postConsentBody=es
 }
 
 function capability(options={}) {
- const fake=fakeChromium(options),browser=createPlaywrightRenderedCapability({chromium:fake.chromium,proxyFor:()=>({server:'http://decodo.invalid:7000',username:'fixture',password:'fixture'}),hostAllowed:async()=>true,clock:()=> '2026-10-09T10:00:00.000Z',limits:{...browserRenderLimits,consentSettleTimeoutMs:20}});
+ const fake=fakeChromium(options),browser=createPlaywrightRenderedCapability({chromium:fake.chromium,proxyFor:context=>({server:'http://decodo.invalid:7000',username:'fixture-country-'+context.networkGeography.toLowerCase(),password:'fixture'}),hostAllowed:async()=>true,clock:()=> '2026-10-09T10:00:00.000Z',limits:{...browserRenderLimits,consentSettleTimeoutMs:20}});
  return {browser,state:fake.state};
+}
+
+function reacquisition(marketCode){
+ const link={id:'global-pricing',url,kind:'DIRECT_SOURCE',marketScope:'GLOBAL',marketCode:null,enabled:true,truthAuthority:'NONE'};
+ const need={kind:'DECODO_BROWSER_REACQUISITION',url,transport:'DECODO',market:marketCode,sourceHash:null,researchLinkId:link.id};
+ const current=target({id:'price-research:fixture:'+marketCode,market:marketCode,operationsObjective:'PRICE_RESEARCH',researchLinks:[link],demonstratedRendering:true,renderingNeed:need,acquisitionOutcomes:[{url,channel:'PRICE_RESEARCH_DECODO',researchLinkId:link.id,classification:'ACQUISITION_FAILED',responseTooLarge:true,sourceClassification:{status:'UNKNOWN_SOURCE',sourceHash:null},countryV3Evaluation:{status:'UNRESOLVED'}}],researchLinkOutcomes:[{id:link.id,result:'BROWSER_CONTINUATION_REQUIRED',targetMarket:marketCode,decodoAttempted:true}]});
+ return {current,need,parent:{id:'routing-only',kind:'ROUTING_HINT',url,context:{transport:'DECODO',networkGeography:marketCode,representation:'ROUTING_ONLY'},outcome:'UNOBSERVED'},objective:{...objective,markets:[marketCode]}};
 }
 
 function native(body=establishedBody) {
@@ -121,6 +132,62 @@ test('DECODO constrains every relevant request to one proxied browser context an
  assert.deepEqual(new Set(result.networkSession.requestCount&&JSON.parse(fs.readFileSync(path.join(result.artifacts.root,result.networkSession.ledgerRef.file))).map(row=>row.resourceType)),new Set(['robots','geography','document','script','fetch','image']));
  const ledger=JSON.parse(fs.readFileSync(path.join(result.artifacts.root,result.networkSession.ledgerRef.file)));assert.ok(ledger.every(row=>row.transport==='DECODO'&&row.requestedCountry==='NO'&&row.sessionBinding===result.networkSession.sessionBinding));
  assert.equal(result.acquisition.countryReceipt.kind,'V3_VERIFIED_COUNTRY_RECEIPT');assert.equal(result.observation.context.networkGeography,'NO');
+});
+
+for(const marketCode of ['NO','SE','DK'])test(`failed Decodo ${marketCode} source gets one fresh Browser session through the same country proxy`,async t=>{
+ const input=reacquisition(marketCode),currency={NO:'NOK',SE:'SEK',DK:'DKK'}[marketCode],body=establishedBody.replaceAll('NOK',currency),c=capability({body,country:marketCode});
+ assert.equal(planHybridRenderedAcquisition(input.current,{url,transport:'DECODO',parent:input.parent}).scheduled,true);
+ const result=await runHybridRenderedAcquisition({directory:temp(t),target:input.current,objective:input.objective,parent:input.parent,transport:'DECODO',browser:c.browser});
+ assert.equal(result.outcome,'OBSERVED',JSON.stringify(result));assert.equal(c.state.contexts.length,1);assert.equal(c.state.contexts[0].proxy.username,'fixture-country-'+marketCode.toLowerCase());
+ assert.equal(result.acquisition.countryReceipt.verifiedCountry,marketCode);assert.equal(result.observation.sha256,digest(body));assert.equal(result.observation.context.networkGeography,marketCode);
+ const ledger=JSON.parse(fs.readFileSync(path.join(result.artifacts.root,result.networkSession.ledgerRef.file)));assert(ledger.every(row=>row.transport==='DECODO'&&row.requestedCountry===marketCode&&row.sessionBinding===result.networkSession.sessionBinding));
+ assert.equal(result.v3Truth.established,true);assert.equal(result.v3SuggestedCandidates.length,1);
+});
+
+test('routing hint cannot fabricate a parent body, skip the failed Decodo proof, or reuse wrong country',async t=>{
+ const input=reacquisition('NO'),browser=capability().browser;
+ for(const current of [{...input.current,acquisitionOutcomes:[]},{...input.current,blockedOrigins:[new URL(url).origin]},{...input.current,capabilities:{...input.current.capabilities,decodo:false}}])assert.notEqual(planHybridRenderedAcquisition(current,{url,transport:'DECODO',parent:input.parent}).scheduled,true);
+ assert.equal(planHybridRenderedAcquisition(input.current,{url,transport:'DECODO',parent:{...input.parent,body:'invented'}}).reason,'DECODO_BROWSER_FAILURE_PROOF_REQUIRED');
+ const mismatch=capability({country:'SE'}),result=await runHybridRenderedAcquisition({directory:temp(t),target:input.current,objective:input.objective,parent:input.parent,transport:'DECODO',browser:mismatch.browser});
+ assert.equal(result.outcome,'ACQUISITION_FAILED');assert.equal(result.v3Truth,undefined);assert.equal(result.truthState,'UNRESOLVED');
+});
+
+test('country-proxied Browser cannot turn a conflicting displayed currency into target-market Verified',async t=>{
+ const input=reacquisition('SE'),c=capability({body:establishedBody,country:'SE'}),result=await runHybridRenderedAcquisition({directory:temp(t),target:input.current,objective:input.objective,parent:input.parent,transport:'DECODO',browser:c.browser});
+ assert.equal(result.outcome,'MARKET_MISMATCH');assert.equal(result.reason,'BROWSER_MARKET_CURRENCY_CONFLICT');assert.equal(result.acquisition.countryReceipt.verifiedCountry,'SE');assert.equal(result.v3Truth,undefined);assert(result.artifacts.refs['page.html']);
+});
+
+test('a provider-displayed country contradicting the Decodo target blocks V3 admission',async t=>{
+ const input=reacquisition('SE'),base=capability({body:establishedBody.replaceAll('NOK','SEK'),country:'SE'}),browser=async(...args)=>({...await base.browser(...args),marketSelector:{kind:'PROVIDER_MARKET_SELECTOR',code:'NO',label:'Current country NO'}});browser.close=base.browser.close;
+ const result=await runHybridRenderedAcquisition({directory:temp(t),target:input.current,objective:input.objective,parent:input.parent,transport:'DECODO',browser});
+ assert.equal(result.outcome,'MARKET_MISMATCH');assert.equal(result.reason,'BROWSER_PROVIDER_MARKET_CONFLICT');assert.equal(result.v3Truth,undefined);assert(result.artifacts.refs['page.html']);
+});
+
+test('source-bound Decodo plus Browser success teaches a reusable method, never a reusable price receipt',async t=>{
+ const directory=temp(t),input=reacquisition('NO'),priceRows=[['Standard',79],['Plus',109],['Premium',139]].map(([name,amount])=>`<tr><td>${name}</td><td><p>Monthly: NOK ${amount}</p><p>Annual: NOK ${amount*10}</p><button>Select a plan</button></td></tr>`).join(''),pricePage=`<html><head><title>Example service plans</title><meta name="description" content="Example service subscriptions and monthly plans"></head><body><h1>Example service plans</h1><h2>Pricing (NOK)</h2><table>${priceRows}</table></body></html>`,c=capability({body:pricePage}),result=await runHybridRenderedAcquisition({directory:path.join(directory,'hybrid-rendered'),target:input.current,objective:input.objective,parent:input.parent,transport:'DECODO',browser:c.browser});
+ assert.equal(result.v3Truth.established,true);
+ const learnedTarget={...input.current,decisions:[{url,eligible:true,route:'DECODO',acquisitionReserved:true},{url,eligible:true,route:'BROWSER',acquisitionReserved:true}],renderingOutcomes:[{url,transport:'DECODO',sourceHash:null,outcome:'OBSERVED',actionId:result.actionId,artifacts:result.artifacts}],providerInterpretations:[{url,renderedAcquisition:true,v3Observation:result.v3Observation,v3Truth:result.v3Truth}]};
+ assert.equal(readBrowserPricingRouteEvidence({directory,target:learnedTarget,interpretation:learnedTarget.providerInterpretations[0]}).sha256,result.observation.sha256);
+ const memory=createProviderPricingRouteMemory(),rows=learnProviderPricingRoutesFromTarget({memory,target:learnedTarget,directory});assert.equal(rows.length,1);assert.equal(memory.provenMethods[0].method,'BROWSER');assert.equal(rows[0].sources[0].sha256,result.observation.sha256);
+ const root=temp(t),jobId='11111111-1111-4111-8111-111111111111',recordedAt=new Date().toISOString();publishPricingRouteMemory(root,rows,{jobId,checkpoint:'priority-research-links',market:'NO',recordedAt,acquiredAt:result.freshAt});
+ const checkpoint=path.join(temp(t),'adaptive-state.json');fs.writeFileSync(checkpoint,JSON.stringify({targets:{[learnedTarget.id]:learnedTarget},services:{[service]:{used:{acquisitions:2}}}}));
+ assert.equal(publishPricingMethodOutcomes(root,{jobId,checkpoint:'priority-research-links',service,market:'NO',recordedAt,checkpointFile:checkpoint,confirmedSuccessUrls:[url],confirmedSuccessMethods:{[url]:'BROWSER'}}).published,1);
+ const loaded=loadPricingRouteMemory(root,{services:[service]}),strategies=providerPricingStrategiesForTarget(loaded,input.current);assert(strategies.some(row=>row.method==='BROWSER'&&row.market==='NO'&&row.url===url));
+ assert(strategies.every(row=>!Object.hasOwn(row,'countryReceipt')&&!Object.hasOwn(row,'price')));
+});
+
+test('visual interpretation runs once after HTML/DOM parsing and retains source-bound evidence',async t=>{
+ const source='<html><title>Example service</title><body>Plans appear after rendering</body></html>',c=capability({body:source,renderedBody:source}),nodes=[
+  {id:'dom-0',text:serviceName,role:'h1',bboxPx:[20,20,220,30]},
+  {id:'dom-1',text:'Monthly',role:'h2',bboxPx:[30,110,180,24]},
+  {id:'dom-2',text:'NOK 79.99/month',role:'span',bboxPx:[30,150,180,24]},
+  {id:'dom-3',text:'Billed NOK 79.99 every month',role:'span',bboxPx:[30,190,300,24]},
+ ];
+ const base=c.browser,visual=async({observation,artifact,overview,dom,objective:currentObjective})=>({envelope:compileVisualObservation({serviceNodeId:'dom-0',offerings:[{nameNodeId:'dom-1',audience:'CONSUMER',relationship:'SUBSCRIPTION',charges:[{nodeIds:['dom-2'],amountText:'79.99',currencyText:'NOK',cadenceText:'/month',cadenceUnit:'MONTHLY',role:'ORDINARY',paymentNodeIds:['dom-3'],paymentText:'Billed NOK 79.99 every month',paymentCadence:'MONTHLY',priceKind:'CHARGE'}]}],globalNodeIds:[],uncertainties:[]},{observation,artifact,overview,dom,objective:currentObjective,requestHash:digest('request'),responseHash:digest('response'),responseModel:'fixture',createdAt:'2026-10-09T10:00:00.000Z'})});
+ let calls=0;const browser=async(...args)=>{const result=await base(...args);result.dom=nodes;return result;};browser.close=base.close;
+ const result=await runHybridRenderedAcquisition({directory:temp(t),target:target(),objective,parent:parent(),transport:'DECODO',browser,interpretVisual:async input=>{calls++;return visual(input);}});
+ assert.equal(result.outcome,'OBSERVED',JSON.stringify(result));assert.equal(calls,1);assert.equal(result.usage.visualRequests,1);assert.equal(result.visualStatus,'PROJECTED');assert.equal(result.observation.visualEvidence.length,1);assert(result.artifacts.refs['visual-evidence.json']);
+ assert.equal(result.v3Truth.established,true);
 });
 
 test('interactive Research link follows one acquired provider anchor in the same Decodo country context',async t=>{

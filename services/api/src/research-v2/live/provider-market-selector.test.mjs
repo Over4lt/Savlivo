@@ -417,7 +417,7 @@ test('priority campaign permits one Decodo fallback when a provider selector is 
 
 test('pre-selection prices for another country remain unbound when target selection is unavailable',async t=>{
  const {result}=await run(t,'GB',{foreignPrices:true,options:['Norway (English)']});
- assert.equal(result.v3Truth.established,false);assert.equal(result.marketSelection,null);
+ assert.equal(result.outcome,'MARKET_MISMATCH');assert.equal(result.reason,'BROWSER_MARKET_CURRENCY_CONFLICT');assert.equal(result.v3Truth,undefined);
  assert.equal(projectEstablishedV3Offerings({...target('GB'),...result}).length,0);
 });
 
