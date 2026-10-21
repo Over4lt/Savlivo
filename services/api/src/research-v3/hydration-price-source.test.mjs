@@ -112,6 +112,43 @@ const documentedLayouts=[
  {market:'TW',locale:'en',currency:'TWD',label:'Monthly',periodicity:'Monthly',period:'month',action:'Select Plan',code:'continue.account-creation.pre-purchase',plans:[{name:'Standard',amount:'220.00',id:'34001'},{name:'Premium',amount:'299.00',id:'34002'}],annual:[{name:'Standard',amount:'2190.00',id:'34003'},{name:'Premium',amount:'2990.00',id:'34004'}]},
 ];
 
+const newlyDocumentedLayouts=[
+ {market:'SG',locale:'en',currency:'SGD',label:'Monthly',periodicity:'Monthly',period:'month',action:'Select Plan',code:'continue.account-creation.pre-purchase',plans:[{name:'Standard',amount:'14.48',id:'28409'},{name:'Premium',amount:'18.98',id:'28437'}],expected:[14.48,18.98],bundle:[{name:'HBO Max & Viu Bundle',amount:'19.98',id:'28450'}]},
+ {market:'RO',locale:'en',currency:'EUR',label:'Monthly',periodicity:'Monthly',period:'month',action:'Select Plan',code:'choose.plan.add-on',plans:[{name:'Basic With Ads',amount:'4,99',id:'24904'},{name:'Standard',amount:'8,99',id:'34705'},{name:'Premium',amount:'11,99',id:'34714'}],expected:[4.99,8.99,11.99]},
+ {market:'RO',locale:'ro',currency:'EUR',label:'lunar',periodicity:'Lunar',period:'lună',action:'Selectează planul',code:'choose.plan.add-on',plans:[{name:'Basic cu publicitate',amount:'4,99',id:'24904'},{name:'Standard',amount:'8,99',id:'34705'},{name:'Premium',amount:'11,99',id:'34714'}],expected:[4.99,8.99,11.99]},
+ {market:'MX',locale:'es',currency:'MXN',label:'Mensual',periodicity:'Mensual',period:'mes',action:'Seleccionar plan',code:'continue.account-creation.pre-purchase',plans:[{name:'Básico con anuncios',amount:'149.00',id:'20131'},{name:'Estándar',amount:'239.00',id:'33896'},{name:'Platino',amount:'299.00',id:'33900'}],expected:[149,239,299],duplicate:true},
+ {market:'CL',locale:'es',currency:'CLP',label:'Mensual',periodicity:'Mensual',period:'mes',action:'Seleccionar plan',code:'choose.plan.add-on',plans:[{name:'Básico con anuncios',amount:'7.190',id:'33890'},{name:'Estándar',amount:'9.590',id:'33894'},{name:'Platino',amount:'11.990',id:'33898'}],expected:[7190,9590,11990]},
+ {market:'CO',locale:'es',currency:'COP',label:'Mensual',periodicity:'Mensual',period:'mes',action:'Seleccionar plan',code:'continue.account-creation.pre-purchase',plans:[{name:'Básico con anuncios',amount:'22.900,00',id:'33891'},{name:'Estándar',amount:'29.900,00',id:'33895'},{name:'Platino',amount:'40.900,00',id:'33899'}],expected:[22900,29900,40900]},
+];
+
+for(const layout of newlyDocumentedLayouts)test(`${layout.market}/${layout.locale} explicit ISO cards need independent market evidence and retain their monthly billing`,()=>{
+ const {body,url}=localizedHydration(layout),parsed=interpretSubscriptionPage({body,url,providerName:'Max',verifiedMarket:layout.market});
+ assert.deepEqual(parsed.offerings.map(row=>[row.name,row.charges[0].amount,row.charges[0].currency,row.charges[0].billingCadence]),layout.plans.map((row,index)=>[row.name,layout.expected[index],layout.currency,'MONTHLY']));
+ assert.deepEqual(interpretSubscriptionPage({body,url,providerName:'Max'}).offerings,[]);
+ const objective={kind:'PRICE',serviceId:'max',serviceName:'Max',providerHosts:['www.hbomax.com'],markets:[layout.market],seeds:[url]};
+ const o={...observation(body,{country:layout.market,sourceUrl:url}),transport:{requestedCountry:layout.market,verifiedCountry:layout.market,verification:'BRACKET_VERIFIED'}};
+ const projection=projectObservation(o,objective);o.nativeStructured=projection.nativeStructured;o.candidates=admittedProjectionCandidates(projection);
+ const truth=evaluate({objective,observations:[o],attempts:[],policyBlocks:[],stop:null});
+ assert.equal(truth.established,true);
+ assert.deepEqual(truth.offers.map(row=>[row.propositions.PRICE_AMOUNT.value,row.propositions.CURRENCY.value,row.propositions.TARGET_MARKET.value]),layout.expected.map(amount=>[amount,layout.currency,layout.market]));
+ for(const country of [null,'US']){
+  const bad={...o,context:context('DECODO',country??layout.market),transport:country?{requestedCountry:country,verifiedCountry:country,verification:'BRACKET_VERIFIED'}:undefined};
+  const failed=evaluate({objective,observations:[bad],attempts:[],policyBlocks:[],stop:null});assert.equal(failed.established,false);
+ }
+});
+
+test('new localized cards reject annual installments, ancillary plans, mixed currencies and altered source hash',()=>{
+ const layout=newlyDocumentedLayouts.find(row=>row.market==='MX'),{body,url}=localizedHydration(layout);
+ const parse=value=>interpretSubscriptionPage({body:value,url,providerName:'Max',verifiedMarket:'MX'}).offerings;
+ assert.deepEqual(parse(body).map(row=>row.name),layout.plans.map(row=>row.name));
+ assert.deepEqual(parse(body.replaceAll('"periodicityText":"Mensual"','"periodicityText":"Anual"')),[]);
+ assert.deepEqual(parse(body.replaceAll('Seleccionar plan','Seleccionar descuento')),[]);
+ const mixed=body.replace('"currencyCode":"MXN"','"currencyCode":"USD"');assert.deepEqual(parse(mixed),[]);
+ const source=observation(body,{country:'MX',sourceUrl:url,hash:'0'.repeat(64)}),objective={kind:'PRICE',serviceId:'max',serviceName:'Max',providerHosts:['www.hbomax.com'],markets:['MX'],seeds:[url]};
+ const projection=projectObservation(source,objective);source.nativeStructured=projection.nativeStructured;source.candidates=admittedProjectionCandidates(projection);
+ assert.equal(evaluate({objective,observations:[source],attempts:[],policyBlocks:[],stop:null}).established,false);
+});
+
 for(const layout of documentedLayouts)test(`${layout.market}/${layout.locale} hydration layout yields only distinct source-bound monthly offers`,()=>{
  const {body,url}=localizedHydration(layout),parsed=interpretSubscriptionPage({body,url,providerName:'Max',marketCurrencyHint:layout.currency});
  assert.deepEqual(parsed.offerings.map(row=>[row.name,row.charges[0].amount,row.charges[0].currency,row.charges[0].billingCadence]),layout.plans.map(row=>[row.name,Number(row.amount.replace(',','.')),layout.currency,'MONTHLY']));
