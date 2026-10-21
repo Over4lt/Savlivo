@@ -13,7 +13,7 @@ test('Prime Video NO stores only grounded standalone monthly Suggested; no V3 or
  const stored=[],requested=[],verified=[{serviceSlug:'prime-video',planName:'Existing',monthlyPriceMinor:12900,currency:'NOK',source:'v3-truth',sourceUrl:'https://www.primevideo.com/',updatedAt:'2026-10-20T12:00:00.000Z'}];
  const result=await runAdminSuggestedOnlyResearch({targets:[target],apiKey:'offline',acquireGoogle:async options=>{requested.push(options);return acquisition([
   plan('Prime Video',89),plan('Prime Video annual',69,{annualOnly:true,billingBasis:'annual equivalent'}),
-  plan('Prime Video Channels add-on',39),plan('Prime Video + partner bundle',119),
+  plan('Prime Video Channels add-on',39),plan('Prime Video + partner bundle',119),plan('Amazon Prime membership',89),
   plan('Uncited price',99,{sourceUrl:'https://uncited.example/pricing'})
  ]);},persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>verified});
  const row=result.targets[0];assert.equal(result.researchMode,'suggested_only');assert.equal(requested.length,1);assert.equal(requested[0].maxRequests,1);
@@ -21,6 +21,9 @@ test('Prime Video NO stores only grounded standalone monthly Suggested; no V3 or
  assert.equal(stored[0].suggested.sourceUrl,altibox);assert.equal(stored[0].suggested.provenance,'GOOGLE_AI_V4');
  assert(stored[0].suggested.warnings.includes('FIRST_PARTY_NOT_CONFIRMED'));
  assert.equal(row.persisted.verified,0);assert.equal(row.persisted.suggestedPlans,1);assert.equal(row.combined.resultClass,'SUGGESTED');
+ assert.equal(row.googleAttempts[0].candidateCount,6);assert.equal(row.googleAttempts[0].groundingCount,1);
+ assert.equal(row.googleAttempts[0].rejected.SOURCE_URL_NOT_GROUNDED,1);
+ assert.equal(row.googleAttempts[0].rejected.NON_STANDALONE,3);
  assert.deepEqual(row.verificationEvidence,[]);assert.equal(row.verificationRetry,null);assert.equal(result.downstreamResult,null);
  assert.deepEqual(row.capabilityUsage,{googleAiRequests:1,strictGeminiRequests:1,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0});
  assert.equal(verified[0].monthlyPriceMinor,12900);
@@ -137,4 +140,7 @@ test('AI-listed URLs without actual Google grounding are not accepted as cited e
  assert.equal(normalized.audit.citations.length,1);assert.deepEqual(normalized.audit.groundingCitations,[]);
  let written=false;const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>normalized,persistSuggested:async()=>{written=true;},loadVerified:async()=>[]});
  assert.equal(written,false);assert.equal(result.targets[0].combined.resultClass,'NO_RESULT');assert.equal(result.targets[0].stopReason,'SUGGESTED_ONLY_NO_QUALIFYING_MONTHLY_PRICE');
+ assert.equal(result.targets[0].googleAttempts[0].candidateCount,1);
+ assert.equal(result.targets[0].googleAttempts[0].groundingCount,0);
+ assert.equal(result.targets[0].googleAttempts[0].rejected.GOOGLE_GROUNDING_MISSING,1);
 });

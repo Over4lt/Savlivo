@@ -13,6 +13,7 @@ import {researchMonthlyRecurringWithGoogleAi,researchMonthlyRecurringWithRecover
 import {nonStandalonePresentation} from '../research-v3/offering-scope.mjs';
 import {reviewedProviderNamespacesFor,reviewedNamespaceMatches} from '../research-v3/reviewed-provider-namespaces.mjs';
 import {canonicalVerifiedPlanSlug,equivalentVerifiedPlan} from '../verified-price-reconciliation.mjs';
+import {parse as parseDomain} from 'tldts';
 
 export const adminGooglePipelineLimits=Object.freeze({targets:32});
 const slug=value=>String(value??'').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,120)||'plan';
@@ -163,16 +164,26 @@ export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,
 // The light mode deliberately stops at the existing V4 Suggested projection.
 // Grounding URLs are leads, never acquired source bodies or V3 authority.
 const groundedUrl=value=>{try{const url=new URL(value);if(url.protocol!=='https:'||url.username||url.password)return null;url.hash='';return url.href;}catch{return null;}};
+const diagnosticHosts=values=>[...new Set(values.flatMap(value=>{const safe=groundedUrl(value),domain=safe?parseDomain(new URL(safe).hostname).domain:null;return domain?[domain]:[];}))].slice(0,8);
 const nonSubscriptionName=/\b(?:channels?|add[- ]?ons?|rentals?|rent|purchases?|buy|pay[- ]?per[- ]?view|bundles?|pakket?|pakke|combo)\b/iu;
+const primeRetailMembership=(row,target)=>target.service==='prime-video'&&(
+ /^amazon prime\b(?!\s+video)/iu.test(String(row?.planName??''))||
+ /\b(?:included with|part of)\s+amazon prime\b/iu.test([row?.billingBasis,row?.commitment,row?.summary].filter(Boolean).join(' ')));
 function groundedSuggestedAcquisition(acquisition,target){
  const grounded=new Set((acquisition?.audit?.groundingCitations??[]).map(row=>groundedUrl(row?.url)).filter(Boolean));
- const plans=(acquisition?.aiResult?.plans??[]).filter(row=>{
-  const name=String(row?.planName??''),cadence=String(row?.paymentCadence??'').toUpperCase();
-  return grounded.has(groundedUrl(row?.sourceUrl))&&
-   /^(?:MONTH|MONTHLY|MONTHLY_RECURRING)$/.test(cadence)&&
-   !nonStandalonePresentation(name,target.serviceName)&&!nonSubscriptionName.test(name);
+ const candidates=acquisition?.aiResult?.plans??[],rejected={GOOGLE_GROUNDING_MISSING:0,SOURCE_URL_MISSING:0,SOURCE_URL_NOT_GROUNDED:0,CADENCE_NOT_MONTHLY:0,NON_STANDALONE:0};
+ let urlMatched=0;
+ const plans=candidates.filter(row=>{
+  const name=String(row?.planName??''),cadence=String(row?.paymentCadence??'').toUpperCase(),url=groundedUrl(row?.sourceUrl);
+  if(!grounded.size){rejected.GOOGLE_GROUNDING_MISSING++;return false;}
+  if(!url){rejected.SOURCE_URL_MISSING++;return false;}
+  if(!grounded.has(url)){rejected.SOURCE_URL_NOT_GROUNDED++;return false;}
+  urlMatched++;
+  if(!/^(?:MONTH|MONTHLY|MONTHLY_RECURRING)$/.test(cadence)){rejected.CADENCE_NOT_MONTHLY++;return false;}
+  if(nonStandalonePresentation(name,target.serviceName)||nonSubscriptionName.test(name)||primeRetailMembership(row,target)){rejected.NON_STANDALONE++;return false;}
+  return true;
  });
- return {...acquisition,aiResult:{...(acquisition?.aiResult??{provider:target.serviceName,market:target.market,sources:[],warnings:[]}),plans}};
+ return {acquisition:{...acquisition,aiResult:{...(acquisition?.aiResult??{provider:target.serviceName,market:target.market,sources:[],warnings:[]}),plans}},diagnostics:{candidateCount:candidates.length,modelSourceCount:acquisition?.aiResult?.sources?.length??0,groundingCount:grounded.size,urlMatched,rejected,sourceHosts:diagnosticHosts(candidates.map(row=>row?.sourceUrl)),groundingHosts:diagnosticHosts([...grounded])}};
 }
 
 export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,apiKey,maxGoogleRequests=2,acquireGoogle=researchMonthlyRecurringWithGoogleAi,persistSuggested=persistSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices}={}){
@@ -188,10 +199,11 @@ export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,a
    const used=candidate?.audit?.request?.requestCount;
    if(!Number.isSafeInteger(used)||used<0||used>1||candidate.recovery?.attempted||
     used===0&&candidate.aiResult?.plans?.length||requests+used>maxGoogleRequests)throw Error('SUGGESTED_ONLY_BUDGET_VIOLATION');
-   requests+=used;acquisition=groundedSuggestedAcquisition(candidate,target);
+   requests+=used;const screened=groundedSuggestedAcquisition(candidate,target);acquisition=screened.acquisition;
    state=v4State(target,acquisition);combined=mergeResearch({snapshot:state.snapshot});
    productPlans=projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined});
-   attempts.push({status:candidate.status,requests:used,groundedCandidates:acquisition.aiResult.plans.length,qualifyingSuggested:productPlans.length});
+   const normalizationReasons=Object.fromEntries([...new Set(state.normalizationDiagnostics.map(row=>row.reason).filter(Boolean))].map(reason=>[reason,state.normalizationDiagnostics.filter(row=>row.reason===reason).length]));
+   attempts.push({status:candidate.status,requestStatus:candidate.audit?.request?.status??null,requests:used,...screened.diagnostics,groundedCandidates:acquisition.aiResult.plans.length,v4Suggested:state.snapshot.suggested.length,normalizationRejected:state.normalizationDiagnostics.length,normalizationReasons,responseFailures:candidate.audit?.request?.normalizationFailures??[],qualifyingSuggested:productPlans.length});
    if(productPlans.length||used===0||attempt===maxGoogleRequests||
     ['CREDENTIAL_UNAVAILABLE','POLICY_BLOCK','HTTP_402','HTTP_403','HTTP_429'].includes(candidate.audit?.request?.status))break;
   }

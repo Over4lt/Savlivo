@@ -82,10 +82,24 @@ test('Suggested Only status reports mode, zero new Verified, NO_RESULT and actua
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'suggested-status-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
  const target={id:'price-research:prime-video:NO',serviceId:'prime-video',serviceName:'Prime Video',targetMarket:'NO',marketApplicabilityEstablished:false};
  const config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['prime-video'],markets:['NO'],targetingRevision:'a'.repeat(64),batchTargets:[target],logicalTargetCount:1,researchMode:'suggested_only',perTargetRequestCeiling:1,batchRequestCeiling:1,capabilities:{direct:false,tavily:false,decodo:false,browser:false,groq:false}};
- await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',researchMode:'suggested_only',targets:[{target:{id:target.id},researchMode:'suggested_only',combined:{kind:'CombinedResearchResult',resultClass:'NO_RESULT',plans:[],suggested:[],operationalFailures:[]},persisted:{suggestedPlans:0,verified:0},stopReason:'SUGGESTED_ONLY_BUDGET_EXHAUSTED',capabilityUsage:{googleAiRequests:1,strictGeminiRequests:1,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0}}]})});
+ await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',researchMode:'suggested_only',targets:[{target:{id:target.id},researchMode:'suggested_only',googleAttempts:[{status:'GOOGLE_AI_SUCCESS',requests:1,groundedCandidates:0,qualifyingSuggested:0}],combined:{kind:'CombinedResearchResult',resultClass:'NO_RESULT',plans:[],suggested:[],operationalFailures:[]},persisted:{suggestedPlans:0,verified:0},stopReason:'SUGGESTED_ONLY_BUDGET_EXHAUSTED',capabilityUsage:{googleAiRequests:1,strictGeminiRequests:1,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0}}]})});
  const batch=priceResearchBatchStatus({status:'COMPLETE',config},directory),row=batch.outcomes[0];
  assert.equal(batch.researchMode,'suggested_only');assert.equal(row.resultClass,'NO_RESULT');assert.equal(row.researchOutcome,'NO_RESULT');assert.equal(row.verified,0);assert.equal(row.stopReason,'SUGGESTED_ONLY_BUDGET_EXHAUSTED');
  assert.deepEqual(row.capabilityUsage,{googleAiRequests:1,strictGeminiRequests:1,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0});
+ assert.deepEqual(row.googleAttempts,[{status:'GOOGLE_AI_SUCCESS',requestStatus:null,requests:1,detailsUnavailable:true}],'older final artifacts must not invent candidate counts');
+});
+
+test('Suggested Only status retains bounded rejection diagnostics without source URLs',async t=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'suggested-diagnostics-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const target={id:'price-research:prime-video:DK',serviceId:'prime-video',serviceName:'Prime Video',targetMarket:'DK',marketApplicabilityEstablished:false};
+ const config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['prime-video'],markets:['DK'],targetingRevision:'b'.repeat(64),batchTargets:[target],logicalTargetCount:1,researchMode:'suggested_only',perTargetRequestCeiling:2,batchRequestCeiling:2,capabilities:{direct:false,tavily:false,decodo:false,browser:false,groq:false}};
+ const attempt={status:'GOOGLE_AI_SUCCESS',requestStatus:'STOP',requests:1,candidateCount:2,modelSourceCount:1,groundingCount:1,urlMatched:0,v4Suggested:0,normalizationRejected:0,qualifyingSuggested:0,rejected:{SOURCE_URL_NOT_GROUNDED:2},sourceHosts:['primevideo.com'],groundingHosts:['google.com'],sourceUrl:'https://example.com/private?token=secret'};
+ await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',researchMode:'suggested_only',targets:[{target:{id:target.id},researchMode:'suggested_only',googleAttempts:[attempt],combined:{kind:'CombinedResearchResult',resultClass:'NO_RESULT',plans:[],suggested:[],operationalFailures:[]},persisted:{suggestedPlans:0,verified:0},capabilityUsage:{googleAiRequests:1}}]})});
+ const row=priceResearchBatchStatus({status:'COMPLETE',config},directory).outcomes[0];
+ assert.equal(row.googleAttempts[0].candidateCount,2);
+ assert.equal(row.googleAttempts[0].rejected.SOURCE_URL_NOT_GROUNDED,2);
+ assert.deepEqual(row.googleAttempts[0].sourceHosts,['primevideo.com']);
+ assert.equal(JSON.stringify(row).includes('token=secret'),false);
 });
 
 test('Max-style retained Verified cannot become fresh Verified when V3 retry is exhausted',async t=>{
