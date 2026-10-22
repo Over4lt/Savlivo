@@ -6,6 +6,7 @@ import {publicAddress,researchUserAgent} from '../research-v1/public-network.mjs
 import {digest,normalizeUrl,providerBound} from './model.mjs';
 import {parseAcquisitionRobots,evaluateAcquisitionRobots} from './acquisition-robots.mjs';
 import {safeRenderedControl} from './rendered-interactions.mjs';
+import {youtubePremiumConsentRoute} from './provider-consent-route.mjs';
 import {chooseProviderMarketOption,exactMarketOption,marketCodeMatches} from './provider-market-evidence.mjs';
 export {safeRenderedControl} from './rendered-interactions.mjs';
 
@@ -301,6 +302,9 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
         try {
             context=await browser.newContext({viewport:viewportCss,deviceScaleFactor:1,locale,timezoneId,serviceWorkers:'block',acceptDownloads:false,permissions:[],userAgent:researchUserAgent,...(proxy?{proxy}:{})});
             const origin=new URL(action.url).origin,dns=new Map(),ledger=[];
+            const consentRoute=action.consentRedirectUrl!==undefined&&youtubePremiumConsentRoute({serviceId:objective.serviceId,market:country,url:action.url,redirectUrl:action.consentRedirectUrl});
+            if(action.consentRedirectUrl!==undefined&&!consentRoute)throw Error('RENDERED_CONSENT_ROUTE_INVALID');
+            const consentOrigin=consentRoute?new URL(action.consentRedirectUrl).origin:null;
             const sessionBinding=digest(['PLAYWRIGHT_BROWSER_CONTEXT',action.id,origin,country??'UNBOUND']);
             const record=({url,method,resourceType,channel})=>{
                 if(ledger.length>=limits.requests)throw Error('RENDERED_REQUEST_BOUND');
@@ -312,6 +316,10 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             const policy=[404,410].includes(robots.status)?{decision:'ALLOWED',reason:'ROBOTS_ABSENT'}:robots.status===200?evaluateAcquisitionRobots(parseAcquisitionRobots(robots.text),action.url):{decision:'REVIEW_REQUIRED'};
             if(policy.decision!=='ALLOWED')throw Error('RENDERED_ROBOTS_NOT_ALLOWED');
             const access=[{destinationOrigin:origin,destinationHash:digest(action.url),status:robots.status,decision:policy.decision,reason:policy.reason??null}];
+            const consentRobots=consentRoute?await boundedRobots(context,consentOrigin,record):null;
+            const consentPolicy=consentRobots&&([404,410].includes(consentRobots.status)?{decision:'ALLOWED',reason:'ROBOTS_ABSENT'}:consentRobots.status===200?evaluateAcquisitionRobots(parseAcquisitionRobots(consentRobots.text),action.consentRedirectUrl):{decision:'REVIEW_REQUIRED'});
+            if(consentRoute&&consentPolicy.decision!=='ALLOWED')throw Error('RENDERED_CONSENT_ROBOTS_NOT_ALLOWED');
+            if(consentRoute)access.push({destinationOrigin:consentOrigin,destinationHash:digest(action.consentRedirectUrl),status:consentRobots.status,decision:consentPolicy.decision,reason:consentPolicy.reason??null,navigationOnly:true});
             const geo=async()=>{
                 const result=await boundedRequest(context,'https://ipwho.is/?fields=success,ip,country_code',{maxBytes:8192,record,resourceType:'geography'});
                 if(result.status!==200)throw Error('RENDERED_GEOGRAPHY_UNVERIFIED');
@@ -324,7 +332,9 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
                 const request=route.request(),url=request.url(),method=request.method();
                 let parsed;try{parsed=new URL(url);}catch{return route.abort();}
                 const readPost=providerReadOnlyPost(request,origin),robotsNeeded=request.resourceType()==='document'||readPost;
-                if(!['GET','HEAD'].includes(method)&&!readPost||!normalizeUrl(url)||robotsNeeded&&(parsed.origin!==origin||!providerBound(objective,url)||([404,410].includes(robots.status)?false:robots.status!==200||evaluateAcquisitionRobots(parseAcquisitionRobots(robots.text),url).decision!=='ALLOWED'))||ledger.length>=limits.requests||!(await hostAllowed(parsed.hostname,dns)))return route.abort();
+                const consentDocument=consentRoute&&request.resourceType()==='document'&&youtubePremiumConsentRoute({serviceId:objective.serviceId,market:country,url:action.url,redirectUrl:url});
+                const checkedRobots=consentDocument?consentRobots:robots;
+                if(!['GET','HEAD'].includes(method)&&!readPost||!normalizeUrl(url)||robotsNeeded&&(!(parsed.origin===origin&&providerBound(objective,url)||consentDocument)||([404,410].includes(checkedRobots.status)?false:checkedRobots.status!==200||evaluateAcquisitionRobots(parseAcquisitionRobots(checkedRobots.text),url).decision!=='ALLOWED'))||ledger.length>=limits.requests||!(await hostAllowed(parsed.hostname,dns)))return route.abort();
                 record({url,method,resourceType:request.resourceType(),channel:'PAGE'});
                 return route.continue();
             });
@@ -332,7 +342,22 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             page.on('dialog',dialog=>dialog.dismiss().catch(()=>{}));
             page.on('popup',popup=>popup.close().catch(()=>{}));
             let response=await page.goto(action.url,{waitUntil:'domcontentloaded',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
-            if(!response||response.status()!==200||!providerBound(objective,page.url()))throw Error('RENDERED_PAGE_INVALID');
+            if(!response||response.status()!==200)throw Error('RENDERED_PAGE_INVALID');
+            let consentTransition=null;
+            if(consentRoute&&youtubePremiumConsentRoute({serviceId:objective.serviceId,market:country,url:action.url,redirectUrl:page.url()})){
+                const sourceDom=await page.evaluate(visibleDom),controls=sourceDom.filter(row=>safeRenderedControl(row,'COOKIE_REJECT'));
+                if(controls.length!==1)throw Error('RENDERED_CONSENT_REJECT_UNAVAILABLE');
+                const priorPng=await page.screenshot({type:'png',fullPage:true,animations:'disabled',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
+                if(priorPng.length>limits.imageBytes)throw Error('RENDERED_IMAGE_BOUND');
+                const locator=await sourceBoundLocator(page,controls[0],null);
+                if(await locator.count()!==1||!(await locator.isEnabled()))throw Error('RENDERED_CONSENT_REJECT_UNAVAILABLE');
+                consentTransition={sourceUrlHash:digest(page.url()),sourceDomSha256:digest(await page.content()),sourceImageSha256:imageHash(priorPng),controlHash:digest([controls[0].text,controls[0].bboxPx]),kind:'COOKIE_REJECT'};
+                await locator.click({timeout:Math.min(10000,maxRenderMs)});
+                await page.waitForLoadState('networkidle',{timeout:4000}).catch(()=>{});
+                response=await page.goto(action.url,{waitUntil:'domcontentloaded',timeout:Math.min(maxRenderMs,limits.timeoutMs)});
+                if(!response||response.status()!==200||new URL(page.url()).origin!==origin||!providerBound(objective,page.url()))throw Error('RENDERED_CONSENT_UNRESOLVED');
+            }
+            if(new URL(page.url()).origin!==origin||!providerBound(objective,page.url()))throw Error('RENDERED_PAGE_INVALID');
             await page.waitForLoadState('networkidle',{timeout:4000}).catch(()=>{});
             if(action.navigationUrl){
                 const destination=normalizeUrl(action.navigationUrl);
@@ -355,7 +380,7 @@ export function createPlaywrightRenderedCapability({browserType,chromium,launchO
             const transport=country?{kind:'DECODO',requestedCountry:country,verifiedCountry:country,verification:'BRACKET_VERIFIED',exitAddressHash:digest(before)}:{kind:'DIRECT',verification:'UNBOUND'};
             const acquiredAt=clock();
             const networkSession={kind:'V3_BROWSER_NETWORK_SESSION_V1',transport:country?'DECODO':'DIRECT',requestedCountry:country,scope:'PLAYWRIGHT_BROWSER_CONTEXT',proxyApplied:!!country,sessionBinding,requestCount:ledger.length,ledgerSha256:digest(ledger)};
-            const receipt={url:finalUrl,requestedUrl:action.navigationUrl??action.url,body:renderedBody,httpStatus:200,contentType:response.headers()['content-type']??'text/html',completeness:'COMPLETE',acquiredAt,transport,access,redirects:[],responseMetadata:{browser:'PLAYWRIGHT',mainDocumentSha256:digest(networkBody.toString('utf8')),renderedDomSha256:digest(renderedBody),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64),networkSessionBinding:sessionBinding},acquisitionTiming:{elapsedMs:Math.round(performance.now()-started)}};
+            const receipt={url:finalUrl,requestedUrl:action.navigationUrl??action.url,body:renderedBody,httpStatus:200,contentType:response.headers()['content-type']??'text/html',completeness:'COMPLETE',acquiredAt,transport,access,redirects:[],responseMetadata:{browser:'PLAYWRIGHT',mainDocumentSha256:digest(networkBody.toString('utf8')),renderedDomSha256:digest(renderedBody),requestCount:ledger.length,requestOrigins:[...new Set(ledger.map(row=>row.origin))].slice(0,64),networkSessionBinding:sessionBinding,...(consentTransition?{consentTransition}:{})},acquisitionTiming:{elapsedMs:Math.round(performance.now()-started)}};
             sessions.set(action.id,{browser,context,page,receipt,geo:country?geo:null,ledger,sessionBinding,country,imageSha256:imageHash(pngBytes)});keep=true;
             return {page:receipt,finalUrl,pngBytes,capture:{capturedAt:clock(),browserBuild:browser.version(),captureRevision:'playwright-fullpage-v1',viewportCss,deviceScaleFactor:1,zoom:1,locale,timezone:timezoneId,fullPage:true,documentExtent:extent,coordinateSpace:'IMAGE_PIXELS',clippingOrStitching:extent.height>viewportCss.height?'STITCHED':'NONE',completeness:'COMPLETE',stability:'UNKNOWN',obstructionStatus:'UNKNOWN'},journey:{id:'render-'+digest([action.id,acquiredAt]).slice(0,24),parentRenderId:null,stateFingerprint:digest([finalUrl,dom.map(row=>row.text).slice(0,128)]),interactions:[]},dom,browserLedger:ledger,networkSession,marketSelector:await providerMarketSelector(page).then(value=>value?{kind:'PROVIDER_MARKET_SELECTOR',label:value.label,code:value.code}:null)};
         } finally {if(!keep)await context?.close().catch(()=>{});}

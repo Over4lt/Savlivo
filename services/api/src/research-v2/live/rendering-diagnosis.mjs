@@ -31,7 +31,7 @@ export function activeRenderingNeed(target){
  if(truth&&remaining.length===0)return null;
  const transport=diagnosed.transport??(diagnosed.countryV3Evaluation?.status==='EVALUATED'?'DECODO':target.v3Observation?.context?.transport??'DIRECT');
  const routeOnly=diagnosed.kind==='DECODO_BROWSER_REACQUISITION';
- const need={kind:routeOnly?diagnosed.kind:'RENDERED_REPRESENTATION',url:diagnosed.url,transport,market:target.market,sourceHash:routeOnly?null:diagnosed.sourceHash??target.v3Observation?.sha256??null,runDirectory:diagnosed.runDirectory??null,...(routeOnly?{researchLinkId:diagnosed.researchLinkId}:{}),motivatingNeeds:remaining.map(row=>({id:row.id,offerId:row.offerId??null,proposition:row.proposition,market:row.market??null,state:row.state}))};
+ const need={kind:routeOnly?diagnosed.kind:'RENDERED_REPRESENTATION',url:diagnosed.url,transport,market:target.market,sourceHash:routeOnly?null:diagnosed.sourceHash??target.v3Observation?.sha256??null,runDirectory:diagnosed.runDirectory??null,...(routeOnly?{researchLinkId:diagnosed.researchLinkId,...(diagnosed.consentRedirect?{consentRedirect:diagnosed.consentRedirect}:{})}:{}),motivatingNeeds:remaining.map(row=>({id:row.id,offerId:row.offerId??null,proposition:row.proposition,market:row.market??null,state:row.state}))};
  const attempted=(target.renderingOutcomes??[]).some(row=>row.url===need.url&&row.transport===need.transport&&row.sourceHash===need.sourceHash);
  return attempted?null:need;
 }

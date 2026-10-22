@@ -98,7 +98,9 @@ export async function runHybridRenderedAcquisition({directory,target,objective,p
  for(let attempt=0;attempt<=limits.retries;attempt++){
   const navigationUrl=target.renderingNeed?.navigationUrl??null;
   if(navigationUrl&&interactiveNavigationDestination(parent.body,parent.url)!==navigationUrl)throw Error('RENDERED_NAVIGATION_SOURCE_INVALID');
-  const action={id:'hybrid-render-'+digest([target.id,url,transport,navigationUrl,clock(),attempt]).slice(0,24),kind:'RENDER',mode:'OVERVIEW',observation:parent.id,url,...(navigationUrl?{navigationUrl}:{})};
+  const consentRedirect=target.renderingNeed?.consentRedirect??null;
+  if(consentRedirect&&!failedDecodoBrowserRoute(target,target.renderingNeed))throw Error('DECODO_BROWSER_FAILURE_PROOF_REQUIRED');
+  const action={id:'hybrid-render-'+digest([target.id,url,transport,navigationUrl,clock(),attempt]).slice(0,24),kind:'RENDER',mode:'OVERVIEW',observation:parent.id,url,...(navigationUrl?{navigationUrl}:{}),...(consentRedirect?{consentRedirectUrl:consentRedirect.url}:{})};
   try{
    journal.reserve('actions');journal.reserve('browserActions');journal.reserve('networkRequests',limits.perAttemptNetworkRequests);if(transport==='DECODO')journal.reserve('countryActions');
    journal.append('ACTION_STARTED',{actionId:action.id,attempt,urlHash:digest(url),transport,country:transport==='DECODO'?target.market:null,dispatched:true});

@@ -13,6 +13,8 @@ export const researchLinkPriorityTarget=(baseTarget,capabilities)=>({...baseTarg
 // already classified as a provider source. This never supplies price Truth.
 import {providerSourceDomainFamily} from '../../research-v3/provider-source-family.mjs';
 import {providerRoutingAuthority} from './provider-routing-authority.mjs';
+import {iterateMarketRunRecords} from '../../research-v1/market-run-store.mjs';
+import {documentedConsentRedirect} from './documented-consent-redirect.mjs';
 
 // A failed, permitted Decodo response may justify one fresh Browser acquisition.
 // This is a routing proof only: it contains no provider body, market receipt or
@@ -20,9 +22,13 @@ import {providerRoutingAuthority} from './provider-routing-authority.mjs';
 export function failedDecodoBrowserRoute(target,need){
  if(target?.operationsObjective!=='PRICE_RESEARCH'||need?.kind!=='DECODO_BROWSER_REACQUISITION'||need.transport!=='DECODO'||need.market!==target.market||need.sourceHash!==null||!target.capabilities?.browser||!target.capabilities?.decodo||!providerRoutingAuthority(target,need.url))return false;
  if((target.blockedOrigins??[]).includes(new URL(need.url).origin))return false;
- const attempts=(target.acquisitionOutcomes??[]).filter(row=>row.url===need.url&&row.researchLinkId===need.researchLinkId&&row.channel==='PRICE_RESEARCH_DECODO'&&row.classification==='ACQUISITION_FAILED'&&row.responseTooLarge===true&&row.sourceClassification?.status==='UNKNOWN_SOURCE'&&row.sourceClassification?.sourceHash===null&&row.countryV3Evaluation?.status==='UNRESOLVED');
- const link=(target.researchLinks??[]).find(row=>row.id===need.researchLinkId&&row.enabled===true&&row.truthAuthority==='NONE'&&row.url===need.url&&(row.marketScope==='GLOBAL'||row.marketScope==='MARKET_SPECIFIC'&&row.marketCode===target.market));
- return attempts.length===1&&!!link;
+ const attempts=(target.acquisitionOutcomes??[]).filter(row=>row.url===need.url&&row.researchLinkId===need.researchLinkId&&row.channel==='PRICE_RESEARCH_DECODO'&&row.classification==='ACQUISITION_FAILED'&&row.sourceClassification?.status==='UNKNOWN_SOURCE'&&row.sourceClassification?.sourceHash===null&&row.countryV3Evaluation?.status==='UNRESOLVED');
+ const link=(target.researchLinks??[]).find(row=>(need.researchLinkId===null?row.url===need.url:row.id===need.researchLinkId)&&row.enabled===true&&row.truthAuthority==='NONE'&&row.url===need.url&&(row.marketScope==='GLOBAL'||row.marketScope==='MARKET_SPECIFIC'&&row.marketCode===target.market));
+ if(attempts.length!==1||!link)return false;
+ const attempt=attempts[0];
+ if(attempt.responseTooLarge===true&&need.consentRedirect===undefined)return true;
+ if(!attempt.consentRedirect||!need.consentRedirect||attempt.consentRedirect.url!==need.consentRedirect.url||attempt.consentRedirect.recordHash!==need.consentRedirect.recordHash||!attempt.runDirectory)return false;
+ try{const original=documentedConsentRedirect([...iterateMarketRunRecords(attempt.runDirectory+'/journal')],target,need.url);return original?.url===need.consentRedirect.url&&original.recordHash===need.consentRedirect.recordHash;}catch{return false;}
 }
 
 export function retainedProviderRenderingAuthority(target,{url,transport,sourceHash}={}){
