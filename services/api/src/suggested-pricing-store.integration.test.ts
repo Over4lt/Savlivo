@@ -48,7 +48,6 @@ test("Suggested history remains available while Verified price stays authoritati
     await pool.query(sql("db/migrations/014_verified_price_observations.sql"));
     await pool.query(sql("db/migrations/019_suggested_provider_prices.sql"));
     await pool.query(sql("db/migrations/019_suggested_provider_prices.sql"));
-    await pool.query("ALTER TABLE suggested_provider_prices DROP COLUMN calculation, DROP COLUMN offer_scope");
     await pool.query(sql("db/migrations/026_suggested_price_calculation.sql"));
     await pool.query(sql("db/migrations/026_suggested_price_calculation.sql"));
     await pool.query(sql("db/migrations/023_durable_verified_price_history.sql"));

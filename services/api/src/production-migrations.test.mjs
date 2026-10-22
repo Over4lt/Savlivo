@@ -1,8 +1,47 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import fs from 'node:fs';
-import {migrationFiles,productionRoot,runProductionMigrations} from './production-migrations.ts';
+import pg from 'pg';
+import {migrationFiles,productionRoot,runProductionMigrations,schemaFile} from './production-migrations.ts';
 import {researchLinksRequest} from './v2-operations/research-links.mjs';
+
+// These bytes are recorded in production_schema_migrations. New schema changes
+// belong in a new numbered migration, never in a previously registered file.
+const registeredChecksums={
+ 'db/schema.sql':'4bbcb95abbcd56dd50b58aef55f60de65af6af32293496f9079375789de6457d',
+ 'db/migrations/002_auth.sql':'96d3471de2053610fadf93a1b6446d4445783db3e525edb11ba3d1438856203f',
+ 'db/migrations/003_billing.sql':'9f2053065e836572544e3c97b4b266298ffb257c2b0de8e79d3275b808d74a79',
+ 'db/migrations/004_subscription_status_history.sql':'8964b151699b35a80f722d7b4a96c56048bc811373b0af7568c687d992df1eaa',
+ 'db/migrations/005_status_history_invariants.sql':'2ccc8c219618a332872e431b2b6b4621d77fa16b2bd96c7d563b3446d1db2cdc',
+ 'db/migrations/007_authoritative_provider_pricing.sql':'577d50b1aef3f796811e413225655619c41858a95c40bb1aedbce5565cef667f',
+ 'db/migrations/008_add_mainland_china_services.sql':'cab1346ab6a85026dea83b59756f36142b688838d63e9b073ce1c63314781efd',
+ 'db/migrations/009_subscription_market.sql':'7f034812f45d84331aefcc495d188253f0b9d0e1a1015307483fad8261cec8a8',
+ 'db/migrations/010_account_deletion_grace_period.sql':'3e43ff789fca7971d70e2f178f26b209be3cf194c1546db9779edf2de8b3e002',
+ 'db/migrations/011_add_viaplay.sql':'cd1ab34975fcc13b12d664da11ec1648814ba78cdf887edefa9b2708b46f32a5',
+ 'db/migrations/012_manual_subscriptions.sql':'a06e49728c226cfac7e3433f378f89c6a657c1f44fe2e18ecb4e570c3a21a0cf',
+ 'db/migrations/013_private_analytics.sql':'f706f08b79788c88ba2a4785c0af67af323de278a854583ddd607a60eacda764',
+ 'db/migrations/014_verified_price_observations.sql':'bedca4d773d265373e5b80358ca23698bb5d0bd72787f4138c4936f45404ae3f',
+ 'db/migrations/015_admin_passkeys.sql':'052e3936f3094bf7ccc715a45907fe93d1fa3dd8d9f509243a0d7aad0595eafe',
+ 'db/migrations/019_suggested_provider_prices.sql':'a6ae177c2eb6f6824aa16a0fb60709fba7b4c7cb845bc0e739ef14c637a71b32',
+ 'db/migrations/021_price_research_links.sql':'28550e0dff56bddef35d31dc4b1b9ed49f0aaff597b15a0cf1992c9e8e7ff08c',
+ 'db/migrations/022_price_research_market_exclusions.sql':'1de412b44eb7c304ce3c28abf74367186d7d72b936c7ce7fca5b4a75167d7a7a',
+ 'db/migrations/023_durable_verified_price_history.sql':'c059d84df71af0a2d39623e71ca273aa3dcb7f708db0283f23b55fe17ac8f6dd',
+ 'db/migrations/024_price_analytics_history_index.sql':'093fcd16bec9bb53031df3406e953b12855e38703f3f4485b0be89fbe8a24599',
+ 'db/migrations/025_verified_bootstrap_integrity.sql':'3b897e140a69a6356bbcd5f1ae05daca8e50604aa355e5e84b912cf4bbb0c038',
+ 'db/migrations/026_suggested_price_calculation.sql':'38f36c1af270e13d4de45fe5bdf5ae49e4ea1563403ff0f7d58a5d99d6b00cfc',
+ 'services/api/src/savlivo-migration-savings-ledger-1.7.0.sql':'04bad6e43ba6b7df44a77c46e19b65d71ebdb309fdbfb9def95aa27bf51a9026',
+ 'services/api/migrations/20260824_notifications.sql':'b56a9ad7316905fd595ab6a2296e3643382272565da55e22f38ddfb9bae8d035',
+ 'services/api/migrations/20260907_password_reset.sql':'ee32a198da0c97f97bd9f21536c0738402125713d9ba8ed9151414955590c8ea'
+};
+
+test('registered schema and migration bytes retain their production SHA-256 checksums',()=>{
+ assert.deepEqual(Object.keys(registeredChecksums),[schemaFile,...migrationFiles]);
+ for(const [file,expected] of Object.entries(registeredChecksums)){
+  const actual=createHash('sha256').update(fs.readFileSync(productionRoot+file)).digest('hex');
+  assert.equal(actual,expected,file);
+ }
+});
 
 const expectedColumns={id:'uuid',service_id:'text',url:'text',kind:'text',market_scope:'text',
  market_code:'text',enabled:'boolean',created_at:'timestamp with time zone',
@@ -161,3 +200,48 @@ test('changed migration bytes fail checksum validation instead of replaying a co
  await assert.rejects(runProductionMigrations(db),/PRODUCTION_MIGRATION_CHECKSUM_MISMATCH/);
  assert.equal(db.locked,false);
 });
+
+test('disposable PostgreSQL upgrades a pre-026 ledger once and initializes a fresh database',
+ {skip:process.env.SAVLIVO_DISPOSABLE_DB_TEST!=='1'},async()=>{
+  assert.equal(process.env.DATABASE_URL,'postgresql://postgres@127.0.0.1:55439/savlivo_test');
+  const db=new pg.Client({connectionString:process.env.DATABASE_URL});
+  await db.connect();
+  try{
+   await db.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public');
+   const fresh=await runProductionMigrations(db);
+   assert.equal(fresh.applied,migrationFiles.length+1);
+   assert.equal((await runProductionMigrations(db)).applied,0);
+   await db.query(`INSERT INTO suggested_provider_prices
+    (suggested_id,plan_identity,service_slug,plan_name,billing_provider_slug,country_code,
+     currency,monthly_price_minor,payment_cadence,provenance,researched_at)
+    VALUES ('fixture:prime-video:no','fixture:prime-video:no','prime-video','Prime Video',
+     'direct','NO','NOK',7900,'MONTHLY_RECURRING','GOOGLE_AI_V4',now())`);
+   const before=(await db.query(`SELECT suggested_id,plan_identity,monthly_price_minor,active
+    FROM suggested_provider_prices WHERE suggested_id='fixture:prime-video:no'`)).rows;
+
+   // Recreate the existing production shape only inside this disposable DB.
+   await db.query('ALTER TABLE suggested_provider_prices DROP COLUMN calculation, DROP COLUMN offer_scope');
+   await db.query("DELETE FROM production_schema_migrations WHERE file_path='db/migrations/026_suggested_price_calculation.sql'");
+   const ledger=(await db.query('SELECT file_path,sha256 FROM production_schema_migrations')).rows;
+   assert.equal(ledger.length,migrationFiles.length);
+   for(const row of ledger)assert.equal(String(row.sha256).trim(),registeredChecksums[row.file_path],row.file_path);
+
+   const upgrade=await runProductionMigrations(db);
+   assert.equal(upgrade.applied,1);
+   assert.equal(upgrade.skipped,migrationFiles.length);
+   assert.deepEqual((await db.query(`SELECT suggested_id,plan_identity,monthly_price_minor,active
+    FROM suggested_provider_prices WHERE suggested_id='fixture:prime-video:no'`)).rows,before);
+   const columns=(await db.query(`SELECT column_name,data_type FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='suggested_provider_prices'
+      AND column_name IN ('calculation','offer_scope') ORDER BY column_name`)).rows;
+   assert.deepEqual(columns,[{column_name:'calculation',data_type:'jsonb'},
+    {column_name:'offer_scope',data_type:'text'}]);
+   const recorded=(await db.query(`SELECT sha256 FROM production_schema_migrations
+    WHERE file_path='db/migrations/026_suggested_price_calculation.sql'`)).rows;
+   assert.equal(recorded.length,1);
+   assert.equal(String(recorded[0].sha256).trim(),registeredChecksums['db/migrations/026_suggested_price_calculation.sql']);
+   const repeated=await runProductionMigrations(db);
+   assert.equal(repeated.applied,0);
+   assert.equal(repeated.skipped,migrationFiles.length+1);
+  }finally{await db.end();}
+ });
