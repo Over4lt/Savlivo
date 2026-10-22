@@ -203,6 +203,9 @@ export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,
       }catch{/* Retain the first documented Suggested result when a bounded follow-up fails. */}
     }
     const {state,plans}=projected;
+    state.offerFindings={...state.offerFindings,followupStatus:acquisition.offerFollowup?.status??
+      (!gap?'NOT_NEEDED':acquisition.audit?.request?.requestCount>=2?'REQUEST_BUDGET_EXHAUSTED':
+       acquisition.recovery?.attempted?'RECOVERY_USED':'NOT_ATTEMPTED')};
     if(plans.length)await persistSuggested(plans);
     const session={target,acquisition,state,earlyPersistedPlans:plans.length};sessions.push(session);
     if(artifactDirectory)writeJson(path.join(artifactDirectory,'google-ai-v4',target.id.replace(/[^a-zA-Z0-9_.:-]/g,'_')+'.json'),{schemaVersion:1,target,acquisition:{status:acquisition.status,audit:acquisition.audit,recovery:acquisition.recovery??null,offerFollowup:acquisition.offerFollowup?{status:acquisition.offerFollowup.status,audit:acquisition.offerFollowup.audit}:null},v4:{suggested:state.snapshot.suggested,normalizationDiagnostics:state.normalizationDiagnostics,offerFindings:state.offerFindings,handoff:state.handoff},persistence:{suggestedPlans:plans.length,stage:'BEFORE_V3'}});

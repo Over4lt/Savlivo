@@ -39,10 +39,14 @@ function safeSuggestedPerformance(value){
  return {...counts,followupReason:code(value.followupReason)};
 }
 const offerCodes=new Set(['COMPLETE_PLAN_FOUND','ADDON_FOUND_BASE_MISSING','BASE_FOUND_ADDON_MISSING','COMPATIBILITY_UNPROVEN','CALCULATED_TOTAL_CREATED','NO_AD_FREE_OFFER_DOCUMENTED']);
+const offerBlockers=new Set(['BASE_PLAN_AMBIGUOUS','BASE_PLAN_COMPATIBILITY_UNPROVEN','MONTHLY_COMPONENT_UNPROVEN','COMPONENT_MARKET_OR_CURRENCY_MISMATCH','BILLING_PROVIDER_UNPROVEN','COMPONENT_GOOGLE_GROUNDING_MISSING','COMPONENT_PRICE_EXCERPT_UNPROVEN','BILLING_PROVIDER_SOURCE_UNPROVEN','COMBINATION_QUOTE_NOT_SOURCE_BOUND','SAME_BILL_WITH_BOTH_PRICES_UNPROVEN','COMBINATION_SERVICE_PROVIDER_UNPROVEN','COMPONENT_SERVICE_IDENTITY_UNPROVEN']);
+const offerFollowupStatuses=new Set(['GOOGLE_AI_SUCCESS','GOOGLE_AI_ACCESS_FAILURE','GOOGLE_AI_MALFORMED_RESPONSE','NOT_NEEDED','REQUEST_BUDGET_EXHAUSTED','RECOVERY_USED','NOT_ATTEMPTED']);
 function safeOfferFindings(value){
  if(!value||typeof value!=='object')return null;
  const codes=Array.isArray(value.codes)?value.codes.filter(item=>offerCodes.has(item)).slice(0,6):[];
- return {codes,...Object.fromEntries(['baseCount','addonCount','completeCount','calculatedCount'].map(key=>[key,Math.min(64,safeInteger(value[key])??0)]))};
+ return {codes,...Object.fromEntries(['baseCount','addonCount','completeCount','calculatedCount'].map(key=>[key,Math.min(64,safeInteger(value[key])??0)])),
+  ...(Array.isArray(value.calculationBlockers)?{calculationBlockers:value.calculationBlockers.filter(item=>offerBlockers.has(item)).slice(0,8)}:{}),
+  ...(offerFollowupStatuses.has(value.followupStatus)?{followupStatus:value.followupStatus}:{})};
 }
 function safeVerificationRetry(value){
  if(!value||typeof value!=='object')return null;

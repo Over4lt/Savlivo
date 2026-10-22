@@ -123,4 +123,21 @@ test('the actual retained Prime Video NO answer cannot justify a 108 NOK total',
  const result=inspect([b,a],prime,[]);
  assert.deepEqual(result.accepted.map(row=>row.planName),['Prime Video']);
  assert.deepEqual(result.findings.codes,['COMPATIBILITY_UNPROVEN']);
+ assert(result.findings.calculationBlockers.includes('COMPONENT_GOOGLE_GROUNDING_MISSING'));
+ assert(result.findings.calculationBlockers.includes('COMBINATION_QUOTE_NOT_SOURCE_BOUND'));
+});
+
+test('Standard diagnosis identifies absent grounding and same-bill evidence without changing Suggested admission',()=>{
+ const b={...base('Prime Video',79,'https://www.primevideo.com/'),
+  sourceEvidence:'Dersom man kjøper Prime Video direkte via Amazon koster det kr 79 per måned.'};
+ const a={...addon(b,29,'https://www.primevideo.com/help'),
+  sourceEvidence:'Amazon tilbyr en reklamefri tilleggstjeneste for 29 kr per måned.',
+  combinationEvidence:'A new ad free option for an additional 29 NOK per month.'};
+ const result=inspect([b,a],prime,[]);
+ assert.deepEqual(result.accepted.map(row=>[row.planName,row.amount]),[['Prime Video',79]]);
+ assert.deepEqual(result.findings.codes,['COMPATIBILITY_UNPROVEN']);
+ assert(result.findings.calculationBlockers.includes('COMPONENT_GOOGLE_GROUNDING_MISSING'));
+ assert(result.findings.calculationBlockers.includes('COMBINATION_QUOTE_NOT_SOURCE_BOUND'));
+ assert(result.findings.calculationBlockers.includes('SAME_BILL_WITH_BOTH_PRICES_UNPROVEN'));
+ assert.equal(result.findings.calculatedCount,0);
 });

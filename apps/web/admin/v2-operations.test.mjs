@@ -831,12 +831,16 @@ test('canonical result projection keeps previous Old Verified and unknown proven
 test('Standard target displays bounded ad-free discovery reason in Admin',async t=>{
  const job={id:'canonical-job',status:'COMPLETE',terminal:true,batchProgress:{researchMode:'standard',logicalTargetCount:1,outcomes:[{
   serviceId:'chess-com',serviceName:'Chess.com',targetMarket:'ES',status:'COMPLETE',researchOutcome:'SUGGESTED',suggestedPlans:1,verified:0,
-  offerFindings:{codes:['COMPATIBILITY_UNPROVEN'],baseCount:1,addonCount:1,completeCount:0,calculatedCount:0}
+  offerFindings:{codes:['COMPATIBILITY_UNPROVEN'],baseCount:1,addonCount:1,completeCount:0,calculatedCount:0,
+   calculationBlockers:['COMPONENT_GOOGLE_GROUNDING_MISSING','SAME_BILL_WITH_BOTH_PRICES_UNPROVEN'],followupStatus:'GOOGLE_AI_SUCCESS'}
  }]}};
  const {root}=await canonicalBuilder(t,{job});const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
  const es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();await button(root,'Preflight').listeners.click();
  window.confirm=()=>true;await button(root,'Confirm and queue run').listeners.click();await Promise.resolve();
  assert(text(root).includes('COMPATIBILITY_UNPROVEN'));
+ assert(text(root).includes('COMPONENT_GOOGLE_GROUNDING_MISSING'));
+ assert(text(root).includes('SAME_BILL_WITH_BOTH_PRICES_UNPROVEN'));
+ assert(text(root).includes('Follow-up GOOGLE_AI_SUCCESS'));
 });
 test('canonical result projection does not present compact live rows as complete totals',()=>{const model=canonicalPriceResearchProjection({status:'RUNNING',batchProgress:{logicalTargetCount:11000,admittedTargetCount:11000,serviceCount:500,outcomesTruncated:true,progressCounts:{pending:10900,running:0,complete:100,failed:0,stopped:0},outcomes:[{serviceId:'one',serviceName:'One',targetMarket:'DE',status:'COMPLETE',suggestedPlans:3,verified:2}]}});assert.deepEqual({services:model.services,targets:model.targets,suggested:model.suggested,verified:model.verified,truncated:model.outcomesTruncated},{services:500,targets:11000,suggested:null,verified:null,truncated:true});});
 

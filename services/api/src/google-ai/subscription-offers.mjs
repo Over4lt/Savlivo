@@ -100,8 +100,32 @@ function calculated(base,addon,target,citations){
   offerScope:'CALCULATED_TOTAL',warnings:[...(addon.warnings??[]),'CALCULATED_TOTAL_UNVERIFIED']};
 }
 
+// Explain a failed composition using bounded codes. This is diagnostic only;
+// calculated() remains the sole admission check for a Suggested total.
+function calculationBlockers(base,addon,target,citations){
+ const blockers=[];
+ const baseMinor=amountMinor(base),addonMinor=amountMinor(addon),link=String(addon?.combinationEvidence??'').trim();
+ const billingProvider=provider(base);
+ if(!recurring(base)||!recurring(addon))blockers.push('MONTHLY_COMPONENT_UNPROVEN');
+ if(base.currency!==addon.currency||!marketEvidence(base,target.market)||!marketEvidence(addon,target.market))blockers.push('COMPONENT_MARKET_OR_CURRENCY_MISMATCH');
+ if(!provider(base)||provider(base)!==provider(addon))blockers.push('BILLING_PROVIDER_UNPROVEN');
+ if(!canonicalUrl(base.sourceUrl)||!canonicalUrl(addon.sourceUrl)||
+  !citations.has(canonicalUrl(base.sourceUrl))||!citations.has(canonicalUrl(addon.sourceUrl)))blockers.push('COMPONENT_GOOGLE_GROUNDING_MISSING');
+ if(!baseMinor||!addonMinor||!evidence(base)||!evidence(addon)||
+  !numberIn(evidence(base),baseMinor)||!numberIn(evidence(addon),addonMinor))blockers.push('COMPONENT_PRICE_EXCERPT_UNPROVEN');
+ if(!billingProvider||!normalize(evidence(base)).includes(billingProvider)||
+  !normalize(evidence(addon)).includes(billingProvider))blockers.push('BILLING_PROVIDER_SOURCE_UNPROVEN');
+ if(!link||![evidence(base),evidence(addon)].some(excerpt=>normalize(excerpt).includes(normalize(link))))blockers.push('COMBINATION_QUOTE_NOT_SOURCE_BOUND');
+ if(!baseMinor||!addonMinor||!numberIn(link,baseMinor)||!numberIn(link,addonMinor)||
+  !/\b(?:together|combined|same bill|compatible|sammen|samlet|kombinert|gemeinsam|conjunto)\b/iu.test(link))blockers.push('SAME_BILL_WITH_BOTH_PRICES_UNPROVEN');
+ if(!billingProvider||!normalize(link).includes(billingProvider)||
+  !normalize(link).includes(normalize(target.serviceName)))blockers.push('COMBINATION_SERVICE_PROVIDER_UNPROVEN');
+ if(!serviceMention(base,target)||!serviceMention(addon,target))blockers.push('COMPONENT_SERVICE_IDENTITY_UNPROVEN');
+ return blockers;
+}
+
 export function analyzeSubscriptionOffers(rows,target,groundingCitations=[]){
- const accepted=[],bases=[],addons=[],complete=[],rejected={},calculatedRows=[];
+ const accepted=[],bases=[],addons=[],complete=[],rejected={},calculatedRows=[],calculationReasons=new Set();
  const seen=new Set();
  for(const row of rows??[]){
   const decision=classifySubscriptionOffer(row,target);
@@ -125,9 +149,10 @@ export function analyzeSubscriptionOffers(rows,target,groundingCitations=[]){
  const citations=citationSet(groundingCitations);
  for(const addon of addons.slice(0,8)){
   const compatible=bases.filter(base=>normalize(base.planName)===normalize(addon.compatibleBasePlan));
- if(compatible.length!==1)continue;
+ if(compatible.length!==1){calculationReasons.add(compatible.length?'BASE_PLAN_AMBIGUOUS':'BASE_PLAN_COMPATIBILITY_UNPROVEN');continue;}
   const value=calculated(compatible[0],addon,target,citations);
   if(value)calculatedRows.push(value);
+  else for(const reason of calculationBlockers(compatible[0],addon,target,citations))calculationReasons.add(reason);
  }
  const codes=[];
  if(complete.length)codes.push('COMPLETE_PLAN_FOUND');
@@ -139,5 +164,6 @@ export function analyzeSubscriptionOffers(rows,target,groundingCitations=[]){
    !bases.some(row=>adFree.test(evidence(row))))codes.push('NO_AD_FREE_OFFER_DOCUMENTED');
  return {accepted:[...accepted,...calculatedRows],rejected,findings:{codes,
   baseCount:bases.length,addonCount:addons.length,completeCount:complete.length,calculatedCount:calculatedRows.length,
-  baseMentionsAdFree:bases.some(row=>adFree.test(evidence(row)))}};
+  baseMentionsAdFree:bases.some(row=>adFree.test(evidence(row))),
+  calculationBlockers:complete.length||calculatedRows.length?[]:[...calculationReasons].slice(0,8)}};
 }

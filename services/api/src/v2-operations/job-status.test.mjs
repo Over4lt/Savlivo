@@ -95,7 +95,7 @@ test('Suggested Only status retains bounded rejection diagnostics without source
  const config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['prime-video'],markets:['DK'],targetingRevision:'b'.repeat(64),batchTargets:[target],logicalTargetCount:1,researchMode:'suggested_only',perTargetRequestCeiling:2,batchRequestCeiling:2,capabilities:{direct:false,tavily:false,decodo:false,browser:false,groq:false}};
  const attempt={status:'GOOGLE_AI_SUCCESS',requestStatus:'STOP',requests:1,requestRuntimeMs:41000,wallRuntimeMs:41003,candidateCount:2,modelSourceCount:1,groundingCount:1,urlMatched:0,v4Suggested:0,normalizationRejected:0,qualifyingSuggested:0,rejected:{SOURCE_URL_NOT_GROUNDED:2},sourceHosts:['primevideo.com'],groundingHosts:['google.com'],sourceUrl:'https://example.com/private?token=secret'};
  const performance={targetRuntimeMs:42000,googleWallMs:41003,normalizationMs:3,persistenceMs:900,qualifyingVariants:0,duplicateVariants:0,conflictingVariants:1,followupReason:'DOCUMENTED_PRICE_GAP',secret:'token=secret'};
- await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',researchMode:'suggested_only',targets:[{target:{id:target.id},researchMode:'suggested_only',googleAttempts:[attempt],performance,offerFindings:{codes:['COMPATIBILITY_UNPROVEN','SECRET_UNKNOWN'],baseCount:1,addonCount:1,completeCount:0,calculatedCount:0,sourceUrl:'https://private.example/?token=secret'},combined:{kind:'CombinedResearchResult',resultClass:'NO_RESULT',plans:[],suggested:[],operationalFailures:[]},persisted:{suggestedPlans:0,verified:0},capabilityUsage:{googleAiRequests:1}}]})});
+ await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',researchMode:'suggested_only',targets:[{target:{id:target.id},researchMode:'suggested_only',googleAttempts:[attempt],performance,offerFindings:{codes:['COMPATIBILITY_UNPROVEN','SECRET_UNKNOWN'],baseCount:1,addonCount:1,completeCount:0,calculatedCount:0,calculationBlockers:['COMPONENT_GOOGLE_GROUNDING_MISSING','SECRET_UNKNOWN'],followupStatus:'GOOGLE_AI_SUCCESS',sourceUrl:'https://private.example/?token=secret'},combined:{kind:'CombinedResearchResult',resultClass:'NO_RESULT',plans:[],suggested:[],operationalFailures:[]},persisted:{suggestedPlans:0,verified:0},capabilityUsage:{googleAiRequests:1}}]})});
  const row=priceResearchBatchStatus({status:'COMPLETE',config},directory).outcomes[0];
  assert.equal(row.googleAttempts[0].candidateCount,2);
  assert.equal(row.googleAttempts[0].rejected.SOURCE_URL_NOT_GROUNDED,2);
@@ -103,7 +103,7 @@ test('Suggested Only status retains bounded rejection diagnostics without source
  assert.equal(row.googleAttempts[0].requestRuntimeMs,41000);
  assert.equal(row.suggestedPerformance.googleWallMs,41003);
  assert.equal(row.suggestedPerformance.followupReason,'DOCUMENTED_PRICE_GAP');
- assert.deepEqual(row.offerFindings,{codes:['COMPATIBILITY_UNPROVEN'],baseCount:1,addonCount:1,completeCount:0,calculatedCount:0});
+ assert.deepEqual(row.offerFindings,{codes:['COMPATIBILITY_UNPROVEN'],baseCount:1,addonCount:1,completeCount:0,calculatedCount:0,calculationBlockers:['COMPONENT_GOOGLE_GROUNDING_MISSING'],followupStatus:'GOOGLE_AI_SUCCESS'});
  assert.equal(JSON.stringify(row).includes('token=secret'),false);
 });
 

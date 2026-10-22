@@ -226,6 +226,7 @@ test('Standard spends one bounded follow-up on a documented compatibility gap an
  assert.equal(calls[0].offerFollowupCode,'COMPATIBILITY_UNPROVEN');
  assert.equal(result.targets[0].googleRequests,2);
  assert.equal(result.targets[0].strictGeminiRequests,2);
+ assert.equal(result.targets[0].offerFindings.followupStatus,'GOOGLE_AI_SUCCESS');
  assert(result.targets[0].offerFindings.codes.includes('COMPLETE_PLAN_FOUND'));
  assert.deepEqual(stored.map(row=>row.planName).slice(0,2),['Prime Video','Prime Video Without Ads']);
 });
@@ -253,6 +254,22 @@ test('Standard records a failed second Google request while preserving the first
  assert.equal(result.targets[0].googleRequests,2);
  assert.equal(result.targets[0].strictGeminiRequests,2);
  assert.equal(stored[0].planName,'Prime Video');
+ assert.equal(result.targets[0].offerFindings.followupStatus,'GOOGLE_AI_ACCESS_FAILURE');
+ assert(result.targets[0].offerFindings.codes.includes('COMPATIBILITY_UNPROVEN'));
+});
+
+test('Standard exposes when a strict normalization retry has consumed the second call',async()=>{
+ const first=acquisition([
+  plan('Prime Video',79,{sourceEvidence:'Amazon Prime Video base subscription 79 NOK per month',billingProvider:'Amazon'}),
+  plan('Prime Video Ad Free add-on',29,{sourceEvidence:'Amazon ad-free add-on costs 29 NOK per month',billingProvider:'Amazon'})
+ ]);
+ first.audit.request.requestCount=2;
+ const result=await runAdminV4FirstResearch({targets:[target],acquireGoogle:async()=>first,
+  acquireFollowup:async()=>assert.fail('a third request must not be made'),
+  persistSuggested:async()=>{},persistVerified:async()=>assert.fail('no Verified write'),
+  loadSuggested:async()=>[],loadVerified:async()=>[],runDownstream:async()=>({v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}})});
+ assert.equal(result.targets[0].googleRequests,2);
+ assert.equal(result.targets[0].offerFindings.followupStatus,'REQUEST_BUDGET_EXHAUSTED');
  assert(result.targets[0].offerFindings.codes.includes('COMPATIBILITY_UNPROVEN'));
 });
 
