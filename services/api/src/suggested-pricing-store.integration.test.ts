@@ -48,6 +48,9 @@ test("Suggested history remains available while Verified price stays authoritati
     await pool.query(sql("db/migrations/014_verified_price_observations.sql"));
     await pool.query(sql("db/migrations/019_suggested_provider_prices.sql"));
     await pool.query(sql("db/migrations/019_suggested_provider_prices.sql"));
+    await pool.query("ALTER TABLE suggested_provider_prices DROP COLUMN calculation, DROP COLUMN offer_scope");
+    await pool.query(sql("db/migrations/026_suggested_price_calculation.sql"));
+    await pool.query(sql("db/migrations/026_suggested_price_calculation.sql"));
     await pool.query(sql("db/migrations/023_durable_verified_price_history.sql"));
 
     assert.deepEqual(await persistSuggestedProductPlans([plan]), {receivedPlans: 1, persisted: 2});
@@ -95,6 +98,28 @@ test("Suggested history remains available while Verified price stays authoritati
     assert.equal(merged[0].suggested?.monthlyPriceMinor, 1299);
     assert.equal(merged[0].verified[0]?.monthlyPriceMinor, 1199);
     assert.equal(merged[0].suggestedHistory[0]?.monthlyPriceMinor, 1399);
+
+    const calculation={schemaVersion:1 as const,method:"MONTHLY_BASE_PLUS_AD_FREE_ADD_ON" as const,currency:"NOK",
+      components:[{role:"BASE" as const,planName:"Prime Video",monthlyPriceMinor:7900,sourceUrl:"https://www.primevideo.com/no",aiExcerptSha256:"a".repeat(64)},
+        {role:"AD_FREE_ADD_ON" as const,planName:"Prime Video Ad Free add-on",monthlyPriceMinor:2900,sourceUrl:"https://www.primevideo.com/help/ad-free",aiExcerptSha256:"b".repeat(64)}],
+      compatibilityAiExcerptSha256:"c".repeat(64)};
+    const composed:ProductPlanPricing={...plan,planIdentity:"catalog:prime-video:no:prime-video-without-ads-calculated-total:direct:nok",
+      serviceSlug:"prime-video",planName:"Prime Video Without Ads (Calculated Total)",countryCode:"NO",
+      suggested:{...plan.suggested!,suggestedId:"v4:composed",monthlyPriceMinor:10800,currency:"NOK",provenance:"GOOGLE_AI_V4",calculation,offerScope:"CALCULATED_TOTAL",
+        warnings:["CALCULATED_TOTAL_UNVERIFIED"]},suggestedHistory:[]};
+    const addon:ProductPlanPricing={...composed,planIdentity:"catalog:prime-video:no:prime-video-ad-free-add-on:direct:nok",
+      planName:"Prime Video Ad Free (Add-On)",suggested:{...composed.suggested!,suggestedId:"v4:historical-addon",monthlyPriceMinor:2900,calculation:undefined,
+        warnings:["OFFICIAL_SOURCE_NOT_ACQUIRED"]}};
+    await persistSuggestedProductPlans([composed,addon]);
+    await persistSuggestedProductPlans([composed,addon]);
+    const norway=await loadSuggestedProductPlans("NO","NOK");
+    assert.equal(norway.find(row=>row.planIdentity===composed.planIdentity)?.suggested?.monthlyPriceMinor,10800);
+    assert.deepEqual(norway.find(row=>row.planIdentity===composed.planIdentity)?.suggested?.calculation,calculation);
+    assert.equal(norway.find(row=>row.planIdentity===composed.planIdentity)?.suggested?.offerScope,"CALCULATED_TOTAL");
+    const historical=norway.find(row=>row.planIdentity===addon.planIdentity);
+    assert.equal(historical?.suggested,null);
+    assert.equal(historical?.suggestedHistory[0]?.monthlyPriceMinor,2900);
+    assert.equal((await pool.query("SELECT count(*)::int n FROM suggested_provider_prices WHERE suggested_id='v4:historical-addon' AND active")).rows[0].n,1);
   } finally {
     await pool.end();
   }

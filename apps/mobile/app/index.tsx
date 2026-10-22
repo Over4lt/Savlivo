@@ -10141,7 +10141,9 @@ export default function Home() {
                         {planOption.priceStatus === "VERIFIED"
                           ? tr("✓ Verified")
                           : planOption.priceStatus === "SUGGESTED"
-                            ? tr("Suggested")
+                            ? planOption.calculatedTotal
+                              ? `${tr("Suggested")} · ${tr("Calculated total")}`
+                              : tr("Suggested")
                             : `${tr("Old Verified")} · ${tr("Price may be outdated")}`}
                       </Text>
                     </Pressable>

@@ -234,6 +234,8 @@ CREATE TABLE IF NOT EXISTS suggested_provider_prices (
   source_url TEXT,
   researched_at TIMESTAMPTZ NOT NULL,
   warnings JSONB NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(warnings)='array'),
+  calculation JSONB CHECK (calculation IS NULL OR jsonb_typeof(calculation)='object'),
+  offer_scope TEXT CHECK (offer_scope IS NULL OR offer_scope IN ('COMPLETE_SUBSCRIPTION','CALCULATED_TOTAL')),
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

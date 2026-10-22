@@ -22,6 +22,8 @@ type ResearchRecord = {
   provenance?: unknown;
   source?: unknown;
   originSuggestedId?: unknown;
+  calculation?: unknown;
+  offerScope?: unknown;
 };
 type CombinedPlan = {
   planIdentity?: unknown;
@@ -58,7 +60,9 @@ function researchEvidence(
       : [],
     provenance: String(row.provenance ?? kind),
     ...(typeof row.suggestedId === "string" ? {suggestedId: row.suggestedId} : {}),
-    ...(typeof row.originSuggestedId === "string" ? {originSuggestedId: row.originSuggestedId} : {})
+    ...(typeof row.originSuggestedId === "string" ? {originSuggestedId: row.originSuggestedId} : {}),
+    ...(row.calculation && typeof row.calculation === "object" ? {calculation: row.calculation as ProductPriceEvidence["calculation"]} : {}),
+    ...(row.offerScope === "COMPLETE_SUBSCRIPTION" || row.offerScope === "CALCULATED_TOTAL" ? {offerScope: row.offerScope} : {})
   };
 }
 

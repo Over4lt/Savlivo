@@ -75,7 +75,7 @@ test('an exhausted V3 verification retry replaces the earlier no-progress stop d
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'price-retry-status-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
  const target={id:'price-research:alpha:AU',serviceId:'alpha',serviceName:'Alpha',targetMarket:'AU',marketApplicabilityEstablished:false},config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['alpha'],markets:['AU'],targetingRevision:'a'.repeat(64),batchTargets:[target],logicalTargetCount:1,perTargetRequestCeiling:96,batchRequestCeiling:96};
  await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',downstreamResult:{services:{alpha:{stop:{reason:'NO_EXECUTABLE_PROGRESS_RECONCILE'}}}},targets:[{target:{id:target.id},combined:{kind:'CombinedResearchResult',resultClass:'SUGGESTED',plans:[{planIdentity:'alpha:au:gold',suggested:[{provenance:'GOOGLE_AI_V4'}],verified:[]}],operationalFailures:[{kind:'V3_VERIFICATION_RETRY_EXHAUSTED',reason:'NO_EXECUTABLE_PROGRESS_RECONCILE'}]},verificationRetry:{attempted:true,count:1,retryOutcome:'UNRESOLVED',retryReason:'NO_EXECUTABLE_PROGRESS_RECONCILE'},verificationEvidence:[]}]} )});
- const row=priceResearchBatchStatus({status:'COMPLETE',config},directory).outcomes[0];assert.equal(row.status,'COMPLETE');assert.equal(row.resultClass,'SUGGESTED');assert.equal(row.stopReason,'V3_VERIFICATION_RETRY_EXHAUSTED');assert.equal(row.researchOutcome,'SUGGESTED_ONLY');assert.equal(row.verificationEvidenceAvailable,undefined);
+ const batch=priceResearchBatchStatus({status:'COMPLETE',config},directory),row=batch.outcomes[0];assert.equal(batch.researchMode,'standard');assert.equal(row.status,'COMPLETE');assert.equal(row.resultClass,'SUGGESTED');assert.equal(row.stopReason,'V3_VERIFICATION_RETRY_EXHAUSTED');assert.equal(row.researchOutcome,'SUGGESTED');assert.equal(row.verificationEvidenceAvailable,undefined);
 });
 
 test('Suggested Only status reports mode, zero new Verified, NO_RESULT and actual skipped capabilities',async t=>{
@@ -116,7 +116,7 @@ test('Max-style retained Verified cannot become fresh Verified when V3 retry is 
  assert.equal(row.previouslyVerified,0);
  assert.equal(row.previouslyOldVerified,3);
  assert.equal(row.priorSourceUnclassified,0);
- assert.equal(row.researchOutcome,'SUGGESTED_ONLY');
+ assert.equal(row.researchOutcome,'SUGGESTED');
  assert.equal(row.resultClass,'SUGGESTED');
  assert.equal(row.stopReason,'V3_VERIFICATION_RETRY_EXHAUSTED');
 });

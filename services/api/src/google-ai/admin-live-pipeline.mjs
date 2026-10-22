@@ -11,6 +11,7 @@ import {createV4SuggestedSnapshot,createV3Handoff} from './research-handoff.mjs'
 import {canonicalPlanEvidenceCounts,mergeResearch,normalizeSuggestedResearchRow} from './monotonic-merge.mjs';
 import {researchMonthlyRecurringWithGoogleAi,researchMonthlyRecurringWithRecovery} from './monthly-recurring.mjs';
 import {nonStandalonePresentation} from '../research-v3/offering-scope.mjs';
+import {primeVideoSuggestedScope,primeVideoAdFreeName,composePrimeVideoAdFree} from './ad-free-suggested.mjs';
 import {reviewedProviderNamespacesFor,reviewedNamespaceMatches} from '../research-v3/reviewed-provider-namespaces.mjs';
 import {canonicalVerifiedPlanSlug,equivalentVerifiedPlan} from '../verified-price-reconciliation.mjs';
 import {parse as parseDomain} from 'tldts';
@@ -28,24 +29,6 @@ const safeTarget=target=>{
 };
 const writeJson=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true,mode:0o700});const pending=file+'.pending';fs.writeFileSync(pending,JSON.stringify(value,null,2)+'\n',{mode:0o600});fs.renameSync(pending,file);};
 
-// A service membership or ancillary product is not the target subscription.
-// Apply this before the shared V4 normalization in both research modes.
-const primeVideoNonBase=(row,target)=>{
- if(target.service!=='prime-video')return false;
- const name=String(row?.planName??''),description=[row?.billingBasis,row?.commitment,row?.summary,row?.sourceEvidence].filter(Boolean).join(' ');
- if(nonStandalonePresentation(name,target.serviceName)||
-   /\b(?:channels?|rentals?|rent|purchases?|buy|pay[- ]?per[- ]?view|bundles?|packages?|pakket?|pakke|combo)\b/iu.test(name)||
-   /^(?:amazon\s+prime\b(?!\s+video)|prime\s+(?:student|access|for young adults|membership|mitgliedschaft)\b)/iu.test(name)||
-   /\b(?:included with|part of)\s+amazon prime\b/iu.test(description))return true;
- if(!/\b(?:ad[- ]?free|without ads?)\b/iu.test(name))return false;
- // A separate ad-free charge is not a complete Prime Video subscription.
- // Require the source excerpt itself to describe a full-price subscription;
- // a model-generated summary alone cannot establish that distinction.
- const evidence=String(row?.sourceEvidence??'');
- return !groundedUrl(row?.sourceUrl)||/\b(?:add[- ]?on|upgrade|extra charge|remove ads|ad[- ]?free option)\b/iu.test([name,description].join(' '))||
-   !/\b(?:full|complete|standalone|total|all[- ]?in)\b.{0,60}\b(?:subscription|plan|monthly price)\b|\b(?:subscription|plan|monthly price)\b.{0,60}\b(?:full|complete|standalone|total|all[- ]?in)\b/iu.test(evidence);
-};
-
 // Amazon Prime membership and Prime Video are separate catalog services even
 // when a Google answer cites the same Amazon page for both products.
 const restrictedPrimeMembership=/(?<![\p{L}\p{N}])(?:student|young adults?|prime access|sozialrabatt|vergünstigte|ermäßigung|junge erwachsene|estudiante|étudiant|ungdom|eligible|eligibility)(?![\p{L}\p{N}])/iu;
@@ -61,12 +44,14 @@ const amazonPrimeScope=(row,target)=>{
  if(restrictedPrimeMembership.test(details)&&!restrictedPrimeMembership.test(name))return 'CONDITIONAL_IDENTITY_UNCLEAR';
  return null;
 };
-const suggestedScope=(row,target)=>target.service==='prime-video'&&primeVideoNonBase(row,target)?'NON_STANDALONE':amazonPrimeScope(row,target);
+const suggestedScope=(row,target)=>target.service==='prime-video'?primeVideoSuggestedScope(row,target.market):amazonPrimeScope(row,target);
 
 function v4State(target,acquisition){
   const rawAiResult=acquisition.recovery?.aiResult??acquisition.aiResult??{provider:target.serviceName,market:target.market,plans:[],sources:[],warnings:[],timestamp:acquisition.audit.timestamp,requestCount:acquisition.audit.request.requestCount};
   const rejected={};
-  const plans=(rawAiResult.plans??[]).filter(row=>{const reason=suggestedScope(row,target);if(reason)rejected[reason]=(rejected[reason]??0)+1;return !reason;});
+  const rawPlans=rawAiResult.plans??[],accepted=rawPlans.filter(row=>{const reason=suggestedScope(row,target);if(reason)rejected[reason]=(rejected[reason]??0)+1;return !reason;}).map(row=>target.service==='prime-video'&&primeVideoAdFreeName(row.planName)?{...row,offerScope:'COMPLETE_SUBSCRIPTION'}:row);
+  const calculated=composePrimeVideoAdFree(rawPlans,target,acquisition.audit?.groundingCitations??[]);
+  const plans=calculated?[...accepted,calculated]:accepted;
   const aiResult={...rawAiResult,plans};
   const results=verifyCandidates({providerName:target.serviceName,targetMarket:target.market,aiResult,sources:[]});
   const normalized=buildSuggested({providerName:target.serviceName,targetMarket:target.market,aiResult,verificationResults:results});

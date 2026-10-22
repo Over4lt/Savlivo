@@ -1,5 +1,5 @@
 import {pool} from "./db.js";
-import type {ProductPlanPricing, ProductPriceEvidence} from "../../../packages/contracts/src/product-pricing.js";
+import type {ProductPlanPricing, ProductPriceEvidence, SuggestedPriceCalculation} from "../../../packages/contracts/src/product-pricing.js";
 
 export type SuggestedRow = {
   suggested_id: string;
@@ -16,6 +16,8 @@ export type SuggestedRow = {
   source_url: string | null;
   researched_at: Date | string;
   warnings: unknown;
+  calculation?: SuggestedPriceCalculation | null;
+  offer_scope?: "COMPLETE_SUBSCRIPTION" | "CALCULATED_TOTAL" | null;
   active: boolean;
 };
 
@@ -31,7 +33,9 @@ function evidence(row: SuggestedRow): ProductPriceEvidence {
       : [],
     provenance: row.provenance,
     suggestedId: row.suggested_id,
-    ...(row.origin_suggested_id ? {originSuggestedId: row.origin_suggested_id} : {})
+    ...(row.origin_suggested_id ? {originSuggestedId: row.origin_suggested_id} : {}),
+    ...(row.calculation ? {calculation: row.calculation} : {}),
+    ...(row.offer_scope ? {offerScope: row.offer_scope} : {})
   };
 }
 
@@ -58,7 +62,12 @@ export function suggestedRowsToProductPlans(rows: SuggestedRow[]): ProductPlanPr
       };
       plans.set(key, plan);
     }
-    if (row.active) plan.suggested = evidence(row);
+    // Older research stored ancillary charges as active Suggested plans. Keep
+    // the observation, but never offer an explicit add-on as a subscription.
+    const ambiguousPrimeAdFree=row.service_slug==="prime-video" &&
+      /^(?:prime video\s*)?(?:ad[ -]?free|without ads)$/i.test(row.plan_name.trim()) &&
+      row.offer_scope!=="COMPLETE_SUBSCRIPTION";
+    if (row.active && !/\b(?:add[ -]?on|upgrade)\b/i.test(row.plan_name) && !ambiguousPrimeAdFree) plan.suggested = evidence(row);
     else plan.suggestedHistory.push(evidence(row));
   }
   return [...plans.values()];
@@ -66,7 +75,7 @@ export function suggestedRowsToProductPlans(rows: SuggestedRow[]): ProductPlanPr
 
 const selectSuggested = `SELECT suggested_id,origin_suggested_id,plan_identity,service_slug,plan_name,
   billing_provider_slug,country_code,currency,monthly_price_minor,payment_cadence,provenance,
-  source_url,researched_at,warnings,active FROM suggested_provider_prices`;
+  source_url,researched_at,warnings,calculation,offer_scope,active FROM suggested_provider_prices`;
 
 export async function loadSuggestedProductPlans(countryCode: string, currency: string) {
   const result = await pool.query(`${selectSuggested}
@@ -105,11 +114,11 @@ export async function persistSuggestedProductPlans(plans: ProductPlanPricing[]) 
         await client.query(`INSERT INTO suggested_provider_prices(
           suggested_id,origin_suggested_id,plan_identity,service_slug,plan_name,billing_provider_slug,
           country_code,currency,monthly_price_minor,payment_cadence,provenance,source_url,
-          researched_at,warnings,active) VALUES(
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15)
+          researched_at,warnings,calculation,offer_scope,active) VALUES(
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16,$17)
           ON CONFLICT(suggested_id) DO UPDATE SET
           plan_identity=EXCLUDED.plan_identity,plan_name=EXCLUDED.plan_name,provenance=EXCLUDED.provenance,source_url=EXCLUDED.source_url,
-          researched_at=EXCLUDED.researched_at,warnings=EXCLUDED.warnings,active=EXCLUDED.active,
+          researched_at=EXCLUDED.researched_at,warnings=EXCLUDED.warnings,calculation=EXCLUDED.calculation,offer_scope=EXCLUDED.offer_scope,active=EXCLUDED.active,
           updated_at=now()`, [
           value.suggestedId,
           value.originSuggestedId ?? null,
@@ -125,6 +134,8 @@ export async function persistSuggestedProductPlans(plans: ProductPlanPricing[]) 
           value.sourceUrl ?? null,
           value.observedAt ?? new Date().toISOString(),
           JSON.stringify(value.warnings),
+          value.calculation ? JSON.stringify(value.calculation) : null,
+          value.offerScope ?? null,
           active
         ]);
         persisted += 1;

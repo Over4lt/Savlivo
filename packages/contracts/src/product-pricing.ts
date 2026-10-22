@@ -1,3 +1,17 @@
+export type SuggestedPriceCalculation = {
+  schemaVersion: 1;
+  method: "MONTHLY_BASE_PLUS_AD_FREE_ADD_ON";
+  currency: string;
+  components: Array<{
+    role: "BASE" | "AD_FREE_ADD_ON";
+    planName: string;
+    monthlyPriceMinor: number;
+    sourceUrl: string;
+    aiExcerptSha256: string;
+  }>;
+  compatibilityAiExcerptSha256: string;
+};
+
 export type ProductPriceEvidence = {
   monthlyPriceMinor: number;
   currency: string;
@@ -8,6 +22,8 @@ export type ProductPriceEvidence = {
   provenance: string;
   suggestedId?: string;
   originSuggestedId?: string;
+  calculation?: SuggestedPriceCalculation;
+  offerScope?: "COMPLETE_SUBSCRIPTION" | "CALCULATED_TOTAL";
 };
 
 export type ProductPlanPricing = {

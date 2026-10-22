@@ -82,7 +82,7 @@ export async function dashboardData(market: string | null) {
       GROUP BY verification,price_status ORDER BY verification,price_status`, [market]),
     pool.query(`SELECT suggested_id,origin_suggested_id,plan_identity,service_slug,plan_name,
       billing_provider_slug,country_code,currency,monthly_price_minor,payment_cadence,provenance,
-      source_url,researched_at,warnings,active FROM suggested_provider_prices
+      source_url,researched_at,warnings,calculation,offer_scope,active FROM suggested_provider_prices
       WHERE ($1::text IS NULL OR country_code=$1)
       ORDER BY service_slug,plan_identity,active DESC,researched_at DESC`, [market]),
     pool.query(`SELECT plan_identity,service_slug,plan_slug,plan_name,billing_provider_slug,

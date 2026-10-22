@@ -11,16 +11,19 @@ export type RegionalPlanOption = {
   currency: string;
   monthlyPriceMinor: number;
   priceStatus: "VERIFIED" | "SUGGESTED" | "OLD_VERIFIED";
+  calculatedTotal: boolean;
 };
 
 // A standalone ad-free tier is a plan; an ad-free upgrade by itself is not.
-function isAddOnOnly(serviceSlug: string, name: string) {
-  const normalized = name.trim().toLowerCase();
+function isAddOnOnly(plan: ProductPlanPricing, currency: string) {
+  const normalized = plan.planName.trim().toLowerCase();
   return /\b(?:add[ -]?on|channels?|extra member|upgrade|bundle)\b/.test(normalized) ||
     /\s\+\s/.test(normalized) ||
-    (serviceSlug === "prime-video" &&
-      (/^(?:prime video\s*)?(?:ad[ -]?free|without ads)$/.test(normalized) ||
-        /^(?:amazon prime|prime membership)$/.test(normalized)));
+    (plan.serviceSlug === "prime-video" &&
+      (/^(?:amazon prime|prime membership)$/.test(normalized) ||
+        /^(?:prime video\s*)?(?:ad[ -]?free|without ads)$/.test(normalized) &&
+        !plan.verified.some(price => price.currency === currency) &&
+        !(plan.suggested?.currency === currency && plan.suggested.offerScope === "COMPLETE_SUBSCRIPTION")));
 }
 
 function catalogSlug(plan: ProductPlanPricing, currency: string) {
@@ -45,7 +48,7 @@ export function regionalProductPlanOptions(
       plan.countryCode !== selection.countryCode ||
       !plan.planIdentity || !plan.planName.trim() ||
       /^[a-f0-9]{64}$/i.test(plan.planName.trim()) ||
-      isAddOnOnly(plan.serviceSlug, plan.planName)) continue;
+      isAddOnOnly(plan, selection.currency)) continue;
 
     // Authority applies to this exact currency. A Verified price in a different
     // currency must not override a local Suggested price or be FX-converted.
@@ -72,7 +75,9 @@ export function regionalProductPlanOptions(
       countryCode: plan.countryCode,
       currency: price.currency,
       monthlyPriceMinor: price.monthlyPriceMinor,
-      priceStatus: truth.authority
+      priceStatus: truth.authority,
+      calculatedTotal: truth.authority === "SUGGESTED" &&
+        price.calculation?.method === "MONTHLY_BASE_PLUS_AD_FREE_ADD_ON"
     });
   }
   return options.filter(option => !duplicate.has(option.planIdentity));

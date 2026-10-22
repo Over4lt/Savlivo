@@ -73,3 +73,24 @@ test("saved user price is preserved when editing; explicit automatic price stays
   assert.equal(matchingRegionalProductPlan([selected], "Basic With Ads")?.priceStatus, "SUGGESTED");
   assert.equal(automaticPlanPrice(null, false), null);
 });
+
+test("calculated ad-free total is labelled Suggested and historical add-on stays out of plan choices", () => {
+  const calculation={schemaVersion:1 as const,method:"MONTHLY_BASE_PLUS_AD_FREE_ADD_ON" as const,currency:"NOK",
+    components:[{role:"BASE" as const,planName:"Prime Video",monthlyPriceMinor:7900,sourceUrl:"https://www.primevideo.com/no",aiExcerptSha256:"a".repeat(64)},
+      {role:"AD_FREE_ADD_ON" as const,planName:"Prime Video Ad Free add-on",monthlyPriceMinor:2900,sourceUrl:"https://www.primevideo.com/help",aiExcerptSha256:"b".repeat(64)}],
+    compatibilityAiExcerptSha256:"c".repeat(64)};
+  const rows=regionalProductPlanOptions([
+    plan("Prime Video",{serviceSlug:"prime-video",suggested:evidence(7900)}),
+    plan("Prime Video Ad Free (Add-On)",{serviceSlug:"prime-video",suggested:evidence(2900)}),
+    plan("Prime Video Ad Free",{serviceSlug:"prime-video",suggested:evidence(2900)}),
+    plan("Ad Free",{serviceSlug:"prime-video",suggested:evidence(2900),verified:[evidence(399,"USD")]}),
+    plan("Prime Video Without Ads",{serviceSlug:"prime-video",suggested:{...evidence(11900),offerScope:"COMPLETE_SUBSCRIPTION"}}),
+    plan("Prime Video Without Ads (Calculated Total)",{serviceSlug:"prime-video",
+      suggested:{...evidence(10800),calculation,offerScope:"CALCULATED_TOTAL",warnings:["CALCULATED_TOTAL_UNVERIFIED"]}})
+  ],{...selection,serviceSlug:"prime-video"});
+  assert.deepEqual(rows.map(row=>[row.planName,row.monthlyPriceMinor,row.priceStatus,row.calculatedTotal]),[
+    ["Prime Video",7900,"SUGGESTED",false],
+    ["Prime Video Without Ads",11900,"SUGGESTED",false],
+    ["Prime Video Without Ads (Calculated Total)",10800,"SUGGESTED",true]
+  ]);
+});

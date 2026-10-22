@@ -181,7 +181,7 @@ test('standard and Suggested Only produce identical V4 Suggested from the same u
 });
 
 test('a documented complete ad-free Prime Video subscription is distinct from an ad-free add-on in both modes',async()=>{
- const complete=plan('Prime Video Ad Free',119,{sourceEvidence:'Prime Video Ad Free full subscription plan costs 119 NOK per month'});
+ const complete=plan('Prime Video Ad Free',119,{sourceEvidence:'Prime Video Ad Free subscription includes streaming films and series for 119 NOK per month'});
  const addon=plan('Prime Video Ad Free add-on',29,{sourceEvidence:'Ad-free add-on costs 29 NOK per month'});
  const unsupported=plan('Prime Video Without Ads',119,{sourceEvidence:null});
  const unlocated=plan('Prime Video Without Ads',119,{sourceUrl:null,sourceEvidence:'Prime Video Without Ads full subscription plan costs 119 NOK per month'});
@@ -195,6 +195,7 @@ test('a documented complete ad-free Prime Video subscription is distinct from an
  assert.deepEqual(suggestedRows.map(row=>row.planName),['Prime Video With Ads','Prime Video Ad Free']);
  assert.deepEqual(suggestedRows,standardRows.slice(0,2));
  assert.equal(suggestedRows[1].suggested.monthlyPriceMinor,11900);
+ assert.equal(suggestedRows[1].suggested.offerScope,'COMPLETE_SUBSCRIPTION');
  assert.equal(light.targets[0].googleRequests,1);
  assert.equal(light.targets[0].persisted.verified,0);
 });
@@ -205,6 +206,27 @@ test('base and add-on prices alone never fabricate a combined ad-free subscripti
   plan('Prime Video',79),plan('Prime Video Ad Free',29,{sourceEvidence:'Ad-free add-on 29 NOK per month; base subscription sold separately'})
  ]),persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
  assert.deepEqual(stored.map(row=>[row.planName,row.suggested.monthlyPriceMinor]),[['Prime Video',7900]]);
+});
+
+test('both modes persist the same source-linked calculated total without any Verified write',async()=>{
+ const base=plan('Prime Video With Ads',79,{sourceUrl:'https://www.primevideo.com/no',sourceEvidence:'Prime Video costs 79 NOK per month'});
+ const addon=plan('Prime Video Ad Free add-on',29,{sourceUrl:'https://www.primevideo.com/help/ad-free',
+  sourceEvidence:'Prime Video 79 NOK per month plus ad-free add-on 29 NOK per month, billed together by Amazon for customers in Norway.'});
+ const response=acquisition([base,addon]),standardRows=[],suggestedRows=[];
+ response.audit.groundingCitations=[{url:base.sourceUrl},{url:addon.sourceUrl}];
+ await runAdminV4FirstResearch({targets:[target],acquireGoogle:async()=>response,
+  persistSuggested:async rows=>standardRows.push(...rows),persistVerified:async()=>assert.fail('calculation is not Verified'),
+  loadSuggested:async()=>[],loadVerified:async()=>[],runDownstream:async()=>({v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}})});
+ const light=await runAdminSuggestedOnlyResearch({targets:[target],maxGoogleRequests:1,acquireGoogle:async()=>response,
+  persistSuggested:async rows=>suggestedRows.push(...rows),loadVerified:async()=>[]});
+ assert.deepEqual(suggestedRows,standardRows.slice(0,2));
+ assert.deepEqual(suggestedRows.map(row=>[row.planName,row.suggested.monthlyPriceMinor]),
+  [['Prime Video With Ads',7900],['Prime Video Without Ads (Calculated Total)',10800]]);
+ assert.notEqual(suggestedRows[0].planIdentity,suggestedRows[1].planIdentity);
+ assert.equal(suggestedRows[1].suggested.calculation.method,'MONTHLY_BASE_PLUS_AD_FREE_ADD_ON');
+ assert.equal(suggestedRows[1].suggested.offerScope,'CALCULATED_TOTAL');
+ assert(suggestedRows[1].suggested.warnings.includes('CALCULATED_TOTAL_UNVERIFIED'));
+ assert.equal(light.targets[0].persisted.verified,0);
 });
 
 test('partial first answer follows up only for a documented unpriced monthly variant and retains both identities',async()=>{
