@@ -5,6 +5,8 @@ import {countryCurrencyData} from '../../../../packages/contracts/src/markets.ts
 import {serviceCatalog} from '../../../../packages/contracts/src/catalog.ts';
 import {createV2RobotsPublicAdapter} from '../research-v2/live/robots-policy.mjs';
 import {baselineProviderSourceHosts,providerSourceDomainFamily} from '../research-v3/provider-source-family.mjs';
+import {createTavilySearch} from '../research-v2/live/tavily-search.mjs';
+import {readAvailabilitySearch,reserveAvailabilitySearch,completeAvailabilitySearch} from './market-availability-search-memory.mjs';
 
 const markets=countryCurrencyData.map(([code,name])=>({code,name}));
 const aliases={GB:['Great Britain','UK'],CZ:['Czech Republic'],TR:['Turkey'],KR:['Republic of Korea'],US:['USA','United States of America'],AE:['UAE'],HK:['Hong Kong SAR']};
@@ -82,28 +84,34 @@ export function officialMarketAvailability({serviceId,serviceName,url,body,check
 }
 
 const cache=new Map(),CACHE_MS=6*60*60*1000,UNKNOWN_CACHE_MS=15*60*1000;
-export async function discoverOfficialMarketAvailability(service,{search=null,read=null,clock=()=>new Date().toISOString()}={}){
- const serviceId=service.serviceId,serviceName=service.name,now=Date.now(),cached=cache.get(serviceId);
- if(cached&&cached.until>now)return cached.value;
- const signal=AbortSignal.timeout(4000);
+export async function discoverOfficialMarketAvailability(service,{search=null,read=null,paidSearch=null,paidSearchEnabled=false,ledgerRoot=null,clock=()=>new Date().toISOString()}={}){
+ const serviceId=service.serviceId,serviceName=service.name,now=Date.now(),cacheKey=(ledgerRoot??'')+'\u0000'+serviceId,cached=cache.get(cacheKey);
+ const prior=ledgerRoot?readAvailabilitySearch(ledgerRoot,serviceId):null;
  const officialHosts=baselineProviderSourceHosts(serviceId,serviceName).filter(host=>!host.endsWith('apps.apple.com'));
  if(!officialHosts.length)return null;
  const target={service:serviceId,serviceName,providerSourceIdentityHosts:officialHosts};
- const adapter=!search||!read?createV2RobotsPublicAdapter({searchEnabled:true,retainRaw:true,maxResults:4,maxLinks:4,maxReads:3,maxRequests:7,network:{timeoutMs:8000,maxBytes:2_000_000,maxRedirects:2}}):null;
+ const saved=prior?.proof;
+ if(saved?.version===1&&saved.serviceId===serviceId&&/^[a-f0-9]{64}$/u.test(saved.sourceHash??'')&&
+    providerSourceDomainFamily(target,saved.sourceUrl)&&Number.isFinite(Date.parse(saved.checkedAt??''))&&
+    Date.parse(saved.checkedAt)<=now&&now-Date.parse(saved.checkedAt)<CACHE_MS)return saved;
+ if(cached&&cached.until>now&&(cached.value||!paidSearchEnabled))return cached.value;
+ const signal=AbortSignal.timeout(4000);
+ const adapter=!search||!read?createV2RobotsPublicAdapter({searchEnabled:true,retainRaw:true,maxResults:4,maxLinks:4,maxReads:7,maxRequests:16,network:{timeoutMs:8000,maxBytes:2_000_000,maxRedirects:2}}):null;
  const catalogSource=serviceCatalog.find(row=>row.slug===serviceId)?.additionalAvailability?.sourceUrl;
  let proof=null;
  const attempted=new Set();
- const attempt=async url=>{
-  if(signal.aborted||!url||attempted.has(url)||!providerSourceDomainFamily(target,url))return null;
+ const attempt=async(url,readSignal=signal)=>{
+  if(readSignal.aborted||!url||attempted.has(url)||!providerSourceDomainFamily(target,url))return null;
   try{if([...new URL(url).searchParams.keys()].some(key=>/token|secret|auth|session|key/iu.test(key)))return null;}catch{return null;}
   attempted.add(url);
-  let page;try{page=await (read??adapter.read)({url,signal,stopOnCrossHostRedirect:true,maxRedirects:2});}catch{return null;}
+  let page;try{page=await (read??adapter.read)({url,signal:readSignal,stopOnCrossHostRedirect:true,maxRedirects:2});}catch{return null;}
   if(page?.outcome!=='OK'||page.httpStatus!==200||!page.rawSource?.text||!providerSourceDomainFamily(target,page.url)||
      page.sourceIntegrity?.sha256!==sha(page.rawSource.text)||!page.accessDecisions?.length||
      page.accessDecisions.some(row=>!['ALLOWED','NO_ROBOTS_POLICY'].includes(row.decision)))return null;
   return officialMarketAvailability({serviceId,serviceName,url:page.url,body:page.rawSource.text,checkedAt:page.checkedAt??clock(),officialHosts});
  };
  proof=await attempt(catalogSource);
+ if(!proof)for(const url of (prior?.leadUrls??[]).slice(0,2)){proof=await attempt(url);if(proof)break;}
  if(!proof&&!signal.aborted){
   const query=`site:${officialHosts[0].replace(/^www\./u,'')} ${serviceName} available countries locations`;
   let found=[];try{found=(await (search??adapter.search)({query,signal,target:{service:serviceId,market:null}})).results??[];}catch{}
@@ -111,6 +119,21 @@ export async function discoverOfficialMarketAvailability(service,{search=null,re
    proof=await attempt(url);if(proof)break;
   }
  }
- cache.set(serviceId,{until:now+(proof?CACHE_MS:UNKNOWN_CACHE_MS),value:proof});
+ if(!proof&&paidSearchEnabled&&ledgerRoot&&!prior){
+  let paid=paidSearch;
+  if(!paid)try{paid=await createTavilySearch({maxCalls:1,timeoutMs:10000});}catch{}
+  if(paid&&reserveAvailabilitySearch(ledgerRoot,serviceId,clock())){
+   const query=`site:${officialHosts[0].replace(/^www\./u,'')} ${serviceName} subscription available countries locations official`;
+   let result=null,leadUrls=[];
+   try{
+    result=await paid({query,target:{service:serviceId,market:null}});
+    leadUrls=(result?.results??[]).filter(row=>/availab|countries|locations|regions/iu.test(row.title??'')&&providerSourceDomainFamily(target,row.url)).map(row=>row.url).slice(0,2);
+    for(const url of leadUrls){proof=await attempt(url,AbortSignal.timeout(8000));if(proof)break;}
+   }finally{
+    completeAvailabilitySearch(ledgerRoot,serviceId,{at:clock(),query,leadUrls,proof,usageCredits:result?.usageCredits});
+   }
+  }
+ }
+ cache.set(cacheKey,{until:now+(proof?CACHE_MS:UNKNOWN_CACHE_MS),value:proof});
  return proof;
 }

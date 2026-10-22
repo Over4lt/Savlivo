@@ -10,6 +10,7 @@ import {runAdminV4FirstResearch} from '../google-ai/admin-live-pipeline.mjs';
 import {reviewedProviderNamespacesFor} from '../research-v3/reviewed-provider-namespaces.mjs';
 import {applyResearchHandoff} from '../research-v2/inventory/reviewed-cohort-execution.mjs';
 import {perTargetRequestCeiling} from './price-research-mode.mjs';
+import {readAvailabilitySearch} from './market-availability-search-memory.mjs';
 
 const caps={direct:false,tavily:false,decodo:false,browser:false,groq:false};
 test('unresolved priority V3 evidence crosses phases only with the exact retained source hash',t=>{
@@ -65,6 +66,20 @@ test('official unavailable proof excludes targets before Preflight and freezes t
  assert(!manifest.targets.some(row=>row.service==='chess-com'&&row.market==='CN'));
  await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'chess-com',market:'CN',capabilities:caps},'admin'),/PRICE_RESEARCH_MARKET_UNAVAILABLE/);
  assert.equal(ops.db().jobs.length,1);
+});
+
+test('Preflight spends at most one availability lead search and freezes newly proven skips before Start',async t=>{
+ const ops=batchFixture(t),url='https://www.max.com/availability',body='<html lang="en"><title>Where is Max available?</title><h2>Max is not available in:</h2><ul><li>China</li></ul></html>';
+ let paidCalls=0;
+ ops.config.availabilityDiscovery=true;ops.config.availabilityPaidSearch=true;
+ ops.config.availabilityOptions={search:async()=>({results:[]}),paidSearch:async()=>{paidCalls++;return {results:[{title:'Max available countries',url}]};},
+  read:async()=>({outcome:'OK',httpStatus:200,url,checkedAt:new Date().toISOString(),rawSource:{text:body},sourceIntegrity:{sha256:createHash('sha256').update(body).digest('hex')},accessDecisions:[{decision:'ALLOWED'}]})};
+ const scope={services:['max'],markets:['CN','NO']},preview=await ops.priceResearchTargeting(scope);
+ assert.equal(preview.serviceMarketTargets,2);assert.equal(paidCalls,0);
+ const pre=await ops.preflight({objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',...scope,targetingRevision:preview.revision,capabilities:caps},'admin');
+ assert.equal(paidCalls,1);assert.equal(pre.batchTargetCount,1);assert.deepEqual(pre.autoSkippedPairs.map(row=>row.market),['CN']);
+ assert.equal(readAvailabilitySearch(ops.config.root,'max').status,'COMPLETE');
+ const job=await ops.start(pre.token,'admin',true);assert.equal(job.status,'QUEUED');assert.equal(job.config.batchTargets.length,1);assert.equal(job.config.batchTargets[0].targetMarket,'NO');assert.equal(paidCalls,1);
 });
 
 test('changed official availability evidence makes Start require a new Preflight',async t=>{

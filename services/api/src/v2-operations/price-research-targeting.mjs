@@ -75,7 +75,7 @@ export async function loadPriceResearchTargeting(input={},options={}){
  if(options.marketAvailability===undefined&&options.availabilityDiscovery===true){
   const bounded=selected.slice(0,8);
   for(let index=0;index<bounded.length;index+=2){
-   availability.push(...await Promise.all(bounded.slice(index,index+2).map(row=>discoverOfficialMarketAvailability({serviceId:row.serviceId,name:row.name},options.availabilityOptions).catch(()=>null))));
+   availability.push(...await Promise.all(bounded.slice(index,index+2).map(row=>discoverOfficialMarketAvailability({serviceId:row.serviceId,name:row.name},{...options.availabilityOptions,ledgerRoot:options.root,paidSearchEnabled:options.availabilityPaidSearch===true}).catch(()=>null))));
   }
  }
  return projectPriceResearchTargeting(projection,input,exclusions,availability.filter(Boolean));

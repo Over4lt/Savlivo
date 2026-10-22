@@ -38,7 +38,7 @@ const validBatchTarget=target=>target&&typeof target.serviceId==='string'&&/^[a-
 const requestCeilingFor=(count,perTarget=96)=>{const ceiling=count*perTarget;if(!Number.isSafeInteger(count)||count<1||!Number.isSafeInteger(ceiling))fail('PRICE_RESEARCH_REQUEST_CEILING_OVERFLOW');return ceiling;};
 async function requireAvailableMarket(serviceId,serviceName,market,options){
  const proof=options.marketAvailability?.find(row=>row?.serviceId===serviceId)??(options.availabilityDiscovery===true
-  ?await discoverOfficialMarketAvailability({serviceId,name:serviceName},options.availabilityOptions).catch(()=>null):null);
+  ?await discoverOfficialMarketAvailability({serviceId,name:serviceName},{...options.availabilityOptions,ledgerRoot:options.root,paidSearchEnabled:options.availabilityPaidSearch===true&&!options.revalidateFrozen}).catch(()=>null):null);
  if(proof?.unavailableMarkets?.includes(market)&&proof.serviceId===serviceId&&proof.version===1&&/^[a-f0-9]{64}$/u.test(proof.sourceHash??'')&&
     Number.isFinite(Date.parse(proof.checkedAt??''))&&Date.parse(proof.checkedAt)<=Date.now()&&Date.now()-Date.parse(proof.checkedAt)<6*60*60*1000)fail('PRICE_RESEARCH_MARKET_UNAVAILABLE',409);
 }
@@ -72,8 +72,13 @@ async function canonicalSelectionPlan(input,options={}){
  if(!input||typeof input!=='object'||Array.isArray(input)||input.objective!=='PRICE_RESEARCH'||input.targetKind!=='CANONICAL_SELECTION'||Object.keys(input).some(key=>!['objective','targetKind','services','markets','targetingRevision','capabilities','researchMode'].includes(key)))fail('INVALID_PRICE_RESEARCH_CONFIG');
  if(typeof input.targetingRevision!=='string'||!/^[a-f0-9]{64}$/.test(input.targetingRevision))fail('INVALID_PRICE_RESEARCH_TARGETING');
  let mode;try{mode=researchModeOf(input);}catch{fail('INVALID_PRICE_RESEARCH_MODE');}
- const caps=modeCapabilities(mode,capabilities(input.capabilities)),model=await loadPriceResearchTargeting({services:input.services,markets:input.markets},options);
- if(model.revision!==input.targetingRevision)fail('TARGETING_STALE',409);
+ const caps=modeCapabilities(mode,capabilities(input.capabilities)),initial=await loadPriceResearchTargeting({services:input.services,markets:input.markets},{...options,availabilityPaidSearch:false});
+ if(initial.revision!==input.targetingRevision)fail('TARGETING_STALE',409);
+ // A paid availability lookup is a preflight action, never a checkbox action.
+ // A newly proven exclusion may change the revision after the initial user
+ // selection has been validated; the returned preflight freezes that revision.
+ const model=!options.revalidateFrozen&&options.availabilityDiscovery===true&&options.availabilityPaidSearch===true&&options.root
+  ?await loadPriceResearchTargeting({services:input.services,markets:input.markets},{...options,availabilityPaidSearch:true}):initial;
  const selection=selectPriceResearchTargets(model),batchTargets=selection.targets.map(target=>({id:target.id,serviceId:target.serviceId,serviceName:target.serviceName,targetMarket:target.targetMarket,marketApplicabilityEstablished:false})),perTarget=perTargetRequestCeiling({researchMode:mode,perTargetRequestCeiling:suggestedOnlyRequestCeiling}),batchRequestCeiling=requestCeilingFor(batchTargets.length,perTarget),modeField=mode==='suggested_only'?{researchMode:mode}:{};
  const config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:model.selection.effectiveServices,markets:model.selection.requestedMarkets,targetingRevision:model.revision,batchTargets,logicalTargetCount:selection.logicalTargetCount,perTargetRequestCeiling:perTarget,batchRequestCeiling,...(model.availabilityProofs.length?{availabilityProofs:model.availabilityProofs}:{}),...modeField,capabilities:caps};
  const check=await priceResearchCapabilityPreflight(caps,{...options.runtimeReadiness,env:options.env??process.env,markets:[...new Set(batchTargets.map(target=>target.targetMarket))]}),manifest={objective:'PRICE_RESEARCH',catalog:[],targets:batchTargets.map(target=>({id:target.id,service:target.serviceId,serviceName:target.serviceName,market:target.targetMarket,marketApplicabilityEstablished:false})),priceResearch:{targetKind:'CANONICAL_SELECTION',services:config.services,markets:config.markets,targetingRevision:config.targetingRevision,logicalTargetCount:config.logicalTargetCount,...(config.availabilityProofs?{availabilityProofs:config.availabilityProofs}:{}),...modeField},limits:{perTargetRequests:perTarget,totalRequests:config.batchRequestCeiling}};
@@ -81,7 +86,7 @@ async function canonicalSelectionPlan(input,options={}){
 }
 
 export async function priceResearchPlan(input,options={}){
- if(input?.targetKind!=='CANONICAL_SELECTION')return singlePriceResearchPlan(input,options);
+ if(input?.targetKind!=='CANONICAL_SELECTION')return singlePriceResearchPlan(input,{...options,availabilityPaidSearch:options.availabilityPaidSearch===true&&!options.revalidateFrozen});
  if(options.revalidateFrozen){
   const external={objective:input.objective,targetKind:input.targetKind,services:input.services,markets:input.markets,targetingRevision:input.targetingRevision,capabilities:input.capabilities,...(input.researchMode?{researchMode:input.researchMode}:{})},current=await canonicalSelectionPlan(external,options);
   if(digest(current.config)!==digest(input))fail('PREFLIGHT_STALE',409);

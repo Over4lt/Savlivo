@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {officialMarketAvailability,discoverOfficialMarketAvailability} from './market-availability.mjs';
+import {readAvailabilitySearch,reserveAvailabilitySearch} from './market-availability-search-memory.mjs';
 import {projectResearchServices} from '../research-v3/research-service-projection.mjs';
 import {projectPriceResearchTargeting,selectPriceResearchTargets} from './price-research-targeting.mjs';
 
@@ -66,4 +70,33 @@ test('only an explicit complete service-coverage list can exclude by absence',()
  const proof=official(complete);assert(proof);assert(proof.unavailableMarkets.includes('CN'));assert(!proof.unavailableMarkets.includes('NO'));
  assert.equal(official(complete.replace('Denmark','Unknown territory')),null);
  assert.equal(official(complete.replace('subscriptions are available in the countries listed below','some examples of available countries')),null);
+});
+
+test('paid lookup is one durable lead per service; only intact official bytes can exclude',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'availability-paid-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const body=page('Max is not available in:',['China'],'Where is Max available?'),url='https://www.max.com/availability';
+ let paidCalls=0,freeCalls=0,reads=0;
+ const options={ledgerRoot:root,paidSearchEnabled:true,
+  search:async()=>{freeCalls++;return {results:[]};},
+  paidSearch:async()=>{paidCalls++;return {results:[{title:'Max available countries',url},{title:'Unrelated availability',url:'https://unrelated.example/availability'}],usageCredits:1};},
+  read:async request=>{reads++;assert.equal(request.url,url);return {outcome:'OK',httpStatus:200,url,checkedAt:now,rawSource:{text:body},sourceIntegrity:{sha256:createHash('sha256').update(body).digest('hex')},accessDecisions:[{decision:'ALLOWED'}]};}
+ };
+ const proof=await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},options);
+ assert.deepEqual(proof.unavailableMarkets,['CN']);assert.equal(paidCalls,1);assert.equal(freeCalls,1);assert.equal(reads,1);
+ const record=readAvailabilitySearch(root,'max');assert.equal(record.status,'COMPLETE');assert.deepEqual(record.leadUrls,[url]);assert.equal(record.proof.sourceHash,proof.sourceHash);
+ const repeat=await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},{...options,paidSearch:async()=>{throw Error('PAID_AGAIN');},read:async()=>{throw Error('READ_AGAIN');}});
+ assert.deepEqual(repeat,proof);assert.equal(paidCalls,1);
+});
+
+test('unknown and interrupted paid lookups never trigger another charge or false exclusion',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'availability-unknown-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ let paidCalls=0;
+ const options={ledgerRoot:root,paidSearchEnabled:true,search:async()=>({results:[]}),read:async()=>{throw Error('NO_VALID_OFFICIAL_BODY');},
+  paidSearch:async()=>{paidCalls++;return {results:[{title:'Max available countries',url:'https://third-party.example/availability'}]};}};
+ assert.equal(await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},options),null);
+ assert.equal(readAvailabilitySearch(root,'max').status,'COMPLETE');assert.equal(paidCalls,1);
+ assert.equal(await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},options),null);assert.equal(paidCalls,1);
+ const interrupted=fs.mkdtempSync(path.join(os.tmpdir(),'availability-reserved-'));t.after(()=>fs.rmSync(interrupted,{recursive:true,force:true}));
+ assert.equal(reserveAvailabilitySearch(interrupted,'max',now),true);
+ assert.equal(await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},{...options,ledgerRoot:interrupted}),null);assert.equal(paidCalls,1);
 });
