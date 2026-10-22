@@ -9,8 +9,8 @@ export const googleAiResearchStatuses=Object.freeze([
 ]);
 
 export const googleAiDefaults=Object.freeze({
-  endpoint:'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
-  model:'gemini-3.8-flash',
+  endpoint:'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
+  model:'gemini-3.5-flash-lite',
   timeoutMs:120_000,
   maxResponseBytes:1_048_576,
   maxRequests:2
@@ -168,7 +168,7 @@ export async function researchMonthlyRecurringWithGoogleAi({providerName,targetM
   const baseQuery=buildGoogleAiQuery({providerName:provider,targetMarket:market,providerNamespace,suggestedOnly:suggestedOnlyMode});
   const gaps=Array.isArray(suggestedOnlyCoverageGaps)?suggestedOnlyCoverageGaps.slice(0,2).filter(value=>typeof value==='string'&&/^[\p{L}\p{N} .,&+()'-]{1,120}$/u.test(value)):[];
   const query=suggestedOnlyFollowup?`${baseQuery} Search specifically for the ordinary monthly subscription price in ${market}${gaps.length?`, especially these previously documented but unpriced variants: ${gaps.join(', ')}`:''}, including documented country-local distributors when the provider page does not publish it. Cite the exact grounded page for each price and distinguish subscription from bundles, channels, rentals, purchases, promotions and annual billing.`:baseQuery;
-  const objective=`${query}\n\n${jsonContract}`,startedAt=clock();
+  const objective=`${query}\n\nIn the JSON response, provider must be the exact researched service name ${JSON.stringify(provider)}, not its parent company or website operator. market must be ${JSON.stringify(market)}.\n\n${jsonContract}`,startedAt=clock();
   if(typeof apiKey!=='string'||!apiKey.trim())return {status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:failureAudit({query,model,startedAt,finishedAt:startedAt,requestCount:0,status:'CREDENTIAL_UNAVAILABLE'})};
   if(!/^gemini-[a-z0-9.-]{1,80}$/.test(model)||!Number.isInteger(maxRequests)||maxRequests<1||maxRequests>2)throw Error('GOOGLE_AI_RESEARCH_CONFIG_INVALID');
   let requests=0,lastMalformed='MALFORMED_RESPONSE',validationFailures=[],retainedCitations=[],retainedUsage=null;

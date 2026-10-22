@@ -18,9 +18,23 @@ test('clean JSON preserves multiple plans, citations, intro and ordinary prices'
  assert.equal(result.status,'GOOGLE_AI_SUCCESS');assert.equal(result.aiResult.plans.length,3);assert.equal(result.aiResult.plans[1].introPrice,1.99);assert.equal(result.audit.citations.length,1);assert.equal(result.audit.request.usage.totalTokens,35);
  const verified=verifyCandidates({providerName:'Example',targetMarket:'DE',aiResult:result.aiResult,sources:[]}),normalized=buildSuggested({providerName:'Example',targetMarket:'DE',aiResult:result.aiResult,verificationResults:verified});
  assert.deepEqual(normalized.suggested.map(row=>row.plan),['Individual','Plus']);assert.equal(normalized.diagnostics[0].reason,'NOT_MONTHLY_RECURRING');
- assert.equal(seen.length,1);assert.match(seen[0].url,/gemini-3\.8-flash:generateContent$/);assert.equal(seen[0].init.headers['x-goog-api-key'],secret);assert.equal(JSON.stringify(result).includes(secret),false);
+ assert.equal(seen.length,1);assert.match(seen[0].url,/gemini-3\.5-flash-lite:generateContent$/);assert.equal(result.audit.model,'gemini-3.5-flash-lite');assert.equal(seen[0].init.headers['x-goog-api-key'],secret);assert.equal(JSON.stringify(result).includes(secret),false);
  const body=JSON.parse(seen[0].init.body);assert.deepEqual(body.tools,[{googleSearch:{}}]);assert.equal(body.generationConfig.maxOutputTokens,8192);assert.equal('responseFormat' in body.generationConfig,false);assert.equal('responseSchema' in body.generationConfig,false);
- const prompt=body.contents[0].parts[0].text;assert.doesNotMatch(prompt,/For Suggested Only/);
+ const prompt=body.contents[0].parts[0].text;assert.doesNotMatch(prompt,/For Suggested Only/);assert.match(prompt,/provider must be the exact researched service name "Example"/);
+});
+
+test('provider means the researched service, while a parent-company label remains invalid',async()=>{
+ const seen=[];
+ const result=await researchMonthlyRecurringWithGoogleAi({providerName:'YouTube Premium',targetMarket:'SE',apiKey:secret,maxRequests:1,
+  fetchImpl:async(_url,init)=>{seen.push(JSON.parse(init.body));return response(generated(payload([basePlan],{provider:'Google / YouTube',market:'SE'})));}});
+ assert.match(seen[0].contents[0].parts[0].text,/provider must be the exact researched service name "YouTube Premium"/);
+ assert.equal(result.status,'GOOGLE_AI_MALFORMED_RESPONSE');
+ assert.deepEqual(result.audit.request.normalizationFailures,['PROVIDER_INVALID']);
+ assert.equal(result.audit.request.requestCount,1);
+ const corrected=await researchMonthlyRecurringWithGoogleAi({providerName:'YouTube Premium',targetMarket:'SE',apiKey:secret,maxRequests:1,
+  fetchImpl:async()=>response(generated(payload([basePlan],{provider:'YouTube Premium',market:'SE'})))});
+ assert.equal(corrected.status,'GOOGLE_AI_SUCCESS');
+ assert.equal(corrected.audit.request.requestCount,1);
 });
 
 test('json markdown fence is the only wrapper removed before parsing',async()=>{
