@@ -25,9 +25,7 @@ const planSchema={
     introDuration:{type:['string','null']},sourceUrl:{type:['string','null']},
     sourceEvidence:{type:['string','null']},marketEvidence:{type:['string','null']},
     billingBasis:{type:['string','null']},annualOnly:{type:'boolean'},freeTier:{type:'boolean'},
-    summary:{type:['string','null']},warnings:{type:'array',items:{type:'string'},maxItems:16},
-    billingProvider:{type:['string','null']},compatibleBasePlan:{type:['string','null']},
-    combinationEvidence:{type:['string','null']}
+    summary:{type:['string','null']},warnings:{type:'array',items:{type:'string'},maxItems:16}
   },
   required:['planName','amount','currency','paymentCadence','commitment','ordinaryRecurringPrice','introPrice','introDuration','sourceUrl','sourceEvidence','marketEvidence','billingBasis','annualOnly','freeTier','summary','warnings']
 };
@@ -46,12 +44,11 @@ const safeUrl=value=>{try{const url=new URL(value);return url.protocol==='https:
 const sameProvider=(left,right)=>String(left??'').normalize('NFKC').trim().toLowerCase()===String(right??'').normalize('NFKC').trim().toLowerCase();
 const monthly=value=>/^(?:MONTH|MONTHLY|MONTHLY_RECURRING)$/.test(String(value??'').trim().toUpperCase());
 const own=(value,key)=>Object.prototype.hasOwnProperty.call(value,key);
-const exactKeys=(value,keys,optional=[])=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(key=>keys.includes(key)||optional.includes(key))&&keys.every(key=>own(value,key));
+const exactKeys=(value,keys)=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(key=>keys.includes(key))&&keys.every(key=>own(value,key));
 const nullableString=(value,max)=>value===null||Boolean(clean(value,max));
 const stringArray=(value,maxItems,maxLength)=>Array.isArray(value)&&value.length<=maxItems&&value.every(item=>Boolean(clean(item,maxLength)));
 const responseKeys=['provider','market','plans','sources','warnings'];
 const planKeys=planSchema.required;
-const optionalPlanKeys=['billingProvider','compatibleBasePlan','combinationEvidence'];
 const sourceKeys=['title','url'];
 
 function citations(response){
@@ -88,14 +85,12 @@ function validationErrors(parsed,{providerName,targetMarket}){
   if(!Array.isArray(parsed.plans)||parsed.plans.length>64)errors.push('PLANS_INVALID');
   else parsed.plans.forEach((row,index)=>{
     const prefix=`PLAN_${index}`;
-    if(!exactKeys(row,planKeys,optionalPlanKeys)){errors.push(`${prefix}_CONTRACT_INVALID`);return;}
+    if(!exactKeys(row,planKeys)){errors.push(`${prefix}_CONTRACT_INVALID`);return;}
     if(typeof row.planName!=='string'||!clean(row.planName,300))errors.push(`${prefix}_NAME_INVALID`);
     if(typeof row.paymentCadence!=='string'||!clean(row.paymentCadence,80))errors.push(`${prefix}_CADENCE_INVALID`);
     if(row.currency!==null&&(typeof row.currency!=='string'||!/^[A-Za-z]{3}$/.test(row.currency)))errors.push(`${prefix}_CURRENCY_INVALID`);
     for(const field of ['amount','ordinaryRecurringPrice','introPrice'])if(row[field]!==null&&finite(row[field])===null)errors.push(`${prefix}_${field.toUpperCase()}_INVALID`);
     for(const [field,max] of [['commitment',512],['introDuration',512],['sourceEvidence',2000],['marketEvidence',1000],['billingBasis',500],['summary',1000]])if(!nullableString(row[field],max))errors.push(`${prefix}_${field.toUpperCase()}_INVALID`);
-    for(const [field,max] of [['billingProvider',100],['compatibleBasePlan',300],['combinationEvidence',2000]])
-      if(own(row,field)&&!nullableString(row[field],max))errors.push(`${prefix}_${field.toUpperCase()}_INVALID`);
     if(row.sourceUrl!==null&&(typeof row.sourceUrl!=='string'||!safeUrl(row.sourceUrl)))errors.push(`${prefix}_SOURCE_URL_INVALID`);
     if(typeof row.annualOnly!=='boolean'||typeof row.freeTier!=='boolean')errors.push(`${prefix}_CLASSIFICATION_INVALID`);
     if(!stringArray(row.warnings,16,300))errors.push(`${prefix}_WARNINGS_INVALID`);
@@ -118,9 +113,6 @@ function normalizePlan(row,market,grounding){
     sourceUrl,sourceEvidence:row.sourceEvidence===null?null:clean(row.sourceEvidence,2000),
     marketEvidence:row.marketEvidence===null?null:clean(row.marketEvidence,1000),billingBasis:row.billingBasis===null?null:clean(row.billingBasis,500),
     annualOnly:row.annualOnly,freeTier:row.freeTier,summary:row.summary===null?null:clean(row.summary,1000),
-    billingProvider:row.billingProvider==null?null:clean(row.billingProvider,100),
-    compatibleBasePlan:row.compatibleBasePlan==null?null:clean(row.compatibleBasePlan,300),
-    combinationEvidence:row.combinationEvidence==null?null:clean(row.combinationEvidence,2000),
     warnings:[...new Set(row.warnings.map(value=>clean(value,300)).filter(Boolean))],market,sourceReferences
   };
 }
@@ -150,7 +142,7 @@ async function boundedJson(response,maxBytes){
   try{return JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw Error('RESPONSE_JSON_INVALID');}
 }
 
-const jsonContract=`Return ONLY one JSON object with exactly these top-level fields: provider, market, plans, sources, warnings. Each plan must contain exactly: planName, amount, currency, paymentCadence, commitment, ordinaryRecurringPrice, introPrice, introDuration, sourceUrl, sourceEvidence, marketEvidence, billingBasis, annualOnly, freeTier, summary, warnings. A plan may additionally include billingProvider, compatibleBasePlan, and combinationEvidence when the cited source explicitly establishes them; use null if unknown. combinationEvidence must quote the source's actual compatibility and billing statement, not infer it from equal prices or a shared service name. Use null for unknown nullable values. amount, ordinaryRecurringPrice, and introPrice must be non-negative JSON numbers or null. annualOnly and freeTier must be booleans. sources must contain objects with exactly title and HTTPS url. warnings and every plan's warnings must be arrays of strings. Do not wrap the JSON in prose or markdown.`;
+const jsonContract=`Return ONLY one JSON object with exactly these top-level fields: provider, market, plans, sources, warnings. Each plan must contain exactly: planName, amount, currency, paymentCadence, commitment, ordinaryRecurringPrice, introPrice, introDuration, sourceUrl, sourceEvidence, marketEvidence, billingBasis, annualOnly, freeTier, summary, warnings. Use null for unknown nullable values. amount, ordinaryRecurringPrice, and introPrice must be non-negative JSON numbers or null. annualOnly and freeTier must be booleans. sources must contain objects with exactly title and HTTPS url. warnings and every plan's warnings must be arrays of strings. Do not wrap the JSON in prose or markdown.`;
 
 function requestBody({objective,validationFailures}){
   const refinement=Array.isArray(validationFailures)&&validationFailures.length>0;
@@ -170,13 +162,12 @@ function failureAudit({query,model,startedAt,finishedAt,requestCount,status,cita
   return {schemaVersion:1,query,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model,timestamp:finishedAt,normalizedAnswer:null,citations:sourceCitations,request:{requestCount,startedAt,finishedAt,runtimeMs:Math.max(0,Date.parse(finishedAt)-Date.parse(startedAt)),status,usage,normalizationFailures:boundedFailureReasons(failureReasons)}};
 }
 
-export async function researchMonthlyRecurringWithGoogleAi({providerName,targetMarket,providerNamespace=null,suggestedOnlyMode=false,suggestedOnlyFollowup=false,suggestedOnlyCoverageGaps=[],offerFollowupCode=null,apiKey,fetchImpl=fetch,clock=()=>new Date().toISOString(),endpoint=googleAiDefaults.endpoint,model=googleAiDefaults.model,timeoutMs=googleAiDefaults.timeoutMs,maxResponseBytes=googleAiDefaults.maxResponseBytes,maxRequests=googleAiDefaults.maxRequests}={}){
+export async function researchMonthlyRecurringWithGoogleAi({providerName,targetMarket,providerNamespace=null,suggestedOnlyMode=false,suggestedOnlyFollowup=false,suggestedOnlyCoverageGaps=[],apiKey,fetchImpl=fetch,clock=()=>new Date().toISOString(),endpoint=googleAiDefaults.endpoint,model=googleAiDefaults.model,timeoutMs=googleAiDefaults.timeoutMs,maxResponseBytes=googleAiDefaults.maxResponseBytes,maxRequests=googleAiDefaults.maxRequests}={}){
   const provider=clean(providerName,120),market=clean(targetMarket,8)?.toUpperCase();
   if(!provider||!/^[A-Z]{2}$/.test(market??''))throw Error('GOOGLE_AI_RESEARCH_INPUT_INVALID');
   const baseQuery=buildGoogleAiQuery({providerName:provider,targetMarket:market,providerNamespace,suggestedOnly:suggestedOnlyMode});
   const gaps=Array.isArray(suggestedOnlyCoverageGaps)?suggestedOnlyCoverageGaps.slice(0,2).filter(value=>typeof value==='string'&&/^[\p{L}\p{N} .,&+()'-]{1,120}$/u.test(value)):[];
-  const validOfferCode=['BASE_FOUND_ADDON_MISSING','ADDON_FOUND_BASE_MISSING','COMPATIBILITY_UNPROVEN'].includes(offerFollowupCode)?offerFollowupCode:null;
-  const query=suggestedOnlyFollowup?`${baseQuery} ${validOfferCode?`Resolve ${validOfferCode} for ${provider} in ${market}: find a documented complete ad-free monthly tier, or the missing base/add-on component and a source quotation establishing compatible billing provider, eligible base plan, and whether both are billed together. If no ad-free offer exists, state that explicitly. `:''}Search specifically for the ordinary monthly subscription price in ${market}${gaps.length?`, especially these previously documented but unpriced variants: ${gaps.join(', ')}`:''}, including documented country-local distributors when the provider page does not publish it. Cite the exact grounded page for each price and distinguish subscription from bundles, channels, rentals, purchases, promotions and annual billing.`:baseQuery;
+  const query=suggestedOnlyFollowup?`${baseQuery} Search specifically for the ordinary monthly subscription price in ${market}${gaps.length?`, especially these previously documented but unpriced variants: ${gaps.join(', ')}`:''}, including documented country-local distributors when the provider page does not publish it. Cite the exact grounded page for each price and distinguish subscription from bundles, channels, rentals, purchases, promotions and annual billing.`:baseQuery;
   const objective=`${query}\n\n${jsonContract}`,startedAt=clock();
   if(typeof apiKey!=='string'||!apiKey.trim())return {status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:failureAudit({query,model,startedAt,finishedAt:startedAt,requestCount:0,status:'CREDENTIAL_UNAVAILABLE'})};
   if(!/^gemini-[a-z0-9.-]{1,80}$/.test(model)||!Number.isInteger(maxRequests)||maxRequests<1||maxRequests>2)throw Error('GOOGLE_AI_RESEARCH_CONFIG_INVALID');

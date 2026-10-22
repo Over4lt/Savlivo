@@ -145,8 +145,7 @@ export function buildSuggested({providerName, targetMarket, aiResult, verificati
       introDuration: candidate.introDuration ?? null,
       suggestedSourceUrl: candidate.sourceUrl ?? null,
       sourceStatus: 'AI_SUGGESTED_ONLY',
-      warnings: candidate.calculation?.method === 'MONTHLY_BASE_PLUS_AD_FREE_ADD_ON' ? ['CALCULATED_TOTAL_UNVERIFIED'] : [],
-      ...(candidate.calculation ? {calculation: structuredClone(candidate.calculation)} : {}),
+      warnings: [],
       ...(candidate.offerScope ? {offerScope: candidate.offerScope} : {}),
       researchProvider: 'GOOGLE_AI',
       researchedAt: aiResult.timestamp

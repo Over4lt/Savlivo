@@ -54,7 +54,7 @@ function v4State(target,acquisition){
   const rawAiResult=acquisition.recovery?.aiResult??acquisition.aiResult??{provider:target.serviceName,market:target.market,plans:[],sources:[],warnings:[],timestamp:acquisition.audit.timestamp,requestCount:acquisition.audit.request.requestCount};
   const rejected={};
   const rawPlans=rawAiResult.plans??[],scoped=rawPlans.filter(row=>{const reason=suggestedScope(row,target);if(reason)rejected[reason]=(rejected[reason]??0)+1;return !reason;});
-  const offers=analyzeSubscriptionOffers(scoped,target,acquisition.audit?.groundingCitations??[]);
+  const offers=analyzeSubscriptionOffers(scoped,target);
   for(const [reason,count] of Object.entries(offers.rejected))rejected[reason]=(rejected[reason]??0)+count;
   const plans=offers.accepted;
   const aiResult={...rawAiResult,plans};
@@ -63,15 +63,11 @@ function v4State(target,acquisition){
   if(target.service==='amazon-prime')for(const row of normalized.suggested)if(restrictedPrimeMembership.test(row.plan)&&!row.warnings.includes('ELIGIBILITY_RESTRICTED'))row.warnings.push('ELIGIBILITY_RESTRICTED');
   const snapshot=createV4SuggestedSnapshot({provider:target.serviceName,market:target.market,suggested:normalized.suggested.map(row=>({...row,planIdentity:pricePlanIdentity(target,row.plan,row.currency??row.suggestedCurrency)}))});
   const origins=new Map(snapshot.suggested.map(row=>[[row.plan,Number(row.amount),row.currency].join('\u0000'),row.suggestedId]));
-  // Arithmetic Suggested totals are never V3 price propositions. V3 may
-  // independently find a complete provider offer through the ordinary route.
-  const researchCandidates=results.flatMap((row,index)=>plans[index]?.calculation?[]:[{...row,suggestedId:origins.get([row.plan,Number(row.amount),row.currency].join('\u0000'))}]).filter(row=>row.suggestedId);
+  const researchCandidates=results.map(row=>({...row,suggestedId:origins.get([row.plan,Number(row.amount),row.currency].join('\u0000'))})).filter(row=>row.suggestedId);
   const providerDiscoveryUrls=target.providerNamespace?(aiResult.sources??[]).map(row=>row.url).filter(url=>reviewedNamespaceMatches(target.providerNamespace,url)):[];
   const recoveryUrls=(acquisition.recovery?.aiResult?.sources??[]).map(row=>row.url);
   const handoff=createV3Handoff(snapshot,{researchCandidates,providerDiscoveryUrls,discoveryUrls:recoveryUrls,unresolvedGaps:acquisition.status==='GOOGLE_AI_SUCCESS'||acquisition.recovery?.outcome==='RECOVERY_CANDIDATES'?['verification']:['google-acquisition-or-price']});
-  const offerFindings=acquisition.status==='RESEARCH_LINK_VERIFIED'||!(acquisition.recovery?.aiResult??acquisition.aiResult)
-    ?{codes:[],baseCount:0,addonCount:0,completeCount:0,calculatedCount:0}:offers.findings;
-  return {aiResult,results,nonBaseRejected:rejected.NON_STANDALONE??0,scopeRejected:rejected,offerFindings,normalizationDiagnostics:normalized.diagnostics,snapshot,handoff};
+  return {aiResult,rawAiResult,results,nonBaseRejected:rejected.NON_STANDALONE??0,scopeRejected:rejected,normalizationDiagnostics:normalized.diagnostics,snapshot,handoff};
 }
 
 function suggestedProjection(target,acquisition){
@@ -168,47 +164,24 @@ export function reconcileV3PlanIdentities(target,snapshot,v3Result,persistedVeri
  return {snapshot:{...snapshot,suggested:snapshot.suggested.map(row=>v4Rekeys.has(row.suggestedId)?{...row,planIdentity:v4Rekeys.get(row.suggestedId)}:row)},v3Result:{...v3Result,suggested,verified}};
 }
 
-const offerGap=state=>{
- if(state?.offerFindings?.codes?.includes('COMPLETE_PLAN_FOUND')||state?.offerFindings?.codes?.includes('CALCULATED_TOTAL_CREATED'))return null;
- return ['ADDON_FOUND_BASE_MISSING','COMPATIBILITY_UNPROVEN','BASE_FOUND_ADDON_MISSING'].find(code=>
-  state?.offerFindings?.codes?.includes(code)&&(code!=='BASE_FOUND_ADDON_MISSING'||state.offerFindings.baseMentionsAdFree))??null;
-};
 function combineGoogleAnswers(first,second){
  const firstAnswer=first.recovery?.aiResult??first.aiResult,secondAnswer=second.aiResult;
  const citations=[...(first.audit?.groundingCitations??[]),...(second.audit?.groundingCitations??[])];
  return {...first,aiResult:{...firstAnswer,plans:[...(firstAnswer?.plans??[]),...(secondAnswer?.plans??[])],sources:[...(firstAnswer?.sources??[]),...(secondAnswer?.sources??[])]},
-  recovery:null,audit:{...first.audit,groundingCitations:[...new Map(citations.map(row=>[row.url,row])).values()]},offerFollowup:second};
+  recovery:null,audit:{...first.audit,groundingCitations:[...new Map(citations.map(row=>[row.url,row])).values()]}};
 }
 
-export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,acquireGoogle=researchMonthlyRecurringWithRecovery,acquireFollowup=null,persistSuggested=persistSuggestedProductPlans,persistVerified=persistVerifiedLivePrices,loadSuggested=loadSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices,runDownstream,beforeGoogle=null}={}){
+export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,acquireGoogle=researchMonthlyRecurringWithRecovery,persistSuggested=persistSuggestedProductPlans,persistVerified=persistVerifiedLivePrices,loadSuggested=loadSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices,runDownstream,beforeGoogle=null}={}){
   if(!Array.isArray(targets)||!targets.length||targets.length>adminGooglePipelineLimits.targets||typeof runDownstream!=='function')throw Error('ADMIN_V4_PIPELINE_INPUT_INVALID');
   const scoped=targets.map(safeTarget),priority=beforeGoogle?await beforeGoogle():null,sessions=[];
   for(const target of scoped){
     let acquisition;
     try{acquisition=priority?.satisfiedTargetIds?.includes(target.id)?{status:'RESEARCH_LINK_VERIFIED',aiResult:{provider:target.serviceName,market:target.market,plans:[],sources:[],warnings:[],requestCount:0},audit:{timestamp:new Date().toISOString(),request:{requestCount:0,status:'SKIPPED_RESEARCH_LINK_VERIFIED'}}}:await acquireGoogle({providerName:target.serviceName,targetMarket:target.market,providerNamespace:target.providerNamespace,apiKey});}
     catch{acquisition={status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:{schemaVersion:1,query:null,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model:null,timestamp:new Date().toISOString(),normalizedAnswer:null,citations:[],request:{requestCount:0,status:'ADAPTER_FAILURE'}}};}
-    let projected=suggestedProjection(target,acquisition);
-    const gap=offerGap(projected.state);
-    const followup=acquireFollowup??(acquireGoogle===researchMonthlyRecurringWithRecovery?researchMonthlyRecurringWithGoogleAi:null);
-    if(gap&&followup&&acquisition.status==='GOOGLE_AI_SUCCESS'&&acquisition.audit?.request?.requestCount===1&&
-      !acquisition.recovery?.attempted){
-      try{
-        const second=await followup({providerName:target.serviceName,targetMarket:target.market,providerNamespace:target.providerNamespace,
-          apiKey,maxRequests:1,suggestedOnlyFollowup:true,offerFollowupCode:gap});
-        if(second?.audit?.request?.requestCount===1)acquisition={...acquisition,offerFollowup:second};
-        if(second?.audit?.request?.requestCount===1&&!second.recovery?.attempted&&second.aiResult?.plans){
-          acquisition=combineGoogleAnswers(acquisition,second);
-          projected=suggestedProjection(target,acquisition);
-        }
-      }catch{/* Retain the first documented Suggested result when a bounded follow-up fails. */}
-    }
-    const {state,plans}=projected;
-    state.offerFindings={...state.offerFindings,followupStatus:acquisition.offerFollowup?.status??
-      (!gap?'NOT_NEEDED':acquisition.audit?.request?.requestCount>=2?'REQUEST_BUDGET_EXHAUSTED':
-       acquisition.recovery?.attempted?'RECOVERY_USED':'NOT_ATTEMPTED')};
+    const {state,plans}=suggestedProjection(target,acquisition);
     if(plans.length)await persistSuggested(plans);
     const session={target,acquisition,state,earlyPersistedPlans:plans.length};sessions.push(session);
-    if(artifactDirectory)writeJson(path.join(artifactDirectory,'google-ai-v4',target.id.replace(/[^a-zA-Z0-9_.:-]/g,'_')+'.json'),{schemaVersion:1,target,acquisition:{status:acquisition.status,audit:acquisition.audit,recovery:acquisition.recovery??null,offerFollowup:acquisition.offerFollowup?{status:acquisition.offerFollowup.status,audit:acquisition.offerFollowup.audit}:null},v4:{suggested:state.snapshot.suggested,normalizationDiagnostics:state.normalizationDiagnostics,offerFindings:state.offerFindings,handoff:state.handoff},persistence:{suggestedPlans:plans.length,stage:'BEFORE_V3'}});
+    if(artifactDirectory)writeJson(path.join(artifactDirectory,'google-ai-v4',target.id.replace(/[^a-zA-Z0-9_.:-]/g,'_')+'.json'),{schemaVersion:1,target,acquisition:{status:acquisition.status,audit:acquisition.audit,recovery:acquisition.recovery??null},v4:{suggested:state.snapshot.suggested,normalizationDiagnostics:state.normalizationDiagnostics,handoff:state.handoff},persistence:{suggestedPlans:plans.length,stage:'BEFORE_V3'}});
   }
   const handoffs=Object.fromEntries(sessions.map(session=>[session.target.id,session.state.handoff]));
   const downstream=priority?.satisfiedTargetIds?.length===scoped.length?priority.downstream:await runDownstream({handoffs});
@@ -224,8 +197,7 @@ export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,
     const acceptedVerified=verifiedAdapters(target,alignedV3Result.verified);if(acceptedVerified.length)await persistVerified(acceptedVerified);
     let observedPlans=productPlans;if(currency)try{const storedVerified=(await loadVerified(target.market,currency)).filter(row=>row.serviceSlug===target.service);observedPlans=mergeProductPlans(await loadSuggested(target.market,currency),projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined:mergeResearch({snapshot:createV4SuggestedSnapshot({provider:target.serviceName,market:target.market,suggested:[]}),existingVerified:existingVerifiedRows(storedVerified,target)})}));}catch{/* Persistence result remains explicit below. */}
     const planCounts=canonicalPlanEvidenceCounts(combined);
-    const followupRequests=acquisition.offerFollowup?.audit?.request?.requestCount??0;
-    const result={target,googleStatus:acquisition.status,googleRequests:(acquisition.audit.request.requestCount??0)+(acquisition.recovery?.requestCount??0)+followupRequests,strictGeminiRequests:(acquisition.audit.request.requestCount??0)+followupRequests,simplifiedRecoveryRequests:acquisition.recovery?.requestCount??0,recoveryReason:acquisition.recovery?.reason??null,recoveryOutcome:acquisition.recovery?.outcome??null,offerFindings:state.offerFindings,earlySuggestedPersisted:session.earlyPersistedPlans,combined,planCounts,sourceAcquisitions:structuredClone(v3Result.sourceAcquisitions??[]),researchLinkAvailable:(downstream?.result?.targets?.[target.id]?.researchLinks??[]).length>0,researchLinks:structuredClone(downstream?.result?.targets?.[target.id]?.researchLinkOutcomes??[]),verificationEvidence:(v3Result.verified??[]).map(row=>row.verificationEvidence).filter(Boolean),verificationRetry:downstream?.verificationRetry?.targets?.[target.id]??null,persisted:{suggestedPlans:productPlans.filter(plan=>plan.suggested||plan.suggestedHistory.length).length,verified:acceptedVerified.length},analyticsStates:observedPlans.filter(plan=>plan.serviceSlug===target.service).map(plan=>({planIdentity:plan.planIdentity,status:productPriceStatus(plan)}))};
+    const result={target,googleStatus:acquisition.status,googleRequests:(acquisition.audit.request.requestCount??0)+(acquisition.recovery?.requestCount??0),strictGeminiRequests:acquisition.audit.request.requestCount??0,simplifiedRecoveryRequests:acquisition.recovery?.requestCount??0,recoveryReason:acquisition.recovery?.reason??null,recoveryOutcome:acquisition.recovery?.outcome??null,earlySuggestedPersisted:session.earlyPersistedPlans,combined,planCounts,sourceAcquisitions:structuredClone(v3Result.sourceAcquisitions??[]),researchLinkAvailable:(downstream?.result?.targets?.[target.id]?.researchLinks??[]).length>0,researchLinks:structuredClone(downstream?.result?.targets?.[target.id]?.researchLinkOutcomes??[]),verificationEvidence:(v3Result.verified??[]).map(row=>row.verificationEvidence).filter(Boolean),verificationRetry:downstream?.verificationRetry?.targets?.[target.id]??null,persisted:{suggestedPlans:productPlans.filter(plan=>plan.suggested||plan.suggestedHistory.length).length,verified:acceptedVerified.length},analyticsStates:observedPlans.filter(plan=>plan.serviceSlug===target.service).map(plan=>({planIdentity:plan.planIdentity,status:productPriceStatus(plan)}))};
     results.push(result);if(artifactDirectory)writeJson(path.join(artifactDirectory,'google-ai-v4',target.id.replace(/[^a-zA-Z0-9_.:-]/g,'_')+'-final.json'),result);
   }
   return {schemaVersion:1,kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',downstreamResult:downstream?.result??downstream,targets:results};
@@ -247,17 +219,22 @@ function suggestedAttemptDiagnostics(acquisition,state){
 // Suggested evidence is only a search lead; it never becomes V3 price proof.
 function documentedCoverageGaps(state,target){
  const covered=new Set(state.snapshot.suggested.map(row=>slug(row.plan)));
- return state.normalizationDiagnostics.filter(row=>row.reason==='PLAN_FOUND_PRICE_MISSING').flatMap(row=>{
-  const candidate=state.aiResult.plans.find(plan=>plan.planName===row.plan);
+ // Inspect the raw answer only for a possible second search. The standalone
+ // offer filter still excludes an unpriced lead from Suggested and V3.
+ return (state.rawAiResult?.plans??[]).filter(candidate=>candidate.amount==null&&candidate.ordinaryRecurringPrice==null).flatMap(candidate=>{
+  const name=String(candidate.planName??'');
   const marketEvidence=String(candidate?.marketEvidence??'').toLowerCase();
   const namedOtherMarket=countryCurrencyData.some(([code,name])=>code!==target.market&&marketEvidence.includes(name.toLowerCase()+' only'));
   const codedOnly=/\b([a-z]{2})\s+only\b/iu.exec(marketEvidence);
-  if(!candidate||covered.has(slug(row.plan))||!groundedUrl(candidate.sourceUrl)||
+  if(!name||covered.has(slug(name))||nonStandalonePresentation(name,target.serviceName)||
+    /\b(?:add[- ]?on|upgrade|channels?|bundles?)\b/iu.test(name)||
+    /\b(?:is an?|as an?|sold as an?)\s+(?:ad[- ]?free\s+)?(?:add[- ]?on|upgrade)\b/iu.test(String(candidate.sourceEvidence??''))||
+    !groundedUrl(candidate.sourceUrl)||
     !String(candidate.sourceEvidence??'').trim()||!marketEvidence.trim()||namedOtherMarket||
     codedOnly&&codedOnly[1].toUpperCase()!==target.market||
     candidate.annualOnly||candidate.freeTier||!/monthly|per month|per måned|per månad/iu.test(String(candidate.paymentCadence??''))||
     suggestedScope(candidate,target))return [];
-  covered.add(slug(row.plan));return [String(row.plan).slice(0,120)];
+  covered.add(slug(name));return [name.slice(0,120)];
  }).slice(0,2);
 }
 
@@ -291,7 +268,7 @@ export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,a
    if(googleRequestGate)await googleRequestGate.before();
    const requestStarted=performance.now();
    const candidate=await acquireGoogle({providerName:target.serviceName,targetMarket:target.market,
-    providerNamespace:null,apiKey,maxRequests:1,suggestedOnlyMode:true,suggestedOnlyFollowup:attempt===2,suggestedOnlyCoverageGaps:attempt===2?coverageGaps:[],offerFollowupCode:attempt===2?followupTriggeredBy:null});
+    providerNamespace:null,apiKey,maxRequests:1,suggestedOnlyMode:true,suggestedOnlyFollowup:attempt===2,suggestedOnlyCoverageGaps:attempt===2?coverageGaps:[]});
    googleRequestGate?.after(candidate?.audit?.request?.status);
    const requestWallMs=Math.round(performance.now()-requestStarted);googleWallMs+=requestWallMs;
    const used=candidate?.audit?.request?.requestCount;
@@ -310,13 +287,11 @@ export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,a
     const joint=suggestedProjection(target,combineGoogleAnswers(firstAnswer,candidate));
     const merged=mergeSuggestedAttempts(target,separate.state,joint.state);
     ({state,combined,plans:productPlans}=merged);
-    state.offerFindings=joint.state.offerFindings;
     duplicateCount=separate.duplicateCount;conflictCount=separate.conflictCount;
    }
    coverageGaps=documentedCoverageGaps(state,target);
    if(!productPlans.length)followupReason='NO_QUALIFYING_MONTHLY_PRICE';
    else if(coverageGaps.length)followupReason='DOCUMENTED_PRICE_GAP';
-   else if(attempt<maxGoogleRequests&&offerGap(state))followupReason=offerGap(state);
    else followupReason=null;
    if(!followupReason||used===0||attempt===maxGoogleRequests||
     ['CREDENTIAL_UNAVAILABLE','POLICY_BLOCK','HTTP_402','HTTP_403','HTTP_429'].includes(candidate.audit?.request?.status))break;
@@ -329,7 +304,7 @@ export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,a
   const previousRows=previous.filter(row=>row.serviceSlug===target.service),existing=existingVerifiedRows(previousRows,target);
   const reportCombined={...mergeResearch({snapshot:state.snapshot,existingVerified:existing}),resultClass:productPlans.length?'SUGGESTED':'NO_RESULT'};
   const stopReason=productPlans.length?'SUFFICIENT_SUGGESTED_CANDIDATES':acquisition.status==='GOOGLE_AI_ACCESS_FAILURE'?'SUGGESTED_ONLY_SOURCE_UNAVAILABLE':acquisition.status==='GOOGLE_AI_MALFORMED_RESPONSE'?'SUGGESTED_ONLY_RESPONSE_INVALID':'SUGGESTED_ONLY_NO_QUALIFYING_MONTHLY_PRICE';
-  const result={target,researchMode:'suggested_only',googleStatus:acquisition.status,googleAttempts:attempts,googleRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,recoveryReason:null,recoveryOutcome:null,offerFindings:state.offerFindings,earlySuggestedPersisted:productPlans.length,combined:reportCombined,planCounts:canonicalPlanEvidenceCounts(reportCombined),sourceAcquisitions:[],researchLinkAvailable:false,researchLinks:[],verificationEvidence:[],verificationRetry:null,persisted:{suggestedPlans:productPlans.length,verified:0},stopReason,
+  const result={target,researchMode:'suggested_only',googleStatus:acquisition.status,googleAttempts:attempts,googleRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,recoveryReason:null,recoveryOutcome:null,earlySuggestedPersisted:productPlans.length,combined:reportCombined,planCounts:canonicalPlanEvidenceCounts(reportCombined),sourceAcquisitions:[],researchLinkAvailable:false,researchLinks:[],verificationEvidence:[],verificationRetry:null,persisted:{suggestedPlans:productPlans.length,verified:0},stopReason,
    performance:{targetRuntimeMs:Math.round(performance.now()-targetStarted),googleWallMs,normalizationMs,persistenceMs,qualifyingVariants:productPlans.length,followupReason:followupTriggeredBy,duplicateVariants:duplicateCount,conflictingVariants:conflictCount},
    capabilityUsage:{googleAiRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0}};
   results.push(result);

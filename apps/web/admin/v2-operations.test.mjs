@@ -810,37 +810,37 @@ test('readiness details report unavailable enabled capability and conflicts with
  assert.deepEqual(preflightReadinessBlockers({liveReady:true,conflicts:[]}),[]);
 });
 test('canonical result projection separates execution from research and preserves unavailable usage',()=>{const model=canonicalPriceResearchProjection({status:'COMPLETE',batchProgress:{researchMode:'standard',logicalTargetCount:1,continuationCursor:null,outcomes:[{serviceId:'chess-com',serviceName:'Chess.com',targetMarket:'ES',status:'COMPLETE',researchOutcome:'SUGGESTED_ONLY',resultClass:'SUGGESTED',suggestedPlans:3,verified:0}]}});assert.deepEqual({services:model.services,targets:model.targets,suggested:model.suggested,verified:model.verified,execution:model.executionStatus},{services:1,targets:1,suggested:3,verified:0,execution:'COMPLETE'});assert.equal(model.outcomes[0].usage,'Unavailable');assert.equal(model.researchMode,'STANDARD');assert.equal(model.outcomes[0].researchOutcome,'SUGGESTED');});
-test('Suggested Only NO_RESULT displays bounded Google rejection counts and labels missing old details honestly',async t=>{
+test('Suggested Only NO_RESULT retains diagnostics in the projection without a results column',async t=>{
  const base={position:1,serviceId:'chess-com',serviceName:'Chess.com',targetMarket:'ES',status:'COMPLETE',researchOutcome:'NO_RESULT',resultClass:'NO_RESULT',suggestedPlans:0,verified:0};
  const job={id:'canonical-job',status:'COMPLETE',terminal:true,batchProgress:{researchMode:'suggested_only',logicalTargetCount:1,outcomes:[{...base,googleAttempts:[{status:'GOOGLE_AI_SUCCESS',requestStatus:'STOP',requests:1,requestRuntimeMs:41000,candidateCount:2,modelSourceCount:2,groundingCount:0,urlMatched:0,v4Suggested:0,normalizationRejected:0,qualifyingSuggested:0,rejected:{GOOGLE_GROUNDING_MISSING:2}}],suggestedPerformance:{targetRuntimeMs:42000,googleWallMs:41003,normalizationMs:3,persistenceMs:900,qualifyingVariants:0,conflictingVariants:0,followupReason:'NO_QUALIFYING_MONTHLY_PRICE'}}]}};
  const {root}=await canonicalBuilder(t,{job});const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();const es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();await button(root,'Preflight').listeners.click();window.confirm=()=>true;await button(root,'Confirm and queue run').listeners.click();await Promise.resolve();
- assert(text(root).includes('candidates 2, grounding 0, URL matches 0'));assert(text(root).includes('GOOGLE_GROUNDING_MISSING 2'));assert(text(root).includes('request 41000 ms'));assert(text(root).includes('Target 42000 ms'));
+ assert(!text(root).includes('Suggested diagnostics'));assert(!text(root).includes('GOOGLE_GROUNDING_MISSING 2'));
+ assert.equal(canonicalPriceResearchProjection(job).outcomes[0].googleAttempts[0].candidateCount,2);
  const old={...job,batchProgress:{...job.batchProgress,outcomes:[{...base,googleAttempts:[{status:'GOOGLE_AI_SUCCESS',requests:1,detailsUnavailable:true}]}]}};
  assert.equal(canonicalPriceResearchProjection(old).outcomes[0].googleAttempts[0].detailsUnavailable,true);
 });
-test('Suggested Only successful targets display bounded timing and coverage diagnostics',async t=>{
+test('Suggested Only successful targets retain timing and coverage data without a results column',async t=>{
  const outcome={position:1,serviceId:'chess-com',serviceName:'Chess.com',targetMarket:'ES',status:'COMPLETE',researchOutcome:'SUGGESTED_ONLY',resultClass:'SUGGESTED',suggestedPlans:1,verified:0,
   googleAttempts:[{status:'GOOGLE_AI_SUCCESS',requestStatus:'STOP',requests:1,requestRuntimeMs:12000,candidateCount:2,groundingCount:1,urlMatched:1,v4Suggested:1,normalizationRejected:1,qualifyingSuggested:1,rejected:{NON_STANDALONE:1}}],
   suggestedPerformance:{targetRuntimeMs:12100,googleWallMs:12003,normalizationMs:3,persistenceMs:12,qualifyingVariants:1,conflictingVariants:0,followupReason:null}};
  const job={id:'canonical-job',status:'COMPLETE',terminal:true,batchProgress:{researchMode:'suggested_only',logicalTargetCount:1,outcomes:[outcome]}};
  const {root}=await canonicalBuilder(t,{job});const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();const es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();await button(root,'Preflight').listeners.click();window.confirm=()=>true;await button(root,'Confirm and queue run').listeners.click();await Promise.resolve();
- assert(text(root).includes('Target 12100 ms'));assert(text(root).includes('variants 1'));assert(text(root).includes('request 12000 ms'));
+ assert(!text(root).includes('Suggested diagnostics'));
+ assert.equal(canonicalPriceResearchProjection(job).outcomes[0].suggestedPerformance.targetRuntimeMs,12100);
 });
 test('canonical result projection keeps previous Old Verified and unknown provenance separate',()=>{const model=canonicalPriceResearchProjection({status:'COMPLETE',batchProgress:{logicalTargetCount:1,outcomes:[{serviceId:'max',serviceName:'Max',targetMarket:'NO',status:'COMPLETE',verified:1,previouslyVerified:2,previouslyOldVerified:3,priorSourceUnclassified:1}]}});assert.equal(model.verified,1);assert.equal(model.previouslyVerified,2);assert.equal(model.previouslyOldVerified,3);assert.equal(model.priorSourceUnclassified,1);});
 
-test('Standard target displays bounded ad-free discovery reason in Admin',async t=>{
+test('canonical results omit Ad-free discovery and Suggested diagnostics columns',async t=>{
  const job={id:'canonical-job',status:'COMPLETE',terminal:true,batchProgress:{researchMode:'standard',logicalTargetCount:1,outcomes:[{
   serviceId:'chess-com',serviceName:'Chess.com',targetMarket:'ES',status:'COMPLETE',researchOutcome:'SUGGESTED',suggestedPlans:1,verified:0,
-  offerFindings:{codes:['COMPATIBILITY_UNPROVEN'],baseCount:1,addonCount:1,completeCount:0,calculatedCount:0,
-   calculationBlockers:['COMPONENT_GOOGLE_GROUNDING_MISSING','SAME_BILL_WITH_BOTH_PRICES_UNPROVEN'],followupStatus:'GOOGLE_AI_SUCCESS'}
+  offerFindings:{codes:['COMPATIBILITY_UNPROVEN']},googleAttempts:[{candidateCount:1}]
  }]}};
  const {root}=await canonicalBuilder(t,{job});const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
  const es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();await button(root,'Preflight').listeners.click();
  window.confirm=()=>true;await button(root,'Confirm and queue run').listeners.click();await Promise.resolve();
- assert(text(root).includes('COMPATIBILITY_UNPROVEN'));
- assert(text(root).includes('COMPONENT_GOOGLE_GROUNDING_MISSING'));
- assert(text(root).includes('SAME_BILL_WITH_BOTH_PRICES_UNPROVEN'));
- assert(text(root).includes('Follow-up GOOGLE_AI_SUCCESS'));
+ assert(!text(root).includes('Ad-free discovery'));
+ assert(!text(root).includes('Suggested diagnostics'));
+ assert(!text(root).includes('COMPATIBILITY_UNPROVEN'));
 });
 test('canonical result projection does not present compact live rows as complete totals',()=>{const model=canonicalPriceResearchProjection({status:'RUNNING',batchProgress:{logicalTargetCount:11000,admittedTargetCount:11000,serviceCount:500,outcomesTruncated:true,progressCounts:{pending:10900,running:0,complete:100,failed:0,stopped:0},outcomes:[{serviceId:'one',serviceName:'One',targetMarket:'DE',status:'COMPLETE',suggestedPlans:3,verified:2}]}});assert.deepEqual({services:model.services,targets:model.targets,suggested:model.suggested,verified:model.verified,truncated:model.outcomesTruncated},{services:500,targets:11000,suggested:null,verified:null,truncated:true});});
 
