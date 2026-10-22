@@ -7,6 +7,7 @@ import {loadPricingRouteMemory,publishPricingRouteMemory,publishPricingMethodOut
 import {loadRetainedVerifiedEvidence} from './verified-reconciliation-v1.mjs';
 import {loadSinglePriceRouteProof,loadBrowserPriceRouteProof} from './single-price-route-proof.mjs';
 import {researchModeOf,perTargetRequestCeiling} from './price-research-mode.mjs';
+import {createSuggestedOnlyGoogleGate} from './suggested-only-google-gate.mjs';
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const safeCode=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{0,159}$/.test(value)?value:'PRICE_RESEARCH_CHILD_FAILED';
@@ -124,12 +125,97 @@ function legacyTargetAccessStop(directory,target,index,outcome){
  }catch{return false;}
 }
 
-export async function executePriceResearchBatch({job,directory,apiKey,client,shouldStop=()=>false,executeTarget,memoryRoot=null}){
+const suggestedParallelism=value=>value===1||value===2||value===3?value:1;
+const firstUnfinished=outcomes=>{const index=outcomes.findIndex(row=>row.status!=='COMPLETE'&&!(row.status==='FAILED'&&row.failureScope==='TARGET'));return index<0?outcomes.length:index;};
+const parallelResultFile=(directory,target,index)=>path.join(childDirectory(directory,target,index),'result.json');
+const parallelReceiptFile=(directory,target,index)=>path.join(childDirectory(directory,target,index),'suggested-only-completion.json');
+
+function checkedSuggestedResult(result,target,perTarget){
+ const row=result?.targets?.[0],usage=row?.capabilityUsage;
+ if(result?.kind!=='ADMIN_V4_FIRST_RESEARCH_RESULT'||result.researchMode!=='suggested_only'||result.targets.length!==1||row?.target?.id!==target.id||row?.target?.market!==target.targetMarket||row?.target?.service!==target.serviceId||!Number.isSafeInteger(usage?.googleAiRequests)||usage.googleAiRequests<0||usage.googleAiRequests>perTarget||row?.persisted?.verified!==0||result.downstreamResult!==null||['directAttempts','tavilyAttempts','decodoAttempts','browserAttempts'].some(key=>usage[key]!==0))throw Error('SUGGESTED_ONLY_RESULT_INVALID');
+}
+
+function completedParallelResult(config,directory,target,index,perTarget){
+ try{
+  const receiptFile=parallelReceiptFile(directory,target,index),resultFile=parallelResultFile(directory,target,index);
+  if(fs.lstatSync(receiptFile).isSymbolicLink()||fs.lstatSync(resultFile).isSymbolicLink()||fs.statSync(resultFile).size>4*1024*1024)return null;
+  const receipt=JSON.parse(fs.readFileSync(receiptFile,'utf8')),bytes=fs.readFileSync(resultFile),result=JSON.parse(bytes);
+  if(receipt.kind!=='SUGGESTED_ONLY_COMPLETION'||receipt.binding!==binding(config)||receipt.targetId!==target.id||receipt.resultHash!==createHash('sha256').update(bytes).digest('hex')||!Number.isFinite(Date.parse(receipt.startedAt))||!Number.isFinite(Date.parse(receipt.finishedAt)))return null;
+  checkedSuggestedResult(result,target,perTarget);
+  return receipt;
+ }catch{return null;}
+}
+
+async function executeSuggestedOnlyParallelBatch({job,directory,apiKey,client,shouldStop,executeTarget,config,perTarget,file,journal,progress,parallelism,googleRequestGate}){
+ const outcomes=progress.outcomes;
+ const refresh=()=>{progress.nextIndex=firstUnfinished(outcomes);const index=outcomes.findIndex(row=>row.status==='RUNNING');progress.current=index<0?null:{index,targetId:config.batchTargets[index].id,status:'RUNNING',startedAt:outcomes[index].startedAt};writeJson(file,compact(progress));};
+ const update=(index,status,fields={})=>{const target=config.batchTargets[index],outcome=outcomes[index];Object.assign(outcome,record(journal,index,target,status,fields));delete outcome.index;progress.status='RUNNING';refresh();};
+ // A completed child is recoverable only after its exact result and binding
+ // receipt were durably published. An uncertain request is never replayed.
+ const recoverable=new Map();
+ for(let index=0;index<outcomes.length;index++){
+  const outcome=outcomes[index],target=config.batchTargets[index];
+  if(outcome.status==='RUNNING'){
+   const receipt=completedParallelResult(config,directory,target,index,perTarget);
+   if(!receipt)throw Error('PRICE_RESEARCH_CHILD_RECOVERY_UNSAFE');
+   recoverable.set(index,receipt);
+  }else if(outcome.status==='FAILED'&&outcome.failureScope!=='TARGET')throw Error('PRICE_RESEARCH_BATCH_CHILD_FAILED');
+ }
+ for(let index=0;index<outcomes.length;index++){
+  const outcome=outcomes[index],receipt=recoverable.get(index);
+  if(receipt)update(index,'COMPLETE',{startedAt:receipt.startedAt,finishedAt:receipt.finishedAt});
+  else if(outcome.status==='STOPPED'&&!shouldStop())update(index,'PENDING');
+ }
+ const groups=new Map();
+ for(let index=0;index<config.batchTargets.length;index++){
+  const service=config.batchTargets[index].serviceId;
+  if(!groups.has(service))groups.set(service,[]);
+  groups.get(service).push(index);
+ }
+ const gate=googleRequestGate??createSuggestedOnlyGoogleGate();
+ let fatal=null;
+ for(const indexes of groups.values()){
+  if(fatal||shouldStop())break;
+  let cursor=0;
+  const worker=async()=>{
+   while(cursor<indexes.length&&!fatal&&!shouldStop()){
+    const index=indexes[cursor++],target=config.batchTargets[index],outcome=outcomes[index];
+    if(outcome.status==='COMPLETE'||outcome.status==='FAILED')continue;
+    const childDir=childDirectory(directory,target,index),startedAt=new Date().toISOString();
+    try{
+     update(index,'RUNNING',{startedAt});
+     const result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,researchMode:'suggested_only',perTargetRequestCeiling:perTarget,capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop:()=>false,googleRequestGate:gate});
+     checkedSuggestedResult(result,target,perTarget);
+     const finishedAt=new Date().toISOString(),resultFile=parallelResultFile(directory,target,index);
+     writeJson(resultFile,result);
+     const bytes=fs.readFileSync(resultFile);
+     writeJson(parallelReceiptFile(directory,target,index),{kind:'SUGGESTED_ONLY_COMPLETION',binding:binding(config),targetId:target.id,resultHash:createHash('sha256').update(bytes).digest('hex'),startedAt,finishedAt});
+     update(index,'COMPLETE',{startedAt,finishedAt});
+    }catch(error){
+     const finishedAt=new Date().toISOString(),targetLocal=error instanceof TargetResearchFailure;
+     if(!targetLocal)fatal=error;
+     if(shouldStop()&&error?.message==='PRICE_RESEARCH_STOPPED'){update(index,'STOPPED',{startedAt,finishedAt});continue;}
+     update(index,'FAILED',{startedAt,finishedAt,failureCode:safeCode(error?.message),failureScope:targetLocal?'TARGET':'JOB'});
+    }
+   }
+  };
+  const settled=await Promise.allSettled(Array.from({length:Math.min(parallelism,indexes.length)},worker));
+  const journalError=settled.find(row=>row.status==='rejected');
+  if(journalError)throw journalError.reason;
+  if(fatal)throw Error('PRICE_RESEARCH_BATCH_CHILD_FAILED');
+ }
+ progress.status=shouldStop()?'STOPPED':'COMPLETE';refresh();return {...progress};
+}
+
+export async function executePriceResearchBatch({job,directory,apiKey,client,shouldStop=()=>false,executeTarget,memoryRoot=null,suggestedOnlyParallelism=1,googleRequestGate=null}){
  const config=job?.config;
  const perTarget=perTargetRequestCeiling(config),expectedCeiling=config?.batchTargets?.length*perTarget;
  if(config?.targetKind!=='CANONICAL_SELECTION'||!Array.isArray(config.batchTargets)||config.batchTargets.length<1||config.batchTargets.some(target=>!validTarget(target))||new Set(config.batchTargets.map(target=>`${target.serviceId}:${target.targetMarket}`)).size!==config.batchTargets.length||config.logicalTargetCount!==config.batchTargets.length||config.perTargetRequestCeiling!==perTarget||!Number.isSafeInteger(expectedCeiling)||config.batchRequestCeiling!==expectedCeiling||typeof executeTarget!=='function')throw Error('INVALID_PRICE_RESEARCH_BATCH');
  const {file,journal,progress}=loadProgress(config,directory);let providerPricingRouteMemory=createProviderPricingRouteMemory();
  if(memoryRoot)try{providerPricingRouteMemory=loadPricingRouteMemory(memoryRoot,{services:config.services});}catch{/* Invalid durable hints cannot grant authority or interrupt research. */}
+ const parallelism=suggestedParallelism(suggestedOnlyParallelism);
+ if(researchModeOf(config)==='suggested_only'&&parallelism>1)return executeSuggestedOnlyParallelBatch({job,directory,apiKey,client,shouldStop,executeTarget,config,perTarget,file,journal,progress,parallelism,googleRequestGate});
+ const serialGoogleRequestGate=researchModeOf(config)==='suggested_only'?googleRequestGate??createSuggestedOnlyGoogleGate():null;
  for(let index=0;index<config.batchTargets.length;index++){
   const target=config.batchTargets[index],outcome=progress.outcomes[index];
   if(outcome.status==='COMPLETE'){recoverCompletedPricingRoutes(providerPricingRouteMemory,childDirectory(directory,target,index),target,{memoryRoot,runsRoot:path.dirname(directory),jobId:job.id,recordedAt:outcome.finishedAt});continue;}
@@ -144,7 +230,7 @@ export async function executePriceResearchBatch({job,directory,apiKey,client,sho
   if(shouldStop()){progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}
   const childDir=childDirectory(directory,target,index),startedAt=new Date().toISOString();Object.assign(outcome,record(journal,index,target,'RUNNING',{startedAt}));delete outcome.index;progress.status='RUNNING';progress.nextIndex=index;progress.current={index,targetId:target.id,status:'RUNNING',startedAt};writeJson(file,compact(progress));
   let result;
-  try{result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,...(researchModeOf(config)==='suggested_only'?{researchMode:'suggested_only',perTargetRequestCeiling:perTarget}:{}),capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop,providerPricingRouteMemory});}
+  try{result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,...(researchModeOf(config)==='suggested_only'?{researchMode:'suggested_only',perTargetRequestCeiling:perTarget}:{}),capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop,providerPricingRouteMemory,googleRequestGate:serialGoogleRequestGate});}
   catch(error){
    const finishedAt=new Date().toISOString();
    if(shouldStop()||error?.message==='PRICE_RESEARCH_STOPPED'){Object.assign(outcome,record(journal,index,target,'STOPPED',{startedAt,finishedAt}));delete outcome.index;progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}

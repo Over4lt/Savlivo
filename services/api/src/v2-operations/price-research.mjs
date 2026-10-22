@@ -143,7 +143,7 @@ export async function runBoundedV3Verification({targets,handoffs,execute}){
  const merged={...firstResults},outcomes={};for(const target of retryTargets){const retried=retryResults[target.id]??{suggested:[],verified:[],contradictions:[],operationalFailures:[{kind:'V3_RESULT_UNAVAILABLE'}]},retryStateDiagnostic=retryDiagnostic(retry,target,retried),authoritative=(retried.verified?.length??0)>0||(retried.contradictions?.length??0)>0,exhausted=!authoritative;merged[target.id]=mergeV3Attempts(firstResults[target.id],retried,{exhausted,reason:retryStateDiagnostic.reason});outcomes[target.id]={status:authoritative?'AUTHORITATIVE_PROGRESS':'RETRY_EXHAUSTED',reason:retryStateDiagnostic.reason};targetSummaries[target.id]={...targetSummaries[target.id],attempted:true,count:1,retryOutcome:attemptOutcome(retried),retryReason:retryStateDiagnostic.reason,retryUsage:usageDelta(totalUsage,initialUsage),verifiedAttempt:(retried.verified?.length??0)>0?2:null};}
  return {result:{...first,v3VerificationRetry:{maximumPerTarget:1,attemptedTargetIds:retryTargets.map(target=>target.id),firstAttemptArtifact:'primary',retryAttemptArtifact:'v3-verification-retry-1',initialUsage,totalUsage,outcomes}},v3Results:merged,verificationRetry:{maximumPerTarget:1,attemptedTargetIds:retryTargets.map(target=>target.id),diagnostics,outcomes,targets:targetSummaries}};
 }
-async function executeSinglePriceResearch({job,directory,apiKey,client,shouldStop=()=>false,providerPricingRouteMemory=null}){
+async function executeSinglePriceResearch({job,directory,apiKey,client,shouldStop=()=>false,providerPricingRouteMemory=null,googleRequestGate=null}){
  const config=job.config;if(config.targetKind==='PROVIDER_OR_BRAND_SEED'&&config.identityDiscoveryConsent!==true)throw Error('IDENTITY_DISCOVERY_CONSENT_REQUIRED');
  if(researchModeOf(config)==='suggested_only'){
   if(config.targetKind!=='KNOWN_SERVICE')throw Error('SUGGESTED_ONLY_REQUIRES_KNOWN_SERVICE');
@@ -151,7 +151,7 @@ async function executeSinglePriceResearch({job,directory,apiKey,client,shouldSto
   const resolved=await resolvePriceResearchIdentity(config.serviceId,{client});if(resolved.status!=='RESEARCHABLE')throw Error('PRICE_RESEARCH_IDENTITY_REVOKED');
   if((await listMarketExclusions([resolved.identity.serviceId],{client})).some(row=>row.market_code===config.market))throw Error('PRICE_RESEARCH_MARKET_EXCLUDED');
   const target={id:`price-research:${resolved.identity.serviceId}:${config.market}`,service:resolved.identity.serviceId,serviceName:resolved.identity.serviceName,market:config.market,reviewedProviderNamespaces:resolved.identity.reviewedProviderNamespaces??[]};
-  return runAdminSuggestedOnlyResearch({targets:[target],artifactDirectory:directory,apiKey,maxGoogleRequests:perTargetRequestCeiling(config)});
+  return runAdminSuggestedOnlyResearch({targets:[target],artifactDirectory:directory,apiKey,maxGoogleRequests:perTargetRequestCeiling(config),googleRequestGate});
  }
  const adapters=await createPriceResearchAdapters({market:config.market,capabilities:config.capabilities}),runPipeline=({targets,execute,beforeGoogle=null})=>runAdminV4FirstResearch({targets,artifactDirectory:directory,apiKey,beforeGoogle,runDownstream:({handoffs})=>runBoundedV3Verification({targets,handoffs,execute})});
  if(shouldStop())throw Error('PRICE_RESEARCH_STOPPED');
@@ -175,7 +175,9 @@ async function executeSinglePriceResearch({job,directory,apiKey,client,shouldSto
 }
 
 export async function executePriceResearch(options){
- if(options.job?.config?.targetKind==='CANONICAL_SELECTION')return executePriceResearchBatch({...options,executeTarget:executeSinglePriceResearch});
+ // Runtime tuning is bounded to 1–3 workers; an invalid value falls back to
+ // the existing serial path. It does not change the frozen target or call cap.
+ if(options.job?.config?.targetKind==='CANONICAL_SELECTION')return executePriceResearchBatch({...options,suggestedOnlyParallelism:options.suggestedOnlyParallelism??Number(process.env.SAVLIVO_SUGGESTED_ONLY_PARALLELISM??2),executeTarget:executeSinglePriceResearch});
  let providerPricingRouteMemory=null;
  if(options.memoryRoot&&options.job?.config?.targetKind==='KNOWN_SERVICE')try{providerPricingRouteMemory=loadPricingRouteMemory(options.memoryRoot,{services:[options.job.config.serviceId]});}catch{/* Invalid hints must not grant authority or interrupt research. */}
  const result=await executeSinglePriceResearch({...options,providerPricingRouteMemory});

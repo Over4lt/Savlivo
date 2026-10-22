@@ -265,10 +265,11 @@ test('a second-call 429 preserves valid first-call Suggested and records the rat
   ordinaryRecurringPrice:null,sourceEvidence:'Prime Video Ad Free full subscription plan is offered monthly, price omitted'
  })]);
  const second=acquisition([],{status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:{timestamp:'2026-10-21T12:01:00.000Z',request:{requestCount:1,status:'HTTP_429',runtimeMs:3000}}});
- let calls=0;const stored=[];
+ let calls=0;const stored=[],gateEvents=[];
  const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>++calls===1?first:second,
-  persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+  persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[],googleRequestGate:{before:async()=>gateEvents.push('before'),after:status=>gateEvents.push(status??'success')}});
  assert.equal(calls,2);assert.equal(stored.length,1);assert.equal(stored[0].suggested.monthlyPriceMinor,7900);
+ assert.deepEqual(gateEvents,['before','success','before','HTTP_429']);
  assert.equal(result.targets[0].googleAttempts[1].requestStatus,'HTTP_429');
  assert.equal(result.targets[0].googleStatus,'GOOGLE_AI_SUCCESS');
 });

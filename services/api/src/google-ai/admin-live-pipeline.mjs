@@ -235,7 +235,7 @@ function mergeSuggestedAttempts(target,first,second){
   plans:projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined}),duplicateCount,conflictCount};
 }
 
-export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,apiKey,maxGoogleRequests=2,acquireGoogle=researchMonthlyRecurringWithGoogleAi,persistSuggested=persistSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices}={}){
+export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,apiKey,maxGoogleRequests=2,acquireGoogle=researchMonthlyRecurringWithGoogleAi,persistSuggested=persistSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices,googleRequestGate=null}={}){
  if(!Array.isArray(targets)||!targets.length||targets.length>adminGooglePipelineLimits.targets)throw Error('ADMIN_SUGGESTED_ONLY_INPUT_INVALID');
  if(maxGoogleRequests!==1&&maxGoogleRequests!==2)throw Error('SUGGESTED_ONLY_BUDGET_VIOLATION');
  const results=[];
@@ -244,9 +244,11 @@ export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,a
   let acquisition,state,combined,productPlans,requests=0,followupReason=null,followupTriggeredBy=null,coverageGaps=[],duplicateCount=0,conflictCount=0,googleWallMs=0,normalizationMs=0;
   const attempts=[];
   for(let attempt=1;attempt<=maxGoogleRequests;attempt++){
+   if(googleRequestGate)await googleRequestGate.before();
    const requestStarted=performance.now();
    const candidate=await acquireGoogle({providerName:target.serviceName,targetMarket:target.market,
     providerNamespace:null,apiKey,maxRequests:1,suggestedOnlyMode:true,suggestedOnlyFollowup:attempt===2,suggestedOnlyCoverageGaps:attempt===2?coverageGaps:[]});
+   googleRequestGate?.after(candidate?.audit?.request?.status);
    const requestWallMs=Math.round(performance.now()-requestStarted);googleWallMs+=requestWallMs;
    const used=candidate?.audit?.request?.requestCount;
    if(!Number.isSafeInteger(used)||used<0||used>1||candidate.recovery?.attempted||
