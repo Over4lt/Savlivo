@@ -15,6 +15,9 @@ function thirdPartyPresentation(body,target,url){
  let maxNavigation=false;
  try{maxNavigation=target?.service==='max'&&new URL(url).hostname==='www.hbomax.com';}catch{/* Invalid URLs remain under the ordinary classifier. */}
  for(const match of body.matchAll(new RegExp(thirdParty.source,'giu'))){
+  // HTML's affiliate-data attribute labels a smart-app banner; it is not a
+  // declaration that the page is an affiliate or third-party price source.
+  if(match[0].toLowerCase()==='affiliate'&&/^affiliate-data\s*=/iu.test(body.slice(match.index,match.index+32))&&body.lastIndexOf('<',match.index)>body.lastIndexOf('>',match.index))continue;
   if(maxNavigation&&match[0].toLowerCase()==='affiliate'){
    const at=match.index,after=body.slice(at+match[0].length);
    if(body[at-1]==='/'&&/^(?:["'\\]|\b)/u.test(after))continue;

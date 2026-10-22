@@ -40,6 +40,15 @@ test('explicit third-party, competing identity, integrity and unusable responses
  const denied=page(url);denied.accessDecisions=[{decision:'DISALLOWED'}];assert.equal(classifyAcquiredSource({target:t,page:denied,body,observationId:'denied'}).status,'UNKNOWN_SOURCE');
 });
 
+test('official HTML smart-app affiliate-data is not a third-party price declaration',()=>{
+ const t=target('youtube.com',{service:'youtube-premium',serviceName:'YouTube Premium'}),url='https://www.youtube.com/premium';
+ const shell='<html><head><meta property="og:site_name" content="YouTube"></head><body><meta name="apple-itunes-app" content="app-id=1, affiliate-data=ct=smart_app_banner"><main id="root"></main><script src="/app.js"></script><script>bootstrap()</script></body></html>';
+ assert.equal(classify(t,url,url,shell).status,'PROVIDER_SOURCE');
+ assert.equal(classify(t,url,url,shell+'<p>Independent affiliate review of YouTube Premium</p>').status,'THIRD_PARTY_SOURCE');
+ assert.equal(classify(t,url,url,shell.replace('affiliate-data=','affiliate ')).status,'THIRD_PARTY_SOURCE');
+ assert.equal(classify(t,'https://unrelated.example/premium','https://unrelated.example/premium',shell).status,'UNKNOWN_SOURCE');
+});
+
 test('canonical official source hosts are separate from manually entered Research links',()=>{
  assert(baselineProviderSourceHosts('netflix','Netflix').includes('www.netflix.com'));
  assert.deepEqual(baselineProviderSourceHosts('not-a-service','Not A Service'),[]);
