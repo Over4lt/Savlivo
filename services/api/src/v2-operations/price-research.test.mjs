@@ -52,6 +52,31 @@ test('canonical selection Preflight freezes the exact complete scope and Start q
  const job=await ops.start(pre.token,'admin',true);assert.equal(job.status,'QUEUED');assert.deepEqual(job.config,stored);assert.equal((await ops.start(pre.token,'admin',true)).id,job.id);assert.equal(ops.db().jobs.length,1);const manifest=JSON.parse(fs.readFileSync(path.join(ops.config.root,'runs',job.id,'manifest.json')));assert.equal(manifest.targets.length,4);assert.equal(manifest.limits.perTargetRequests,96);assert.equal(manifest.limits.totalRequests,384);assert(manifest.targets.every(row=>row.marketApplicabilityEstablished===false));
 });
 
+test('official unavailable proof excludes targets before Preflight and freezes the evidence without paid attempts',async t=>{
+ const ops=batchFixture(t),proof={version:1,serviceId:'chess-com',sourceUrl:'https://chess.com/availability',sourceHash:'a'.repeat(64),checkedAt:new Date().toISOString(),unavailableMarkets:['CN'],basis:'OFFICIAL_EXPLICIT_OR_EXHAUSTIVE_COVERAGE'};
+ ops.config.marketAvailability=[proof];
+ const targeting=await ops.priceResearchTargeting({services:['chess-com','1password'],markets:['CN','NO']});
+ assert.equal(targeting.autoSkippedTargetCount,1);assert.equal(targeting.serviceMarketTargets,3);
+ assert.deepEqual(targeting.targets.map(row=>[row.serviceId,row.targetMarket]),[['1password','CN'],['1password','NO'],['chess-com','NO']]);
+ const pre=await ops.preflight({objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['chess-com','1password'],markets:['CN','NO'],targetingRevision:targeting.revision,capabilities:caps},'admin');
+ assert.equal(pre.batchTargetCount,3);assert.equal(pre.totalSafetyCeiling,288);assert.deepEqual(pre.autoSkippedPairs.map(row=>[row.serviceId,row.market]),[['chess-com','CN']]);
+ const job=await ops.start(pre.token,'admin',true),manifest=JSON.parse(fs.readFileSync(path.join(ops.config.root,'runs',job.id,'manifest.json')));
+ assert.equal(manifest.targets.length,3);assert.deepEqual(manifest.priceResearch.availabilityProofs,[proof]);
+ assert(!manifest.targets.some(row=>row.service==='chess-com'&&row.market==='CN'));
+ await assert.rejects(ops.preflight({objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:'chess-com',market:'CN',capabilities:caps},'admin'),/PRICE_RESEARCH_MARKET_UNAVAILABLE/);
+ assert.equal(ops.db().jobs.length,1);
+});
+
+test('changed official availability evidence makes Start require a new Preflight',async t=>{
+ const ops=batchFixture(t),proof={version:1,serviceId:'chess-com',sourceUrl:'https://chess.com/availability',sourceHash:'a'.repeat(64),checkedAt:new Date().toISOString(),unavailableMarkets:['CN']};
+ ops.config.marketAvailability=[proof];
+ const scope={services:['chess-com'],markets:['CN','NO']},targeting=await ops.priceResearchTargeting(scope);
+ const pre=await ops.preflight({objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',...scope,targetingRevision:targeting.revision,capabilities:caps},'admin');
+ ops.config.marketAvailability=[{...proof,unavailableMarkets:['CN','NO']}];
+ await assert.rejects(ops.start(pre.token,'admin',true),/TARGETING_STALE|PREFLIGHT_STALE|NO_ELIGIBLE_PRICE_RESEARCH_TARGETS/);
+ assert.equal(ops.db().jobs.length,0);
+});
+
 test('Suggested Only preflight freezes two markets, at most two Google requests each, and disables expensive capabilities',async t=>{
  const ops=batchFixture(t);ops.config.env.GEMINI_API_KEY='offline-test-key';
  const targeting=await ops.priceResearchTargeting({services:['chess-com'],markets:['NO','SE']});

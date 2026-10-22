@@ -1,0 +1,11 @@
+# Canonical price research: automatic market availability gate
+
+The gate runs before new canonical PRICE_RESEARCH targets are frozen. It applies to Standard and Suggested Only, single known-service targets, and known provider aliases. A skipped pair receives no research target and therefore no Gemini, Direct, Tavily, Decodo, Browser, or V3 attempt. Existing jobs retain their original target snapshot.
+
+Only a current, first-party service availability page can exclude a market. The bounded free reader checks robots policy and redirects, retains the complete response in memory, verifies its SHA-256, and requires the final host to belong to the service's established provider-source family. The page must identify the service and state either that the service is unavailable in a named country or that a complete list of supported countries is provided. A partial list, language selector, catalog launch-market hint, missing price, failed research run, failed page acquisition, or model answer cannot prove unavailability. Unknown markets remain eligible.
+
+The evidence record contains the final URL, body hash, checked time, short source excerpt, and excluded market codes. Preflight reports skipped pairs and freezes the record with the target snapshot. Start revalidates the target revision; a changed availability decision requires a new preflight. Manual service-market exclusions remain independent and take precedence.
+
+Discovery checks up to eight selected services per targeting request, at most two concurrently and four seconds per service. For each service it tries a checked-in official availability URL when present, then one free search and up to two official result pages. Proven results are cached for six hours; unknown results are cached for 15 minutes to prevent repeated checks on checkbox interactions. Services without a validated official source or beyond the per-request bound remain unknown and proceed normally. No paid research capability is used by availability discovery.
+
+This gate is conservative. It cannot guarantee that every unsupported service-market pair will be skipped. The six-hour evidence window and page-pattern restrictions favor avoiding false exclusion over maximizing savings. It does not change service availability status, price truth, market definitions, or historical research results.
