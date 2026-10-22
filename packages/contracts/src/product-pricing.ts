@@ -2,6 +2,8 @@ export type SuggestedPriceCalculation = {
   schemaVersion: 1;
   method: "MONTHLY_BASE_PLUS_AD_FREE_ADD_ON";
   currency: string;
+  billingProvider?: string;
+  compatibleBasePlan?: string;
   components: Array<{
     role: "BASE" | "AD_FREE_ADD_ON";
     planName: string;

@@ -208,10 +208,81 @@ test('base and add-on prices alone never fabricate a combined ad-free subscripti
  assert.deepEqual(stored.map(row=>[row.planName,row.suggested.monthlyPriceMinor]),[['Prime Video',7900]]);
 });
 
+test('Standard spends one bounded follow-up on a documented compatibility gap and retains V3 isolation',async()=>{
+ const first=acquisition([
+  plan('Prime Video',79,{sourceEvidence:'Amazon Prime Video base subscription 79 NOK per month',billingProvider:'Amazon'}),
+  plan('Prime Video Ad Free add-on',29,{sourceEvidence:'Amazon ad-free add-on costs 29 NOK per month',billingProvider:'Amazon'})
+ ]);
+ const second=acquisition([plan('Prime Video Without Ads',119,{
+  sourceEvidence:'Prime Video Without Ads subscription includes streaming films and series for 119 NOK per month.'
+ })]);
+ const calls=[],stored=[];
+ const result=await runAdminV4FirstResearch({targets:[target],acquireGoogle:async()=>first,
+  acquireFollowup:async options=>{calls.push(options);return second;},
+  persistSuggested:async rows=>stored.push(...rows),persistVerified:async()=>assert.fail('no V3 Verified evidence'),
+  loadSuggested:async()=>[],loadVerified:async()=>[],runDownstream:async()=>({v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}})});
+ assert.equal(calls.length,1);
+ assert.equal(calls[0].maxRequests,1);
+ assert.equal(calls[0].offerFollowupCode,'COMPATIBILITY_UNPROVEN');
+ assert.equal(result.targets[0].googleRequests,2);
+ assert.equal(result.targets[0].strictGeminiRequests,2);
+ assert(result.targets[0].offerFindings.codes.includes('COMPLETE_PLAN_FOUND'));
+ assert.deepEqual(stored.map(row=>row.planName).slice(0,2),['Prime Video','Prime Video Without Ads']);
+});
+
+test('Google access failure does not claim that no ad-free offer exists',async()=>{
+ const failed={status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,
+  audit:{timestamp:'2026-10-21T12:00:00.000Z',request:{requestCount:1,status:'HTTP_402'}}};
+ const result=await runAdminV4FirstResearch({targets:[target],acquireGoogle:async()=>failed,
+  acquireFollowup:async()=>assert.fail('access failures do not spend another request'),
+  persistSuggested:async()=>assert.fail('no Suggested plan'),persistVerified:async()=>assert.fail('no Verified plan'),
+  loadSuggested:async()=>[],loadVerified:async()=>[],runDownstream:async()=>({v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}})});
+ assert.deepEqual(result.targets[0].offerFindings.codes,[]);
+});
+
+test('Standard records a failed second Google request while preserving the first Suggested plan',async()=>{
+ const first=acquisition([
+  plan('Prime Video',79,{sourceEvidence:'Amazon Prime Video base subscription 79 NOK per month',billingProvider:'Amazon'}),
+  plan('Prime Video Ad Free add-on',29,{sourceEvidence:'Amazon ad-free add-on costs 29 NOK per month',billingProvider:'Amazon'})
+ ]);
+ const failed={status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:{request:{requestCount:1,status:'HTTP_429'}}};
+ const stored=[];
+ const result=await runAdminV4FirstResearch({targets:[target],acquireGoogle:async()=>first,acquireFollowup:async()=>failed,
+  persistSuggested:async rows=>stored.push(...rows),persistVerified:async()=>assert.fail('no Verified write'),
+  loadSuggested:async()=>[],loadVerified:async()=>[],runDownstream:async()=>({v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}})});
+ assert.equal(result.targets[0].googleRequests,2);
+ assert.equal(result.targets[0].strictGeminiRequests,2);
+ assert.equal(stored[0].planName,'Prime Video');
+ assert(result.targets[0].offerFindings.codes.includes('COMPATIBILITY_UNPROVEN'));
+});
+
+test('Suggested Only can combine separate grounded answers but never reuses a prior market receipt',async()=>{
+ const b=plan('Prime Video',79,{sourceUrl:'https://www.primevideo.com/no',billingProvider:'Amazon',
+  sourceEvidence:'Amazon Prime Video costs 79 NOK per month. An ad-free upgrade is available.'});
+ const a=plan('Prime Video Ad Free add-on',29,{sourceUrl:'https://www.primevideo.com/help/ad-free',
+  billingProvider:'Amazon',compatibleBasePlan:'Prime Video',
+  combinationEvidence:'Amazon bills Prime Video 79 NOK and ad-free 29 NOK together on the same bill for Norway.',
+  sourceEvidence:'Amazon ad-free add-on costs 29 NOK per month. Amazon bills Prime Video 79 NOK and ad-free 29 NOK together on the same bill for Norway.'});
+ const first=acquisition([b]),second=acquisition([a]);
+ first.audit.groundingCitations=[{url:b.sourceUrl}];second.audit.groundingCitations=[{url:a.sourceUrl}];
+ const calls=[],stored=[];
+ const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async options=>{calls.push(options);return calls.length===1?first:second;},
+  persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.equal(calls.length,2);
+ assert.equal(calls[1].offerFollowupCode,'BASE_FOUND_ADDON_MISSING');
+ assert.deepEqual(stored.map(row=>[row.planName,row.suggested.monthlyPriceMinor]),[
+  ['Prime Video',7900],['Prime Video Without Ads (Calculated Total)',10800]]);
+ assert.equal(result.targets[0].offerFindings.calculatedCount,1);
+ assert.equal(result.targets[0].persisted.verified,0);
+ assert.deepEqual(result.targets[0].verificationEvidence,[]);
+});
+
 test('both modes persist the same source-linked calculated total without any Verified write',async()=>{
- const base=plan('Prime Video With Ads',79,{sourceUrl:'https://www.primevideo.com/no',sourceEvidence:'Prime Video costs 79 NOK per month'});
+ const base=plan('Prime Video With Ads',79,{sourceUrl:'https://www.primevideo.com/no',sourceEvidence:'Amazon bills Prime Video With Ads for 79 NOK per month',billingProvider:'Amazon'});
  const addon=plan('Prime Video Ad Free add-on',29,{sourceUrl:'https://www.primevideo.com/help/ad-free',
-  sourceEvidence:'Prime Video 79 NOK per month plus ad-free add-on 29 NOK per month, billed together by Amazon for customers in Norway.'});
+  sourceEvidence:'Amazon ad-free add-on costs 29 NOK per month. Amazon bills Prime Video With Ads 79 NOK and ad-free 29 NOK together on the same bill for Norway.',
+  billingProvider:'Amazon',compatibleBasePlan:'Prime Video With Ads',
+  combinationEvidence:'Amazon bills Prime Video With Ads 79 NOK and ad-free 29 NOK together on the same bill for Norway.'});
  const response=acquisition([base,addon]),standardRows=[],suggestedRows=[];
  response.audit.groundingCitations=[{url:base.sourceUrl},{url:addon.sourceUrl}];
  await runAdminV4FirstResearch({targets:[target],acquireGoogle:async()=>response,

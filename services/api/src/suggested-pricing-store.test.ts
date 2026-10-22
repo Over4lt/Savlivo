@@ -44,3 +44,16 @@ test("an older ambiguous bare ad-free Suggested stays historical while qualified
  assert.equal(plans[1].suggested?.monthlyPriceMinor,11900);
  assert.equal(plans[1].suggested?.offerScope,"COMPLETE_SUBSCRIPTION");
 });
+
+test("an exact legacy Base Plan suffix merges into the canonical active identity without erasing history",()=>{
+ const legacy=row("Prime Video (Base Plan)","v4:old-base",7900);
+ const current=row("Prime Video","v4:new-base",8900);
+ const plans=suggestedRowsToProductPlans([legacy,current]);
+ assert.equal(plans.length,1);
+ assert.equal(plans[0].planName,"Prime Video");
+ assert.equal(plans[0].suggested?.monthlyPriceMinor,8900);
+ assert.equal(plans[0].suggestedHistory[0]?.monthlyPriceMinor,7900);
+ const unrelated=row("Prime Video Premium","v4:premium",8900);
+ assert.equal(suggestedRowsToProductPlans([legacy,current,unrelated]).length,2,
+   "equal prices without an explicit suffix alias cannot merge distinct plans");
+});

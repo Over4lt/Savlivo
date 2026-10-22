@@ -41,9 +41,22 @@ function evidence(row: SuggestedRow): ProductPriceEvidence {
 
 export function suggestedRowsToProductPlans(rows: SuggestedRow[]): ProductPlanPricing[] {
   const plans = new Map<string, ProductPlanPricing>();
+  // The old V4 prompt sometimes named a base tier "(Base Plan)". An exact
+  // suffix alias may join an active canonical plan; its original row remains
+  // historical evidence. Equal prices alone never establish this link.
+  const baseAlias = (name: string) => name.replace(/\s*\(base plan\)\s*$/i, "").trim();
+  const aliasKey = (row: SuggestedRow, name: string) => [row.service_slug,row.country_code,row.currency,row.billing_provider_slug,name.toLowerCase()].join("\u0000");
+  const canonical = new Map<string, SuggestedRow | null>();
+  for (const row of rows) if (row.active && baseAlias(row.plan_name) === row.plan_name) {
+    const key=aliasKey(row,row.plan_name),prior=canonical.get(key);
+    canonical.set(key,canonical.has(key) && (!prior || prior.plan_identity!==row.plan_identity) ? null : row);
+  }
   for (const row of rows) {
+    const anchor=baseAlias(row.plan_name)!==row.plan_name
+      ? canonical.get(aliasKey(row,baseAlias(row.plan_name))) : null;
+    const identity=anchor?.plan_identity??row.plan_identity;
     const key = [
-      row.plan_identity,
+      identity,
       row.service_slug,
       row.billing_provider_slug,
       row.country_code
@@ -51,9 +64,9 @@ export function suggestedRowsToProductPlans(rows: SuggestedRow[]): ProductPlanPr
     let plan = plans.get(key);
     if (!plan) {
       plan = {
-        planIdentity: row.plan_identity,
+        planIdentity: identity,
         serviceSlug: row.service_slug,
-        planName: row.plan_name,
+        planName: anchor?.plan_name??row.plan_name,
         billingProviderSlug: row.billing_provider_slug,
         countryCode: row.country_code,
         suggested: null,
@@ -67,7 +80,7 @@ export function suggestedRowsToProductPlans(rows: SuggestedRow[]): ProductPlanPr
     const ambiguousPrimeAdFree=row.service_slug==="prime-video" &&
       /^(?:prime video\s*)?(?:ad[ -]?free|without ads)$/i.test(row.plan_name.trim()) &&
       row.offer_scope!=="COMPLETE_SUBSCRIPTION";
-    if (row.active && !/\b(?:add[ -]?on|upgrade)\b/i.test(row.plan_name) && !ambiguousPrimeAdFree) plan.suggested = evidence(row);
+    if (row.active && !anchor && !/\b(?:add[ -]?on|upgrade)\b/i.test(row.plan_name) && !ambiguousPrimeAdFree) plan.suggested = evidence(row);
     else plan.suggestedHistory.push(evidence(row));
   }
   return [...plans.values()];

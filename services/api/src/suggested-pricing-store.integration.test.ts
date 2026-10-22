@@ -119,6 +119,19 @@ test("Suggested history remains available while Verified price stays authoritati
     assert.equal(historical?.suggested,null);
     assert.equal(historical?.suggestedHistory[0]?.monthlyPriceMinor,2900);
     assert.equal((await pool.query("SELECT count(*)::int n FROM suggested_provider_prices WHERE suggested_id='v4:historical-addon' AND active")).rows[0].n,1);
+    const generic:ProductPlanPricing={...composed,
+      serviceSlug:"stream-one",countryCode:"SE",planIdentity:"catalog:stream-one:se:ad-free-total:direct:sek",
+      planName:"Stream One Without Ads (Calculated Total)",
+      suggested:{...composed.suggested!,suggestedId:"v4:generic-total",currency:"SEK",monthlyPriceMinor:12900,
+        calculation:{...calculation,currency:"SEK",billingProvider:"Stream One",
+          compatibleBasePlan:"Stream One Basic"}},suggestedHistory:[]};
+    await persistSuggestedProductPlans([generic]);
+    await persistSuggestedProductPlans([generic]);
+    const [reloadedGeneric]=await loadSuggestedProductPlans("SE","SEK");
+    assert.equal(reloadedGeneric?.suggested?.monthlyPriceMinor,12900);
+    assert.equal(reloadedGeneric?.suggested?.calculation?.billingProvider,"Stream One");
+    assert.equal(reloadedGeneric?.suggested?.offerScope,"CALCULATED_TOTAL");
+    assert.equal((await pool.query("SELECT count(*)::int n FROM suggested_provider_prices WHERE suggested_id='v4:generic-total'")).rows[0].n,1);
   } finally {
     await pool.end();
   }
