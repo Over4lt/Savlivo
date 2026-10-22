@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {countryCurrencies} from '../../../../packages/contracts/src/markets.ts';
+import {countryCurrencies,countryCurrencyData} from '../../../../packages/contracts/src/markets.ts';
 import {catalogPlanIdentity,productPriceStatus} from '../../../../packages/contracts/src/product-pricing.ts';
 import {projectCombinedResearchProductPlans,mergeProductPlans} from '../product-pricing.ts';
 import {persistSuggestedProductPlans,loadSuggestedProductPlans} from '../suggested-pricing-store.ts';
@@ -30,11 +30,21 @@ const writeJson=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true,m
 
 // A service membership or ancillary product is not the target subscription.
 // Apply this before the shared V4 normalization in both research modes.
-const primeVideoNonBase=(row,target)=>target.service==='prime-video'&&(
- nonStandalonePresentation(row?.planName,target.serviceName)||
- /\b(?:channels?|ad[- ]?free|without ads?|rentals?|rent|purchases?|buy|pay[- ]?per[- ]?view|bundles?|packages?|pakket?|pakke|combo)\b/iu.test(String(row?.planName??''))||
- /^amazon prime\b(?!\s+video)/iu.test(String(row?.planName??''))||
- /\b(?:included with|part of)\s+amazon prime\b/iu.test([row?.billingBasis,row?.commitment,row?.summary].filter(Boolean).join(' ')));
+const primeVideoNonBase=(row,target)=>{
+ if(target.service!=='prime-video')return false;
+ const name=String(row?.planName??''),description=[row?.billingBasis,row?.commitment,row?.summary,row?.sourceEvidence].filter(Boolean).join(' ');
+ if(nonStandalonePresentation(name,target.serviceName)||
+   /\b(?:channels?|rentals?|rent|purchases?|buy|pay[- ]?per[- ]?view|bundles?|packages?|pakket?|pakke|combo)\b/iu.test(name)||
+   /^amazon prime\b(?!\s+video)/iu.test(name)||
+   /\b(?:included with|part of)\s+amazon prime\b/iu.test(description))return true;
+ if(!/\b(?:ad[- ]?free|without ads?)\b/iu.test(name))return false;
+ // A separate ad-free charge is not a complete Prime Video subscription.
+ // Require the source excerpt itself to describe a full-price subscription;
+ // a model-generated summary alone cannot establish that distinction.
+ const evidence=String(row?.sourceEvidence??'');
+ return !groundedUrl(row?.sourceUrl)||/\b(?:add[- ]?on|upgrade|extra charge|remove ads|ad[- ]?free option)\b/iu.test([name,description].join(' '))||
+   !/\b(?:full|complete|standalone|total|all[- ]?in)\b.{0,60}\b(?:subscription|plan|monthly price)\b|\b(?:subscription|plan|monthly price)\b.{0,60}\b(?:full|complete|standalone|total|all[- ]?in)\b/iu.test(evidence);
+};
 
 function v4State(target,acquisition){
   const rawAiResult=acquisition.recovery?.aiResult??acquisition.aiResult??{provider:target.serviceName,market:target.market,plans:[],sources:[],warnings:[],timestamp:acquisition.audit.timestamp,requestCount:acquisition.audit.request.requestCount};
@@ -189,33 +199,84 @@ function suggestedAttemptDiagnostics(acquisition,state){
   rejected:{NON_STANDALONE:state.nonBaseRejected},sourceHosts:diagnosticHosts(candidates.map(row=>row?.sourceUrl)),groundingHosts:diagnosticHosts([...grounded])};
 }
 
+// A second search can resolve an actually cited, still unpriced monthly tier.
+// Suggested evidence is only a search lead; it never becomes V3 price proof.
+function documentedCoverageGaps(state,target){
+ const covered=new Set(state.snapshot.suggested.map(row=>slug(row.plan)));
+ return state.normalizationDiagnostics.filter(row=>row.reason==='PLAN_FOUND_PRICE_MISSING').flatMap(row=>{
+  const candidate=state.aiResult.plans.find(plan=>plan.planName===row.plan);
+  const marketEvidence=String(candidate?.marketEvidence??'').toLowerCase();
+  const namedOtherMarket=countryCurrencyData.some(([code,name])=>code!==target.market&&marketEvidence.includes(name.toLowerCase()+' only'));
+  const codedOnly=/\b([a-z]{2})\s+only\b/iu.exec(marketEvidence);
+  if(!candidate||covered.has(slug(row.plan))||!groundedUrl(candidate.sourceUrl)||
+    !String(candidate.sourceEvidence??'').trim()||!marketEvidence.trim()||namedOtherMarket||
+    codedOnly&&codedOnly[1].toUpperCase()!==target.market||
+    candidate.annualOnly||candidate.freeTier||!/monthly|per month|per måned|per månad/iu.test(String(candidate.paymentCadence??''))||
+    primeVideoNonBase(candidate,target))return [];
+  covered.add(slug(row.plan));return [String(row.plan).slice(0,120)];
+ }).slice(0,2);
+}
+
+function mergeSuggestedAttempts(target,first,second){
+ const rows=[...first.snapshot.suggested],seen=new Map(rows.map(row=>[slug(row.plan),row]));
+ let duplicateCount=0,conflictCount=0;
+ for(const row of second.snapshot.suggested){
+  const prior=seen.get(slug(row.plan));
+  if(prior){
+   if(prior.amount===row.amount&&prior.currency===row.currency&&prior.paymentCadence===row.paymentCadence)duplicateCount++;
+   else conflictCount++;
+   continue;
+  }
+  seen.set(slug(row.plan),row);rows.push(row);
+ }
+ const snapshot={...first.snapshot,suggested:rows};
+ const combined=mergeResearch({snapshot});
+ return {state:{...first,snapshot,normalizationDiagnostics:[...first.normalizationDiagnostics,...second.normalizationDiagnostics],nonBaseRejected:first.nonBaseRejected+second.nonBaseRejected},combined,
+  plans:projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined}),duplicateCount,conflictCount};
+}
+
 export async function runAdminSuggestedOnlyResearch({targets,artifactDirectory,apiKey,maxGoogleRequests=2,acquireGoogle=researchMonthlyRecurringWithGoogleAi,persistSuggested=persistSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices}={}){
  if(!Array.isArray(targets)||!targets.length||targets.length>adminGooglePipelineLimits.targets)throw Error('ADMIN_SUGGESTED_ONLY_INPUT_INVALID');
  if(maxGoogleRequests!==1&&maxGoogleRequests!==2)throw Error('SUGGESTED_ONLY_BUDGET_VIOLATION');
  const results=[];
  for(const target of targets.map(safeTarget)){
-  let acquisition,state,combined,productPlans,requests=0;
+  const targetStarted=performance.now();
+  let acquisition,state,combined,productPlans,requests=0,followupReason=null,followupTriggeredBy=null,coverageGaps=[],duplicateCount=0,conflictCount=0,googleWallMs=0,normalizationMs=0;
   const attempts=[];
   for(let attempt=1;attempt<=maxGoogleRequests;attempt++){
+   const requestStarted=performance.now();
    const candidate=await acquireGoogle({providerName:target.serviceName,targetMarket:target.market,
-    providerNamespace:null,apiKey,maxRequests:1,suggestedOnlyFollowup:attempt===2});
+    providerNamespace:null,apiKey,maxRequests:1,suggestedOnlyMode:true,suggestedOnlyFollowup:attempt===2,suggestedOnlyCoverageGaps:attempt===2?coverageGaps:[]});
+   const requestWallMs=Math.round(performance.now()-requestStarted);googleWallMs+=requestWallMs;
    const used=candidate?.audit?.request?.requestCount;
    if(!Number.isSafeInteger(used)||used<0||used>1||candidate.recovery?.attempted||
     used===0&&candidate.aiResult?.plans?.length||requests+used>maxGoogleRequests)throw Error('SUGGESTED_ONLY_BUDGET_VIOLATION');
-   requests+=used;acquisition=candidate;
-   ({state,combined,plans:productPlans}=suggestedProjection(target,acquisition));
-   const normalizationReasons=Object.fromEntries([...new Set(state.normalizationDiagnostics.map(row=>row.reason).filter(Boolean))].map(reason=>[reason,state.normalizationDiagnostics.filter(row=>row.reason===reason).length]));
-   const diagnostics=suggestedAttemptDiagnostics(candidate,state);
-   attempts.push({status:candidate.status,requestStatus:candidate.audit?.request?.status??null,requests:used,...diagnostics,groundedCandidates:diagnostics.urlMatched,v4Suggested:state.snapshot.suggested.length,normalizationRejected:state.normalizationDiagnostics.length,normalizationReasons,responseFailures:candidate.audit?.request?.normalizationFailures??[],qualifyingSuggested:productPlans.length});
-   if(productPlans.length||used===0||attempt===maxGoogleRequests||
+   requests+=used;
+   const projectionStarted=performance.now(),projected=suggestedProjection(target,candidate);
+   normalizationMs+=Math.round(performance.now()-projectionStarted);
+   const normalizationReasons=Object.fromEntries([...new Set(projected.state.normalizationDiagnostics.map(row=>row.reason).filter(Boolean))].map(reason=>[reason,projected.state.normalizationDiagnostics.filter(row=>row.reason===reason).length]));
+   const diagnostics=suggestedAttemptDiagnostics(candidate,projected.state);
+   attempts.push({status:candidate.status,requestStatus:candidate.audit?.request?.status??null,requests:used,requestRuntimeMs:Number.isSafeInteger(candidate.audit?.request?.runtimeMs)?candidate.audit.request.runtimeMs:null,wallRuntimeMs:requestWallMs,...diagnostics,groundedCandidates:diagnostics.urlMatched,v4Suggested:projected.state.snapshot.suggested.length,normalizationRejected:projected.state.normalizationDiagnostics.length,normalizationReasons,responseFailures:candidate.audit?.request?.normalizationFailures??[],qualifyingSuggested:projected.plans.length});
+   if(!state){acquisition=candidate;({state,combined,plans:productPlans}=projected);}
+   else {if(!productPlans.length)acquisition=candidate;if(projected.plans.length)({state,combined,plans:productPlans,duplicateCount,conflictCount}=mergeSuggestedAttempts(target,state,projected.state));}
+   coverageGaps=documentedCoverageGaps(state,target);
+   if(!productPlans.length)followupReason='NO_QUALIFYING_MONTHLY_PRICE';
+   else if(coverageGaps.length)followupReason='DOCUMENTED_PRICE_GAP';
+   else followupReason=null;
+   if(!followupReason||used===0||attempt===maxGoogleRequests||
     ['CREDENTIAL_UNAVAILABLE','POLICY_BLOCK','HTTP_402','HTTP_403','HTTP_429'].includes(candidate.audit?.request?.status))break;
+   followupTriggeredBy=followupReason;
   }
+  const persistenceStarted=performance.now();
   if(productPlans.length)await persistSuggested(productPlans);
+  const persistenceMs=Math.round(performance.now()-persistenceStarted);
   const currency=countryCurrencies[target.market],previous=currency?await loadVerified(target.market,currency):[];
   const previousRows=previous.filter(row=>row.serviceSlug===target.service),existing=existingVerifiedRows(previousRows,target);
   const reportCombined={...mergeResearch({snapshot:state.snapshot,existingVerified:existing}),resultClass:productPlans.length?'SUGGESTED':'NO_RESULT'};
   const stopReason=productPlans.length?'SUFFICIENT_SUGGESTED_CANDIDATES':acquisition.status==='GOOGLE_AI_ACCESS_FAILURE'?'SUGGESTED_ONLY_SOURCE_UNAVAILABLE':acquisition.status==='GOOGLE_AI_MALFORMED_RESPONSE'?'SUGGESTED_ONLY_RESPONSE_INVALID':'SUGGESTED_ONLY_NO_QUALIFYING_MONTHLY_PRICE';
-  const result={target,researchMode:'suggested_only',googleStatus:acquisition.status,googleAttempts:attempts,googleRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,recoveryReason:null,recoveryOutcome:null,earlySuggestedPersisted:productPlans.length,combined:reportCombined,planCounts:canonicalPlanEvidenceCounts(reportCombined),sourceAcquisitions:[],researchLinkAvailable:false,researchLinks:[],verificationEvidence:[],verificationRetry:null,persisted:{suggestedPlans:productPlans.length,verified:0},stopReason,capabilityUsage:{googleAiRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0}};
+  const result={target,researchMode:'suggested_only',googleStatus:acquisition.status,googleAttempts:attempts,googleRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,recoveryReason:null,recoveryOutcome:null,earlySuggestedPersisted:productPlans.length,combined:reportCombined,planCounts:canonicalPlanEvidenceCounts(reportCombined),sourceAcquisitions:[],researchLinkAvailable:false,researchLinks:[],verificationEvidence:[],verificationRetry:null,persisted:{suggestedPlans:productPlans.length,verified:0},stopReason,
+   performance:{targetRuntimeMs:Math.round(performance.now()-targetStarted),googleWallMs,normalizationMs,persistenceMs,qualifyingVariants:productPlans.length,followupReason:followupTriggeredBy,duplicateVariants:duplicateCount,conflictingVariants:conflictCount},
+   capabilityUsage:{googleAiRequests:requests,strictGeminiRequests:requests,simplifiedRecoveryRequests:0,directAttempts:0,tavilyAttempts:0,decodoAttempts:0,browserAttempts:0}};
   results.push(result);
   if(artifactDirectory)writeJson(path.join(artifactDirectory,'google-ai-v4',target.id.replace(/[^a-zA-Z0-9_.:-]/g,'_')+'-final.json'),result);
  }

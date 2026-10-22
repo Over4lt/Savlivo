@@ -20,6 +20,7 @@ test('clean JSON preserves multiple plans, citations, intro and ordinary prices'
  assert.deepEqual(normalized.suggested.map(row=>row.plan),['Individual','Plus']);assert.equal(normalized.diagnostics[0].reason,'NOT_MONTHLY_RECURRING');
  assert.equal(seen.length,1);assert.match(seen[0].url,/gemini-3\.8-flash:generateContent$/);assert.equal(seen[0].init.headers['x-goog-api-key'],secret);assert.equal(JSON.stringify(result).includes(secret),false);
  const body=JSON.parse(seen[0].init.body);assert.deepEqual(body.tools,[{googleSearch:{}}]);assert.equal(body.generationConfig.maxOutputTokens,8192);assert.equal('responseFormat' in body.generationConfig,false);assert.equal('responseSchema' in body.generationConfig,false);
+ const prompt=body.contents[0].parts[0].text;assert.doesNotMatch(prompt,/For Suggested Only/);
 });
 
 test('json markdown fence is the only wrapper removed before parsing',async()=>{
@@ -58,11 +59,13 @@ test('legitimate empty plan result is no price, not malformed',async()=>{
 test('Suggested Only follow-up is a distinct grounded monthly search that does not restrict distributors to official hosts',async()=>{
  const seen=[];
  const result=await researchMonthlyRecurringWithGoogleAi({providerName:'Example',targetMarket:'DE',apiKey:secret,
-  providerNamespace:null,suggestedOnlyFollowup:true,maxRequests:1,
+  providerNamespace:null,suggestedOnlyMode:true,suggestedOnlyFollowup:true,suggestedOnlyCoverageGaps:['Ad Free'],maxRequests:1,
   fetchImpl:async(_url,init)=>{seen.push(JSON.parse(init.body));return response(generated(payload([])));}});
  assert.equal(result.audit.request.requestCount,1);assert.equal(seen.length,1);
  const prompt=seen[0].contents[0].parts[0].text;
  assert.match(prompt,/documented country-local distributors/);
+ assert.match(prompt,/previously documented but unpriced variants: Ad Free/);
+ for(const term of ['Basic','Standard','Premium','Individual','Family','ad-supported','ad-free','annual-upfront'])assert(prompt.includes(term),term);
  assert.doesNotMatch(prompt,/In sources, return only HTTPS URLs on/);
  assert.deepEqual(seen[0].tools,[{googleSearch:{}}]);
 });
@@ -70,6 +73,16 @@ test('Suggested Only follow-up is a distinct grounded monthly search that does n
 test('transport and HTTP failures are sanitized access failures without retrying',async()=>{
  const thrown=await researchMonthlyRecurringWithGoogleAi({providerName:'Example',targetMarket:'DE',apiKey:secret,fetchImpl:async()=>{throw Error(secret);}});assert.equal(thrown.status,'GOOGLE_AI_ACCESS_FAILURE');assert.equal(thrown.audit.request.requestCount,1);assert.equal(JSON.stringify(thrown).includes(secret),false);
  const denied=await researchMonthlyRecurringWithGoogleAi({providerName:'Example',targetMarket:'DE',apiKey:secret,fetchImpl:async()=>new Response('{}',{status:403})});assert.equal(denied.status,'GOOGLE_AI_ACCESS_FAILURE');assert.equal(denied.audit.request.status,'HTTP_403');
+});
+
+test('timeout and rate limit retain bounded failure accounting without exposing response text',async()=>{
+ const timedOut=await researchMonthlyRecurringWithGoogleAi({providerName:'Example',targetMarket:'DE',apiKey:secret,maxRequests:1,
+  fetchImpl:async()=>{throw new DOMException('private timeout detail','TimeoutError');}});
+ assert.equal(timedOut.status,'GOOGLE_AI_ACCESS_FAILURE');assert.equal(timedOut.audit.request.status,'TRANSPORT_FAILURE');assert.equal(timedOut.audit.request.requestCount,1);
+ const limited=await researchMonthlyRecurringWithGoogleAi({providerName:'Example',targetMarket:'DE',apiKey:secret,maxRequests:1,
+  fetchImpl:async()=>new Response('private body',{status:429})});
+ assert.equal(limited.audit.request.status,'HTTP_429');assert.equal(limited.audit.request.requestCount,1);
+ assert.equal(JSON.stringify([timedOut,limited]).includes('private'),false);
 });
 
 test('missing credential is explicit and performs no transport',async()=>{

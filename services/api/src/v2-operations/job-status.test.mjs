@@ -93,12 +93,16 @@ test('Suggested Only status retains bounded rejection diagnostics without source
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'suggested-diagnostics-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
  const target={id:'price-research:prime-video:DK',serviceId:'prime-video',serviceName:'Prime Video',targetMarket:'DK',marketApplicabilityEstablished:false};
  const config={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['prime-video'],markets:['DK'],targetingRevision:'b'.repeat(64),batchTargets:[target],logicalTargetCount:1,researchMode:'suggested_only',perTargetRequestCeiling:2,batchRequestCeiling:2,capabilities:{direct:false,tavily:false,decodo:false,browser:false,groq:false}};
- const attempt={status:'GOOGLE_AI_SUCCESS',requestStatus:'STOP',requests:1,candidateCount:2,modelSourceCount:1,groundingCount:1,urlMatched:0,v4Suggested:0,normalizationRejected:0,qualifyingSuggested:0,rejected:{SOURCE_URL_NOT_GROUNDED:2},sourceHosts:['primevideo.com'],groundingHosts:['google.com'],sourceUrl:'https://example.com/private?token=secret'};
- await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',researchMode:'suggested_only',targets:[{target:{id:target.id},researchMode:'suggested_only',googleAttempts:[attempt],combined:{kind:'CombinedResearchResult',resultClass:'NO_RESULT',plans:[],suggested:[],operationalFailures:[]},persisted:{suggestedPlans:0,verified:0},capabilityUsage:{googleAiRequests:1}}]})});
+ const attempt={status:'GOOGLE_AI_SUCCESS',requestStatus:'STOP',requests:1,requestRuntimeMs:41000,wallRuntimeMs:41003,candidateCount:2,modelSourceCount:1,groundingCount:1,urlMatched:0,v4Suggested:0,normalizationRejected:0,qualifyingSuggested:0,rejected:{SOURCE_URL_NOT_GROUNDED:2},sourceHosts:['primevideo.com'],groundingHosts:['google.com'],sourceUrl:'https://example.com/private?token=secret'};
+ const performance={targetRuntimeMs:42000,googleWallMs:41003,normalizationMs:3,persistenceMs:900,qualifyingVariants:0,duplicateVariants:0,conflictingVariants:1,followupReason:'DOCUMENTED_PRICE_GAP',secret:'token=secret'};
+ await executePriceResearchBatch({job:{id:'fixture',config},directory,executeTarget:async()=>({kind:'ADMIN_V4_FIRST_RESEARCH_RESULT',researchMode:'suggested_only',targets:[{target:{id:target.id},researchMode:'suggested_only',googleAttempts:[attempt],performance,combined:{kind:'CombinedResearchResult',resultClass:'NO_RESULT',plans:[],suggested:[],operationalFailures:[]},persisted:{suggestedPlans:0,verified:0},capabilityUsage:{googleAiRequests:1}}]})});
  const row=priceResearchBatchStatus({status:'COMPLETE',config},directory).outcomes[0];
  assert.equal(row.googleAttempts[0].candidateCount,2);
  assert.equal(row.googleAttempts[0].rejected.SOURCE_URL_NOT_GROUNDED,2);
  assert.deepEqual(row.googleAttempts[0].sourceHosts,['primevideo.com']);
+ assert.equal(row.googleAttempts[0].requestRuntimeMs,41000);
+ assert.equal(row.suggestedPerformance.googleWallMs,41003);
+ assert.equal(row.suggestedPerformance.followupReason,'DOCUMENTED_PRICE_GAP');
  assert.equal(JSON.stringify(row).includes('token=secret'),false);
 });
 

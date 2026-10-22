@@ -179,3 +179,120 @@ test('standard and Suggested Only produce identical V4 Suggested from the same u
  assert.equal(light.targets[0].googleAttempts[0].qualifyingSuggested,1);
  assert.equal(light.targets[0].persisted.verified,0);
 });
+
+test('a documented complete ad-free Prime Video subscription is distinct from an ad-free add-on in both modes',async()=>{
+ const complete=plan('Prime Video Ad Free',119,{sourceEvidence:'Prime Video Ad Free full subscription plan costs 119 NOK per month'});
+ const addon=plan('Prime Video Ad Free add-on',29,{sourceEvidence:'Ad-free add-on costs 29 NOK per month'});
+ const unsupported=plan('Prime Video Without Ads',119,{sourceEvidence:null});
+ const unlocated=plan('Prime Video Without Ads',119,{sourceUrl:null,sourceEvidence:'Prime Video Without Ads full subscription plan costs 119 NOK per month'});
+ const response=acquisition([plan('Prime Video With Ads',79),complete,addon,unsupported,unlocated]);
+ const standardRows=[],suggestedRows=[];
+ await runAdminV4FirstResearch({targets:[target],acquireGoogle:async()=>response,
+  persistSuggested:async rows=>standardRows.push(...rows),persistVerified:async()=>assert.fail('no verified write'),
+  loadSuggested:async()=>[],loadVerified:async()=>[],runDownstream:async()=>({v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}})});
+ const light=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>response,
+  persistSuggested:async rows=>suggestedRows.push(...rows),loadVerified:async()=>[]});
+ assert.deepEqual(suggestedRows.map(row=>row.planName),['Prime Video With Ads','Prime Video Ad Free']);
+ assert.deepEqual(suggestedRows,standardRows.slice(0,2));
+ assert.equal(suggestedRows[1].suggested.monthlyPriceMinor,11900);
+ assert.equal(light.targets[0].googleRequests,1);
+ assert.equal(light.targets[0].persisted.verified,0);
+});
+
+test('base and add-on prices alone never fabricate a combined ad-free subscription price',async()=>{
+ const stored=[];
+ await runAdminSuggestedOnlyResearch({targets:[target],maxGoogleRequests:1,acquireGoogle:async()=>acquisition([
+  plan('Prime Video',79),plan('Prime Video Ad Free',29,{sourceEvidence:'Ad-free add-on 29 NOK per month; base subscription sold separately'})
+ ]),persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.deepEqual(stored.map(row=>[row.planName,row.suggested.monthlyPriceMinor]),[['Prime Video',7900]]);
+});
+
+test('partial first answer follows up only for a documented unpriced monthly variant and retains both identities',async()=>{
+ const first=acquisition([plan('Prime Video With Ads',79),plan('Prime Video Ad Free',null,{
+  ordinaryRecurringPrice:null,sourceEvidence:'Prime Video Ad Free full subscription plan is offered monthly, price omitted',marketEvidence:'Available to customers in Norway'
+ })]);
+ const second=acquisition([plan('Prime Video Ad Free',119,{sourceEvidence:'Prime Video Ad Free full subscription plan costs 119 NOK per month'})]);
+ const calls=[],stored=[];
+ const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async options=>{calls.push(options);return calls.length===1?first:second;},
+  persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.equal(calls.length,2);assert.deepEqual(calls[1].suggestedOnlyCoverageGaps,['Prime Video Ad Free']);
+ assert.deepEqual(stored.map(row=>row.planName),['Prime Video With Ads','Prime Video Ad Free']);
+ assert.equal(result.targets[0].performance.followupReason,'DOCUMENTED_PRICE_GAP');
+ assert.equal(result.targets[0].googleRequests,2);
+ assert.equal(result.targets[0].planCounts.suggestedPlans,2);
+ assert.equal(result.targets[0].persisted.verified,0);
+});
+
+test('a plausible missing tier without source evidence does not spend a second request',async()=>{
+ let calls=0;const stored=[];
+ const response=acquisition([plan('Prime Video With Ads',79),plan('Prime Video Premium',null,{
+  ordinaryRecurringPrice:null,sourceEvidence:null
+ })]);
+ const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>{calls++;return response;},
+  persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.equal(calls,1);assert.deepEqual(stored.map(row=>row.planName),['Prime Video With Ads']);
+ assert.equal(result.targets[0].performance.followupReason,null);
+});
+
+test('a documented but explicitly wrong-market unpriced tier cannot trigger follow-up',async()=>{
+ let calls=0;
+ await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>{calls++;return acquisition([
+  plan('Prime Video With Ads',79),plan('Prime Video Ad Free',null,{
+   ordinaryRecurringPrice:null,sourceEvidence:'Prime Video Ad Free full subscription plan is offered monthly',marketEvidence:'United States only'
+  })
+ ]);},persistSuggested:async()=>{},loadVerified:async()=>[]});
+ assert.equal(calls,1);
+});
+
+test('follow-up price conflict cannot replace the first valid plan while an additional tier is retained',async()=>{
+ const first=acquisition([plan('Prime Video With Ads',79),plan('Prime Video Ad Free',null,{
+  ordinaryRecurringPrice:null,sourceEvidence:'Prime Video Ad Free full subscription plan is offered monthly, price omitted'
+ })]);
+ const second=acquisition([plan('Prime Video With Ads',99),plan('Prime Video Ad Free',119,{
+  sourceEvidence:'Prime Video Ad Free full subscription plan costs 119 NOK per month'
+ })]);
+ let calls=0;const stored=[];
+ const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>++calls===1?first:second,
+  persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.equal(calls,2);assert.deepEqual(stored.map(row=>[row.planName,row.suggested.monthlyPriceMinor]),
+  [['Prime Video With Ads',7900],['Prime Video Ad Free',11900]]);
+ assert.equal(result.targets[0].performance.conflictingVariants,1);
+ assert.equal(result.targets[0].performance.qualifyingVariants,2);
+});
+
+test('a second-call 429 preserves valid first-call Suggested and records the rate limit',async()=>{
+ const first=acquisition([plan('Prime Video With Ads',79),plan('Prime Video Ad Free',null,{
+  ordinaryRecurringPrice:null,sourceEvidence:'Prime Video Ad Free full subscription plan is offered monthly, price omitted'
+ })]);
+ const second=acquisition([],{status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:{timestamp:'2026-10-21T12:01:00.000Z',request:{requestCount:1,status:'HTTP_429',runtimeMs:3000}}});
+ let calls=0;const stored=[];
+ const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>++calls===1?first:second,
+  persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.equal(calls,2);assert.equal(stored.length,1);assert.equal(stored[0].suggested.monthlyPriceMinor,7900);
+ assert.equal(result.targets[0].googleAttempts[1].requestStatus,'HTTP_429');
+ assert.equal(result.targets[0].googleStatus,'GOOGLE_AI_SUCCESS');
+});
+
+test('malformed first answer can use the remaining one-call budget without losing accounting',async()=>{
+ let calls=0;const stored=[];
+ const malformed={status:'GOOGLE_AI_MALFORMED_RESPONSE',aiResult:null,audit:{timestamp:'2026-10-21T12:00:00.000Z',request:{requestCount:1,status:'MALFORMED_RESPONSE',normalizationFailures:['OUTPUT_JSON_INVALID']}}};
+ const result=await runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>++calls===1?malformed:acquisition([plan('Prime Video',79)]),
+  persistSuggested:async rows=>stored.push(...rows),loadVerified:async()=>[]});
+ assert.equal(calls,2);assert.equal(result.targets[0].googleRequests,2);assert.equal(result.targets[0].googleStatus,'GOOGLE_AI_SUCCESS');
+ assert.equal(stored.length,1);assert.equal(result.targets[0].googleAttempts[0].responseFailures[0],'OUTPUT_JSON_INVALID');
+});
+
+test('explicit wrong-market USD lead is rejected while documented USD pricing for NO is not rejected by currency alone',async()=>{
+ const wrong=plan('Prime Video',12,{currency:'USD',ordinaryRecurringPrice:12,marketEvidence:'United States only'});
+ const valid=plan('Prime Video',12,{currency:'USD',ordinaryRecurringPrice:12,marketEvidence:'Available to customers in Norway'});
+ const rejected=[];await runAdminSuggestedOnlyResearch({targets:[target],maxGoogleRequests:1,acquireGoogle:async()=>acquisition([wrong]),
+  persistSuggested:async rows=>rejected.push(...rows),loadVerified:async()=>[]});
+ const accepted=[];await runAdminSuggestedOnlyResearch({targets:[target],maxGoogleRequests:1,acquireGoogle:async()=>acquisition([valid]),
+  persistSuggested:async rows=>accepted.push(...rows),loadVerified:async()=>[]});
+ assert.equal(rejected.length,0);assert.equal(accepted.length,1);assert.equal(accepted[0].suggested.currency,'USD');
+});
+
+test('persistence failure fails the target and never invokes a Verified writer',async()=>{
+ await assert.rejects(runAdminSuggestedOnlyResearch({targets:[target],acquireGoogle:async()=>acquisition([plan('Prime Video',79)]),
+  persistSuggested:async()=>{throw Error('DISPOSABLE_DB_UNAVAILABLE');},loadVerified:async()=>assert.fail('no read after failed write')}),/DISPOSABLE_DB_UNAVAILABLE/);
+});
