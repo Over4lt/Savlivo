@@ -2,11 +2,17 @@
 export const statusTone=status=>({QUEUED:'attention',RUNNING:'active',COMPLETE:'success',FAILED:'error',INTERRUPTED:'error',STOPPED:'attention',RESUMABLE:'attention',PARTIAL:'attention',HUMAN_REVIEW_REQUIRED:'attention',SKIPPED_CONFLICT:'attention',SKIPPED_NOT_DUE:'muted'}[status]??'muted');
 const count=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0;
 const shown=v=>count(v)?String(v):'Unavailable';
+const completedSuggestedOnlyRequests=batch=>{
+ if(batch?.researchMode!=='suggested_only'||batch.outcomesTruncated===true||!Array.isArray(batch.outcomes)||
+   batch.outcomes.length!==batch.admittedTargetCount||!batch.outcomes.every(row=>row.status==='COMPLETE'&&Number.isSafeInteger(row.capabilityUsage?.googleAiRequests)&&row.capabilityUsage.googleAiRequests>=0))return null;
+ return batch.outcomes.reduce((sum,row)=>sum+row.capabilityUsage.googleAiRequests,0);
+};
 const timeLabel=value=>Number.isFinite(Date.parse(value??''))?new Date(value).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'Unavailable';
 export function updatedText(value,now=Date.now()){const at=Date.parse(value??'');if(!Number.isFinite(at))return 'Updated: unavailable';const seconds=Math.max(0,Math.floor((now-at)/1000));return `Updated: ${seconds<60?seconds+'s':Math.floor(seconds/60)+'m'} ago`;}
 export function liveStatusView(job,run=null,services=null){
  const status=job.status??'UNKNOWN',life=run?.lifecycle,u=run?.capabilityUsage,a=run?.acquisitionMetrics;
- const used=count(job.requestsConsumed)?job.requestsConsumed:count(run?.requests)?run.requests:null,max=job.maximumRequests??run?.bounds?.totalRequests;
+ const batchRequests=completedSuggestedOnlyRequests(job.batchProgress);
+ const used=count(job.requestsConsumed)?job.requestsConsumed:count(run?.requests)?run.requests:batchRequests,max=job.maximumRequests??run?.bounds?.totalRequests;
  const usage=[['Direct requests',u?.directRequests??(count(a?.directPageRequests)&&count(a?.robotsRequests)?a.directPageRequests+a.robotsRequests:null)],['Tavily searches',u?.tavilyRequests??a?.tavilySearches],['Decodo requests',u?.decodoRequests??a?.decodoRequests],['Browser executions',u?.browserExecutions],['Groq calls',u?.groqCalls]].filter(([,v])=>count(v)).map(([k,v])=>k+': '+v).join(' · ');
  const rows=services?.rows,prices=rows?.flatMap(r=>r.pricing??[]),partial=rows&&services.total>rows.length;
  const pricing=prices?.length?prices.slice(0,8).map(p=>`${p.market??'Unscoped'}: ${p.status??'UNKNOWN'}${p.confidence?' ('+p.confidence+')':''}`).join(' · ')+(partial||prices.length>8?' · Partial results; view results for more':''):status==='QUEUED'&&!job.startedAt?'Pricing: Not started':'';

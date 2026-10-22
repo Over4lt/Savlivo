@@ -35,7 +35,7 @@ const primeVideoNonBase=(row,target)=>{
  const name=String(row?.planName??''),description=[row?.billingBasis,row?.commitment,row?.summary,row?.sourceEvidence].filter(Boolean).join(' ');
  if(nonStandalonePresentation(name,target.serviceName)||
    /\b(?:channels?|rentals?|rent|purchases?|buy|pay[- ]?per[- ]?view|bundles?|packages?|pakket?|pakke|combo)\b/iu.test(name)||
-   /^amazon prime\b(?!\s+video)/iu.test(name)||
+   /^(?:amazon\s+prime\b(?!\s+video)|prime\s+(?:student|access|for young adults|membership|mitgliedschaft)\b)/iu.test(name)||
    /\b(?:included with|part of)\s+amazon prime\b/iu.test(description))return true;
  if(!/\b(?:ad[- ]?free|without ads?)\b/iu.test(name))return false;
  // A separate ad-free charge is not a complete Prime Video subscription.
@@ -46,19 +46,38 @@ const primeVideoNonBase=(row,target)=>{
    !/\b(?:full|complete|standalone|total|all[- ]?in)\b.{0,60}\b(?:subscription|plan|monthly price)\b|\b(?:subscription|plan|monthly price)\b.{0,60}\b(?:full|complete|standalone|total|all[- ]?in)\b/iu.test(evidence);
 };
 
+// Amazon Prime membership and Prime Video are separate catalog services even
+// when a Google answer cites the same Amazon page for both products.
+const restrictedPrimeMembership=/(?<![\p{L}\p{N}])(?:student|young adults?|prime access|sozialrabatt|vergünstigte|ermäßigung|junge erwachsene|estudiante|étudiant|ungdom|eligible|eligibility)(?![\p{L}\p{N}])/iu;
+const amazonPrimeScope=(row,target)=>{
+ if(target.service!=='amazon-prime')return null;
+ const name=String(row?.planName??'').trim();
+ try{if(parseDomain(new URL(row.sourceUrl).hostname).domain==='primevideo.com')return 'SIBLING_SERVICE';}catch{/* The existing source checks report an invalid URL. */}
+ if(/\bprime[\s-]*video\b/iu.test(name))return 'SIBLING_SERVICE';
+ if(nonStandalonePresentation(name,target.serviceName)||/\b(?:channels?|rentals?|purchases?|ad[- ]?free|werbefrei)\b/iu.test(name))return 'NON_STANDALONE';
+ const membership=/\bamazon\s+prime\b|\bprime\s+(?:student|access|for young adults|membership|mitgliedschaft)\b/iu.test(name);
+ if(!membership)return 'SERVICE_IDENTITY_UNCLEAR';
+ const details=[row?.billingBasis,row?.commitment,row?.summary,row?.sourceEvidence].filter(Boolean).join(' ');
+ if(restrictedPrimeMembership.test(details)&&!restrictedPrimeMembership.test(name))return 'CONDITIONAL_IDENTITY_UNCLEAR';
+ return null;
+};
+const suggestedScope=(row,target)=>target.service==='prime-video'&&primeVideoNonBase(row,target)?'NON_STANDALONE':amazonPrimeScope(row,target);
+
 function v4State(target,acquisition){
   const rawAiResult=acquisition.recovery?.aiResult??acquisition.aiResult??{provider:target.serviceName,market:target.market,plans:[],sources:[],warnings:[],timestamp:acquisition.audit.timestamp,requestCount:acquisition.audit.request.requestCount};
-  const plans=(rawAiResult.plans??[]).filter(row=>!primeVideoNonBase(row,target));
+  const rejected={};
+  const plans=(rawAiResult.plans??[]).filter(row=>{const reason=suggestedScope(row,target);if(reason)rejected[reason]=(rejected[reason]??0)+1;return !reason;});
   const aiResult={...rawAiResult,plans};
   const results=verifyCandidates({providerName:target.serviceName,targetMarket:target.market,aiResult,sources:[]});
   const normalized=buildSuggested({providerName:target.serviceName,targetMarket:target.market,aiResult,verificationResults:results});
+  if(target.service==='amazon-prime')for(const row of normalized.suggested)if(restrictedPrimeMembership.test(row.plan)&&!row.warnings.includes('ELIGIBILITY_RESTRICTED'))row.warnings.push('ELIGIBILITY_RESTRICTED');
   const snapshot=createV4SuggestedSnapshot({provider:target.serviceName,market:target.market,suggested:normalized.suggested.map(row=>({...row,planIdentity:pricePlanIdentity(target,row.plan,row.currency??row.suggestedCurrency)}))});
   const origins=new Map(snapshot.suggested.map(row=>[[row.plan,Number(row.amount),row.currency].join('\u0000'),row.suggestedId]));
   const researchCandidates=results.map(row=>({...row,suggestedId:origins.get([row.plan,Number(row.amount),row.currency].join('\u0000'))})).filter(row=>row.suggestedId);
   const providerDiscoveryUrls=target.providerNamespace?(aiResult.sources??[]).map(row=>row.url).filter(url=>reviewedNamespaceMatches(target.providerNamespace,url)):[];
   const recoveryUrls=(acquisition.recovery?.aiResult?.sources??[]).map(row=>row.url);
   const handoff=createV3Handoff(snapshot,{researchCandidates,providerDiscoveryUrls,discoveryUrls:recoveryUrls,unresolvedGaps:acquisition.status==='GOOGLE_AI_SUCCESS'||acquisition.recovery?.outcome==='RECOVERY_CANDIDATES'?['verification']:['google-acquisition-or-price']});
-  return {aiResult,results,nonBaseRejected:(rawAiResult.plans??[]).length-plans.length,normalizationDiagnostics:normalized.diagnostics,snapshot,handoff};
+  return {aiResult,results,nonBaseRejected:rejected.NON_STANDALONE??0,scopeRejected:rejected,normalizationDiagnostics:normalized.diagnostics,snapshot,handoff};
 }
 
 function suggestedProjection(target,acquisition){
@@ -196,7 +215,7 @@ function suggestedAttemptDiagnostics(acquisition,state){
  const aiResult=acquisition?.recovery?.aiResult??acquisition?.aiResult,candidates=aiResult?.plans??[];
  return {candidateCount:candidates.length,modelSourceCount:aiResult?.sources?.length??0,groundingCount:grounded.size,
   urlMatched:candidates.filter(row=>grounded.has(groundedUrl(row?.sourceUrl))).length,
-  rejected:{NON_STANDALONE:state.nonBaseRejected},sourceHosts:diagnosticHosts(candidates.map(row=>row?.sourceUrl)),groundingHosts:diagnosticHosts([...grounded])};
+  rejected:state.scopeRejected,sourceHosts:diagnosticHosts(candidates.map(row=>row?.sourceUrl)),groundingHosts:diagnosticHosts([...grounded])};
 }
 
 // A second search can resolve an actually cited, still unpriced monthly tier.
@@ -212,7 +231,7 @@ function documentedCoverageGaps(state,target){
     !String(candidate.sourceEvidence??'').trim()||!marketEvidence.trim()||namedOtherMarket||
     codedOnly&&codedOnly[1].toUpperCase()!==target.market||
     candidate.annualOnly||candidate.freeTier||!/monthly|per month|per måned|per månad/iu.test(String(candidate.paymentCadence??''))||
-    primeVideoNonBase(candidate,target))return [];
+    suggestedScope(candidate,target))return [];
   covered.add(slug(row.plan));return [String(row.plan).slice(0,120)];
  }).slice(0,2);
 }
@@ -231,7 +250,7 @@ function mergeSuggestedAttempts(target,first,second){
  }
  const snapshot={...first.snapshot,suggested:rows};
  const combined=mergeResearch({snapshot});
- return {state:{...first,snapshot,normalizationDiagnostics:[...first.normalizationDiagnostics,...second.normalizationDiagnostics],nonBaseRejected:first.nonBaseRejected+second.nonBaseRejected},combined,
+ return {state:{...first,snapshot,normalizationDiagnostics:[...first.normalizationDiagnostics,...second.normalizationDiagnostics],nonBaseRejected:first.nonBaseRejected+second.nonBaseRejected,scopeRejected:Object.fromEntries([...new Set([...Object.keys(first.scopeRejected),...Object.keys(second.scopeRejected)])].map(key=>[key,(first.scopeRejected[key]??0)+(second.scopeRejected[key]??0)]))},combined,
   plans:projectCombinedResearchProductPlans({serviceSlug:target.service,billingProviderSlug:'direct',countryCode:target.market,combined}),duplicateCount,conflictCount};
 }
 

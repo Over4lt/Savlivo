@@ -508,6 +508,15 @@ test('live optional metrics preserve zero versus missing versus not started',()=
  const running={id:'fixture',status:'RUNNING',terminal:false,maximumRequests:100};assert.equal(liveStatusView(running).budget,'Requests: Unavailable / 100');assert.equal(liveStatusView({...running,requestsConsumed:0}).budget,'Requests: 0 / 100');assert.equal(liveStatusView(running).pricing,'');assert.equal(liveStatusView({...running,status:'QUEUED'}).pricing,'Pricing: Not started');assert.equal(liveStatusView(running,{lifecycle:{phase:'catalog'}}).pricing,'');assert.equal(liveStatusView(running).usage,'');assert.equal(liveStatusView(running,{capabilityUsage:{directRequests:0}}).usage,'Direct requests: 0');
 });
 
+test('completed Suggested Only batch totals recorded Google requests without inventing usage for incomplete results',()=>{
+ const outcomes=Array.from({length:6},(_,index)=>({status:'COMPLETE',capabilityUsage:{googleAiRequests:1},targetMarket:['US','NO','DK','SE','DE','ES'][index]}));
+ const job={id:'batch',status:'COMPLETE',terminal:true,maximumRequests:12,batchProgress:{researchMode:'suggested_only',admittedTargetCount:6,outcomesTruncated:false,outcomes}};
+ assert.equal(liveStatusView(job).budget,'Requests: 6 / 12');
+ assert.equal(liveStatusView({...job,batchProgress:{...job.batchProgress,outcomesTruncated:true}}).budget,'Requests: Unavailable / 12');
+ assert.equal(liveStatusView({...job,batchProgress:{...job.batchProgress,outcomes:outcomes.map((row,index)=>index===0?{...row,status:'FAILED'}:row)}}).budget,'Requests: Unavailable / 12');
+ assert.equal(liveStatusView({...job,requestsConsumed:7}).budget,'Requests: 7 / 12');
+});
+
 test('persistent interrupted job survives reload without Start receipts and resumes the same job',async t=>{
  const os=await import('node:os'),path=await import('node:path'),{Operations}=await import('../../../services/api/src/v2-operations/control.mjs'),{operationsRequest}=await import('../../../services/api/src/v2-operations/http.mjs');
  const repo=fs.mkdtempSync(path.join(os.tmpdir(),'admin-job-reload-'));t.after(()=>fs.rmSync(repo,{recursive:true,force:true}));

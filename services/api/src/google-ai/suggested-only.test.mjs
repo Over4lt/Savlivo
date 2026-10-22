@@ -61,7 +61,7 @@ test('standard and Suggested Only use the same V4 Suggested projection for a gro
 
 test('both modes exclude Prime membership, Channels, Ad Free and bundles from base Prime Video Suggested',async()=>{
  const answer=acquisition([
-  plan('Prime Video',79),plan('Amazon Prime membership',89),plan('Prime Video Channels',29),
+  plan('Prime Video',79),plan('Amazon Prime membership',89),plan('Prime Student Monthly',49),plan('Prime Video Channels',29),
   plan('Prime Video Ad Free',29),plan('Prime Video + partner bundle',119)
  ]);
  const standardRows=[],suggestedRows=[];
@@ -73,7 +73,7 @@ test('both modes exclude Prime membership, Channels, Ad Free and bundles from ba
  assert.equal(standardRows[0].planName,'Prime Video');
  assert.equal(suggestedRows.length,1);
  assert.deepEqual(suggestedRows[0],standardRows[0]);
- assert.equal(light.targets[0].googleAttempts[0].rejected.NON_STANDALONE,4);
+ assert.equal(light.targets[0].googleAttempts[0].rejected.NON_STANDALONE,5);
 });
 
 test('a no-price first result gets one targeted Google follow-up within the two-request budget',async()=>{
