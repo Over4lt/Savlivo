@@ -59,6 +59,20 @@ test('existing discovery render hands a retained source-bound parent to the hybr
  assert.equal(result.outcome,'BRIDGE_CALLED');assert.equal(received.parent.body,body);assert.equal(received.parent.sha256,bodyHash);assert.equal(received.objective.providerHosts[0],'provider.example');assert.equal(received.transport,'DIRECT');assert.equal(typeof received.browser,'function');
 });
 
+test('Direct interpretation child retains Browser parent from the target body store',async t=>{
+ const directory=temp(t),child=path.join(directory,'direct-acquisitions','direct-fixture'),body='<html><div id="app"></div><script>app()</script></html>',hash=digest(body),url=target.urls[0];
+ fs.mkdirSync(path.join(directory,'bodies'),{recursive:true});fs.mkdirSync(path.join(child,'journal'),{recursive:true});fs.writeFileSync(path.join(directory,'bodies',hash+'.txt'),body);
+ const read={url,requestedUrl:url,outcome:'OK',truncated:false,bodyHash:hash,bodyFile:`bodies/${hash}.txt`,sourceIntegrity:{sha256:hash},accessDecisions:[{decision:'ALLOWED'}]};
+ let received;const discovery=await createTavilyDiscovery({inventory:[target],searchEnabled:false}),live=discovery.bind({dir:directory,runtime:null,bundle:null,runLive:null,dependencies:{createRenderedBrowser:async()=>async()=>{},runHybridRenderedAcquisition:async input=>{received=input;return {outcome:'BRIDGE_CALLED'};}}});
+ const need={runDirectory:child,url,sourceHash:hash,transport:'DIRECT'};
+ assert.equal((await live.render({target:{...target,reads:[read]},directory,need})).outcome,'BRIDGE_CALLED');
+ assert.equal(received.parent.sha256,hash);assert.equal(received.parent.body,body);
+ await assert.rejects(live.render({target:{...target,reads:[{...read,accessDecisions:[{decision:'DISALLOWED'}]}]},directory,need}),/RENDERED_PARENT_REQUIRED/);
+ await assert.rejects(live.render({target:{...target,reads:[read]},directory,need:{...need,sourceHash:'0'.repeat(64)}}),/RENDERED_PARENT_REQUIRED/);
+ fs.writeFileSync(path.join(directory,'bodies',hash+'.txt'),'tampered');
+ await assert.rejects(live.render({target:{...target,reads:[read]},directory,need}),/RENDERED_PARENT_HASH_FAILURE/);
+});
+
 test('missing retained source-bound parent fails closed before browser creation',async t=>{
  const root=temp(t),runDirectory=path.join(root,'retained');fs.mkdirSync(path.join(runDirectory,'journal'),{recursive:true});const discovery=await createTavilyDiscovery({inventory:[target],searchEnabled:false}),live=discovery.bind({dir:root,runtime:null,bundle:null,runLive:null,dependencies:{createRenderedBrowser:()=>assert.fail('missing parent cannot reach browser')}});
  await assert.rejects(live.render({target,directory:root,need:{runDirectory,url:target.urls[0],sourceHash:'0'.repeat(64),transport:'DIRECT'}}),/RENDERED_PARENT_REQUIRED/);
