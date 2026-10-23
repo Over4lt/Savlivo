@@ -1,8 +1,9 @@
-// Conservative first-party availability leads for the first 200 canonical services.
+// Conservative first-party availability leads for the first 300 canonical services.
 // These are display and discovery hints. Only a fresh, hash-bound provider page
 // accepted by market-availability.mjs may remove a research target.
 import {countryCurrencyData} from '../../../../packages/contracts/src/markets.ts';
 import {nextHundredEntries} from './service-market-overview-next-hundred.mjs';
+import {thirdHundredEntries} from './service-market-overview-third-hundred.mjs';
 
 const allMarkets=countryCurrencyData.map(([code])=>code);
 const codes=value=>value?value.split(' '):[];
@@ -136,5 +137,17 @@ export const nextHundredServiceMarketOverview=Object.freeze(nextHundredEntries.m
   reportedUnavailableMarkets:Object.freeze(reportedUnavailableMarkets),unknownMarkets:Object.freeze(allMarkets.filter(code=>!availableMarkets.includes(code)&&!reportedUnavailableMarkets.includes(code)))});
 }));
 export const firstTwoHundredServiceMarketOverview=Object.freeze([...firstHundredServiceMarketOverview,...nextHundredServiceMarketOverview]);
-const byId=new Map(firstTwoHundredServiceMarketOverview.map(row=>[row.serviceId,row]));
+const thirdIds=new Set(nextIds);
+export const thirdHundredServiceMarketOverview=Object.freeze(thirdHundredEntries.map(([serviceId,sourceUrl,sourceScope,available,unavailable],index)=>{
+ if(thirdIds.has(serviceId))throw Error('DUPLICATE_SERVICE_MARKET_OVERVIEW');thirdIds.add(serviceId);
+ const availableMarkets=codes(available),reportedUnavailableMarkets=codes(unavailable);
+ if((sourceUrl!==null&&!validHttpsUrl(sourceUrl))||
+    (!sourceUrl&&(sourceScope!=='UNREVIEWED'||availableMarkets.length))||
+    [...availableMarkets,...reportedUnavailableMarkets].some(code=>!known.has(code))||
+    availableMarkets.some(code=>reportedUnavailableMarkets.includes(code)))throw Error('INVALID_SERVICE_MARKET_OVERVIEW');
+ return Object.freeze({order:index+201,serviceId,sourceUrl,sourceScope,reviewedAt:'2026-10-23',availableMarkets:Object.freeze(availableMarkets),
+  reportedUnavailableMarkets:Object.freeze(reportedUnavailableMarkets),unknownMarkets:Object.freeze(allMarkets.filter(code=>!availableMarkets.includes(code)&&!reportedUnavailableMarkets.includes(code)))});
+}));
+export const firstThreeHundredServiceMarketOverview=Object.freeze([...firstTwoHundredServiceMarketOverview,...thirdHundredServiceMarketOverview]);
+const byId=new Map(firstThreeHundredServiceMarketOverview.map(row=>[row.serviceId,row]));
 export const serviceMarketOverviewFor=serviceId=>byId.get(serviceId)??null;
