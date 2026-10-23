@@ -22,6 +22,17 @@ test('a documented standalone ad-free tier remains a separate monthly subscripti
  assert.equal(result.accepted[1].offerScope,'COMPLETE_SUBSCRIPTION');
 });
 
+test('a retained No Ads monthly plan price sentence identifies a complete tier',()=>{
+ const hulu={service:'hulu',serviceName:'Hulu',market:'US'};
+ const noAds={...plan('Hulu (No Ads)',21.49,'The Hulu plan without ads costs $21.49 a month.'),
+  currency:'USD',commitment:'monthly',billingBasis:'recurring',marketEvidence:'Available in market US as a standard standalone monthly streaming subscription option.',sourceUrl:'https://www.hulu.com/welcome'};
+ const result=analyzeSubscriptionOffers([noAds],hulu);
+ assert.deepEqual(result.accepted.map(row=>[row.planName,row.amount,row.offerScope]),[['Hulu (No Ads)',21.49,'COMPLETE_SUBSCRIPTION']]);
+ assert.equal(analyzeSubscriptionOffers([{...noAds,sourceEvidence:'Hulu No Ads add-on costs $21.49 a month.'}],hulu).accepted.length,0);
+ assert.equal(analyzeSubscriptionOffers([{...noAds,sourceEvidence:'The Hulu plan without ads costs $21.49 a year.'}],hulu).accepted.length,0);
+ assert.equal(analyzeSubscriptionOffers([{...noAds,marketEvidence:'United Kingdom only'}],hulu).accepted.length,0);
+});
+
 test('add-ons, upgrades, Channels and bundles never form calculated totals',()=>{
  const result=analyzeSubscriptionOffers([plan(),
   plan('Prime Video Ad Free add-on',29,'Ad-free add-on costs 29 NOK per month.'),

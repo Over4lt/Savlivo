@@ -1,7 +1,7 @@
 import {countryCurrencyData} from '../../../../packages/contracts/src/markets.ts';
 import {nonStandalonePresentation} from '../research-v3/offering-scope.mjs';
 
-const adFree=/\b(?:ad[- ]?free|without ads?|reklamefri|reklamfri|uten reklame|werbefrei|sans publicité|sin anuncios|sem anúncios)\b/iu;
+const adFree=/\b(?:ad[- ]?free|no ads?|without ads?|reklamefri|reklamfri|uten reklame|werbefrei|sans publicité|sin anuncios|sem anúncios)\b/iu;
 const ancillary=/\b(?:add[- ]?on|upgrade|extra charge|additional charge|supplement|tillegg|remove ads|fjerne reklame)\b/iu;
 const excluded=/\b(?:channels?|rentals?|rent|purchases?|buy|pay[- ]?per[- ]?view|bundles?|packages?|pakket?|pakke|combo)\b/iu;
 const monthly=value=>/^(?:MONTH|MONTHLY|MONTHLY_RECURRING)$/iu.test(String(value??''));
@@ -29,7 +29,8 @@ const numberIn=(text,minor)=>{
 const completeEvidence=text=>
  /\b(?:includes?|covers?|gives? access to)\b.{0,100}\b(?:streaming|films?|movies?|series|catalog(?:ue)?|video access)\b/iu.test(text)||
  /\b(?:total|all[- ]?in|entire|whole|complete|full|standalone|samlet|ordinær)\b.{0,80}\b(?:monthly|month|subscription|abonnement|plan|tier|månedspris)\b/iu.test(text)||
- /\b(?:monthly|month|subscription|abonnement|plan|tier|månedspris)\b.{0,80}\b(?:total|all[- ]?in|entire|whole|complete|full|standalone|samlet|ordinær)\b/iu.test(text);
+ /\b(?:monthly|month|subscription|abonnement|plan|tier|månedspris)\b.{0,80}\b(?:total|all[- ]?in|entire|whole|complete|full|standalone|samlet|ordinær)\b/iu.test(text)||
+ /\b(?:plan|tier|subscription)\b.{0,100}\b(?:costs?|priced at)\b.{0,80}\b(?:per month|a month|monthly)\b/iu.test(text);
 
 export function canonicalOfferName(name){return String(name??'').replace(/\s*\(base plan\)\s*$/iu,'').trim();}
 export function classifySubscriptionOffer(row,target){
@@ -40,7 +41,7 @@ export function classifySubscriptionOffer(row,target){
  // upgrade elsewhere in its source does not turn that tier into an add-on.
  const namedAdFree=adFree.test(name);
  const describedAdFree=!ancillary.test(excerpt)&&
-  /\b(?:plan|tier|subscription|abonnement|standard|premium)\b.{0,90}\b(?:ad[- ]?free|without ads?|reklamefri|reklamfri|werbefrei)\b/iu.test(excerpt);
+  /\b(?:plan|tier|subscription|abonnement|standard|premium)\b.{0,90}\b(?:ad[- ]?free|no ads?|without ads?|reklamefri|reklamfri|werbefrei)\b/iu.test(excerpt);
  if(!namedAdFree&&!describedAdFree)return {kind:'BASE'};
  if(ancillary.test(excerpt)||row?.annualOnly===true||row?.freeTier===true||row?.introPrice!=null||
   !monthly(row?.paymentCadence)||/\b(?:annual|yearly|upfront|promotion|trial|one[- ]?time)\b/iu.test([row?.billingBasis,row?.commitment].join(' ')))

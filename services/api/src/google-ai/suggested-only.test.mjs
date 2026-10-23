@@ -59,6 +59,30 @@ test('standard and Suggested Only use the same V4 Suggested projection for a gro
  assert.equal(light.targets[0].persisted.verified,0);
 });
 
+test('retained Hulu US answer keeps both monthly tiers in Standard and Suggested Only',async()=>{
+ const hulu={id:'price-research:hulu:US',service:'hulu',serviceName:'Hulu',market:'US'};
+ const sourceUrl='https://www.hulu.com/welcome';
+ const shared={currency:'USD',paymentCadence:'monthly',commitment:'monthly',introPrice:null,annualOnly:false,freeTier:false,billingBasis:'recurring',sourceUrl,
+  marketEvidence:'Available in market US as a standard standalone monthly streaming subscription option.'};
+ const plans=[
+  {...shared,planName:'Hulu (With Ads)',amount:12.49,ordinaryRecurringPrice:12.49,sourceEvidence:'Hulu (with ads) costs $12.49 per month for standalone streaming library access.'},
+  {...shared,planName:'Hulu (No Ads)',amount:21.49,ordinaryRecurringPrice:21.49,sourceEvidence:'The Hulu plan without ads costs $21.49 a month.'}
+ ];
+ const answer=acquisition(plans,{aiResult:{provider:'Hulu',market:'US',plans,sources:[{title:'Hulu',url:sourceUrl}],warnings:[],timestamp:'2026-10-23T21:50:00.000Z',requestCount:1},audit:{timestamp:'2026-10-23T21:50:00.000Z',request:{requestCount:1},groundingCitations:[]}});
+ const standardRows=[],suggestedRows=[];
+ await runAdminV4FirstResearch({targets:[hulu],acquireGoogle:async()=>answer,
+  persistSuggested:async rows=>standardRows.push(...rows),persistVerified:async()=>assert.fail('no verified write'),
+  loadSuggested:async()=>[],loadVerified:async()=>[],runDownstream:async()=>({v3Results:{[hulu.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}})});
+ const light=await runAdminSuggestedOnlyResearch({targets:[hulu],maxGoogleRequests:1,acquireGoogle:async()=>answer,
+  persistSuggested:async rows=>suggestedRows.push(...rows),loadVerified:async()=>[]});
+ assert.deepEqual(suggestedRows.map(row=>[row.planName,row.suggested.monthlyPriceMinor,row.suggested.offerScope]),[
+  ['Hulu (With Ads)',1249,undefined],['Hulu (No Ads)',2149,'COMPLETE_SUBSCRIPTION']]);
+ assert.deepEqual(suggestedRows,standardRows.slice(0,2));
+ assert(suggestedRows[1].suggested.warnings.includes('OFFICIAL_SOURCE_NOT_ACQUIRED'));
+ assert.equal(light.targets[0].googleRequests,1);
+ assert.equal(light.targets[0].persisted.verified,0);
+});
+
 test('both modes exclude Prime membership, Channels, Ad Free and bundles from base Prime Video Suggested',async()=>{
  const answer=acquisition([
   plan('Prime Video',79),plan('Amazon Prime membership',89),plan('Prime Student Monthly',49),plan('Prime Video Channels',29),
