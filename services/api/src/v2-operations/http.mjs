@@ -4,6 +4,7 @@ import {jobStatus,priceResearchTargetEvidence,terminationDiagnostic} from './job
 import {beginPreflight,beginStart,preflightStatus} from './preflight-operations.mjs';
 import {marketPriceStatus} from './market-price-status.mjs';
 import {marketExclusionsRequest} from './market-exclusions.mjs';
+import {countryRulesRequest} from './country-rules.mjs';
 import {researchLinksRequest} from './research-links.mjs';
 import {storageView} from '../research-v2/storage/runtime.mjs';
 import {historyIndex} from '../research-v2/storage/history.mjs';
@@ -18,6 +19,7 @@ export async function operationsRequest({method,url,body,actor},ops=operations()
  if(['GET','POST'].includes(method)&&route==='/price-research/targeting')return ops.priceResearchTargeting(method==='POST'?body??{}:{});
  if(method==='POST'&&route==='/price-research/market-price-status')return marketPriceStatus(body,ops);
  if(['GET','POST'].includes(method)&&route==='/price-research/market-exclusions')return marketExclusionsRequest({method,serviceId:url.searchParams.get('serviceId')??body?.serviceId,body,ops,actor});
+ if(['GET','POST','DELETE'].includes(method)&&route==='/price-research/country-rule')return countryRulesRequest({method,serviceId:url.searchParams.get('serviceId')??body?.serviceId,body,ops,actor});
  if(parts[0]==='price-research'&&parts[1]==='research-links'&&parts.length<=3&&['GET','POST','PATCH','DELETE'].includes(method))return researchLinksRequest({method,serviceId:url.searchParams.get('serviceId')??body?.serviceId,linkId:parts[2]??null,body:body&&Object.fromEntries(Object.entries(body).filter(([key])=>key!=='serviceId')),ops,actor});
  if(['GET','POST'].includes(method)&&route==='/targeting')return ops.targeting(method==='POST'?body??{}:{});
  if(method==='GET'&&route==='/summary')return ops.summary();

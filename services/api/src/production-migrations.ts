@@ -27,6 +27,7 @@ export const migrationFiles = [
   "db/migrations/024_price_analytics_history_index.sql",
   "db/migrations/025_verified_bootstrap_integrity.sql",
   "db/migrations/026_suggested_price_calculation.sql",
+  "db/migrations/027_price_research_country_rules.sql",
   "services/api/src/savlivo-migration-savings-ledger-1.7.0.sql",
   "services/api/migrations/20260824_notifications.sql",
   "services/api/migrations/20260907_password_reset.sql",

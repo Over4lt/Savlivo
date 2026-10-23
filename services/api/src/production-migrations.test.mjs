@@ -30,6 +30,7 @@ const registeredChecksums={
  'db/migrations/024_price_analytics_history_index.sql':'093fcd16bec9bb53031df3406e953b12855e38703f3f4485b0be89fbe8a24599',
  'db/migrations/025_verified_bootstrap_integrity.sql':'3b897e140a69a6356bbcd5f1ae05daca8e50604aa355e5e84b912cf4bbb0c038',
  'db/migrations/026_suggested_price_calculation.sql':'38f36c1af270e13d4de45fe5bdf5ae49e4ea1563403ff0f7d58a5d99d6b00cfc',
+ 'db/migrations/027_price_research_country_rules.sql':'6f0557ec38769a943c8381d476fe0bc955884546c64eaf6d4bb173d80c3a5290',
  'services/api/src/savlivo-migration-savings-ledger-1.7.0.sql':'04bad6e43ba6b7df44a77c46e19b65d71ebdb309fdbfb9def95aa27bf51a9026',
  'services/api/migrations/20260824_notifications.sql':'b56a9ad7316905fd595ab6a2296e3643382272565da55e22f38ddfb9bae8d035',
  'services/api/migrations/20260907_password_reset.sql':'ee32a198da0c97f97bd9f21536c0738402125713d9ba8ed9151414955590c8ea'
@@ -41,6 +42,15 @@ test('registered schema and migration bytes retain their production SHA-256 chec
   const actual=createHash('sha256').update(fs.readFileSync(productionRoot+file)).digest('hex');
   assert.equal(actual,expected,file);
  }
+});
+
+test('027 stores only manual per-service research scope without changing prices or provider availability proof',()=>{
+ assert.equal(migrationFiles.filter(file=>file.endsWith('027_price_research_country_rules.sql')).length,1);
+ const sql=fs.readFileSync(productionRoot+'db/migrations/027_price_research_country_rules.sql','utf8');
+ assert.match(sql,/CREATE TABLE IF NOT EXISTS price_research_country_rules/);
+ assert.match(sql,/service_id TEXT PRIMARY KEY/);
+ assert.match(sql,/mode IN \('OFFERED', 'NOT_OFFERED'\)/);
+ assert.doesNotMatch(sql,/(?:verified_provider_prices|suggested_provider_prices|price_research_market_exclusions|price_history)/);
 });
 
 const expectedColumns={id:'uuid',service_id:'text',url:'text',kind:'text',market_scope:'text',
