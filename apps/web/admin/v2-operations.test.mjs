@@ -696,7 +696,7 @@ test('canonical service selection displays official coverage without removing un
  assert(link);assert.equal(link.rel,'noopener noreferrer');
  const google=descendants(root).find(node=>node.href?.startsWith('https://www.google.com/search?'));
  assert(google);assert.equal(google.rel,'noopener noreferrer');
- const query=new URL(google.href).searchParams.get('q');assert(query.includes('Chess.com'));assert(query.includes('official available countries regions'));assert(query.includes(String(new Date().getUTCFullYear())));
+ const query=new URL(google.href).searchParams.get('q');assert(query.includes('Chess.com'));assert(query.includes('official countries regions not available'));assert(query.includes(String(new Date().getUTCFullYear())));
  assert(button(root,'All eligible (46)'));
  assert(button(root,'Coverage list (1)'));
  await button(root,'Coverage list (1)').listeners.click();
@@ -717,10 +717,10 @@ test('manual Google country search is available without an official URL or autom
  assert(text(root).includes('Google results are unverified leads'));
  assert.equal(canonicalMarketLabel(root,'ES').hidden,true);
  assert.equal(button(root,'Preflight').disabled,true);
- const paste=descendants(root).find(node=>node.textContent==='Paste a Google country list for one service').children[0];
- paste.value='Puerto Rico';await button(root,'Use pasted list').listeners.click();
+ const paste=descendants(root).find(node=>node.textContent==='Paste countries where this service is not offered').children[0];
+ paste.value='Puerto Rico';await button(root,'Exclude pasted countries').listeners.click();
  assert.equal(button(root,'Preflight').disabled,true);
- assert(text(root).includes('No eligible canonical countries recognized'));
+ assert(text(root).includes('Unrecognized country entries: Puerto Rico. Nothing changed'));
 });
 
 test('pasted country lists accept canonical names and codes without guessing unknown countries',()=>{
@@ -733,7 +733,7 @@ test('pasted country lists accept canonical names and codes without guessing unk
  assert.deepEqual(parseCountryListInput('UAE',rows),{countries:[],unknown:['UAE']});
 });
 
-test('one service defaults to listed countries and pasted Google countries stay the only selected research targets',async t=>{
+test('one service defaults to listed countries and pasted noncoverage excludes only named countries',async t=>{
  const overview={serviceId:'chess-com',sourceUrl:null,sourceScope:'REGIONAL_OVERVIEW',reviewedAt:'2026-10-23',availableMarkets:['ES'],reportedUnavailableMarkets:[],unknownMarkets:['X1','X2']};
  const {root,calls}=await canonicalBuilder(t,{overviewService:overview});
  const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
@@ -741,17 +741,30 @@ test('one service defaults to listed countries and pasted Google countries stay 
  assert.equal(canonicalMarketLabel(root,'X1').hidden,true);
  assert.equal(canonicalMarketLabel(root,'X2').hidden,true);
  await button(root,'Preflight').listeners.click();assert.deepEqual(calls.filter(row=>row.p.endsWith('/preflight')).at(-1).body.markets,['ES']);
- const paste=descendants(root).find(node=>node.textContent==='Paste a Google country list for one service').children[0];
- paste.value='Spain, Market 1, Puerto Rico';await button(root,'Use pasted list').listeners.click();
+ const paste=descendants(root).find(node=>node.textContent==='Paste countries where this service is not offered').children[0];
+ paste.value='Market 2, Puerto Rico';await button(root,'Exclude pasted countries').listeners.click();
+ assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,true);
+ assert.equal(canonicalMarketLabel(root,'X2').hidden,true);
+ assert(text(root).includes('Nothing changed'));
+ paste.value='Market 2';await button(root,'Exclude pasted countries').listeners.click();
  assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,true);
  assert.equal(canonicalMarketLabel(root,'X1').children[0].checked,true);
  assert.equal(canonicalMarketLabel(root,'X2').hidden,true);
- assert(text(root).includes('Unrecognized entries: Puerto Rico'));
- await button(root,'Show other countries (44)').listeners.click();assert.equal(canonicalMarketLabel(root,'X2').hidden,false);
+ await button(root,'Preflight').listeners.click();assert.equal(calls.filter(row=>row.p.endsWith('/preflight')).at(-1).body.markets.length,45);
+ await button(root,'Show excluded countries (1)').listeners.click();assert.equal(canonicalMarketLabel(root,'X2').hidden,false);
  const extra=canonicalMarketLabel(root,'X2').children[0];extra.checked=true;await extra.listeners.change();
  await button(root,'Preflight').listeners.click();
- assert.deepEqual(calls.filter(row=>row.p.endsWith('/preflight')).at(-1).body.markets,['ES','X1','X2']);
- assert(text(root).includes('Pasted Google list for this selection (2)'));
+ assert.equal(calls.filter(row=>row.p.endsWith('/preflight')).at(-1).body.markets.length,46);
+ assert(text(root).includes('Pasted countries not offered for this selection (1)'));
+});
+
+test('excluding every canonical country leaves no research target or implicit all-market preflight',async t=>{
+ const {root,calls}=await canonicalBuilder(t),chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
+ const paste=descendants(root).find(node=>node.textContent==='Paste countries where this service is not offered').children[0];
+ paste.value=canonicalMarkets.map(row=>row.name).join(', ');await button(root,'Exclude pasted countries').listeners.click();
+ assert(text(root).includes('0 remaining eligible countries selected'));
+ assert.equal(button(root,'Preflight').disabled,true);
+ assert.equal(calls.filter(row=>row.p.endsWith('/preflight')).length,0);
 });
 
 test('changing the sole service never carries a pasted or listed country set into another service',async t=>{
