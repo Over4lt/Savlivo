@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import {liveStatusView,statusTone} from './live-status.js';
-import test from 'node:test';import assert from 'node:assert/strict';import {mountOperations,capabilityGuidance,capabilityControl,availablePermissions,preflightReadinessBlockers,previewTargeting,canonicalPriceResearchProjection,marketPriceCategories,researchLinksVisible,monitorJob} from './v2-operations.js';
+import test from 'node:test';import assert from 'node:assert/strict';import {mountOperations,capabilityGuidance,capabilityControl,availablePermissions,preflightReadinessBlockers,previewTargeting,canonicalPriceResearchProjection,marketPriceCategories,researchLinksVisible,monitorJob,parseCountryListInput} from './v2-operations.js';
 class Element{children=[];listeners={};textContent='';value='';append(...n){for(const child of n){if(child.parentElement)child.parentElement.children=child.parentElement.children.filter(c=>c!==child);child.parentElement=this;this.children.push(child);}}replaceChildren(...n){this.replacements=(this.replacements??0)+1;this.children=n;}addEventListener(k,v){this.listeners[k]=v;}dispatchEvent(e){return this.listeners[e.type]?.(e);}setAttribute(k,v){this[k]=v;}remove(){this.removed=true;if(this.parentElement)this.parentElement.children=this.parentElement.children.filter(c=>c!==this);}set innerHTML(_){throw Error('Unsafe HTML');}}
 const descendants=n=>[n,...n.children.flatMap(descendants)],text=n=>descendants(n).map(x=>x.textContent).join(' '),button=(n,name)=>descendants(n).find(x=>(name==='Run'?x['aria-label']==='Run status':x.textContent===name||x['aria-label']===name)&&x.listeners.click);
 function setup(){globalThis.document={createElement:()=>new Element()};globalThis.window={confirm:()=>false};return new Element();}
@@ -698,8 +698,8 @@ test('canonical service selection displays official coverage without removing un
  assert(google);assert.equal(google.rel,'noopener noreferrer');
  const query=new URL(google.href).searchParams.get('q');assert(query.includes('Chess.com'));assert(query.includes('official available countries regions'));assert(query.includes(String(new Date().getUTCFullYear())));
  assert(button(root,'All eligible (46)'));
- assert(button(root,'Listed markets (1)'));
- await button(root,'Listed markets (1)').listeners.click();
+ assert(button(root,'Coverage list (1)'));
+ await button(root,'Coverage list (1)').listeners.click();
  assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,['ES']);
  assert(button(root,'Unverified search hints (1)'),descendants(root).filter(node=>node.type==='button'&&node.textContent?.includes('search hints')).map(node=>node.textContent).join(', '));
  await button(root,'Unverified search hints (1)').listeners.click();
@@ -715,6 +715,56 @@ test('manual Google country search is available without an official URL or autom
  assert(!descendants(root).some(node=>node.type==='a'&&node.textContent==='Official source'));
  assert.equal(button(root,'Unverified search hints (0)').hidden,true);
  assert(text(root).includes('Google results are unverified leads'));
+ assert.equal(canonicalMarketLabel(root,'ES').hidden,true);
+ assert.equal(button(root,'Preflight').disabled,true);
+ const paste=descendants(root).find(node=>node.textContent==='Paste a Google country list for one service').children[0];
+ paste.value='Puerto Rico';await button(root,'Use pasted list').listeners.click();
+ assert.equal(button(root,'Preflight').disabled,true);
+ assert(text(root).includes('No eligible canonical countries recognized'));
+});
+
+test('pasted country lists accept canonical names and codes without guessing unknown countries',()=>{
+ const rows=[{id:'NO',name:'Norway'},{id:'SE',name:'Sweden'},{id:'DK',name:'Denmark'},{id:'GB',name:'United Kingdom'},{id:'US',name:'United States'}];
+ assert.deepEqual(parseCountryListInput('Available in: Norway, Sweden and Denmark',rows),{countries:['NO','SE','DK'],unknown:[]});
+ assert.deepEqual(parseCountryListInput('NO, SE, DK, UK, United States (US)',rows),{countries:['NO','SE','DK','GB','US'],unknown:[]});
+ assert.deepEqual(parseCountryListInput('Norge, Sverige og Danmark',rows),{countries:['NO','SE','DK'],unknown:[]});
+ assert.deepEqual(parseCountryListInput('no, Sweden, Puerto Rico',rows),{countries:['SE'],unknown:['no','Puerto Rico']});
+ assert.deepEqual(parseCountryListInput('Norway (SE), Sweden (SE)',rows),{countries:['SE'],unknown:['Norway (SE)']});
+ assert.deepEqual(parseCountryListInput('UAE',rows),{countries:[],unknown:['UAE']});
+});
+
+test('one service defaults to listed countries and pasted Google countries stay the only selected research targets',async t=>{
+ const overview={serviceId:'chess-com',sourceUrl:null,sourceScope:'REGIONAL_OVERVIEW',reviewedAt:'2026-10-23',availableMarkets:['ES'],reportedUnavailableMarkets:[],unknownMarkets:['X1','X2']};
+ const {root,calls}=await canonicalBuilder(t,{overviewService:overview});
+ const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
+ assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,true);
+ assert.equal(canonicalMarketLabel(root,'X1').hidden,true);
+ assert.equal(canonicalMarketLabel(root,'X2').hidden,true);
+ await button(root,'Preflight').listeners.click();assert.deepEqual(calls.filter(row=>row.p.endsWith('/preflight')).at(-1).body.markets,['ES']);
+ const paste=descendants(root).find(node=>node.textContent==='Paste a Google country list for one service').children[0];
+ paste.value='Spain, Market 1, Puerto Rico';await button(root,'Use pasted list').listeners.click();
+ assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,true);
+ assert.equal(canonicalMarketLabel(root,'X1').children[0].checked,true);
+ assert.equal(canonicalMarketLabel(root,'X2').hidden,true);
+ assert(text(root).includes('Unrecognized entries: Puerto Rico'));
+ await button(root,'Show other countries (44)').listeners.click();assert.equal(canonicalMarketLabel(root,'X2').hidden,false);
+ const extra=canonicalMarketLabel(root,'X2').children[0];extra.checked=true;await extra.listeners.change();
+ await button(root,'Preflight').listeners.click();
+ assert.deepEqual(calls.filter(row=>row.p.endsWith('/preflight')).at(-1).body.markets,['ES','X1','X2']);
+ assert(text(root).includes('Pasted Google list for this selection (2)'));
+});
+
+test('changing the sole service never carries a pasted or listed country set into another service',async t=>{
+ const overview={serviceId:'chess-com',sourceUrl:null,sourceScope:'REGIONAL_OVERVIEW',reviewedAt:'2026-10-23',availableMarkets:['ES'],reportedUnavailableMarkets:[],unknownMarkets:['X1']};
+ const {root}=await canonicalBuilder(t,{overviewService:overview});
+ const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
+ assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,true);
+ const password=canonicalServiceCheck(root,'1Password');password.checked=true;await password.listeners.change();
+ assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,true);
+ const removeChess=canonicalServiceCheck(root,'Chess.com');removeChess.checked=false;await removeChess.listeners.change();
+ assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,false);
+ assert.equal(canonicalMarketLabel(root,'ES').hidden,true);
+ assert.equal(button(root,'Preflight').disabled,true);
 });
 
 test('Suggested Only checkbox is off by default, binds preflight mode and invalidates Start when changed',async t=>{
@@ -768,7 +818,7 @@ test('service transitions prune newly ineligible markets and leave an empty sele
  const excludedPairs=new Set(['chess-com\u0000ES','1password\u0000X1']),{root,calls}=await canonicalBuilder(t,{excludedPairs});
  const password=canonicalServiceCheck(root,'1Password');password.checked=true;await password.listeners.change();let es=canonicalMarketLabel(root,'ES').children[0];es.checked=true;await es.listeners.change();assert.equal(button(root,'Preflight').disabled,false);
  const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,true);
- const updatedPassword=canonicalServiceCheck(root,'1Password');updatedPassword.checked=false;await updatedPassword.listeners.change();assert.equal(canonicalMarketLabel(root,'ES').children[0].disabled,true);assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,false);assert(text(root).includes('Removed 1 selected market'));assert(text(root).includes('Markets — 0 selected'));assert.equal(button(root,'Preflight').disabled,true);
+ const updatedPassword=canonicalServiceCheck(root,'1Password');updatedPassword.checked=false;await updatedPassword.listeners.change();assert.equal(canonicalMarketLabel(root,'ES').children[0].disabled,true);assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,false);assert(text(root).includes('Market selection reset for the newly selected service.'));assert(text(root).includes('Markets — 0 selected'));assert.equal(button(root,'Preflight').disabled,true);
  await button(root,'Clear service selection').listeners.click();assert.equal(canonicalMarketLabel(root,'X2').children[0].disabled,true);assert(button(root,'All eligible (0)').disabled);assert(text(root).includes('Select a service to choose research markets.'));assert.equal(calls.filter(row=>row.p.endsWith('/preflight')).length,0);
 });
 
