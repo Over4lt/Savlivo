@@ -4,6 +4,7 @@ import {listResearchServiceIdentities} from '../research-v3/research-identity-st
 import {loadResearchServiceProjection} from '../research-v3/research-service-projection.mjs';
 import {listMarketExclusions} from './market-exclusions.mjs';
 import {discoverOfficialMarketAvailability} from './market-availability.mjs';
+import {serviceMarketOverviewFor} from './service-market-overview.mjs';
 
 const fail=code=>{throw Object.assign(Error(code),{status:400});};
 const canonicalMarkets=countryCurrencyData.map(([id,name,currency],order)=>({id,name,currency,order}));
@@ -23,6 +24,7 @@ const serviceView=row=>({
  status:row.status,researchable:row.researchable,selectable:row.status==='RESEARCHABLE'&&row.researchable===true,
  frozenLifecycleMember:row.frozenLifecycleMember,productCatalogMember:row.productCatalogMember,
  researchScopeHints:row.researchScopeHints,
+ marketAvailabilityOverview:serviceMarketOverviewFor(row.serviceId),
  sources:{baseline:!!row.sources.baseline,frozen:!!row.sources.frozen,productCatalog:!!row.sources.productCatalog,database:!!row.sources.database},
  reconciliation:row.reconciliation
 });
@@ -30,7 +32,11 @@ const serviceView=row=>({
 function orderedMarkets(service,explicit){
  if(explicit.length)return explicit;
  const hinted=unique(service.researchScopeHints.map(hint=>hint.market)).filter(market=>marketSet.has(market)),hintedSet=new Set(hinted);
- return [...hinted,...marketIds.filter(market=>!hintedSet.has(market))];
+ // Positive reviewed coverage only affects scheduling order. It is never price
+ // or market proof and cannot remove a target.
+ const documented=service.marketAvailabilityOverview?.availableMarkets?.filter(market=>!hintedSet.has(market))??[];
+ const prioritized=new Set([...hinted,...documented]);
+ return [...prioritized,...marketIds.filter(market=>!prioritized.has(market))];
 }
 
 export function projectPriceResearchTargeting(projection,input={},exclusions=[],availability=[]){
@@ -49,7 +55,7 @@ export function projectPriceResearchTargeting(projection,input={},exclusions=[],
   const details=marketById.get(market);
   targets.push({id:`price-research:${service.serviceId}:${market}`,serviceId:service.serviceId,serviceName:service.name,targetMarket:market,marketName:details.name,currency:details.currency,marketApplicabilityEstablished:false,researchScopeHints:service.researchScopeHints});
  }
- const selectable=services.filter(row=>row.selectable).length,revision=createHash('sha256').update(JSON.stringify({services:services.map(row=>[row.serviceId,row.status,row.researchable,row.researchScopeHints]),markets:canonicalMarkets,exclusions:[...blocked].sort(),availability:[...proven.values()].map(row=>[row.serviceId,row.sourceHash,row.checkedAt,row.unavailableMarkets]).sort((a,b)=>a[0].localeCompare(b[0]))})).digest('hex');
+ const selectable=services.filter(row=>row.selectable).length,revision=createHash('sha256').update(JSON.stringify({services:services.map(row=>[row.serviceId,row.status,row.researchable,row.researchScopeHints,row.marketAvailabilityOverview?.availableMarkets??null]),markets:canonicalMarkets,exclusions:[...blocked].sort(),availability:[...proven.values()].map(row=>[row.serviceId,row.sourceHash,row.checkedAt,row.unavailableMarkets]).sort((a,b)=>a[0].localeCompare(b[0]))})).digest('hex');
  return {
   version:'PRICE_RESEARCH_TARGETING_V1',readOnly:true,meaning:'INVESTIGATION_SCOPE_NOT_AVAILABILITY',revision,
   counts:{canonicalServices:projection.counts?.canonical??services.length,visibleServices:services.length,researchableServices:selectable,selectableServices:selectable,diagnosticServices:services.length-selectable,markets:canonicalMarkets.length,logicalServiceMarketCombinations:selectable*canonicalMarkets.length},

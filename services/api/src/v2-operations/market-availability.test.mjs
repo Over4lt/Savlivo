@@ -8,11 +8,56 @@ import {officialMarketAvailability,discoverOfficialMarketAvailability} from './m
 import {readAvailabilitySearch,reserveAvailabilitySearch} from './market-availability-search-memory.mjs';
 import {projectResearchServices} from '../research-v3/research-service-projection.mjs';
 import {projectPriceResearchTargeting,selectPriceResearchTargets} from './price-research-targeting.mjs';
+import {firstThirtyServiceMarketOverview,serviceMarketOverviewFor} from './service-market-overview.mjs';
 
 const now=new Date().toISOString();
 const official=body=>officialMarketAvailability({serviceId:'netflix',serviceName:'Netflix',url:'https://help.netflix.com/en/node/14164',body,checkedAt:now,officialHosts:['www.netflix.com']});
 const page=(heading,items,title='Where is Netflix available?')=>`<html lang="en"><head><title>${title}</title></head><body><h1>Netflix</h1><h2>${heading}</h2><ul>${items.map(item=>`<li>${item}</li>`).join('')}</ul></body></html>`;
 const projection=projectResearchServices({baseline:[{service:'netflix',name:'Netflix'},{service:'chess-com',name:'Chess.com'}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+
+test('the first 30 service overview follows the actual canonical API order and never acts as exclusion proof',()=>{
+ const universe=JSON.parse(fs.readFileSync(new URL('../../../../docs/catalog/global-47/research-v2/v15-discovery-20260921/expanded-service-universe.json',import.meta.url)));
+ const ids=[...universe.existing,...universe.new_include,...universe.research].slice(0,30).map(row=>row.service??row.slug);
+ assert.deepEqual(firstThirtyServiceMarketOverview.map(row=>row.serviceId),ids);
+ assert.equal(serviceMarketOverviewFor('hulu').reportedUnavailableMarkets.length,45);
+ assert.equal(serviceMarketOverviewFor('disney-plus').unknownMarkets.length,46);
+ for(const id of ['chatgpt','claude']){
+  assert.deepEqual(serviceMarketOverviewFor(id).reportedUnavailableMarkets,['CN','HK']);
+  assert(!serviceMarketOverviewFor(id).availableMarkets.includes('HK'));
+ }
+ const hulu=projectResearchServices({baseline:[{service:'hulu',name:'Hulu'}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+ const target=projectPriceResearchTargeting(hulu,{services:['hulu']});
+ assert.equal(target.targets.length,46);
+ assert.equal(target.targets[0].targetMarket,'US');
+ assert.equal(target.autoSkippedTargetCount,0);
+ const paramount=projectResearchServices({baseline:[{service:'paramount-plus',name:'Paramount+'}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+ const prioritized=projectPriceResearchTargeting(paramount,{services:['paramount-plus']});
+ assert.equal(prioritized.targets.length,46);
+ assert.equal(prioritized.targets[0].targetMarket,'AU');
+ assert(prioritized.targets.findIndex(row=>row.targetMarket==='VN')>prioritized.targets.findIndex(row=>row.targetMarket==='AU'));
+ assert.deepEqual(projectPriceResearchTargeting(paramount,{services:['paramount-plus'],markets:['VN','AU']}).targets.map(row=>row.targetMarket),['VN','AU']);
+});
+
+test('fresh official US-only wording excludes other markets while ambiguous and altered pages fail open',()=>{
+ const checkedAt=new Date().toISOString(),huluUrl=serviceMarketOverviewFor('hulu').sourceUrl;
+ const hulu='<html lang="en"><title>Disney+, ESPN, and Hulu Subscriber Agreement</title><p>The ESPN and Hulu Services are only available in the United States and certain of its territories.</p></html>';
+ const options={serviceId:'hulu',serviceName:'Hulu',url:huluUrl,body:hulu,checkedAt,officialHosts:['www.hulu.com']};
+ const proof=officialMarketAvailability(options);
+ assert.equal(proof?.unavailableMarkets.length,45);
+ assert(proof.unavailableMarkets.includes('NO'));
+ assert(!proof.unavailableMarkets.includes('US'));
+ assert.equal(proof.sourceHash,createHash('sha256').update(hulu).digest('hex'));
+ const projection=projectResearchServices({baseline:[{service:'hulu',name:'Hulu'}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+ const targeted=projectPriceResearchTargeting(projection,{services:['hulu'],markets:['US','NO']},[],[proof]);
+ assert.deepEqual(targeted.targets.map(row=>row.targetMarket),['US']);
+ assert.equal(officialMarketAvailability({...options,url:'https://www.hulu.com/another-page'}),null);
+ assert.equal(officialMarketAvailability({...options,body:hulu.replace('Hulu Services are only available in the United States','Hulu Services may be available in other markets')}),null);
+ assert.equal(officialMarketAvailability({...options,body:hulu.replace('and Hulu Subscriber Agreement','Subscriber Agreement')}),null);
+ const peacockUrl=serviceMarketOverviewFor('peacock').sourceUrl;
+ const peacock='<html lang="en"><title>Peacock Terms of Service</title><p>The Peacock Service is for individuals who are 18 years of age or older and reside in the United States (including its territories and possessions).</p></html>';
+ assert.equal(officialMarketAvailability({serviceId:'peacock',serviceName:'Peacock',url:peacockUrl,body:peacock,checkedAt,officialHosts:['www.peacocktv.com']})?.unavailableMarkets.length,45);
+ assert.equal(officialMarketAvailability({serviceId:'peacock',serviceName:'Peacock',url:peacockUrl,body:peacock.replace('reside in the United States','reside in supported territories'),checkedAt,officialHosts:['www.peacocktv.com']}),null);
+});
 
 test('explicit official nonavailability skips only the documented service-market pair',()=>{
  const proof=official(page('Netflix is not available in:', ['China','North Korea']));

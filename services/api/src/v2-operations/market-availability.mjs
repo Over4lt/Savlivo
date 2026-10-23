@@ -7,6 +7,7 @@ import {createV2RobotsPublicAdapter} from '../research-v2/live/robots-policy.mjs
 import {baselineProviderSourceHosts,providerSourceDomainFamily} from '../research-v3/provider-source-family.mjs';
 import {createTavilySearch} from '../research-v2/live/tavily-search.mjs';
 import {readAvailabilitySearch,reserveAvailabilitySearch,completeAvailabilitySearch} from './market-availability-search-memory.mjs';
+import {serviceMarketOverviewFor} from './service-market-overview.mjs';
 
 const markets=countryCurrencyData.map(([code,name])=>({code,name}));
 const aliases={GB:['Great Britain','UK'],CZ:['Czech Republic'],TR:['Turkey'],KR:['Republic of Korea'],US:['USA','United States of America'],AE:['UAE'],HK:['Hong Kong SAR']};
@@ -44,6 +45,21 @@ export function officialMarketAvailability({serviceId,serviceName,url,body,check
  if(!providerSourceDomainFamily(target,url))return null;
  const visible=body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/giu,''),unavailable=new Set(),evidence=[],sections=headingSections(visible);
  const brand=serviceName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+ const overview=serviceMarketOverviewFor(serviceId);
+ if(overview?.sourceScope==='US_ONLY'){
+  let matchingPage=false;
+  try{
+   const current=new URL(url),reviewed=new URL(overview.sourceUrl);
+   matchingPage=current.origin===reviewed.origin&&current.pathname===reviewed.pathname;
+  }catch{}
+  const statement=normalized(visible);
+  const name=normalized(serviceName).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const serviceWide=new RegExp('(?:'+name+' is currently available to stream within the united states|to subscribe to '+name+'.{0,160}to be located within the u s|'+name+' services? are only available in the united states|the '+name+' service is for individuals.{0,100}reside in the united states)');
+  if(matchingPage&&serviceWide.test(statement)){
+   for(const market of markets)if(market.code!=='US')unavailable.add(market.code);
+   evidence.push(serviceName+' provider page limits sign-up or streaming to the United States.');
+  }
+ }
  const explicitNegative=new RegExp('\\b'+brand+'\\s+is\\s+not\\s+available\\s+in\\b|\\b'+brand+'\\s+is\\s+unavailable\\s+in\\b','iu');
  // Explicit negatives apply only to listed countries, never their neighbors.
  for(const section of sections){
@@ -97,7 +113,9 @@ export async function discoverOfficialMarketAvailability(service,{search=null,re
  if(cached&&cached.until>now&&(cached.value||!paidSearchEnabled))return cached.value;
  const signal=AbortSignal.timeout(4000);
  const adapter=!search||!read?createV2RobotsPublicAdapter({searchEnabled:true,retainRaw:true,maxResults:4,maxLinks:4,maxReads:7,maxRequests:16,network:{timeoutMs:8000,maxBytes:2_000_000,maxRedirects:2}}):null;
- const catalogSource=serviceCatalog.find(row=>row.slug===serviceId)?.additionalAvailability?.sourceUrl;
+ const reviewed=serviceMarketOverviewFor(serviceId);
+ const catalogSource=reviewed&&['US_ONLY','EXPLICIT_NEGATIVE'].includes(reviewed.sourceScope)?reviewed.sourceUrl:
+  serviceCatalog.find(row=>row.slug===serviceId)?.additionalAvailability?.sourceUrl;
  let proof=null;
  const attempted=new Set();
  const attempt=async(url,readSignal=signal)=>{
