@@ -681,6 +681,8 @@ test('market status selectors replace explicit canonical Markets Set and manual 
 
 const canonicalServiceCheck=(root,name)=>descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes(name)).children[0];
 const canonicalMarketLabel=(root,id)=>descendants(root).find(node=>node.className==='ops-canonical-markets').children.find(node=>node.className==='ops-facet-options').children.find(node=>node.textContent.endsWith('('+id+')'));
+const countryChoice=(root,kind)=>descendants(root).find(node=>node.className?.split(' ').includes('ops-country-list-'+kind));
+const countryPaste=(root,kind)=>countryChoice(root,kind).children[2].children[0];
 
 test('canonical service selection displays official coverage without removing unknown research targets',async t=>{
  const overview={serviceId:'chess-com',sourceUrl:'https://www.chess.com/terms',sourceScope:'REGIONAL_OVERVIEW',reviewedAt:'2026-10-23',availableMarkets:['ES'],reportedUnavailableMarkets:[],unknownMarkets:['X1'],coverageSearchLeads:[{title:'Chess.com countries',url:'https://example.org/chess-countries',candidateMarkets:['X1'],classification:'UNVERIFIED_SEARCH_LEAD',searchedAt:'2026-10-23T10:00:00.000Z'}]};
@@ -717,7 +719,7 @@ test('manual Google country search is available without an official URL or autom
  assert(text(root).includes('Google results are unverified leads'));
  assert.equal(canonicalMarketLabel(root,'ES').hidden,true);
  assert.equal(button(root,'Preflight').disabled,true);
- const paste=descendants(root).find(node=>node.textContent==='Paste countries where this service is not offered (select all others)').children[0];
+ const paste=countryPaste(root,'excluded');
  paste.value='Puerto Rico';await button(root,'Exclude not-offered countries').listeners.click();
  assert.equal(button(root,'Preflight').disabled,true);
  assert(text(root).includes('Unrecognized country entries: Puerto Rico. Nothing changed'));
@@ -741,7 +743,7 @@ test('one service defaults to listed countries and pasted noncoverage excludes o
  assert.equal(canonicalMarketLabel(root,'X1').hidden,true);
  assert.equal(canonicalMarketLabel(root,'X2').hidden,true);
  await button(root,'Preflight').listeners.click();assert.deepEqual(calls.filter(row=>row.p.endsWith('/preflight')).at(-1).body.markets,['ES']);
- const paste=descendants(root).find(node=>node.textContent==='Paste countries where this service is not offered (select all others)').children[0];
+ const paste=countryPaste(root,'excluded');
  paste.value='Market 2, Puerto Rico';await button(root,'Exclude not-offered countries').listeners.click();
  assert.equal(canonicalMarketLabel(root,'ES').children[0].checked,true);
  assert.equal(canonicalMarketLabel(root,'X2').hidden,true);
@@ -761,8 +763,10 @@ test('one service defaults to listed countries and pasted noncoverage excludes o
 test('offered and not-offered boxes apply exclusively to one service and never carry into a multi-service run',async t=>{
  const overview={serviceId:'chess-com',sourceUrl:null,sourceScope:'REGIONAL_OVERVIEW',reviewedAt:'2026-10-23',availableMarkets:['ES'],reportedUnavailableMarkets:[],unknownMarkets:['X1']};
  const {root,calls}=await canonicalBuilder(t,{overviewService:overview}),chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
- const offeredLabel=descendants(root).find(node=>node.textContent==='Paste countries where this service is offered (select only these)'),notOfferedLabel=descendants(root).find(node=>node.textContent==='Paste countries where this service is not offered (select all others)');
- const offered=offeredLabel.children[0],notOffered=notOfferedLabel.children[0];assert.equal(offeredLabel.hidden,false);assert.equal(notOfferedLabel.hidden,false);
+ const offeredBox=countryChoice(root,'offered'),notOfferedBox=countryChoice(root,'excluded'),offered=countryPaste(root,'offered'),notOffered=countryPaste(root,'excluded');
+ assert.equal(offeredBox.hidden,false);assert.equal(notOfferedBox.hidden,false);assert.notEqual(offeredBox,notOfferedBox);
+ assert.equal(offeredBox.children[0].textContent,'Countries offered');assert.equal(notOfferedBox.children[0].textContent,'Countries not offered');
+ assert.equal(offeredBox.children.at(-1).textContent,'Use offered countries');assert.equal(notOfferedBox.children.at(-1).textContent,'Exclude not-offered countries');
  offered.value='Spain, Market 1';await button(root,'Use offered countries').listeners.click();
  await button(root,'Preflight').listeners.click();assert.deepEqual(calls.filter(row=>row.p.endsWith('/preflight')).at(-1).body.markets,['ES','X1']);
  assert.equal(canonicalMarketLabel(root,'X2').hidden,true);assert(text(root).includes('Pasted countries offered for this selection (2)'));
@@ -774,16 +778,15 @@ test('offered and not-offered boxes apply exclusively to one service and never c
  await button(root,'Preflight').listeners.click();assert.equal(calls.filter(row=>row.p.endsWith('/preflight')).at(-1).body.markets.length,45);
  assert(text(root).includes('Pasted countries not offered for this selection (1)'));
  const password=canonicalServiceCheck(root,'1Password');password.checked=true;await password.listeners.change();
- assert.equal(offeredLabel.hidden,true);assert.equal(notOfferedLabel.hidden,true);
- assert.equal(button(root,'Use offered countries').hidden,true);assert.equal(button(root,'Exclude not-offered countries').hidden,true);
+ assert.equal(offeredBox.hidden,true);assert.equal(notOfferedBox.hidden,true);
  assert.equal(button(root,'Preflight').disabled,true);assert(text(root).includes('Markets — 0 selected'));
  const removePassword=canonicalServiceCheck(root,'1Password');removePassword.checked=false;await removePassword.listeners.change();
- assert.equal(notOfferedLabel.hidden,false);assert(text(root).includes('Markets — 45 selected'));
+ assert.equal(notOfferedBox.hidden,false);assert(text(root).includes('Markets — 45 selected'));
 });
 
 test('excluding every canonical country leaves no research target or implicit all-market preflight',async t=>{
  const {root,calls}=await canonicalBuilder(t),chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
- const paste=descendants(root).find(node=>node.textContent==='Paste countries where this service is not offered (select all others)').children[0];
+ const paste=countryPaste(root,'excluded');
  paste.value=canonicalMarkets.map(row=>row.name).join(', ');await button(root,'Exclude not-offered countries').listeners.click();
  assert(text(root).includes('0 remaining eligible countries selected'));
  assert.equal(button(root,'Preflight').disabled,true);
