@@ -1,4 +1,4 @@
-// Deterministic size/format exports of the existing official artwork; no redraw/crop.
+// Deterministic size/format exports of the opaque app icon; the web mark is transparent.
 // Uses macOS's installed sips, with no additional package dependency.
 import {execFileSync} from 'node:child_process';
 import {readFileSync,writeFileSync,mkdtempSync,rmSync} from 'node:fs';
@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 const web=fileURLToPath(new URL('../apps/web/',import.meta.url));
-const source=join(web,'assets/logo.png');
+const source=join(web,'assets/app-icon.png');
 function resize(size,path){execFileSync('sips',['-z',String(size),String(size),source,'--out',path],{stdio:'pipe'});}
 for(const size of [96,192])resize(size,join(web,`favicon-${size}x${size}.png`));
 resize(180,join(web,'apple-touch-icon.png'));

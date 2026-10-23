@@ -1037,6 +1037,7 @@ p {
 /* Savlivo brand logo */
 .brand-mark {
   overflow: hidden;
+  background: transparent;
 }
 
 .brand-mark img {
