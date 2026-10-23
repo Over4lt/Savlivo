@@ -269,6 +269,19 @@ test('automatic discovery uses the known official page before any free search an
  assert.deepEqual(repeat,proof);
 });
 
+test('targeting without an injected search stays on official pages and emits no automatic search leads',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'availability-manual-google-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ let reads=0,leads=null;
+ const proof=await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},{
+  ledgerRoot:root,
+  read:async()=>{reads++;throw Error('OFFICIAL_PAGE_UNAVAILABLE');},
+  onCoverageLeads:value=>{leads=value;}
+ });
+ assert.equal(proof,null);
+ assert.deepEqual(leads,[]);
+ assert(reads<=1);
+});
+
 test('free discovery remains a routing hint and rejects tampered or policy-blocked pages',async()=>{
  const body='<html lang="en"><title>Where is Max available?</title><h2>Max is not available in:</h2><ul><li>China</li></ul></html>',url='https://www.max.com/availability';
  let searches=0;

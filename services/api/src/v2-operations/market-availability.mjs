@@ -156,7 +156,9 @@ export async function discoverOfficialMarketAvailability(service,{search=null,re
   return cached.value;
  }
  const signal=AbortSignal.timeout(4000);
- const adapter=!search||!read?createV2RobotsPublicAdapter({searchEnabled:true,retainRaw:true,maxResults:4,maxLinks:4,maxReads:7,maxRequests:16,network:{timeoutMs:8000,maxBytes:2_000_000,maxRedirects:2}}):null;
+ // Public search is operator-led. An injected search remains available for
+ // offline tests, but production never queries Bing RSS during targeting.
+ const adapter=!read?createV2RobotsPublicAdapter({searchEnabled:false,retainRaw:true,maxResults:4,maxLinks:4,maxReads:7,maxRequests:16,network:{timeoutMs:8000,maxBytes:2_000_000,maxRedirects:2}}):null;
  const catalogSource=reviewed&&(['US_ONLY','CA_ONLY','JP_ONLY','KR_ONLY','EXPLICIT_NEGATIVE'].includes(reviewed.sourceScope)||
   ['vix','kobo-plus'].includes(serviceId))?reviewed.sourceUrl:
   serviceCatalog.find(row=>row.slug===serviceId)?.additionalAvailability?.sourceUrl;
@@ -176,14 +178,14 @@ export async function discoverOfficialMarketAvailability(service,{search=null,re
  if(!reuseRecentFreeSearch){
   proof=await attempt(catalogSource);
   if(!proof)for(const url of (prior?.leadUrls??[]).slice(0,2)){proof=await attempt(url);if(proof)break;}
-  if(!proof&&!signal.aborted){
+  if(!proof&&!signal.aborted&&search){
    const query=`site:${officialHosts[0].replace(/^www\./u,'')} ${serviceName} available countries locations`;
    let found=[];try{found=(await (search??adapter.search)({query,signal,target:{service:serviceId,market:null}})).results??[];}catch{}
    for(const url of found.filter(row=>/availab|countries|locations|regions/iu.test(row.title??'')).map(row=>row.url).slice(0,2)){
     proof=await attempt(url);if(proof)break;
    }
   }
-  if(!proof&&!signal.aborted){
+  if(!proof&&!signal.aborted&&search){
    const query=`"${serviceName.split('/')[0].trim()}" latest updated official subscription available countries regions ${new Date(clock()).getUTCFullYear()}`;
    try{
     const result=await (search??adapter.search)({query,signal,target:{service:serviceId,market:null}});

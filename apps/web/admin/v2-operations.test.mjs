@@ -694,6 +694,9 @@ test('canonical service selection displays official coverage without removing un
  assert(text(root).includes('source date unverified'));
  const link=descendants(root).find(node=>node.href===overview.sourceUrl);
  assert(link);assert.equal(link.rel,'noopener noreferrer');
+ const google=descendants(root).find(node=>node.href?.startsWith('https://www.google.com/search?'));
+ assert(google);assert.equal(google.rel,'noopener noreferrer');
+ const query=new URL(google.href).searchParams.get('q');assert(query.includes('Chess.com'));assert(query.includes('official available countries regions'));assert(query.includes(String(new Date().getUTCFullYear())));
  assert(button(root,'All eligible (46)'));
  assert(button(root,'Listed markets (1)'));
  await button(root,'Listed markets (1)').listeners.click();
@@ -702,6 +705,16 @@ test('canonical service selection displays official coverage without removing un
  await button(root,'Unverified search hints (1)').listeners.click();
  assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,['X1']);
  assert.equal(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.services[0],'chess-com');
+});
+
+test('manual Google country search is available without an official URL or automatic search hints',async t=>{
+ const overview={serviceId:'chess-com',sourceUrl:null,sourceScope:'UNREVIEWED',reviewedAt:'2026-10-23',availableMarkets:[],reportedUnavailableMarkets:[],unknownMarkets:['X1']};
+ const {root}=await canonicalBuilder(t,{overviewService:overview});
+ const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
+ assert(descendants(root).some(node=>node.href?.startsWith('https://www.google.com/search?')));
+ assert(!descendants(root).some(node=>node.type==='a'&&node.textContent==='Official source'));
+ assert.equal(button(root,'Unverified search hints (0)').hidden,true);
+ assert(text(root).includes('Google results are unverified leads'));
 });
 
 test('Suggested Only checkbox is off by default, binds preflight mode and invalidates Start when changed',async t=>{
