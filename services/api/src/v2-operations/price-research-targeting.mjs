@@ -19,12 +19,13 @@ function selection(input){
  return {services,markets};
 }
 
-const serviceView=row=>({
+const serviceView=(row,coverageSearchLeads=[])=>({
  serviceId:row.serviceId,canonicalSlug:row.canonicalSlug,name:row.name,aliases:row.aliases,categories:row.categories,
  status:row.status,researchable:row.researchable,selectable:row.status==='RESEARCHABLE'&&row.researchable===true,
  frozenLifecycleMember:row.frozenLifecycleMember,productCatalogMember:row.productCatalogMember,
  researchScopeHints:row.researchScopeHints,
  marketAvailabilityOverview:serviceMarketOverviewFor(row.serviceId),
+ coverageSearchLeads,
  sources:{baseline:!!row.sources.baseline,frozen:!!row.sources.frozen,productCatalog:!!row.sources.productCatalog,database:!!row.sources.database},
  reconciliation:row.reconciliation
 });
@@ -39,9 +40,9 @@ function orderedMarkets(service,explicit){
  return [...prioritized,...marketIds.filter(market=>!prioritized.has(market))];
 }
 
-export function projectPriceResearchTargeting(projection,input={},exclusions=[],availability=[]){
+export function projectPriceResearchTargeting(projection,input={},exclusions=[],availability=[],searchLeads=[]){
  if(!projection||!Array.isArray(projection.rows))fail('INVALID_RESEARCH_SERVICE_PROJECTION');
- const requested=selection(input),services=projection.rows.map(serviceView),byId=new Map(services.map(row=>[row.serviceId,row])),marketById=new Map(canonicalMarkets.map(row=>[row.id,row]));
+ const requested=selection(input),leadsByService=new Map(searchLeads.map(row=>[row.serviceId,row.leads])),services=projection.rows.map(row=>serviceView(row,leadsByService.get(row.serviceId)??[])),byId=new Map(services.map(row=>[row.serviceId,row])),marketById=new Map(canonicalMarkets.map(row=>[row.id,row]));
  for(const id of requested.services){const row=byId.get(id);if(!row)fail('UNKNOWN_PRICE_RESEARCH_SERVICE');if(!row.selectable)fail('PRICE_RESEARCH_SERVICE_NOT_SELECTABLE');}
  const selectedIds=new Set(requested.services),selected=services.filter(row=>selectedIds.has(row.serviceId)),targets=[],excludedPairs=[],unavailablePairs=[];
  const blocked=new Set(exclusions.filter(row=>selectedIds.has(row.service_id)&&marketSet.has(row.market_code)).map(row=>row.service_id+'\u0000'+row.market_code));
@@ -78,11 +79,12 @@ export async function loadPriceResearchTargeting(input={},options={}){
  const exclusions=options.marketExclusions??(options.databaseIdentities!==undefined&&!options.client?[]:await listMarketExclusions(requested.services,{client:options.client}));
  const selected=projection.rows.filter(row=>requested.services.includes(row.serviceId));
  const availability=options.marketAvailability??[];
+ const searchLeads=[];
  if(options.marketAvailability===undefined&&options.availabilityDiscovery===true){
   const bounded=selected.slice(0,8);
   for(let index=0;index<bounded.length;index+=2){
-   availability.push(...await Promise.all(bounded.slice(index,index+2).map(row=>discoverOfficialMarketAvailability({serviceId:row.serviceId,name:row.name},{...options.availabilityOptions,ledgerRoot:options.root,paidSearchEnabled:options.availabilityPaidSearch===true}).catch(()=>null))));
+   availability.push(...await Promise.all(bounded.slice(index,index+2).map(row=>discoverOfficialMarketAvailability({serviceId:row.serviceId,name:row.name},{...options.availabilityOptions,ledgerRoot:options.root,paidSearchEnabled:options.availabilityPaidSearch===true,onCoverageLeads:leads=>searchLeads.push({serviceId:row.serviceId,leads})}).catch(()=>null))));
   }
  }
- return projectPriceResearchTargeting(projection,input,exclusions,availability.filter(Boolean));
+ return projectPriceResearchTargeting(projection,input,exclusions,availability.filter(Boolean),searchLeads);
 }

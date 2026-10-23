@@ -276,9 +276,39 @@ test('free discovery remains a routing hint and rejects tampered or policy-block
   search:async()=>{searches++;return {results:[{title:'Max available countries',url}]};},
   read:async()=>({outcome:'OK',httpStatus:200,url,checkedAt:now,rawSource:{text:body},sourceIntegrity:{sha256:'0'.repeat(64)},accessDecisions:[{decision:'ALLOWED'}]})
  });
- assert.equal(searches,1);assert.equal(proof,null);
+ assert.equal(searches,2);assert.equal(proof,null);
  const scriptOnly='<html lang="en"><title>Where is Max available?</title><script><h2>Max is not available in:</h2><ul><li>China</li></ul></script></html>';
  assert.equal(officialMarketAvailability({serviceId:'max',serviceName:'Max',url,body:scriptOnly,checkedAt:now,officialHosts:['www.max.com']}),null);
+});
+
+test('current-year public search exposes secondary lists only as leads and never skips markets',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'availability-lead-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ let searches=0,reads=0,leads=[];
+ const options={ledgerRoot:root,clock:()=>now,onCoverageLeads:value=>{leads=value;},
+  search:async request=>{searches++;if(!request.query.includes('site:')){assert(request.query.includes(String(new Date(now).getUTCFullYear())));assert.match(request.query,/latest updated official/);return {results:[{title:'Max available countries',url:'https://secondary.example/max',snippet:'See the current country list'}]};}return {results:[]};},
+  read:async()=>{reads++;throw Error('NO_SOURCE');}};
+ const proof=await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},options);
+ assert.equal(proof,null);assert.equal(searches,2);assert.equal(reads,0);
+ assert.deepEqual(leads.map(row=>row.url),['https://secondary.example/max']);
+ assert.equal(leads[0].searchedAt,now);
+ const p=projectResearchServices({baseline:[{service:'max',name:'Max'}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+ assert.equal(projectPriceResearchTargeting(p,{services:['max']},[],[],[{serviceId:'max',leads}]).targets.length,46);
+ await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},options);
+ assert.equal(searches,2);assert.equal(leads.length,1);
+ let paid=0;
+ await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},{...options,paidSearchEnabled:true,paidSearch:async()=>{paid++;return {results:[]};}});
+ assert.equal(searches,2);assert.equal(paid,1);
+});
+
+test('a broad search first-party hit still requires intact source bytes before skipping a market',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'availability-first-party-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const url='https://www.max.com/availability',body='<html lang="en"><title>Where is Max available?</title><h2>Max is not available in:</h2><ul><li>China</li></ul></html>';
+ let paid=0;
+ const proof=await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'}, {ledgerRoot:root,clock:()=>now,paidSearchEnabled:true,
+  search:async request=>({results:request.query.includes('site:')?[]:[{title:'Max available countries',url}]}),
+  read:async request=>{assert.equal(request.url,url);return {outcome:'OK',httpStatus:200,url,checkedAt:now,rawSource:{text:body},sourceIntegrity:{sha256:createHash('sha256').update(body).digest('hex')},accessDecisions:[{decision:'ALLOWED'}]};},
+  paidSearch:async()=>{paid++;return {results:[]};}});
+ assert.deepEqual(proof?.unavailableMarkets,['CN']);assert.equal(paid,0);
 });
 
 test('unknown, stale or incomplete coverage never auto-excludes a market',()=>{
@@ -308,7 +338,7 @@ test('paid lookup is one durable lead per service; only intact official bytes ca
   read:async request=>{reads++;assert.equal(request.url,url);return {outcome:'OK',httpStatus:200,url,checkedAt:now,rawSource:{text:body},sourceIntegrity:{sha256:createHash('sha256').update(body).digest('hex')},accessDecisions:[{decision:'ALLOWED'}]};}
  };
  const proof=await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},options);
- assert.deepEqual(proof.unavailableMarkets,['CN']);assert.equal(paidCalls,1);assert.equal(freeCalls,1);assert.equal(reads,1);
+ assert.deepEqual(proof.unavailableMarkets,['CN']);assert.equal(paidCalls,1);assert.equal(freeCalls,2);assert.equal(reads,1);
  const record=readAvailabilitySearch(root,'max');assert.equal(record.status,'COMPLETE');assert.deepEqual(record.leadUrls,[url]);assert.equal(record.proof.sourceHash,proof.sourceHash);
  const repeat=await discoverOfficialMarketAvailability({serviceId:'max',name:'Max'},{...options,paidSearch:async()=>{throw Error('PAID_AGAIN');},read:async()=>{throw Error('READ_AGAIN');}});
  assert.deepEqual(repeat,proof);assert.equal(paidCalls,1);

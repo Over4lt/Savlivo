@@ -8,6 +8,7 @@ import {baselineProviderSourceHosts,providerSourceDomainFamily} from '../researc
 import {createTavilySearch} from '../research-v2/live/tavily-search.mjs';
 import {readAvailabilitySearch,reserveAvailabilitySearch,completeAvailabilitySearch} from './market-availability-search-memory.mjs';
 import {serviceMarketOverviewFor} from './service-market-overview.mjs';
+import {marketCoverageSearchLeads} from './market-coverage-search-leads.mjs';
 
 const markets=countryCurrencyData.map(([code,name])=>({code,name}));
 const aliases={GB:['Great Britain','UK'],CZ:['Czech Republic'],TR:['Turkey'],KR:['Republic of Korea'],US:['USA','United States of America'],AE:['UAE'],HK:['Hong Kong SAR']};
@@ -133,7 +134,7 @@ export function officialMarketAvailability({serviceId,serviceName,url,body,check
 }
 
 const cache=new Map(),CACHE_MS=6*60*60*1000,UNKNOWN_CACHE_MS=15*60*1000;
-export async function discoverOfficialMarketAvailability(service,{search=null,read=null,paidSearch=null,paidSearchEnabled=false,ledgerRoot=null,clock=()=>new Date().toISOString()}={}){
+export async function discoverOfficialMarketAvailability(service,{search=null,read=null,paidSearch=null,paidSearchEnabled=false,ledgerRoot=null,clock=()=>new Date().toISOString(),onCoverageLeads=null}={}){
  const serviceId=service.serviceId,serviceName=service.name,now=Date.now(),cacheKey=(ledgerRoot??'')+'\u0000'+serviceId,cached=cache.get(cacheKey);
  const prior=ledgerRoot?readAvailabilitySearch(ledgerRoot,serviceId):null;
  const reviewed=serviceMarketOverviewFor(serviceId);
@@ -150,13 +151,17 @@ export async function discoverOfficialMarketAvailability(service,{search=null,re
  if(saved?.version===1&&saved.serviceId===serviceId&&/^[a-f0-9]{64}$/u.test(saved.sourceHash??'')&&
     providerSourceDomainFamily(target,saved.sourceUrl)&&Number.isFinite(Date.parse(saved.checkedAt??''))&&
     Date.parse(saved.checkedAt)<=now&&now-Date.parse(saved.checkedAt)<CACHE_MS)return saved;
- if(cached&&cached.until>now&&(cached.value||!paidSearchEnabled))return cached.value;
+ if(cached&&cached.until>now&&(cached.value||!paidSearchEnabled)){
+  onCoverageLeads?.(cached.leads??[]);
+  return cached.value;
+ }
  const signal=AbortSignal.timeout(4000);
  const adapter=!search||!read?createV2RobotsPublicAdapter({searchEnabled:true,retainRaw:true,maxResults:4,maxLinks:4,maxReads:7,maxRequests:16,network:{timeoutMs:8000,maxBytes:2_000_000,maxRedirects:2}}):null;
  const catalogSource=reviewed&&(['US_ONLY','CA_ONLY','JP_ONLY','KR_ONLY','EXPLICIT_NEGATIVE'].includes(reviewed.sourceScope)||
   ['vix','kobo-plus'].includes(serviceId))?reviewed.sourceUrl:
   serviceCatalog.find(row=>row.slug===serviceId)?.additionalAvailability?.sourceUrl;
- let proof=null;
+ const reuseRecentFreeSearch=Boolean(cached&&cached.until>now&&!cached.value&&paidSearchEnabled&&ledgerRoot);
+ let proof=null,coverageLeads=reuseRecentFreeSearch?(cached.leads??[]):[];
  const attempted=new Set();
  const attempt=async(url,readSignal=signal)=>{
   if(readSignal.aborted||!url||attempted.has(url)||!providerSourceDomainFamily(target,url))return null;
@@ -168,13 +173,27 @@ export async function discoverOfficialMarketAvailability(service,{search=null,re
      page.accessDecisions.some(row=>!['ALLOWED','NO_ROBOTS_POLICY'].includes(row.decision)))return null;
   return officialMarketAvailability({serviceId,serviceName,url:page.url,body:page.rawSource.text,checkedAt:page.checkedAt??clock(),officialHosts});
  };
- proof=await attempt(catalogSource);
- if(!proof)for(const url of (prior?.leadUrls??[]).slice(0,2)){proof=await attempt(url);if(proof)break;}
- if(!proof&&!signal.aborted){
-  const query=`site:${officialHosts[0].replace(/^www\./u,'')} ${serviceName} available countries locations`;
-  let found=[];try{found=(await (search??adapter.search)({query,signal,target:{service:serviceId,market:null}})).results??[];}catch{}
-  for(const url of found.filter(row=>/availab|countries|locations|regions/iu.test(row.title??'')).map(row=>row.url).slice(0,2)){
-   proof=await attempt(url);if(proof)break;
+ if(!reuseRecentFreeSearch){
+  proof=await attempt(catalogSource);
+  if(!proof)for(const url of (prior?.leadUrls??[]).slice(0,2)){proof=await attempt(url);if(proof)break;}
+  if(!proof&&!signal.aborted){
+   const query=`site:${officialHosts[0].replace(/^www\./u,'')} ${serviceName} available countries locations`;
+   let found=[];try{found=(await (search??adapter.search)({query,signal,target:{service:serviceId,market:null}})).results??[];}catch{}
+   for(const url of found.filter(row=>/availab|countries|locations|regions/iu.test(row.title??'')).map(row=>row.url).slice(0,2)){
+    proof=await attempt(url);if(proof)break;
+   }
+  }
+  if(!proof&&!signal.aborted){
+   const query=`"${serviceName.split('/')[0].trim()}" latest updated official subscription available countries regions ${new Date(clock()).getUTCFullYear()}`;
+   try{
+    const result=await (search??adapter.search)({query,signal,target:{service:serviceId,market:null}});
+    coverageLeads=marketCoverageSearchLeads(serviceName,result.results??[]).map(lead=>({...lead,searchedAt:result.checkedAt??clock()}));
+   }catch{}
+   // A current-year query does not establish a page's publication date. Only
+   // fresh first-party source bytes can establish an exclusion.
+   for(const lead of coverageLeads.filter(row=>providerSourceDomainFamily(target,row.url)).slice(0,2)){
+    proof=await attempt(lead.url);if(proof)break;
+   }
   }
  }
  if(!proof&&paidSearchEnabled&&ledgerRoot&&!prior){
@@ -192,6 +211,7 @@ export async function discoverOfficialMarketAvailability(service,{search=null,re
    }
   }
  }
- cache.set(cacheKey,{until:now+(proof?CACHE_MS:UNKNOWN_CACHE_MS),value:proof});
+ onCoverageLeads?.(coverageLeads);
+ cache.set(cacheKey,{until:now+(proof?CACHE_MS:UNKNOWN_CACHE_MS),value:proof,leads:coverageLeads});
  return proof;
 }

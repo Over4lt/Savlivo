@@ -683,15 +683,24 @@ const canonicalServiceCheck=(root,name)=>descendants(root).find(node=>node.class
 const canonicalMarketLabel=(root,id)=>descendants(root).find(node=>node.className==='ops-canonical-markets').children.find(node=>node.className==='ops-facet-options').children.find(node=>node.textContent.endsWith('('+id+')'));
 
 test('canonical service selection displays official coverage without removing unknown research targets',async t=>{
- const overview={serviceId:'chess-com',sourceUrl:'https://www.chess.com/terms',sourceScope:'REGIONAL_OVERVIEW',reviewedAt:'2026-10-23',availableMarkets:['ES'],reportedUnavailableMarkets:[],unknownMarkets:['NO']};
+ const overview={serviceId:'chess-com',sourceUrl:'https://www.chess.com/terms',sourceScope:'REGIONAL_OVERVIEW',reviewedAt:'2026-10-23',availableMarkets:['ES'],reportedUnavailableMarkets:[],unknownMarkets:['X1'],coverageSearchLeads:[{title:'Chess.com countries',url:'https://example.org/chess-countries',candidateMarkets:['X1'],classification:'UNVERIFIED_SEARCH_LEAD',searchedAt:'2026-10-23T10:00:00.000Z'}]};
  const {root,calls}=await canonicalBuilder(t,{overviewService:overview});
  const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
  assert(text(root).includes('Official country overview — Chess.com'));
  assert(text(root).includes('1 listed available · 0 reported unavailable · 1 unknown'));
  assert(text(root).includes('Unknown; research remains eligible (1)'));
+ assert(text(root).includes('Public search leads to review (1)'));
+ assert(text(root).includes('Search results are unverified'));
+ assert(text(root).includes('source date unverified'));
  const link=descendants(root).find(node=>node.href===overview.sourceUrl);
  assert(link);assert.equal(link.rel,'noopener noreferrer');
  assert(button(root,'All eligible (46)'));
+ assert(button(root,'Listed markets (1)'));
+ await button(root,'Listed markets (1)').listeners.click();
+ assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,['ES']);
+ assert(button(root,'Unverified search hints (1)'),descendants(root).filter(node=>node.type==='button'&&node.textContent?.includes('search hints')).map(node=>node.textContent).join(', '));
+ await button(root,'Unverified search hints (1)').listeners.click();
+ assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,['X1']);
  assert.equal(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.services[0],'chess-com');
 });
 
