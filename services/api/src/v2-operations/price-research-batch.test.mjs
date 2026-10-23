@@ -25,6 +25,13 @@ test('batch executes one child at a time in deterministic namespaces and complet
  const recovered=await executePriceResearchBatch({...f,executeTarget:async()=>{throw Error('DUPLICATE_EXECUTION');}});assert.equal(recovered.status,'COMPLETE');assert.deepEqual(order,['alpha:DE','alpha:NO','beta:DE']);
 });
 
+test('AI provider permissions reach each child and cannot change on resume',async t=>{
+ const f=fixture(t,[target('alpha','NO')]),aiProviders={gemini:false,openai:false};f.job.config.aiProviders=aiProviders;
+ const first=await executePriceResearchBatch({...f,executeTarget:async({job})=>{assert.deepEqual(job.config.aiProviders,aiProviders);return {targets:[]};}});
+ assert.equal(first.status,'COMPLETE');
+ await assert.rejects(executePriceResearchBatch({...f,job:{...f.job,config:{...f.job.config,aiProviders:{gemini:true,openai:false}}},executeTarget:async()=>assert.fail('altered resume must not run')}),/PRICE_RESEARCH_BATCH_BINDING_CHANGED/);
+});
+
 test('Suggested Only mode and one-call budget survive interrupted multi-market resume',async t=>{
  const f=fixture(t,[target('prime-video','NO'),target('prime-video','SE')]),seen=[];f.job.config.researchMode='suggested_only';f.job.config.perTargetRequestCeiling=1;f.job.config.batchRequestCeiling=2;f.job.config.capabilities={direct:false,tavily:false,decodo:false,browser:false,groq:false};
  let stop=false;

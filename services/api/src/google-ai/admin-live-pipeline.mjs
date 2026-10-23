@@ -171,12 +171,12 @@ function combineGoogleAnswers(first,second){
   recovery:null,audit:{...first.audit,groundingCitations:[...new Map(citations.map(row=>[row.url,row])).values()]}};
 }
 
-export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,acquireGoogle=researchMonthlyRecurringWithRecovery,persistSuggested=persistSuggestedProductPlans,persistVerified=persistVerifiedLivePrices,loadSuggested=loadSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices,runDownstream,beforeGoogle=null}={}){
+export async function runAdminV4FirstResearch({targets,artifactDirectory,apiKey,allowGoogleAi=true,acquireGoogle=researchMonthlyRecurringWithRecovery,persistSuggested=persistSuggestedProductPlans,persistVerified=persistVerifiedLivePrices,loadSuggested=loadSuggestedProductPlans,loadVerified=loadPersistedVerifiedPrices,runDownstream,beforeGoogle=null}={}){
   if(!Array.isArray(targets)||!targets.length||targets.length>adminGooglePipelineLimits.targets||typeof runDownstream!=='function')throw Error('ADMIN_V4_PIPELINE_INPUT_INVALID');
   const scoped=targets.map(safeTarget),priority=beforeGoogle?await beforeGoogle():null,sessions=[];
   for(const target of scoped){
     let acquisition;
-    try{acquisition=priority?.satisfiedTargetIds?.includes(target.id)?{status:'RESEARCH_LINK_VERIFIED',aiResult:{provider:target.serviceName,market:target.market,plans:[],sources:[],warnings:[],requestCount:0},audit:{timestamp:new Date().toISOString(),request:{requestCount:0,status:'SKIPPED_RESEARCH_LINK_VERIFIED'}}}:await acquireGoogle({providerName:target.serviceName,targetMarket:target.market,providerNamespace:target.providerNamespace,apiKey});}
+    try{acquisition=priority?.satisfiedTargetIds?.includes(target.id)?{status:'RESEARCH_LINK_VERIFIED',aiResult:{provider:target.serviceName,market:target.market,plans:[],sources:[],warnings:[],requestCount:0},audit:{timestamp:new Date().toISOString(),request:{requestCount:0,status:'SKIPPED_RESEARCH_LINK_VERIFIED'}}}:!allowGoogleAi?{status:'GOOGLE_AI_DISABLED',aiResult:null,audit:{schemaVersion:1,query:null,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model:null,timestamp:new Date().toISOString(),normalizedAnswer:null,citations:[],request:{requestCount:0,status:'DISABLED_FOR_RUN'}}}:await acquireGoogle({providerName:target.serviceName,targetMarket:target.market,providerNamespace:target.providerNamespace,apiKey});}
     catch{acquisition={status:'GOOGLE_AI_ACCESS_FAILURE',aiResult:null,audit:{schemaVersion:1,query:null,researchProvider:'GOOGLE_GEMINI_API_SEARCH_GROUNDED',model:null,timestamp:new Date().toISOString(),normalizedAnswer:null,citations:[],request:{requestCount:0,status:'ADAPTER_FAILURE'}}};}
     const {state,plans}=suggestedProjection(target,acquisition);
     if(plans.length)await persistSuggested(plans);

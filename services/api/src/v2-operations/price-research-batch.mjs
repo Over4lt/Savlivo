@@ -46,7 +46,7 @@ export function recoverCompletedPricingRoutes(memory,child,target,{memoryRoot=nu
   if(memoryRoot&&jobId&&recordedAt)publishPricingMethodOutcomes(memoryRoot,{jobId,checkpoint:attempt,service:target.serviceId,market:target.targetMarket,recordedAt,checkpointFile:file,result,confirmedSuccessUrls,confirmedSuccessMethods});
  }
 }
-const binding=config=>digest({targetingRevision:config.targetingRevision,services:config.services,markets:config.markets,batchTargets:config.batchTargets,logicalTargetCount:config.logicalTargetCount,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling,...(config.researchMode?{researchMode:config.researchMode}:{})});
+const binding=config=>digest({targetingRevision:config.targetingRevision,services:config.services,markets:config.markets,batchTargets:config.batchTargets,logicalTargetCount:config.logicalTargetCount,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling,...(config.researchMode?{researchMode:config.researchMode}:{}),...(config.aiProviders?{aiProviders:config.aiProviders}:{})});
 const legacyBinding=config=>digest({targetingRevision:config.targetingRevision,services:config.services,markets:config.markets,cursor:config.cursor??null,batchTargets:config.batchTargets,logicalTargetCount:config.logicalTargetCount,continuationCursor:config.continuationCursor??null,perTargetRequestCeiling:config.perTargetRequestCeiling,batchRequestCeiling:config.batchRequestCeiling});
 const progressFile=directory=>path.join(directory,'price-research-batch-progress.json');
 const journalFile=directory=>path.join(directory,'price-research-batch-progress.jsonl');
@@ -184,7 +184,7 @@ async function executeSuggestedOnlyParallelBatch({job,directory,apiKey,client,sh
     const childDir=childDirectory(directory,target,index),startedAt=new Date().toISOString();
     try{
      update(index,'RUNNING',{startedAt});
-     const result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,researchMode:'suggested_only',perTargetRequestCeiling:perTarget,capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop:()=>false,googleRequestGate:gate});
+     const result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,researchMode:'suggested_only',perTargetRequestCeiling:perTarget,...(config.aiProviders?{aiProviders:config.aiProviders}:{}),capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop:()=>false,googleRequestGate:gate});
      checkedSuggestedResult(result,target,perTarget);
      const finishedAt=new Date().toISOString(),resultFile=parallelResultFile(directory,target,index);
      writeJson(resultFile,result);
@@ -230,7 +230,7 @@ export async function executePriceResearchBatch({job,directory,apiKey,client,sho
   if(shouldStop()){progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}
   const childDir=childDirectory(directory,target,index),startedAt=new Date().toISOString();Object.assign(outcome,record(journal,index,target,'RUNNING',{startedAt}));delete outcome.index;progress.status='RUNNING';progress.nextIndex=index;progress.current={index,targetId:target.id,status:'RUNNING',startedAt};writeJson(file,compact(progress));
   let result;
-  try{result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,...(researchModeOf(config)==='suggested_only'?{researchMode:'suggested_only',perTargetRequestCeiling:perTarget}:{}),capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop,providerPricingRouteMemory,googleRequestGate:serialGoogleRequestGate});}
+  try{result=await executeTarget({job:{...job,config:{objective:'PRICE_RESEARCH',targetKind:'KNOWN_SERVICE',serviceId:target.serviceId,market:target.targetMarket,...(researchModeOf(config)==='suggested_only'?{researchMode:'suggested_only',perTargetRequestCeiling:perTarget}:{}),...(config.aiProviders?{aiProviders:config.aiProviders}:{}),capabilities:config.capabilities}},directory:childDir,apiKey,client,shouldStop,providerPricingRouteMemory,googleRequestGate:serialGoogleRequestGate});}
   catch(error){
    const finishedAt=new Date().toISOString();
    if(shouldStop()||error?.message==='PRICE_RESEARCH_STOPPED'){Object.assign(outcome,record(journal,index,target,'STOPPED',{startedAt,finishedAt}));delete outcome.index;progress.status='STOPPED';progress.nextIndex=index;progress.current=null;writeJson(file,compact(progress));return {...progress};}

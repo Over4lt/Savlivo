@@ -114,3 +114,18 @@ test('Gemini readiness is non-blocking and follows env-first local fallback sema
 test('PRICE_RESEARCH child environment carries resolved credentials without changing precedence',async()=>{
  let tavilyReads=0;const env=await priceResearchChildEnvironment({TAVILY_API_KEY:'env-tavily',GEMINI_API_KEY:'env-gemini'},{readTavily:async()=>{tavilyReads++;return 'local-tavily';},readGemini:async()=>assert.fail('Gemini environment must win'),readDecodo:async()=>null});assert.equal(env.TAVILY_API_KEY,'env-tavily');assert.equal(env.GEMINI_API_KEY,'env-gemini');assert.equal(tavilyReads,0);
 });
+
+test('per-run AI permissions suppress credentials and skip disabled Gemini keychain lookup',async()=>{
+ const aiProviders={gemini:false,openai:false},base={GEMINI_API_KEY:'gemini-secret',OPENAI_API_KEY:'openai-secret',TAVILY_API_KEY:'tavily-secret'};
+ const check=await priceResearchCapabilityPreflight(none,{env:base,aiProviders,readGemini:async()=>assert.fail('disabled Gemini must not read Keychain')});
+ assert.equal(check.ready,true);assert.equal(check.auxiliary.googleAi.reason,'DISABLED_FOR_RUN');assert.equal(check.auxiliary.openAi.reason,'DISABLED_FOR_RUN');
+ const child=await priceResearchChildEnvironment(base,{aiProviders,readGemini:async()=>assert.fail('disabled Gemini must not read Keychain'),readTavily:async()=>assert.fail('Tavily environment must win')});
+ assert.equal(child.GEMINI_API_KEY,undefined);assert.equal(child.OPENAI_API_KEY,undefined);assert.equal(child.TAVILY_API_KEY,'tavily-secret');assert.equal(base.GEMINI_API_KEY,'gemini-secret');
+});
+
+test('per-run OpenAI denial removes the optional Browser visual interpreter',async t=>{
+ const directory=temp(t),seen={},factory=await createPriceResearchAdapters({market:'DE',capabilities:capabilities(true),aiProviders:{gemini:true,openai:false},env:{OPENAI_API_KEY:'openai-secret',SAVLIVO_BROWSER_RUNTIME:'LOCAL_CONTAINER'}},{createDiscovery:async()=>discoveryFixture(seen)});
+ await factory({stage:'KNOWN_SERVICE_CHILD',directory,targets:[target]});
+ assert.equal(typeof seen.dependencies.createRenderedBrowser,'function');
+ assert.equal(seen.dependencies.interpretVisual,undefined);
+});

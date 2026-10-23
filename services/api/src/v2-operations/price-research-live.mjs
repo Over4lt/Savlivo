@@ -9,13 +9,14 @@ import {runLive} from '../research-v2/live/runner.mjs';
 import {randomBytes} from 'node:crypto';
 import {createLocalContainerRenderedBrowser,localContainerBrowserConfiguration} from '../research-v3/local-container-browser.mjs';
 import {createLiveVisualInterpreter} from '../research-v3/live-visual.mjs';
+import {aiProvidersOf,aiRestrictedEnvironment} from './price-research-mode.mjs';
 
 const unavailable=(reason)=>({available:false,reason,readiness:'UNAVAILABLE'});
 const available=(reason,extra={})=>({available:true,reason,readiness:'AVAILABLE',...extra});
 const decodoFailure=error=>['DECODO_RUNTIME_CONFIG_INVALID','DECODO_RUNTIME_CONFIG_NOT_READY'].includes(error?.message)?error.message:'DECODO_PREFLIGHT_FAILED';
 
 // PRICE_RESEARCH admission checks only local configuration. Network/browser initialization remains lazy at execution.
-export async function priceResearchCapabilityPreflight(capabilities,{env=process.env,markets=[],readTavily=readTavilyKeychain,readDecodo=undefined,readGemini=readGeminiKeychain,loadDecodo=loadDecodoRuntimeConfig,decodoProvider=createDecodoProvider}={}){
+export async function priceResearchCapabilityPreflight(capabilities,{env=process.env,markets=[],aiProviders,readTavily=readTavilyKeychain,readDecodo=undefined,readGemini=readGeminiKeychain,loadDecodo=loadDecodoRuntimeConfig,decodoProvider=createDecodoProvider}={}){
  const base=capabilityPreflight(capabilities,env,{probeBrowser:()=>{const config=localContainerBrowserConfiguration(env);return {available:config.configured,reason:config.reason};}}),availability={...base.availability};
  if(capabilities.tavily)try{await resolveTavilyCredential({env,readKeychain:readTavily});availability.tavily=available('CONFIGURED',{credentialSource:env.TAVILY_API_KEY?.trim()?'ENVIRONMENT':'LOCAL_KEYCHAIN'});}catch{availability.tavily=unavailable('TAVILY_CREDENTIAL_UNAVAILABLE');}
  if(capabilities.decodo)try{
@@ -24,19 +25,25 @@ export async function priceResearchCapabilityPreflight(capabilities,{env=process
   if(markets.length&&markets.some(market=>!bundle.provider.countries.includes(market)))throw Error('DECODO_TARGET_MARKET_UNAVAILABLE');
   availability.decodo=available('DECODO_LOCAL_RUNTIME_READY',{readiness:'CONDITIONAL'});
  }catch(error){availability.decodo=unavailable(error?.message==='DECODO_TARGET_MARKET_UNAVAILABLE'?error.message:decodoFailure(error));}
- let googleAi;
- try{const child=await geminiChildEnvironment(env,readGemini),configured=!!child.GEMINI_API_KEY?.trim();googleAi=configured?available('CONFIGURED',{credentialSource:env.GEMINI_API_KEY?.trim()?'ENVIRONMENT':'LOCAL_KEYCHAIN',blocking:false}):{...unavailable('GEMINI_CREDENTIAL_UNAVAILABLE'),blocking:false};}
+ const allowed=aiProvidersOf({aiProviders});let googleAi;
+ if(!allowed.gemini)googleAi={...unavailable('DISABLED_FOR_RUN'),blocking:false};
+ else try{const child=await geminiChildEnvironment(env,readGemini),configured=!!child.GEMINI_API_KEY?.trim();googleAi=configured?available('CONFIGURED',{credentialSource:env.GEMINI_API_KEY?.trim()?'ENVIRONMENT':'LOCAL_KEYCHAIN',blocking:false}):{...unavailable('GEMINI_CREDENTIAL_UNAVAILABLE'),blocking:false};}
  catch{googleAi={...unavailable('GEMINI_CREDENTIAL_UNAVAILABLE'),blocking:false};}
- return {...base,availability,ready:capabilityNames.every(name=>!capabilities[name]||availability[name].available),auxiliary:{googleAi}};
+ const openAi=!allowed.openai?{...unavailable('DISABLED_FOR_RUN'),blocking:false}:env.OPENAI_API_KEY?.trim()?available('CONFIGURED',{blocking:false}):{...unavailable('OPENAI_CREDENTIAL_UNAVAILABLE'),blocking:false};
+ return {...base,availability,ready:capabilityNames.every(name=>!capabilities[name]||availability[name].available),auxiliary:{googleAi,openAi}};
 }
 
-export async function priceResearchChildEnvironment(base=process.env,{readGemini=readGeminiKeychain,readTavily=readTavilyKeychain,readDecodo=undefined,loadDecodo=loadDecodoRuntimeConfig}={}){
- const env=await geminiChildEnvironment(base,readGemini);try{env.TAVILY_API_KEY=await resolveTavilyCredential({env,readKeychain:readTavily});}catch{}
+export async function priceResearchChildEnvironment(base=process.env,{aiProviders,readGemini=readGeminiKeychain,readTavily=readTavilyKeychain,readDecodo=undefined,loadDecodo=loadDecodoRuntimeConfig}={}){
+ const allowed=aiProvidersOf({aiProviders}),env=allowed.gemini?await geminiChildEnvironment(base,readGemini):{...base};
+ if(!allowed.gemini)delete env.GEMINI_API_KEY;
+ if(!allowed.openai)delete env.OPENAI_API_KEY;
+ try{env.TAVILY_API_KEY=await resolveTavilyCredential({env,readKeychain:readTavily});}catch{}
  try{const runtime=await loadDecodo({env,...(readDecodo?{readKeychain:readDecodo}:{})});for(const name of credentialNames)if(runtime[name])env[name]=runtime[name];for(const [name,value]of Object.entries(runtime))if(name.startsWith('SAVLIVO_DECODO_')||name==='SAVLIVO_GEO_VERIFIER_APPROVED')env[name]=value;}catch{}
  return env;
 }
 
-export async function createPriceResearchAdapters({market,capabilities,env=process.env},{createDiscovery=createTavilyDiscovery,createRenderedBrowser=createLocalContainerRenderedBrowser}={}){
+export async function createPriceResearchAdapters({market,capabilities,aiProviders,env=process.env},{createDiscovery=createTavilyDiscovery,createRenderedBrowser=createLocalContainerRenderedBrowser}={}){
+ env=aiRestrictedEnvironment(env,{aiProviders});
  let outerSearch=null,runtime=null,bundle=null;
  if(capabilities.decodo){runtime=await loadDecodoRuntimeConfig({env});bundle=createDecodoProvider({env:runtime});if(!bundle.provider?.ready||!bundle.provider?.configured||!bundle.verifier?.approved)throw Error('DECODO_PREFLIGHT_FAILED');}
  return async({stage,directory,targets=[]})=>{

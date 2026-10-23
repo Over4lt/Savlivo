@@ -15,6 +15,12 @@ const acquisition=(status='GOOGLE_AI_SUCCESS',plans=[plan])=>({status,aiResult:s
 const v3Suggested=(amount=11.99)=>({provider:'Example',market:'DE',plan:'Individual',amount,currency:'EUR',paymentCadence:'MONTHLY_RECURRING',billingRoute:null,sourceUrl:'https://example.test/de/pricing',acquiredAt:'2026-10-13T00:01:00.000Z',provenance:'V3_SOURCE_RESEARCH',researchEvidence:{acquired:true,sourceBound:true,observationId:'observation-1',amountBasis:'EXPLICIT',cadence:'MONTHLY_RECURRING',priceRole:'ORDINARY_RECURRING',sourceOwnership:'FIRST_PARTY',providerAlignment:'EXACT',planAlignment:'EXACT',marketAlignment:'EXACT',billingRouteAlignment:'UNRESOLVED'}});
 const verified=(amount=10.99)=>({provider:'Example',market:'DE',plan:'Individual',amount,currency:'EUR',paymentCadence:'MONTHLY_RECURRING',sourceUrl:'https://example.test/de/pricing',verifiedAt:'2026-10-13T00:02:00.000Z',provenance:'V3_VERIFIED'});
 
+test('Gemini-disabled Standard run makes no Google call and still executes V3',async()=>{
+ let downstream=0;
+ const result=await runAdminV4FirstResearch({targets:[target],allowGoogleAi:false,apiKey:'must-not-be-used',acquireGoogle:async()=>assert.fail('Gemini disabled'),persistSuggested:async()=>assert.fail('no Suggested candidate'),loadSuggested:async()=>[],loadVerified:async()=>[],persistVerified:async()=>assert.fail('no Verified fixture'),runDownstream:async()=>{downstream++;return {result:{},v3Results:{[target.id]:{suggested:[],verified:[],contradictions:[],operationalFailures:[]}}};}});
+ assert.equal(downstream,1);assert.equal(result.targets[0].googleStatus,'GOOGLE_AI_DISABLED');assert.equal(result.targets[0].googleRequests,0);
+});
+
 function stores(){
  let suggested=[],verifiedRows=[];
  return {

@@ -9,10 +9,15 @@ import {executePriceResearch,priceResearchPlan,reviewedNamespacePriceResearchSee
 import {runAdminV4FirstResearch} from '../google-ai/admin-live-pipeline.mjs';
 import {reviewedProviderNamespacesFor} from '../research-v3/reviewed-provider-namespaces.mjs';
 import {applyResearchHandoff} from '../research-v2/inventory/reviewed-cohort-execution.mjs';
-import {perTargetRequestCeiling} from './price-research-mode.mjs';
+import {perTargetRequestCeiling,aiProvidersOf} from './price-research-mode.mjs';
 import {readAvailabilitySearch} from './market-availability-search-memory.mjs';
 
 const caps={direct:false,tavily:false,decodo:false,browser:false,groq:false};
+test('AI permissions validate exact booleans and preserve legacy run defaults',()=>{
+ assert.deepEqual(aiProvidersOf({}),{gemini:true,openai:true});
+ assert.deepEqual(aiProvidersOf({aiProviders:{gemini:false,openai:true}}),{gemini:false,openai:true});
+ for(const value of [null,{},[],{gemini:false},{gemini:false,openai:true,extra:true},{gemini:'false',openai:true}])assert.throws(()=>aiProvidersOf({aiProviders:value}),/INVALID_PRICE_RESEARCH_AI_PROVIDERS/);
+});
 test('unresolved priority V3 evidence crosses phases only with the exact retained source hash',t=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'price-research-priority-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
  const directory=path.join(root,'priority-research-links','acquisition'),body='<html>Provider source</html>',sha=value=>createHash('sha256').update(value).digest('hex'),hash=sha(body),observation={id:'country-source',url:'https://help.example.com/plans',sha256:hash,context:{transport:'DECODO',networkGeography:'NO'}},truth={needs:[{proposition:'PRICE_AMOUNT',state:'UNRESOLVED'}],offers:[],eligibility:{NO:{result:'UNRESOLVED'}}},target={id:'example-NO',service:'example',market:'NO'};
@@ -51,6 +56,21 @@ test('canonical selection Preflight freezes the exact complete scope and Start q
  const pre=await ops.preflight(input,'admin');assert.equal(pre.logicalTargetCount,4);assert.equal(pre.batchTargetCount,4);assert.equal(pre.perTargetRequestCeiling,96);assert.equal(pre.totalSafetyCeiling,384);assert.equal(pre.continuationCursor,null);
  const stored=ops.db().preflights[0].config;assert.deepEqual(stored.batchTargets.map(row=>[row.serviceId,row.targetMarket]),[['1password','DE'],['1password','NO'],['chess-com','DE'],['chess-com','NO']]);assert(stored.batchTargets.every(row=>row.marketApplicabilityEstablished===false));
  const job=await ops.start(pre.token,'admin',true);assert.equal(job.status,'QUEUED');assert.deepEqual(job.config,stored);assert.equal((await ops.start(pre.token,'admin',true)).id,job.id);assert.equal(ops.db().jobs.length,1);const manifest=JSON.parse(fs.readFileSync(path.join(ops.config.root,'runs',job.id,'manifest.json')));assert.equal(manifest.targets.length,4);assert.equal(manifest.limits.perTargetRequests,96);assert.equal(manifest.limits.totalRequests,384);assert(manifest.targets.every(row=>row.marketApplicabilityEstablished===false));
+});
+
+test('canonical AI switches are frozen into Preflight, Start and batch manifest',async t=>{
+ const ops=batchFixture(t),targeting=await ops.priceResearchTargeting({services:['chess-com'],markets:['DE']}),aiProviders={gemini:false,openai:false};
+ const input={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['chess-com'],markets:['DE'],targetingRevision:targeting.revision,capabilities:caps,aiProviders};
+ const pre=await ops.preflight(input,'admin');assert.equal(pre.liveReady,true);assert.equal(pre.capabilityCheck.auxiliary.googleAi.reason,'DISABLED_FOR_RUN');
+ const job=await ops.start(pre.token,'admin',true);assert.deepEqual(job.config.aiProviders,aiProviders);
+ const manifest=JSON.parse(fs.readFileSync(path.join(ops.config.root,'runs',job.id,'manifest.json')));assert.deepEqual(manifest.priceResearch.aiProviders,aiProviders);
+ await assert.rejects(ops.preflight({...input,aiProviders:{...aiProviders,gemini:'false'}},'admin'),/INVALID_PRICE_RESEARCH_AI_PROVIDERS/);
+});
+
+test('Suggested Only cannot start when Gemini is disabled for that run',async t=>{
+ const ops=batchFixture(t),targeting=await ops.priceResearchTargeting({services:['chess-com'],markets:['DE']}),input={objective:'PRICE_RESEARCH',targetKind:'CANONICAL_SELECTION',services:['chess-com'],markets:['DE'],targetingRevision:targeting.revision,researchMode:'suggested_only',capabilities:caps,aiProviders:{gemini:false,openai:false}};
+ const pre=await ops.preflight(input,'admin');assert.equal(pre.liveReady,false);assert.equal(pre.capabilityCheck.auxiliary.googleAi.reason,'DISABLED_FOR_RUN');
+ await assert.rejects(ops.start(pre.token,'admin',true));assert.equal(ops.db().jobs.length,0);
 });
 
 test('official unavailable proof excludes targets before Preflight and freezes the evidence without paid attempts',async t=>{
