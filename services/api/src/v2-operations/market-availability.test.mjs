@@ -21,6 +21,14 @@ test('the first 30 service overview follows the actual canonical API order and n
  assert.deepEqual(firstThirtyServiceMarketOverview.map(row=>row.serviceId),ids);
  assert.equal(serviceMarketOverviewFor('hulu').reportedUnavailableMarkets.length,45);
  assert.equal(serviceMarketOverviewFor('disney-plus').unknownMarkets.length,46);
+ const tencent=serviceMarketOverviewFor('tencent-video');
+ assert.deepEqual(tencent.availableMarkets,['CN']);
+ assert.equal(tencent.unknownMarkets.length,45);
+ assert.deepEqual(tencent.reportedUnavailableMarkets,[]);
+ assert.equal(serviceMarketOverviewFor('wetv')?.sourceUrl,'https://wetv.vip/');
+ const tencentTargets=projectPriceResearchTargeting(projectResearchServices({baseline:[{service:'tencent-video',name:'Tencent Video / 腾讯视频'}],frozen:[],manifestServiceIds:[],productCatalogRows:[]}),{services:['tencent-video']});
+ assert.equal(tencentTargets.targets[0].targetMarket,'CN');
+ assert.equal(tencentTargets.targets.length,46);
  for(const id of ['chatgpt','claude']){
   assert.deepEqual(serviceMarketOverviewFor(id).reportedUnavailableMarkets,['CN','HK']);
   assert(!serviceMarketOverviewFor(id).availableMarkets.includes('HK'));

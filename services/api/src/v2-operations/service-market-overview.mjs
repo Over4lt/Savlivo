@@ -38,7 +38,7 @@ const entries=[
  ['dropbox','https://help.dropbox.com/security/restricted-access-region-country','EXPLICIT_NEGATIVE','', ''],
  ['google-one','https://support.google.com/googleone/answer/9080668?hl=en','COMPLETE_SERVICE_LIST',allMarkets.filter(code=>code!=='CN').join(' '), 'CN'],
  ['icloud-plus','https://support.apple.com/en-us/108047','PER_SERVICE_COUNTRY_PAGE','', ''],
- ['tencent-video','https://v.qq.com/','NO_COUNTRY_LIST','', ''],
+ ['tencent-video','https://www.tencent.com/products/tencent-video/','CN_FOCUSED','CN', ''],
  ['iqiyi','https://www.iq.com/aboutus','REGIONAL_OVERVIEW','', ''],
  ['mango-tv','https://www.mgtv.com/','NO_COUNTRY_LIST','', ''],
  ['youku','https://www.youku.tv/appdownload','REGIONAL_OVERVIEW','', ''],
