@@ -38,15 +38,18 @@ const serviceTitle=(html,name)=>{
 };
 
 export function officialMarketAvailability({serviceId,serviceName,url,body,checkedAt,officialHosts=[]}){
+ const localizedJapanOnly=['u-next','dmm-tv'].includes(serviceId)&&serviceMarketOverviewFor(serviceId)?.sourceUrl===url;
+ const localizedTitle=localizedJapanOnly&&typeof body==='string'&&normalized(body.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/iu)?.[1]).includes(normalized(serviceName));
  if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(serviceId??'')||typeof serviceName!=='string'||!serviceName||
     typeof body!=='string'||Buffer.byteLength(body)>2_000_000||!Number.isFinite(Date.parse(checkedAt??''))||
-    !isEnglish(body)||!serviceTitle(body,serviceName))return null;
+    (!isEnglish(body)&&!localizedJapanOnly)||(!serviceTitle(body,serviceName)&&!localizedTitle))return null;
  const target={service:serviceId,serviceName,providerSourceIdentityHosts:officialHosts};
  if(!providerSourceDomainFamily(target,url))return null;
  const visible=body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/giu,''),unavailable=new Set(),evidence=[],sections=headingSections(visible);
  const brand=serviceName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
  const overview=serviceMarketOverviewFor(serviceId);
- if(overview?.sourceScope==='US_ONLY'){
+ const countryOnly={US_ONLY:'US',CA_ONLY:'CA',JP_ONLY:'JP',KR_ONLY:'KR'}[overview?.sourceScope];
+ if(countryOnly){
   let matchingPage=false;
   try{
    const current=new URL(url),reviewed=new URL(overview.sourceUrl);
@@ -54,10 +57,17 @@ export function officialMarketAvailability({serviceId,serviceName,url,body,check
   }catch{}
   const statement=normalized(visible);
   const name=normalized(serviceName).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  const serviceWide=new RegExp('(?:'+name+' is currently available to stream within the united states|to subscribe to '+name+'.{0,160}to be located within the u s|'+name+' services? are only available in the united states|the '+name+' service is for individuals.{0,100}reside in the united states)');
-  if(matchingPage&&serviceWide.test(statement)){
-   for(const market of markets)if(market.code!=='US')unavailable.add(market.code);
-   evidence.push(serviceName+' provider page limits sign-up or streaming to the United States.');
+  const serviceWide={
+   US_ONLY:new RegExp('(?:'+name+' is currently available to stream within the united states|to subscribe to '+name+'.{0,160}to be located within the u s|'+name+' services? are only available in the united states|the '+name+' service is for individuals.{0,100}reside in the united states)'),
+   CA_ONLY:serviceId==='crave'?/crave is only available for use within canada/u:serviceId==='sportsnet-plus'?/sportsnet is only available for streaming while you are physically located in canada/u:serviceId==='siriusxm-canada'?/we offer the services only within the provinces and territories of canada/u:/^$/u,
+   JP_ONLY:serviceId==='hulu-japan'?/hulu japan .{0,100}is only available within japan/u:/^$/u,
+   KR_ONLY:serviceId==='tving'?/our service is only available in south korea/u:/^$/u
+  }[overview.sourceScope];
+  const japaneseOnly=(serviceId==='u-next'&&statement.includes(normalized('サービスのご利用は日本国内に限ります')))||
+   (serviceId==='dmm-tv'&&statement.includes(normalized('DMM TVは海外からご利用いただくことはできません')));
+  if(matchingPage&&(serviceWide.test(statement)||japaneseOnly)){
+   for(const market of markets)if(market.code!==countryOnly)unavailable.add(market.code);
+   evidence.push(serviceName+' provider page limits sign-up or streaming to '+countryOnly+'.');
   }
  }
  const explicitNegative=new RegExp('\\b'+brand+'\\s+is\\s+not\\s+available\\s+in\\b|\\b'+brand+'\\s+is\\s+unavailable\\s+in\\b','iu');
@@ -103,7 +113,13 @@ const cache=new Map(),CACHE_MS=6*60*60*1000,UNKNOWN_CACHE_MS=15*60*1000;
 export async function discoverOfficialMarketAvailability(service,{search=null,read=null,paidSearch=null,paidSearchEnabled=false,ledgerRoot=null,clock=()=>new Date().toISOString()}={}){
  const serviceId=service.serviceId,serviceName=service.name,now=Date.now(),cacheKey=(ledgerRoot??'')+'\u0000'+serviceId,cached=cache.get(cacheKey);
  const prior=ledgerRoot?readAvailabilitySearch(ledgerRoot,serviceId):null;
- const officialHosts=baselineProviderSourceHosts(serviceId,serviceName).filter(host=>!host.endsWith('apps.apple.com'));
+ const reviewed=serviceMarketOverviewFor(serviceId);
+ const reviewedOnlyPage=reviewed&&['CA_ONLY','JP_ONLY','KR_ONLY'].includes(reviewed.sourceScope)?reviewed.sourceUrl:null;
+ // Availability-only trust anchor: a reviewed first-party page is useful even
+ // when a provider has no price-source host in the V3 registry. This host is
+ // never carried into price acquisition or V3 provider authority.
+ const reviewedHost=reviewedOnlyPage?new URL(reviewedOnlyPage).hostname:null;
+ const officialHosts=[...new Set([...baselineProviderSourceHosts(serviceId,serviceName).filter(host=>!host.endsWith('apps.apple.com')),...(reviewedHost?[reviewedHost]:[])])];
  if(!officialHosts.length)return null;
  const target={service:serviceId,serviceName,providerSourceIdentityHosts:officialHosts};
  const saved=prior?.proof;
@@ -113,8 +129,7 @@ export async function discoverOfficialMarketAvailability(service,{search=null,re
  if(cached&&cached.until>now&&(cached.value||!paidSearchEnabled))return cached.value;
  const signal=AbortSignal.timeout(4000);
  const adapter=!search||!read?createV2RobotsPublicAdapter({searchEnabled:true,retainRaw:true,maxResults:4,maxLinks:4,maxReads:7,maxRequests:16,network:{timeoutMs:8000,maxBytes:2_000_000,maxRedirects:2}}):null;
- const reviewed=serviceMarketOverviewFor(serviceId);
- const catalogSource=reviewed&&['US_ONLY','EXPLICIT_NEGATIVE'].includes(reviewed.sourceScope)?reviewed.sourceUrl:
+ const catalogSource=reviewed&&['US_ONLY','CA_ONLY','JP_ONLY','KR_ONLY','EXPLICIT_NEGATIVE'].includes(reviewed.sourceScope)?reviewed.sourceUrl:
   serviceCatalog.find(row=>row.slug===serviceId)?.additionalAvailability?.sourceUrl;
  let proof=null;
  const attempted=new Set();

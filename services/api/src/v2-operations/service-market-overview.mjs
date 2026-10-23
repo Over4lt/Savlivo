@@ -1,4 +1,4 @@
-// Reviewed first-party availability leads for the first 30 canonical services.
+// Reviewed first-party availability leads for the first 60 canonical services.
 // These are display and discovery hints. Only a fresh, hash-bound provider page
 // accepted by market-availability.mjs may remove a research target.
 import {countryCurrencyData} from '../../../../packages/contracts/src/markets.ts';
@@ -35,11 +35,41 @@ const entries=[
  ['dropbox','https://help.dropbox.com/security/restricted-access-region-country','EXPLICIT_NEGATIVE','', ''],
  ['google-one','https://support.google.com/googleone/answer/9080668?hl=en','COMPLETE_SERVICE_LIST',allMarkets.filter(code=>code!=='CN').join(' '), 'CN'],
  ['icloud-plus','https://support.apple.com/en-us/108047','PER_SERVICE_COUNTRY_PAGE','', ''],
- ['tencent-video','https://v.qq.com/','NO_COUNTRY_LIST','', '']
+ ['tencent-video','https://v.qq.com/','NO_COUNTRY_LIST','', ''],
+ ['iqiyi','https://www.iq.com/aboutus','REGIONAL_OVERVIEW','', ''],
+ ['mango-tv','https://www.mgtv.com/','NO_COUNTRY_LIST','', ''],
+ ['youku','https://www.youku.tv/appdownload','REGIONAL_OVERVIEW','', ''],
+ ['bilibili','https://www.bilibili.com/','NO_COUNTRY_LIST','', ''],
+ ['qq-music','https://y.qq.com/','NO_COUNTRY_LIST','', ''],
+ ['netease-cloud-music','https://music.163.com/','NO_COUNTRY_LIST','', ''],
+ ['kugou-music','https://www.kugou.com/','NO_COUNTRY_LIST','', ''],
+ ['baidu-netdisk','https://pan.baidu.com/','NO_COUNTRY_LIST','', ''],
+ ['wps','https://www.wps.com/buy/','NO_COUNTRY_LIST','', ''],
+ ['strava','https://support.strava.com/','RESTRICTIONS_NOT_EXHAUSTIVE','', ''],
+ ['calm','https://support.calm.com/hc/en-us/articles/360008240934-How-to-Check-Calm-Premium-Subscription-Pricing','NO_COUNTRY_LIST','', ''],
+ ['headspace','https://help.headspace.com/hc/en-us/articles/360008780334-How-do-I-receive-the-Student-rate','PLAN_SPECIFIC_LIST','US AU CA FR DE GB', ''],
+ ['viaplay','https://help.viaplay.com/nl/package-info/','PLAN_SPECIFIC_LIST','NL', ''],
+ ['storytel','https://support.storytel.com/hc/en-sg/articles/4864347023132-What-is-Storytel','REGIONAL_OVERVIEW','', ''],
+ ['rtl-plus','https://plus.rtl.de/agb','PLAN_SPECIFIC_LIST','DE', ''],
+ ['videoland','https://v2.videoland.com/algemene-voorwaarden','NL_FOCUSED','NL', ''],
+ ['nintendo-switch-online','https://en-americas-support.nintendo.com/app/answers/detail/a_id/41953/','REGIONAL_LIST','US CA BR CL CO MX', ''],
+ ['osn-plus','https://support.osnplus.com/hc/en-us/articles/6869696148634-Where-is-OSN-available','REGIONAL_OVERVIEW','AE SA QA EG', ''],
+ ['apple-arcade','https://support.apple.com/en-us/118205','PER_SERVICE_COUNTRY_PAGE','', ''],
+ ['u-next','https://help.unext.jp/guide/detail/not-use-overseas','JP_ONLY','JP',allMarkets.filter(code=>code!=='JP').join(' ')],
+ ['hulu-japan','https://help.hulu.jp/hc/en-us/articles/360044168254-Can-I-access-Hulu-Japan-from-outside-of-Japan','JP_ONLY','JP',allMarkets.filter(code=>code!=='JP').join(' ')],
+ ['dmm-tv','https://support.dmm.com/dmm-tv/article/47591','JP_ONLY','JP',allMarkets.filter(code=>code!=='JP').join(' ')],
+ ['tving','https://www.tving.com/live/C52299','KR_ONLY','KR',allMarkets.filter(code=>code!=='KR').join(' ')],
+ ['melon','https://info.melon.com/terms/web/terms1_2_9.html','RESTRICTIONS_NOT_EXHAUSTIVE','', ''],
+ ['crave','https://plus.crave.ca/en/faq/troubleshooting/can-i-use-crave-when-travelling-in-canada-and-the-us/','CA_ONLY','CA',allMarkets.filter(code=>code!=='CA').join(' ')],
+ ['tsn','https://www.tsn.ca/tsn-front-row/tsn-announces-subscription-options-for-tsn-delivering-marquee-live-sports-1.1994040','CA_FOCUSED','CA', ''],
+ ['sportsnet-plus','https://support.sportsnetplus.ca/hc/en-gb/articles/46382041630228-Can-I-access-Sportsnet-internationally','CA_ONLY','CA',allMarkets.filter(code=>code!=='CA').join(' ')],
+ ['siriusxm-canada','https://www.siriusxm.ca/terms-and-conditions/','CA_ONLY','CA',allMarkets.filter(code=>code!=='CA').join(' ')],
+ ['shahid','https://shahid.mbc.net/en/hub/promo/SHAHID_VIP','REGIONAL_OVERVIEW','', ''],
+ ['anghami','https://support.anghami.com/hc/en-us/articles/9175760067098-Subscribe-to-Anghami-Using-Your-Card','REGIONAL_OVERVIEW','', '']
 ];
 
 const ids=new Set(),known=new Set(allMarkets);
-export const firstThirtyServiceMarketOverview=Object.freeze(entries.map(([serviceId,sourceUrl,sourceScope,available,unavailable],index)=>{
+export const firstSixtyServiceMarketOverview=Object.freeze(entries.map(([serviceId,sourceUrl,sourceScope,available,unavailable],index)=>{
  if(ids.has(serviceId))throw Error('DUPLICATE_SERVICE_MARKET_OVERVIEW');ids.add(serviceId);
  const availableMarkets=codes(available),reportedUnavailableMarkets=codes(unavailable);
  if([...availableMarkets,...reportedUnavailableMarkets].some(code=>!known.has(code))||
@@ -47,5 +77,6 @@ export const firstThirtyServiceMarketOverview=Object.freeze(entries.map(([servic
  return Object.freeze({order:index+1,serviceId,sourceUrl,sourceScope,reviewedAt:'2026-10-23',availableMarkets:Object.freeze(availableMarkets),
   reportedUnavailableMarkets:Object.freeze(reportedUnavailableMarkets),unknownMarkets:Object.freeze(allMarkets.filter(code=>!availableMarkets.includes(code)&&!reportedUnavailableMarkets.includes(code)))});
 }));
-const byId=new Map(firstThirtyServiceMarketOverview.map(row=>[row.serviceId,row]));
+export const firstThirtyServiceMarketOverview=Object.freeze(firstSixtyServiceMarketOverview.slice(0,30));
+const byId=new Map(firstSixtyServiceMarketOverview.map(row=>[row.serviceId,row]));
 export const serviceMarketOverviewFor=serviceId=>byId.get(serviceId)??null;

@@ -8,7 +8,7 @@ import {officialMarketAvailability,discoverOfficialMarketAvailability} from './m
 import {readAvailabilitySearch,reserveAvailabilitySearch} from './market-availability-search-memory.mjs';
 import {projectResearchServices} from '../research-v3/research-service-projection.mjs';
 import {projectPriceResearchTargeting,selectPriceResearchTargets} from './price-research-targeting.mjs';
-import {firstThirtyServiceMarketOverview,serviceMarketOverviewFor} from './service-market-overview.mjs';
+import {firstThirtyServiceMarketOverview,firstSixtyServiceMarketOverview,serviceMarketOverviewFor} from './service-market-overview.mjs';
 
 const now=new Date().toISOString();
 const official=body=>officialMarketAvailability({serviceId:'netflix',serviceName:'Netflix',url:'https://help.netflix.com/en/node/14164',body,checkedAt:now,officialHosts:['www.netflix.com']});
@@ -36,6 +36,57 @@ test('the first 30 service overview follows the actual canonical API order and n
  assert.equal(prioritized.targets[0].targetMarket,'AU');
  assert(prioritized.targets.findIndex(row=>row.targetMarket==='VN')>prioritized.targets.findIndex(row=>row.targetMarket==='AU'));
  assert.deepEqual(projectPriceResearchTargeting(paramount,{services:['paramount-plus'],markets:['VN','AU']}).targets.map(row=>row.targetMarket),['VN','AU']);
+});
+
+test('the next 30 preserve API order and country-only hints never exclude without fresh provider bytes',()=>{
+ const universe=JSON.parse(fs.readFileSync(new URL('../../../../docs/catalog/global-47/research-v2/v15-discovery-20260921/expanded-service-universe.json',import.meta.url)));
+ const ids=[...universe.existing,...universe.new_include,...universe.research].slice(0,60).map(row=>row.service??row.slug);
+ assert.deepEqual(firstSixtyServiceMarketOverview.map(row=>row.serviceId),ids);
+ assert.deepEqual(firstThirtyServiceMarketOverview,firstSixtyServiceMarketOverview.slice(0,30));
+ for(const id of ['crave','sportsnet-plus','siriusxm-canada']){
+  const row=serviceMarketOverviewFor(id);
+  assert.deepEqual(row.availableMarkets,['CA']);assert.equal(row.reportedUnavailableMarkets.length,45);
+  const p=projectResearchServices({baseline:[{service:id,name:id}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+  assert.equal(projectPriceResearchTargeting(p,{services:[id]}).targets.length,46);
+ }
+ for(const id of ['u-next','hulu-japan','dmm-tv']){
+  assert.deepEqual(serviceMarketOverviewFor(id).availableMarkets,['JP']);
+  assert.equal(serviceMarketOverviewFor(id).reportedUnavailableMarkets.length,45);
+ }
+ assert.equal(serviceMarketOverviewFor('tving').reportedUnavailableMarkets.length,45);
+ assert.equal(serviceMarketOverviewFor('melon').unknownMarkets.length,46);
+});
+
+test('new country-only exclusions require exact reviewed URL, official host, intact body and service-wide wording',async()=>{
+ const cases=[
+  ['crave','Crave','<html lang="en"><title>Can I use Crave when travelling?</title><p>Crave is only available for use within Canada.</p></html>','CA'],
+  ['sportsnet-plus','Sportsnet+','<html lang="en"><title>Can I access Sportsnet+ internationally?</title><p>Sportsnet+ is only available for streaming while you are physically located in Canada.</p></html>','CA'],
+  ['siriusxm-canada','SiriusXM Canada','<html lang="en"><title>Customer Agreement Terms | SiriusXM Canada</title><p>We offer the Services only within the provinces and territories of Canada.</p></html>','CA'],
+  ['hulu-japan','Hulu Japan','<html lang="en"><title>Can I access Hulu Japan from outside of Japan?</title><p>Hulu Japan (www.hulu.jp) is only available within Japan due to streaming rights restrictions.</p></html>','JP'],
+  ['u-next','U-NEXT','<html lang="ja"><title>「サービスの利用は日本国内に限ります」と表示される - U-NEXTヘルプセンター</title><p>サービスのご利用は日本国内に限ります。</p></html>','JP'],
+  ['dmm-tv','DMM TV','<html lang="ja"><title>DMM TVは海外から利用できますか？ DMMヘルプセンター</title><p>DMM TVは海外からご利用いただくことはできません。</p></html>','JP'],
+  ['tving','TVING','<html lang="en"><title>Program | TVING</title><p>Our service is only available in South Korea.</p></html>','KR']
+ ];
+ for(const [serviceId,serviceName,body,allowed] of cases){
+  const url=serviceMarketOverviewFor(serviceId).sourceUrl,host=new URL(url).hostname;
+  const input={serviceId,serviceName,url,body,checkedAt:now,officialHosts:[host]};
+  const proof=officialMarketAvailability(input);
+  assert.equal(proof?.unavailableMarkets.length,45,serviceId);
+  assert(!proof.unavailableMarkets.includes(allowed));
+  if(serviceId==='crave'){
+   const p=projectResearchServices({baseline:[{service:'crave',name:'Crave'},{service:'sportsnet-plus',name:'Sportsnet+'}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+   const selected=projectPriceResearchTargeting(p,{services:['crave','sportsnet-plus'],markets:['CA','NO']},[],[proof]);
+   assert.deepEqual(selected.targets.map(row=>row.id),['price-research:crave:CA','price-research:sportsnet-plus:CA','price-research:sportsnet-plus:NO']);
+  }
+  assert.equal(officialMarketAvailability({...input,url:new URL('/unrelated',url).href}),null);
+  assert.equal(officialMarketAvailability({...input,body:body.replaceAll('only available','may be available').replaceAll('only within the provinces','also outside the provinces').replaceAll('日本国内に限ります','海外でも利用できます').replaceAll('海外からご利用いただくことはできません','海外からもご利用いただけます')}),null);
+  assert.equal(officialMarketAvailability({...input,officialHosts:['other.example']}),null);
+  const discovered=await discoverOfficialMarketAvailability({serviceId,name:serviceName},{
+   search:async()=>{throw Error('SEARCH_NOT_NEEDED');},
+   read:async request=>{assert.equal(request.url,url);return {outcome:'OK',httpStatus:200,url,checkedAt:now,rawSource:{text:body},sourceIntegrity:{sha256:createHash('sha256').update(body).digest('hex')},accessDecisions:[{decision:'ALLOWED'}]};}
+  });
+  assert.equal(discovered?.sourceHash,proof.sourceHash,serviceId);
+ }
 });
 
 test('fresh official US-only wording excludes other markets while ambiguous and altered pages fail open',()=>{
