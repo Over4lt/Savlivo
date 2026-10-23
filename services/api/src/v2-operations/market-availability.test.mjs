@@ -8,7 +8,7 @@ import {officialMarketAvailability,discoverOfficialMarketAvailability} from './m
 import {readAvailabilitySearch,reserveAvailabilitySearch} from './market-availability-search-memory.mjs';
 import {projectResearchServices} from '../research-v3/research-service-projection.mjs';
 import {projectPriceResearchTargeting,selectPriceResearchTargets} from './price-research-targeting.mjs';
-import {firstThirtyServiceMarketOverview,firstSixtyServiceMarketOverview,serviceMarketOverviewFor} from './service-market-overview.mjs';
+import {firstThirtyServiceMarketOverview,firstSixtyServiceMarketOverview,firstHundredServiceMarketOverview,serviceMarketOverviewFor} from './service-market-overview.mjs';
 
 const now=new Date().toISOString();
 const official=body=>officialMarketAvailability({serviceId:'netflix',serviceName:'Netflix',url:'https://help.netflix.com/en/node/14164',body,checkedAt:now,officialHosts:['www.netflix.com']});
@@ -55,6 +55,56 @@ test('the next 30 preserve API order and country-only hints never exclude withou
  }
  assert.equal(serviceMarketOverviewFor('tving').reportedUnavailableMarkets.length,45);
  assert.equal(serviceMarketOverviewFor('melon').unknownMarkets.length,46);
+});
+
+test('services 61–100 preserve canonical order and market hints never become exclusion proof',()=>{
+ const universe=JSON.parse(fs.readFileSync(new URL('../../../../docs/catalog/global-47/research-v2/v15-discovery-20260921/expanded-service-universe.json',import.meta.url)));
+ const ids=[...universe.existing,...universe.new_include,...universe.research].slice(0,100).map(row=>row.service??row.slug);
+ assert.deepEqual(firstHundredServiceMarketOverview.map(row=>row.serviceId),ids);
+ assert.deepEqual(firstHundredServiceMarketOverview.slice(0,60),firstSixtyServiceMarketOverview);
+ for(const row of firstHundredServiceMarketOverview.slice(60)){
+  assert.equal(row.availableMarkets.length+row.reportedUnavailableMarkets.length+row.unknownMarkets.length,46,row.serviceId);
+  assert(row.sourceUrl.startsWith('https://'),row.serviceId);
+ }
+ assert.deepEqual(serviceMarketOverviewFor('vix').availableMarkets,['MX','US','CL','CO']);
+ assert.equal(serviceMarketOverviewFor('vix').reportedUnavailableMarkets.length,42);
+ assert.deepEqual(serviceMarketOverviewFor('vidio').availableMarkets,['ID','MY']);
+ assert.equal(serviceMarketOverviewFor('vidio').unknownMarkets.length,44);
+ assert.equal(serviceMarketOverviewFor('bookbeat').reportedUnavailableMarkets.length,0);
+ assert.equal(serviceMarketOverviewFor('nextory').reportedUnavailableMarkets.length,0);
+ assert.equal(serviceMarketOverviewFor('kobo-plus').availableMarkets.length,31);
+ assert.equal(serviceMarketOverviewFor('kindle-unlimited').availableMarkets.length,24);
+ const p=projectResearchServices({baseline:[{service:'vix',name:'ViX'},{service:'vidio',name:'Vidio'}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+ const selected=projectPriceResearchTargeting(p,{services:['vix','vidio']});
+ assert.equal(selected.targets.length,92);
+ assert.equal(selected.autoSkippedTargetCount,0);
+ assert.equal(selected.targets.find(row=>row.id==='price-research:vix:MX')?.targetMarket,'MX');
+});
+
+test('fresh exact ViX and Kobo Plus country lists can exclude absent markets, while incomplete pages fail open',async()=>{
+ const pages=[
+  ['vix','ViX',`<html lang="en"><title>In which countries is ViX available?</title><p>ViX is available in Mexico, United States, Argentina, Chile, Colombia, Peru, Puerto Rico, Ecuador, Guatemala, Costa Rica, El Salvador, Honduras, Bolivia, Panama, Dominican Republic, Nicaragua, Paraguay, Venezuela and Uruguay.</p></html>`,42,'MX'],
+  ['kobo-plus','Kobo Plus',`<html lang="en"><title>Kobo Plus: Common questions</title><h3>Available Countries</h3><ul>${['Canada','Australia','Belgium','Denmark','Finland','France','Italy','India','Ireland','Malaysia','Netherlands','New Zealand','Norway','Portugal','South Africa','Singapore','Spain','Sweden','Switzerland','Taiwan','Hong Kong','United States','United Kingdom','Mexico','Argentina','Chile','Colombia','Peru','Poland','Czechia','Romania','Luxembourg','Greece','Philippines'].map(name=>`<li>${name}</li>`).join('')}</ul><h3>I am moving to a country where Kobo Plus is not currently offered. What happens to my books?</h3><p>Your Kobo Plus subscription will be cancelled.</p></html>`,15,'NO']
+ ];
+ for(const [serviceId,serviceName,body,count,allowed] of pages){
+  const url=serviceMarketOverviewFor(serviceId).sourceUrl,host=new URL(url).hostname;
+  const input={serviceId,serviceName,url,body,checkedAt:now,officialHosts:[host]};
+  const proof=officialMarketAvailability(input);
+  assert.equal(proof?.unavailableMarkets.length,count,serviceId);
+  assert(!proof.unavailableMarkets.includes(allowed),serviceId);
+  assert.equal(proof.sourceHash,createHash('sha256').update(body).digest('hex'));
+  assert.equal(officialMarketAvailability({...input,url:new URL('/unrelated',url).href}),null);
+  assert.equal(officialMarketAvailability({...input,body:body.replace('Argentina','Unknown territory')}),null);
+  assert.equal(officialMarketAvailability({...input,officialHosts:['wrong.example']}),null);
+  const discovered=await discoverOfficialMarketAvailability({serviceId,name:serviceName},{
+   search:async()=>{throw Error('SEARCH_NOT_NEEDED');},
+   read:async request=>{assert.equal(request.url,url);return {outcome:'OK',httpStatus:200,url,checkedAt:now,rawSource:{text:body},sourceIntegrity:{sha256:proof.sourceHash},accessDecisions:[{decision:'ALLOWED'}]};}
+  });
+  assert.deepEqual(discovered,proof);
+  const p=projectResearchServices({baseline:[{service:serviceId,name:serviceName}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+  assert.equal(projectPriceResearchTargeting(p,{services:[serviceId]}).targets.length,46);
+  assert.equal(projectPriceResearchTargeting(p,{services:[serviceId]},[],[proof]).targets.length,46-count);
+ }
 });
 
 test('new country-only exclusions require exact reviewed URL, official host, intact body and service-wide wording',async()=>{

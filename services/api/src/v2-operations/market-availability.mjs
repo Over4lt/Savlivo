@@ -17,7 +17,7 @@ for(let first=65;first<=90;first++)for(let second=65;second<=90;second++){
  const code=String.fromCharCode(first,second),name=displayNames.of(code);
  if(name&&name!==code)allRegionNames.add(name.normalize('NFKD').replace(/\p{M}/gu,'').toLocaleLowerCase('en-US').replace(/[^\p{L}\p{N}]+/gu,' ').trim());
 }
-for(const name of ['US Virgin Islands','U.S. Virgin Islands','Türkiye','Turkey','Czech Republic','South Korea','North Korea','Great Britain'])allRegionNames.add(name.normalize('NFKD').replace(/\p{M}/gu,'').toLocaleLowerCase('en-US').replace(/[^\p{L}\p{N}]+/gu,' ').trim());
+for(const name of [...markets.map(market=>market.name),'US Virgin Islands','U.S. Virgin Islands','Türkiye','Turkey','Czech Republic','South Korea','North Korea','Great Britain'])allRegionNames.add(name.normalize('NFKD').replace(/\p{M}/gu,'').toLocaleLowerCase('en-US').replace(/[^\p{L}\p{N}]+/gu,' ').trim());
 const sha=value=>createHash('sha256').update(value).digest('hex');
 const text=value=>String(value??'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/giu,' ')
  .replace(/<[^>]+>/gu,' ').replace(/&(?:nbsp|amp|quot|apos|lt|gt);/giu,entity=>({'&nbsp;':' ','&amp;':'&','&quot;':'"','&apos;':"'",'&lt;':'<','&gt;':'>'})[entity.toLowerCase()]??' ')
@@ -70,6 +70,29 @@ export function officialMarketAvailability({serviceId,serviceName,url,body,check
    evidence.push(serviceName+' provider page limits sign-up or streaming to '+countryOnly+'.');
   }
  }
+ // Only these reviewed, exact provider pages have a documented complete
+ // service-wide country statement. A partial list, changed wording or an
+ // unrecognized territory leaves every absent market eligible.
+ if(['vix','kobo-plus'].includes(serviceId)&&overview?.sourceScope==='COMPLETE_SERVICE_LIST'&&url===overview.sourceUrl){
+  let listed=[];
+  if(serviceId==='vix'){
+   const paragraph=[...visible.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p\s*>/giu)].map(row=>text(row[1]))
+    .find(value=>/^vix is available in /iu.test(value));
+   const names=paragraph?.match(/^ViX is available in (.+)\.$/iu)?.[1];
+   if(names)listed=names.split(/,\s*|\s+and\s+/iu);
+  }else if(normalized(visible).includes('moving to a country where kobo plus is not currently offered')&&
+           normalized(visible).includes('kobo plus subscription will be cancelled')){
+   const section=sections.find(row=>normalized(row.heading)==='available countries');
+   listed=cells(section?.body.match(/<ul\b[^>]*>[\s\S]*?<\/ul\s*>/iu)?.[0]??'');
+  }
+  if(listed.length>=(serviceId==='vix'?15:25)&&listed.every(item=>allRegionNames.has(normalized(item)))){
+   const present=new Set(markets.filter(market=>listed.some(item=>nameMatches(item,market.code))).map(market=>market.code));
+   if(present.size>=(serviceId==='vix'?4:20)){
+    for(const market of markets)if(!present.has(market.code))unavailable.add(market.code);
+    evidence.push(`${serviceName} complete provider country list: ${listed.join(', ')}`);
+   }
+  }
+ }
  const explicitNegative=new RegExp('\\b'+brand+'\\s+is\\s+not\\s+available\\s+in\\b|\\b'+brand+'\\s+is\\s+unavailable\\s+in\\b','iu');
  // Explicit negatives apply only to listed countries, never their neighbors.
  for(const section of sections){
@@ -114,7 +137,8 @@ export async function discoverOfficialMarketAvailability(service,{search=null,re
  const serviceId=service.serviceId,serviceName=service.name,now=Date.now(),cacheKey=(ledgerRoot??'')+'\u0000'+serviceId,cached=cache.get(cacheKey);
  const prior=ledgerRoot?readAvailabilitySearch(ledgerRoot,serviceId):null;
  const reviewed=serviceMarketOverviewFor(serviceId);
- const reviewedOnlyPage=reviewed&&['CA_ONLY','JP_ONLY','KR_ONLY'].includes(reviewed.sourceScope)?reviewed.sourceUrl:null;
+ const reviewedOnlyPage=reviewed&&(['CA_ONLY','JP_ONLY','KR_ONLY'].includes(reviewed.sourceScope)||
+  ['vix','kobo-plus'].includes(serviceId))?reviewed.sourceUrl:null;
  // Availability-only trust anchor: a reviewed first-party page is useful even
  // when a provider has no price-source host in the V3 registry. This host is
  // never carried into price acquisition or V3 provider authority.
@@ -129,7 +153,8 @@ export async function discoverOfficialMarketAvailability(service,{search=null,re
  if(cached&&cached.until>now&&(cached.value||!paidSearchEnabled))return cached.value;
  const signal=AbortSignal.timeout(4000);
  const adapter=!search||!read?createV2RobotsPublicAdapter({searchEnabled:true,retainRaw:true,maxResults:4,maxLinks:4,maxReads:7,maxRequests:16,network:{timeoutMs:8000,maxBytes:2_000_000,maxRedirects:2}}):null;
- const catalogSource=reviewed&&['US_ONLY','CA_ONLY','JP_ONLY','KR_ONLY','EXPLICIT_NEGATIVE'].includes(reviewed.sourceScope)?reviewed.sourceUrl:
+ const catalogSource=reviewed&&(['US_ONLY','CA_ONLY','JP_ONLY','KR_ONLY','EXPLICIT_NEGATIVE'].includes(reviewed.sourceScope)||
+  ['vix','kobo-plus'].includes(serviceId))?reviewed.sourceUrl:
   serviceCatalog.find(row=>row.slug===serviceId)?.additionalAvailability?.sourceUrl;
  let proof=null;
  const attempted=new Set();

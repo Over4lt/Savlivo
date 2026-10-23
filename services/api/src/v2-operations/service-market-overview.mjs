@@ -1,4 +1,4 @@
-// Reviewed first-party availability leads for the first 60 canonical services.
+// Reviewed first-party availability leads for the first 100 canonical services.
 // These are display and discovery hints. Only a fresh, hash-bound provider page
 // accepted by market-availability.mjs may remove a research target.
 import {countryCurrencyData} from '../../../../packages/contracts/src/markets.ts';
@@ -65,11 +65,51 @@ const entries=[
  ['sportsnet-plus','https://support.sportsnetplus.ca/hc/en-gb/articles/46382041630228-Can-I-access-Sportsnet-internationally','CA_ONLY','CA',allMarkets.filter(code=>code!=='CA').join(' ')],
  ['siriusxm-canada','https://www.siriusxm.ca/terms-and-conditions/','CA_ONLY','CA',allMarkets.filter(code=>code!=='CA').join(' ')],
  ['shahid','https://shahid.mbc.net/en/hub/promo/SHAHID_VIP','REGIONAL_OVERVIEW','', ''],
- ['anghami','https://support.anghami.com/hc/en-us/articles/9175760067098-Subscribe-to-Anghami-Using-Your-Card','REGIONAL_OVERVIEW','', '']
+ ['anghami','https://support.anghami.com/hc/en-us/articles/9175760067098-Subscribe-to-Anghami-Using-Your-Card','REGIONAL_OVERVIEW','', ''],
+ ['stc-tv','https://dcb.stctv.com/stctv/','LOCAL_OFFER','SA',''],
+ ['tod','https://support.tod.tv/hc/en-us/articles/10483880092060-Which-countries-is-TOD-available-in','REGIONAL_OVERVIEW','QA',''],
+ ['vix','https://ayuda.vix.com/hc/en-us/articles/4863337920141-In-which-countries-is-ViX-available','COMPLETE_SERVICE_LIST','MX US CL CO',allMarkets.filter(code=>!['MX','US','CL','CO'].includes(code)).join(' ')],
+ ['vidio','https://support.vidio.com/support/solutions/articles/43000722311-can-i-use-my-indonesia-s-vidio-subscription-in-malaysia-or-other-countries-','REGIONAL_OVERVIEW','ID MY',''],
+ ['vision-plus','https://packages.visionplus.id/premium?subscribe=monthly','LOCAL_OFFER','ID',''],
+ ['gain','https://destek.gain.tv/guncel-ucretler.html','LOCAL_OFFER','TR',''],
+ ['exxen','https://plan.exxen.com/tr/','LOCAL_OFFER','TR',''],
+ ['dstv-stream','https://www.dstv.com/en-za/','LOCAL_OFFER','ZA',''],
+ ['sting-plus','https://www.stingtv.co.il/choose-package/','LOCAL_OFFER','IL',''],
+ ['yes-plus','https://www.yes.co.il/general/terms-application-yes/','LOCAL_OFFER','IL',''],
+ ['watch-it','https://support.watchit.com/hc/en-us/articles/5118489729437-How-to-subscribe-to-WATCH-IT-using-your-Credit-Debit-Cards','REGIONAL_OVERVIEW','EG',''],
+ ['fpt-play','https://fptplay.vn/','LOCAL_OFFER','VN',''],
+ ['voyo-ro','https://voyo.protv.ro/faq/8-cum-sa-incepi-cu-voyo/11-pot-folosi-voyo-din-strainatate-activare-portabilitate','LOCAL_OFFER','RO',''],
+ ['antenaplay','https://antenaplay.ro/ajutor-clienti/clienti-din-afara-romaniei','REGIONAL_OVERVIEW','RO',''],
+ ['magenta-tv-gr','https://www.magentatv.gr/','LOCAL_OFFER','GR',''],
+ ['cinobo','https://cinobo.com/en/help/about-cinobo/can-i-watch-cinobo-if-i-m-not-in-greece','LOCAL_OFFER','GR',''],
+ ['zapping','https://brand.zapping.com/','COMPLETE_SERVICE_LIST','CL BR',allMarkets.filter(code=>!['CL','BR'].includes(code)).join(' ')],
+ ['win-play','https://www.winplay.co/','LOCAL_OFFER','CO',''],
+ ['aftenposten','https://www.aftenposten.no/','LOCAL_OFFER','NO',''],
+ ['berlingske','https://www.berlingske.dk/','LOCAL_OFFER','DK',''],
+ ['bookbeat','https://www.bookbeat.com/market','MARKET_SELECTOR_LIST','BE CZ DK DE ES FR IE IT NL NO PL PT RO CH FI SE GB AT GR',''],
+ ['bugs','https://music.bugs.co.kr/','LOCAL_OFFER','KR',''],
+ ['caixin','https://corp.caixin.com/m/caixinhelp/','REGIONAL_OVERVIEW','CN',''],
+ ['dn-norway','https://www.dn.no/','LOCAL_OFFER','NO',''],
+ ['dagens-nyheter','https://www.dn.se/','LOCAL_OFFER','SE',''],
+ ['empik-go','https://www.empik.com/go','LOCAL_OFFER','PL',''],
+ ['flo-music-kr','https://www.music-flo.com/','LOCAL_OFFER','KR',''],
+ ['fabel','https://fabel.no/','LOCAL_OFFER','NO',''],
+ ['genie-music','https://www.genie.co.kr/','LOCAL_OFFER','KR',''],
+ ['helsingin-sanomat','https://www.hs.fi/','LOCAL_OFFER','FI',''],
+ ['kkbox','https://www.kkbox.com/tw/tc/','LOCAL_OFFER','TW',''],
+ ['kindle-unlimited','https://digprjsurvey.amazon.com/csad/help/node/TryGuDEBL4T8YoFxJ1?theme=light','COMPLETE_SERVICE_LIST','US CL HK IL PH ZA KR TW AU NZ CA JP BR MX GB IE DE AT CH ES FR BE IN IT',allMarkets.filter(code=>!['US','CL','HK','IL','PH','ZA','KR','TW','AU','NZ','CA','JP','BR','MX','GB','IE','DE','AT','CH','ES','FR','BE','IN','IT'].includes(code)).join(' ')],
+ ['kobo-plus','https://help.kobo.com/hc/en-us/articles/360018976153-Kobo-Plus-Common-questions','COMPLETE_SERVICE_LIST','CA AU BE DK FI FR IT IN IE MY NL NZ NO PT ZA SG ES SE CH TW HK US GB MX CL CO PL CZ RO GR PH',allMarkets.filter(code=>!['CA','AU','BE','DK','FI','FR','IT','IN','IE','MY','NL','NZ','NO','PT','ZA','SG','ES','SE','CH','TW','HK','US','GB','MX','CL','CO','PL','CZ','RO','GR','PH'].includes(code)).join(' ')],
+ ['legimi','https://www.legimi.pl/relacje-inwestorskie/nasze-serwisy/','REGIONAL_OVERVIEW','PL DE',''],
+ ['mofibo','https://mofibo.com/dk/subscriptions','LOCAL_OFFER','DK',''],
+ ['nextory','https://nextory.com/','MARKET_SELECTOR_LIST','FR BE NL DE SE NO DK CH FI AT ES',''],
+ ['podimo','https://support.podimo.com/hc/da-dk/articles/34999188304145-Hvad-er-Podimo-og-i-hvilke-lande-er-det-tilg%C3%A6ngeligt','COMPLETE_SERVICE_LIST','DK DE NL NO FI ES MX',allMarkets.filter(code=>!['DK','DE','NL','NO','FI','ES','MX'].includes(code)).join(' ')],
+ ['podme','https://podme.com/no/abonnementer/','LOCAL_OFFER','NO SE',''],
+ ['politiken','https://politiken.dk/','LOCAL_OFFER','DK',''],
+ ['pressreader','https://www.pressreader.com/','NO_COUNTRY_LIST','','']
 ];
 
 const ids=new Set(),known=new Set(allMarkets);
-export const firstSixtyServiceMarketOverview=Object.freeze(entries.map(([serviceId,sourceUrl,sourceScope,available,unavailable],index)=>{
+export const firstHundredServiceMarketOverview=Object.freeze(entries.map(([serviceId,sourceUrl,sourceScope,available,unavailable],index)=>{
  if(ids.has(serviceId))throw Error('DUPLICATE_SERVICE_MARKET_OVERVIEW');ids.add(serviceId);
  const availableMarkets=codes(available),reportedUnavailableMarkets=codes(unavailable);
  if([...availableMarkets,...reportedUnavailableMarkets].some(code=>!known.has(code))||
@@ -77,6 +117,7 @@ export const firstSixtyServiceMarketOverview=Object.freeze(entries.map(([service
  return Object.freeze({order:index+1,serviceId,sourceUrl,sourceScope,reviewedAt:'2026-10-23',availableMarkets:Object.freeze(availableMarkets),
   reportedUnavailableMarkets:Object.freeze(reportedUnavailableMarkets),unknownMarkets:Object.freeze(allMarkets.filter(code=>!availableMarkets.includes(code)&&!reportedUnavailableMarkets.includes(code)))});
 }));
-export const firstThirtyServiceMarketOverview=Object.freeze(firstSixtyServiceMarketOverview.slice(0,30));
-const byId=new Map(firstSixtyServiceMarketOverview.map(row=>[row.serviceId,row]));
+export const firstSixtyServiceMarketOverview=Object.freeze(firstHundredServiceMarketOverview.slice(0,60));
+export const firstThirtyServiceMarketOverview=Object.freeze(firstHundredServiceMarketOverview.slice(0,30));
+const byId=new Map(firstHundredServiceMarketOverview.map(row=>[row.serviceId,row]));
 export const serviceMarketOverviewFor=serviceId=>byId.get(serviceId)??null;
