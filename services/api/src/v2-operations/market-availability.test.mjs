@@ -8,7 +8,7 @@ import {officialMarketAvailability,discoverOfficialMarketAvailability} from './m
 import {readAvailabilitySearch,reserveAvailabilitySearch} from './market-availability-search-memory.mjs';
 import {projectResearchServices} from '../research-v3/research-service-projection.mjs';
 import {projectPriceResearchTargeting,selectPriceResearchTargets} from './price-research-targeting.mjs';
-import {firstThirtyServiceMarketOverview,firstSixtyServiceMarketOverview,firstHundredServiceMarketOverview,serviceMarketOverviewFor} from './service-market-overview.mjs';
+import {firstThirtyServiceMarketOverview,firstSixtyServiceMarketOverview,firstHundredServiceMarketOverview,firstTwoHundredServiceMarketOverview,nextHundredServiceMarketOverview,serviceMarketOverviewFor} from './service-market-overview.mjs';
 
 const now=new Date().toISOString();
 const official=body=>officialMarketAvailability({serviceId:'netflix',serviceName:'Netflix',url:'https://help.netflix.com/en/node/14164',body,checkedAt:now,officialHosts:['www.netflix.com']});
@@ -79,6 +79,29 @@ test('services 61–100 preserve canonical order and market hints never become e
  assert.equal(selected.targets.length,92);
  assert.equal(selected.autoSkippedTargetCount,0);
  assert.equal(selected.targets.find(row=>row.id==='price-research:vix:MX')?.targetMarket,'MX');
+});
+
+test('services 101–200 preserve canonical order and only prioritize documented market leads',()=>{
+ const universe=JSON.parse(fs.readFileSync(new URL('../../../../docs/catalog/global-47/research-v2/v15-discovery-20260921/expanded-service-universe.json',import.meta.url)));
+ const ids=[...universe.existing,...universe.new_include,...universe.research].slice(0,200).map(row=>row.service??row.slug);
+ assert.equal(nextHundredServiceMarketOverview.length,100);
+ assert.deepEqual(firstTwoHundredServiceMarketOverview.map(row=>row.serviceId),ids);
+ assert.deepEqual(firstTwoHundredServiceMarketOverview.slice(0,100),firstHundredServiceMarketOverview);
+ for(const row of nextHundredServiceMarketOverview){
+  assert.equal(row.availableMarkets.length+row.reportedUnavailableMarkets.length+row.unknownMarkets.length,46,row.serviceId);
+  assert.equal(new Set([...row.availableMarkets,...row.reportedUnavailableMarkets,...row.unknownMarkets]).size,46,row.serviceId);
+  if(row.sourceUrl!==null)assert.equal(new URL(row.sourceUrl).protocol,'https:',row.serviceId);
+  else {assert.equal(row.sourceScope,'UNREVIEWED');assert.equal(row.availableMarkets.length,0);}
+ }
+ assert.deepEqual(serviceMarketOverviewFor('dashpass').availableMarkets,['US','CA','AU','NZ']);
+ assert.deepEqual(serviceMarketOverviewFor('walmart-plus').availableMarkets,['US']);
+ assert.equal(serviceMarketOverviewFor('walmart-plus').reportedUnavailableMarkets.length,45);
+ assert.equal(serviceMarketOverviewFor('fitness-hut').unknownMarkets.length,46);
+ const p=projectResearchServices({baseline:[{service:'walmart-plus',name:'Walmart+'}],frozen:[],manifestServiceIds:[],productCatalogRows:[]});
+ const target=projectPriceResearchTargeting(p,{services:['walmart-plus']});
+ assert.equal(target.targets.length,46);
+ assert.equal(target.autoSkippedTargetCount,0);
+ assert.equal(target.targets[0].targetMarket,'US');
 });
 
 test('fresh exact ViX and Kobo Plus country lists can exclude absent markets, while incomplete pages fail open',async()=>{
