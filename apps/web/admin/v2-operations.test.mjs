@@ -928,6 +928,24 @@ test('failed market status lookup preserves market selection and All eligible/ma
  const {root,calls}=await canonicalBuilder(t,{statusError:true}),chess=descendants(root).find(node=>node.className==='ops-service-row'&&text(node).includes('Chess.com')).children[0];chess.checked=true;await chess.listeners.change();const es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();assert(text(root).includes('Market price status unavailable. Existing market selection is unchanged.'));assert(checkbox(root,'Spain (ES)').checked);assert.equal(button(root,'Suggested only (0)').disabled,true);const x1=checkbox(root,'Market 1 (X1)');x1.checked=true;await x1.listeners.change();assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,['ES','X1']);await button(root,'All eligible (46)').listeners.click();assert.equal(descendants(root).filter(node=>node.className==='ops-canonical-markets').flatMap(descendants).filter(node=>node.type==='checkbox'&&node.checked).length,46);
 });
 
+test('Deselect all markets clears only the run selection and invalidates Preflight',async t=>{
+ const countryRules=new Map([['chess-com',{mode:'OFFERED',countries:['ES','X1'],updatedAt:'2026-10-24T00:00:00Z'}]]);
+ const {root,calls}=await canonicalBuilder(t,{countryRules}),marketSection=descendants(root).find(node=>node.className==='ops-canonical-markets');
+ const deselect=button(root,'Deselect all markets');assert.equal(deselect.disabled,true);
+ const chess=canonicalServiceCheck(root,'Chess.com');chess.checked=true;await chess.listeners.change();
+ assert(text(marketSection).includes('Markets — 2 selected'));assert.equal(deselect.disabled,false);
+ await button(root,'Preflight').listeners.click();assert(button(root,'Confirm and queue run'));
+ await deselect.listeners.click();
+ assert(text(marketSection).includes('Markets — 0 selected'));
+ assert.equal(descendants(marketSection).filter(node=>node.type==='checkbox'&&node.checked).length,0);
+ assert.equal(button(root,'Preflight').disabled,true);assert(!button(root,'Confirm and queue run'));
+ assert.equal(deselect.disabled,true);assert.deepEqual(countryRules.get('chess-com').countries,['ES','X1']);
+ assert(!calls.some(row=>row.p.includes('/country-rule?')&&row.options?.method==='DELETE'));
+ const es=checkbox(root,'Spain (ES)');es.checked=true;await es.listeners.change();
+ assert(text(marketSection).includes('Markets — 1 selected'));assert.equal(button(root,'Preflight').disabled,false);
+ assert.deepEqual(calls.filter(row=>row.p.endsWith('/price-research/targeting')&&row.body).at(-1).body.markets,['ES']);
+});
+
 test('All eligible markets keeps explicit visible selection through remove, restore and Preflight',async t=>{
  const {root,calls}=await canonicalBuilder(t),marketSection=descendants(root).find(node=>node.className==='ops-canonical-markets'),marketChecks=()=>descendants(marketSection).filter(node=>node.type==='checkbox');
  assert.equal(marketChecks().filter(input=>input.checked).length,0);assert(text(marketSection).includes('Markets — 0 selected'));
